@@ -1,0 +1,1 @@
+# Schema Pydantic untuk verifikasi

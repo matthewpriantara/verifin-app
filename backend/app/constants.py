@@ -1,0 +1,1 @@
+# Konstanta dan enum
