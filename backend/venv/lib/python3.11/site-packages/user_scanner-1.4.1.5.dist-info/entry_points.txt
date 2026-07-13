@@ -1,0 +1,3 @@
+[console_scripts]
+user-scanner=user_scanner.__main__:main
+

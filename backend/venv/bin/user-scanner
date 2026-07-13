@@ -1,0 +1,6 @@
+#!/Users/matthewpriantara/Documents/Code/competition_project/gemastik26/verifin-app/backend/venv/bin/python3.11
+import sys
+from user_scanner.__main__ import main
+if __name__ == '__main__':
+    sys.argv[0] = sys.argv[0].removesuffix('.exe')
+    sys.exit(main())
