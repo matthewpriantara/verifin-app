@@ -9,6 +9,7 @@ from fastapi import APIRouter, Query, HTTPException, UploadFile, File, Body
 from typing import List, Optional
 
 from app.services.osint.whois_handler import check_domain_age, check_email_security, scan_email_osint, scan_username_osint
+from app.services.osint.address_validator import validate_address_and_business
 from app.services.ner import extract_entities_from_text
 from app.services.ocr import extract_text_from_image
 from app.services.llm.hermes_reasoner import analyze_with_hermes, check_ollama_status
@@ -23,9 +24,9 @@ router = APIRouter()
 
 async def _run_osint_on_entities(entities: dict) -> dict:
     """
-    Menjalankan pengecekan OSINT (domain, email security) pada entitas yang ditemukan.
-    Saat ini hanya mencek domain pertama dari daftar email jika ada.
-    Modul OSINT lain (GetContact, AHU, dll.) akan ditambahkan di sini nanti.
+    Menjalankan semua pengecekan OSINT pada entitas yang ditemukan:
+    - Domain email: Cek umur domain, SPF/DMARC.
+    - Alamat fisik: Cek keberadaan di peta (Nominatim) + keberadaan bisnis (Overpass API).
     """
     osint_results = {
         "domain": {
@@ -36,9 +37,11 @@ async def _run_osint_on_entities(entities: dict) -> dict:
         "email_security": {
             "spf_active": False,
             "dmarc_active": False
-        }
+        },
+        "address_validations": []   # List hasil validasi per alamat
     }
 
+    # OSINT 1: Cek domain email
     emails = entities.get("emails", [])
     if emails:
         first_email = emails[0]
@@ -50,7 +53,23 @@ async def _run_osint_on_entities(entities: dict) -> dict:
                 osint_results["domain"] = age_info
                 osint_results["email_security"] = security_info
             except Exception:
-                pass  # Jika OSINT gagal, lanjutkan dengan mock data
+                pass  # Jika OSINT gagal, lanjutkan dengan data default
+
+    # OSINT 2: Validasi alamat fisik via OpenStreetMap
+    addresses = entities.get("addresses", [])
+    companies = entities.get("companies", [])
+    company_name = companies[0] if companies else None
+
+    for address in addresses[:2]:   # Maksimal 2 alamat per request untuk menghindari rate limit
+        try:
+            addr_result = await validate_address_and_business(address, company_name)
+            osint_results["address_validations"].append(addr_result)
+        except Exception:
+            osint_results["address_validations"].append({
+                "address_input": address,
+                "address_found": False,
+                "error": "Gagal memvalidasi alamat."
+            })
 
     return osint_results
 
@@ -77,10 +96,14 @@ async def verify_from_text(request: TextVerifyRequest = Body(...)):
         raw_text = request.text if request.include_raw_text else None
         analysis = await analyze_with_hermes(entities, osint_results, raw_text=raw_text)
 
+        # Timpa nama perusahaan dengan hasil koreksi LLM (jika ada) agar tidak duplikasi
+        corrected_name = analysis.get("corrected_company_name")
+        if corrected_name and corrected_name != "null":
+            entities["companies"] = [corrected_name]
+
         return VerifyResponse(
             verdict=analysis.get("verdict", "ERROR"),
             risk_score=analysis.get("risk_score", 0),
-            corrected_company_name=analysis.get("corrected_company_name"),
             summary=analysis.get("summary", ""),
             risk_factors=analysis.get("risk_factors", []),
             safe_factors=analysis.get("safe_factors", []),
@@ -146,10 +169,14 @@ async def verify_from_image(file: UploadFile = File(..., description="File gamba
         # Step 4: LLM — Analisis risiko penipuan
         analysis = await analyze_with_hermes(entities, osint_results, raw_text=raw_text)
 
+        # Timpa nama perusahaan dengan hasil koreksi LLM (jika ada) agar tidak duplikasi
+        corrected_name = analysis.get("corrected_company_name")
+        if corrected_name and corrected_name != "null":
+            entities["companies"] = [corrected_name]
+
         return VerifyResponse(
             verdict=analysis.get("verdict", "ERROR"),
             risk_score=analysis.get("risk_score", 0),
-            corrected_company_name=analysis.get("corrected_company_name"),
             summary=analysis.get("summary", ""),
             risk_factors=analysis.get("risk_factors", []),
             safe_factors=analysis.get("safe_factors", []),

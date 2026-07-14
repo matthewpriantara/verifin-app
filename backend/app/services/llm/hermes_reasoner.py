@@ -11,7 +11,7 @@ from app.services.llm.prompt_builder import build_verify_prompt, build_text_veri
 
 # Konfigurasi Ollama
 OLLAMA_BASE_URL = "http://localhost:11434"
-OLLAMA_MODEL = "hermes3"  # Ganti sesuai nama model di Ollama (cek: ollama list)
+OLLAMA_MODEL = "hermes3"  # Model utama untuk production
 OLLAMA_TIMEOUT = 300.0    # Timeout 5 menit untuk proses reasoning/cold-start loading
 
 
@@ -107,6 +107,10 @@ async def analyze_with_hermes(entities: dict, osint_results: dict = None, raw_te
             
             # Parsing JSON dari output LLM
             parsed = _extract_json_from_response(raw_llm_output)
+            
+            # DEBUG: Cetak raw output dan corrected_company_name untuk diagnosis
+            print("[DEBUG] corrected_company_name dari LLM:", parsed.get("corrected_company_name"))
+            print("[DEBUG] Raw LLM output (100 char pertama):", raw_llm_output[:200])
             
             # Tambahkan metadata tambahan untuk transparansi
             parsed["model_used"] = OLLAMA_MODEL

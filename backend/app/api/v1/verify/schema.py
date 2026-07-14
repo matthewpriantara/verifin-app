@@ -51,10 +51,6 @@ class VerifyResponse(BaseModel):
         ge=0,
         le=100
     )
-    corrected_company_name: Optional[str] = Field(
-        default=None,
-        description="Nama lengkap perusahaan yang telah dianalisis dan dikoreksi oleh LLM berdasarkan konteks teks asli."
-    )
     summary: str = Field(
         description="Ringkasan singkat alasan mengapa verdict ini diberikan."
     )
