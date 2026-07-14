@@ -184,17 +184,18 @@ Berdasarkan data di atas, lakukan analisis mendalam dengan mempertimbangkan:
 Berikan output HANYA dalam format JSON berikut, tanpa teks lain di luar JSON:
 
 {{
-  "verdict": "AMAN",
-  "risk_score": 25,
-  "corrected_company_name": "Sekotak Roti",
-  "summary": "Lowongan ini aman karena alamat valid di peta dan profil UMKM lokal yang wajar menggunakan WhatsApp.",
-  "risk_factors": [],
+  "verdict": "AMAN" | "WASPADA" | "BAHAYA",
+  "risk_score": <angka 0-100>,
+  "corrected_company_name": "<nama lengkap bisnis dari teks asli, atau null jika tidak ada>",
+  "summary": "<analisis singkat 1-2 kalimat mengapa verdict ini diberikan secara khusus untuk loker ini>",
+  "risk_factors": [
+    "<faktor risiko spesifik yang ditemukan pada loker ini, kosongkan [] jika tidak ada>"
+  ],
   "safe_factors": [
-    "Alamat fisik valid di peta",
-    "Kualifikasi pekerjaan realistis"
+    "<faktor aman spesifik yang ditemukan pada loker ini>"
   ],
   "recommendations": [
-    "Hubungi nomor WhatsApp tertera untuk konfirmasi lowongan"
+    "<saran tindakan spesifik untuk pelamar loker ini>"
   ]
 }}
 
