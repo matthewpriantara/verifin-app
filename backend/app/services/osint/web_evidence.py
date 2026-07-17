@@ -269,7 +269,26 @@ def search_web_evidence(query: str, max_results: int = 5) -> dict[str, Any]:
         }
 
 
+_FREE_WEB_DOMAINS = {
+    "gmail.com",
+    "yahoo.com",
+    "yahoo.co.id",
+    "hotmail.com",
+    "outlook.com",
+    "live.com",
+    "ymail.com",
+    "icloud.com",
+    "protonmail.com",
+    "mail.com",
+}
+
+
 def collect_web_evidence(entities: dict) -> dict[str, Any]:
+    """
+    Web evidence (Scrapling) — dipangkas untuk latency:
+    - skip fetch website domain gratisan (gmail.com dll)
+    - max 3 query search (company presence + scam + email scam)
+    """
     emails = entities.get("emails") or []
     urls = entities.get("urls") or []
     companies = entities.get("companies") or []
@@ -278,9 +297,10 @@ def collect_web_evidence(entities: dict) -> dict[str, Any]:
     domains: list[str] = []
 
     seen_urls = set()
-    for em in emails[:2]:
+    # Hanya domain dari URL poster / email korporat (bukan Gmail)
+    for em in emails[:1]:
         d = _domain_from_email(em)
-        if d and d not in domains:
+        if d and d not in _FREE_WEB_DOMAINS and d not in domains:
             domains.append(d)
     for u in urls[:2]:
         nu = _normalize_url(u)
@@ -291,15 +311,17 @@ def collect_web_evidence(entities: dict) -> dict[str, Any]:
             if clean_url in seen_urls:
                 continue
             seen_urls.add(clean_url)
-            if clean_host and clean_host not in domains:
+            if clean_host and clean_host not in domains and clean_host not in _FREE_WEB_DOMAINS:
                 domains.append(clean_host)
-            website_checks.append(fetch_company_website(clean_url))
+            if not is_gform_url(clean_url):
+                website_checks.append(fetch_company_website(clean_url))
 
-    for d in domains[:2]:
+    for d in domains[:1]:
         if any(d.lower() in (c.get("url") or "").lower() for c in website_checks):
             continue
         website_checks.append(fetch_company_website(d))
 
+    # Search minimal berprioritas (parallel sequential tapi sedikit)
     searches: list[dict[str, Any]] = []
     if companies:
         company = companies[0]
@@ -309,29 +331,19 @@ def collect_web_evidence(entities: dict) -> dict[str, Any]:
     elif domains:
         searches.append(search_web_evidence(f"{domains[0]} penipuan OR scam"))
 
-    # Query email → web search (bukan Threads). Cari jejak email + reputasi.
-    for em in emails[:2]:
+    # Email: 1 query scam (cukup); skip local-part medsos (lambat + noise)
+    for em in emails[:1]:
         em_clean = (em or "").strip().lower()
         if not em_clean or "@" not in em_clean:
             continue
-        local = em_clean.split("@")[0]
-        searches.append(search_web_evidence(f'"{em_clean}"'))
         searches.append(
             search_web_evidence(f'"{em_clean}" penipu OR scam OR penipuan OR loker')
         )
-        # local-part sering jadi handle medsos / brand
-        if len(local) >= 5:
-            searches.append(
-                search_web_evidence(
-                    f'"{local}" instagram OR threads OR facebook OR tokopedia OR shopee'
-                )
-            )
 
     gform_inspections: list[dict[str, Any]] = []
-    for u in urls[:3]:
+    for u in urls[:2]:
         if is_gform_url(u):
-            gf_res = inspect_gform(u)
-            gform_inspections.append(gf_res)
+            gform_inspections.append(inspect_gform(u))
 
     risk_flags: list[str] = []
     safe_flags: list[str] = []

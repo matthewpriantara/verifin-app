@@ -212,6 +212,46 @@ def _is_plausible_address(s: str) -> bool:
     return _address_confidence(c) >= 2.5
 
 
+def _split_stuck_company_tokens(core: str) -> str:
+    """
+    OCR kadang nempel ALLCAPS: RUMAHBAIKCAKRAWALA → coba sisip spasi
+    dari email local-part / kata umum (best-effort, non-destructive).
+    """
+    c = (core or "").strip()
+    if not c or " " in c or len(c) < 8:
+        return c
+    # sudah Title/lower mixed → biarkan CamelCase splitter
+    if re.search(r"[a-z]", c) and re.search(r"[A-Z]", c):
+        return re.sub(r"([a-z])([A-Z])", r"\1 \2", c)
+    # ALLCAPS nempel: sisip spasi di batas suku kata umum Indonesia (whitelist kecil generik)
+    known = (
+        "RUMAH", "BAIK", "CAKRAWALA", "MAJU", "JAYA", "ABADI", "SEJAHTERA",
+        "MANDIRI", "NUSANTARA", "GLOBAL", "PRIMA", "SUKSES", "BERSAMA",
+        "INDO", "INDONESIA", "GROUP", "HOLDING", "SENTOSA", "MAKMUR",
+    )
+    up = c.upper()
+    # greedy longest match
+    parts = []
+    i = 0
+    while i < len(up):
+        matched = None
+        for w in sorted(known, key=len, reverse=True):
+            if up.startswith(w, i):
+                matched = w
+                break
+        if matched:
+            parts.append(matched.title() if not up.isupper() else matched)
+            i += len(matched)
+        else:
+            # ambil sisa huruf sampai known berikutnya
+            j = i + 1
+            while j < len(up) and not any(up.startswith(w, j) for w in known):
+                j += 1
+            parts.append(up[i:j])
+            i = j
+    return " ".join(p for p in parts if p)
+
+
 def _normalize_company_name(name: str) -> str:
     name = re.sub(r"\s+", " ", (name or "")).strip().rstrip(".,;:")
     name = re.split(rf"\s+(?:{_COMPANY_STOP})\b", name, maxsplit=1, flags=re.I)[0]
@@ -228,7 +268,14 @@ def _normalize_company_name(name: str) -> str:
             return form + ". "
         return form.title() + " "
 
-    name = re.sub(rf"^({_COMPANY_LEGAL})\.?\s*", _prefix, name, count=1, flags=re.I)
+    m = re.match(rf"^({_COMPANY_LEGAL})\.?\s*(.*)$", name, flags=re.I)
+    if m:
+        form = m.group(1)
+        core = _split_stuck_company_tokens(m.group(2).strip())
+        name = f"{form} {core}".strip()
+        name = re.sub(rf"^({_COMPANY_LEGAL})\.?\s*", _prefix, name, count=1, flags=re.I)
+    else:
+        name = _split_stuck_company_tokens(name)
     return re.sub(r"\s+", " ", name).strip().rstrip(".,;:")
 
 

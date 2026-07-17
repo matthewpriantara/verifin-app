@@ -50,7 +50,7 @@ async def analyze_with_verifin(
             ],
             model=LLM_MODEL,
             temperature=0.1,
-            max_tokens=1500,
+            max_tokens=900,
         )
         parsed = extract_json_from_response(raw)
         parsed["model_used"] = LLM_MODEL
