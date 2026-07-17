@@ -237,17 +237,67 @@ def _to_response(
     )
 
 
+def _save_case_to_db(db: Session, raw_text: str, analysis: dict, osint_results: dict | None) -> None:
+    import hashlib
+    from sqlalchemy.exc import IntegrityError
+    
+    try:
+        text_hash = hashlib.sha256(raw_text.strip().encode("utf-8")).hexdigest()
+        
+        # Prepare JSON payload matching database schema
+        llm_payload = {
+            "summary": analysis.get("summary", ""),
+            "risk_factors": analysis.get("risk_factors") or [],
+            "safe_factors": analysis.get("safe_factors") or [],
+            "recommendations": analysis.get("recommendations") or [],
+            "model_used": analysis.get("model_used")
+        }
+        
+        osint_failed = False
+        if osint_results:
+            # Check if any of the osint results contains error
+            osint_failed = any(
+                isinstance(v, dict) and "error" in v
+                for v in osint_results.values()
+            )
+
+        db_case = JobCase(
+            raw_text_hash=text_hash,
+            verdict=analysis.get("verdict", "ERROR"),
+            risk_score=int(analysis.get("risk_score") or 0),
+            llm_output=llm_payload,
+            osint_failed=osint_failed
+        )
+        
+        db.add(db_case)
+        db.commit()
+    except IntegrityError:
+        db.rollback()
+        # Duplicate case, ignore saving new record
+        pass
+    except Exception as e:
+        db.rollback()
+        print(f"Error saving job case to database: {e}")
+
+
 @router.post(
     "/verify/text",
     response_model=VerifyResponse,
     summary="Verifikasi Lowongan Kerja dari Teks",
 )
-async def verify_from_text(request: TextVerifyRequest = Body(...)):
+async def verify_from_text(
+    request: TextVerifyRequest = Body(...), 
+    db: Session = Depends(get_db)
+):
     try:
         entities = extract_entities_from_text(request.text)
         osint_results = await _run_osint_on_entities(entities)
         raw_text = request.text if request.include_raw_text else None
         analysis = await analyze_with_verifin(entities, osint_results, raw_text=raw_text)
+        
+        # Auto-save case to PostgreSQL
+        _save_case_to_db(db, request.text, analysis, osint_results)
+        
         return _to_response(analysis, entities, osint_results)
     except Exception as e:
         raise HTTPException(
@@ -268,6 +318,7 @@ async def verify_from_image(
     file: UploadFile = File(
         ..., description="File gambar poster/screenshot lowongan (JPG/PNG/WEBP)"
     ),
+    db: Session = Depends(get_db)
 ):
     allowed_types = ["image/jpeg", "image/jpg", "image/png", "image/webp"]
     if file.content_type not in allowed_types:
@@ -298,6 +349,10 @@ async def verify_from_image(
         analysis = await analyze_with_verifin(
             entities, osint_results, raw_text=raw_text
         )
+        
+        # Auto-save case to PostgreSQL
+        _save_case_to_db(db, raw_text, analysis, osint_results)
+        
         return _to_response(analysis, entities, osint_results)
 
     except HTTPException:
