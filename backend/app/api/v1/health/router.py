@@ -13,7 +13,7 @@ router = APIRouter()
 
 
 @router.get("/health", summary="Cek Kesehatan Server & API")
-def health_check(db: Session = Depends(get_db)):
+async def health_check(db: Session = Depends(get_db)):
     postgres_status = "healthy"
     postgres_details = "connected"
     
@@ -26,7 +26,7 @@ def health_check(db: Session = Depends(get_db)):
         
     # Get LLM Connection Status
     try:
-        ai_status = check_ai_status()
+        ai_status = await check_ai_status()
     except Exception as e:
         ai_status = {"status": "error", "detail": str(e)}
     
