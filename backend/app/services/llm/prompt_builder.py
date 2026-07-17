@@ -263,7 +263,7 @@ def build_verify_prompt(entities: dict, osint_results: dict) -> str:
         osint_results: Dict hasil pengecekan OSINT (domain_age, email_security, whois, dll).
         
     Returns:
-        String prompt terstruktur yang siap dikirim ke Hermes LLM.
+        String prompt terstruktur yang siap dikirim ke LLM.
     """
     
     companies = entities.get("companies", [])
