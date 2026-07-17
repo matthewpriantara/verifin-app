@@ -8,8 +8,12 @@ Pipeline:
 import os
 import tempfile
 from typing import List, Optional
+from uuid import UUID
+from sqlalchemy.orm import Session
 
-from fastapi import APIRouter, Body, File, HTTPException, Query, UploadFile
+from fastapi import APIRouter, Body, File, HTTPException, Query, UploadFile, Depends
+from app.database.postgres_client import get_db
+from app.database.models import JobCase, AhuWhitelist
 
 from app.api.v1.verify.schema import (
     ExtractedEntities,
@@ -380,3 +384,71 @@ async def verify_username_osint(
         return {"username": username, "found_count": len(results), "results": results}
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e)) from e
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# DATABASE ACCESS ENDPOINTS
+# ─────────────────────────────────────────────────────────────────────────────
+
+@router.get(
+    "/cases",
+    summary="Ambil semua daftar kasus",
+    description="Mengembalikan seluruh riwayat kasus verifikasi lowongan kerja dari database PostgreSQL."
+)
+def list_cases(limit: int = 100, skip: int = 0, db: Session = Depends(get_db)):
+    try:
+        cases = db.query(JobCase).offset(skip).limit(limit).all()
+        return [
+            {
+                "id": str(c.id),
+                "raw_text_hash": c.raw_text_hash,
+                "verdict": c.verdict,
+                "risk_score": c.risk_score,
+                "created_at": c.created_at.isoformat() if c.created_at else None
+            }
+            for c in cases
+        ]
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Gagal mengambil kasus: {str(e)}")
+
+
+@router.get(
+    "/cases/{case_id}",
+    summary="Ambil detail kasus berdasarkan ID",
+    description="Mengembalikan detail lengkap analisis dari database PostgreSQL untuk case_id tertentu."
+)
+def get_case_by_id(case_id: UUID, db: Session = Depends(get_db)):
+    db_case = db.query(JobCase).filter(JobCase.id == case_id).first()
+    if not db_case:
+        raise HTTPException(status_code=404, detail="Kasus tidak ditemukan")
+    return {
+        "id": str(db_case.id),
+        "raw_text_hash": db_case.raw_text_hash,
+        "verdict": db_case.verdict,
+        "risk_score": db_case.risk_score,
+        "llm_output": db_case.llm_output,
+        "osint_failed": db_case.osint_failed,
+        "created_at": db_case.created_at.isoformat() if db_case.created_at else None
+    }
+
+
+@router.get(
+    "/whitelist",
+    summary="Ambil daftar perusahaan yang ter-whitelist",
+    description="Mengembalikan seluruh daftar PT/CV resmi Kemenkumham dari database PostgreSQL."
+)
+def list_whitelist(limit: int = 100, skip: int = 0, db: Session = Depends(get_db)):
+    try:
+        companies = db.query(AhuWhitelist).offset(skip).limit(limit).all()
+        return [
+            {
+                "id": c.id,
+                "company_name": c.company_name,
+                "legal_type": c.legal_type,
+                "synced_at": c.synced_at.isoformat() if c.synced_at else None
+            }
+            for c in companies
+        ]
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Gagal mengambil whitelist: {str(e)}")
+

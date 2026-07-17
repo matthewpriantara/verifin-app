@@ -4,6 +4,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { ShieldCheck } from "@phosphor-icons/react";
 import { cn } from "@/lib/utils";
+import Image from "next/image";
 
 export function Navbar() {
   const pathname = usePathname();
@@ -16,10 +17,11 @@ export function Navbar() {
           href="/"
           className="flex items-center gap-2 text-charcoal no-underline"
         >
-          <ShieldCheck size={22} weight="bold" />
-          <span className="text-[17px] font-semibold tracking-tight">
-            Verifin
-          </span>
+          <Image 
+          src="/images/logo-verifin.png" 
+          alt="Verifin" 
+          width={100} 
+          height={100} />
         </Link>
 
         {onReport && (
