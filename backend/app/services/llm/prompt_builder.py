@@ -28,8 +28,10 @@ def _build_domain_osint_section(emails: list, domain_info: dict, email_security:
     if domain in FREE_EMAIL_DOMAINS:
         return (
             f"- Email menggunakan domain GRATISAN: `{domain}` (misal: gmail, yahoo).\n"
-            "- ⚠️ Domain gratisan TIDAK dapat dicek umur/SPF/DMARC karena bukan domain perusahaan.\n"
-            "- Ini adalah faktor risiko utama jika perusahaan mengaku sebagai instansi resmi atau PT."
+            "- Domain gratisan TIDAK dapat dicek umur/SPF/DMARC (bukan domain perusahaan).\n"
+            "- ℹ️ NETRAL untuk UMKM/ritel/startup lokal di Indonesia — sangat umum pakai Gmail/Yahoo.\n"
+            "- Hanya naikkan risiko RINGAN jika digabung red flag lain (minta biaya, HP fraud, alamat fiktif).\n"
+            "- JANGAN jadikan Gmail satu-satunya alasan skor tinggi atau WASPADA."
         )
 
     # Domain korporat — tampilkan data OSINT lengkap
@@ -336,59 +338,66 @@ Analisis secara mendalam dan berikan keputusan apakah lowongan ini AMAN, WASPADA
 
 ---
 
-## ATURAN KERAS (ANTI-HALUSINASI & VALUASI LOWONGAN VALID)
+## ATURAN KERAS (ANTI-HALUSINASI & KALIBRASI SKOR)
 
-1. Kamu HANYA boleh memakai FAKTA yang tertulis di bagian OSINT / TEKS ASLI di atas.
-2. DILARANG mengarang: laporan medsos fiktif, status AHU/OSS, atau rating Kredibel yang tidak ada di data.
-3. Gunakan hasil Scrapling (Instagram/Facebook/TikTok/Marketplace/Threads/SERP) yang ada di `safe_flags` / `safe_signals`.
-4. VALUASI LOWONGAN VALID (UMKM/RITEL/STARTUP LOKAL):
-   - Jika ALAMAT FISIK TERVERIFIKASI VALID di peta OpenStreetMap Indonesia (misal: Sleman, Yogyakarta),
-   - Dan rentang GAJI RASIONAL/WAJAR (contoh: Rp 2 - 4.5 juta/bulan),
-   - Dan deskripsi benefit/persyaratan kerja terperinci tanpa indikasi permintaan biaya/uang,
-   - Dan terdeteksi PROFIL MEDSOS / TOKO PUBLIK AKTIF (Instagram/Tokopedia/Shopee):
-   - ➔ MAKA BERIKAN VERDICT: "AMAN" dengan skor risiko 15 - 35 (skor AMAN)!
-   - Catatan: Penggunaan shortlink bit.ly atau Google Forms (forms.gle) adalah praktik standar yang SANGAT UMUM untuk rekrutmen UMKM/Startups di Indonesia dan BUKAN indikator penipuan jika lokasi fisik & medsos terbukti nyata.
+1. HANYA pakai FAKTA di OSINT / TEKS ASLI. Dilarang mengarang AHU/OSS, medsos, atau rating Kredibel.
+2. Gunakan safe_flags / risk_flags / safe_signals yang ada di data.
+3. Email Gmail/Yahoo = NETRAL untuk UMKM/ritel/startup lokal (bukan red flag utama).
+4. Gaji tidak disebut = NETRAL (banyak loker legitimate tanpa gaji di poster).
+5. Tidak ada website resmi = NETRAL jika ada medsos/toko publik ATAU alamat OSM valid.
+6. shortlink bit.ly / Google Forms = praktik umum rekrutmen UMKM, BUKAN penipuan sendirian.
+
+## PANDUAN SKOR (WAJIB DIIKUTI — JANGAN PARKIR DI 25-35 TANPA ALASAN)
+
+**AMAN (0–39)** — pecah band:
+- **0–10 (sangat aman):** alamat OSM valid + HP bersih Kredibel + tidak minta biaya +
+  (medsos/toko aktif ATAU website hidup) + tidak ada indikasi scam di SERP.
+  Gmail diperbolehkan di band ini untuk UMKM.
+- **11–22 (aman):** mayoritas sinyal aman; sisa keraguan ringan (gaji kosong, jejak web tipis).
+- **23–39 (aman dengan catatan):** masih AMAN tapi ada 1–2 kelemahan non-kritis.
+
+**WASPADA (40–74):**
+- kombinasi red flag nyata: alamat gagal OSM + zero footprint, atau klaim instansi besar + Gmail,
+  atau sinyal scam lemah di SERP tanpa konfirmasi kuat.
+
+**BAHAYA (75–100):**
+- minta biaya/transfer/KTP/rekening, ATAU HP reported_fraud Kredibel, ATAU phishing form,
+  ATAU laporan penipuan jelas di SERP/Threads.
+
+## VALUASI UMKM VALID (PRIORITAS)
+Jika SEMUA ini terpenuhi:
+- alamat fisik terverifikasi OSM, DAN
+- HP tidak reported_fraud di Kredibel, DAN
+- tidak ada permintaan biaya/uang di teks, DAN
+- (medsos/toko publik aktif ATAU deskripsi syarat kerja wajar terperinci):
+➔ verdict **AMAN**, risk_score **5–15** (boleh under 10).
+Jangan naikkan ke 25+ hanya karena Gmail / tanpa website / gaji kosong.
 
 ## INSTRUKSI ANALISIS
-
-1. Email domain gratisan vs klaim PT formal?
-2. Umur domain / SPF / DMARC (hanya dari data WHOIS/DNS di atas)?
-3. Gaji tidak wajar / minta biaya (dari teks)?
-4. Alamat: valid di OSM atau tidak (hanya dari validasi alamat)?
-5. Website: jika web korporat tidak aktif namun akun Instagram/toko publik resmi DITEMUKAN ➔ nilai sebagai AMAN/RITEL VALID!
-6. Kredibel: reported_fraud / rating (hanya jika ada di data telepon)?
-7. Search/PT traces: indikasi penipuan di SERP (hanya URL yang tertera)?
-8. Threads & Medsos: perhatikan hasil pencarian medsos yang tertera di safe_flags!
-9. corrected_company_name dari teks asli.
-10. Skala bisnis UMKM vs PT formal.
-11. risk_score konsisten: AMAN 0-39, WASPADA 40-74, BAHAYA 75-100.
+1. Red flag keras dulu: biaya, fraud HP, phishing form, scam SERP.
+2. Alamat OSM valid?
+3. Medsos/toko/web evidence?
+4. Gmail hanya faktor ringan jika digabung red flag lain.
+5. corrected_company_name dari teks asli.
+6. risk_score HARUS selaras verdict dan band di atas.
 
 ---
 
-## FORMAT OUTPUT (WAJIB JSON)
-
-Berikan output HANYA dalam format JSON berikut, tanpa teks lain di luar JSON:
+## FORMAT OUTPUT (WAJIB JSON saja)
 
 {{
   "verdict": "AMAN" | "WASPADA" | "BAHAYA",
   "risk_score": <angka 0-100>,
   "corrected_company_name": "<nama lengkap bisnis dari teks asli, atau null jika tidak ada>",
-  "summary": "<analisis singkat 1-2 kalimat mengapa verdict ini diberikan secara khusus untuk loker ini>",
-  "risk_factors": [
-    "<faktor risiko spesifik yang ditemukan pada loker ini, kosongkan [] jika tidak ada>"
-  ],
-  "safe_factors": [
-    "<faktor aman spesifik yang ditemukan pada loker ini>"
-  ],
-  "recommendations": [
-    "<saran tindakan spesifik untuk pelamar loker ini>"
-  ]
+  "summary": "<1-2 kalimat alasan verdict>",
+  "risk_factors": ["<faktor risiko nyata; [] jika tidak ada>"],
+  "safe_factors": ["<faktor aman>"],
+  "recommendations": ["<saran untuk pelamar>"]
 }}
 
-Pastikan format JSON di atas diikuti persis dengan struktur field yang sama untuk output analisismu.
-Pastikan risk_score konsisten dengan verdict:
-- AMAN: 0-39
-- WASPADA: 40-74  
+Skor vs verdict:
+- AMAN: 0-39 (UMKM valid target 5-15)
+- WASPADA: 40-74
 - BAHAYA: 75-100
 """
     return prompt.strip()

@@ -20,7 +20,7 @@ def explain_verification_shap(
     Menghitung kontribusi fitur numerik & kategorikal berbasis nilai Shapley (SHAP).
     Formulasi: Risk Score = Base Value + sum(Shapley Values)
     """
-    base_value = 20.0  # Baseline skor netral lowongan
+    base_value = 12.0  # Baseline netral (kalibrasi: UMKM valid sering 5-15)
     contributions: List[Dict[str, Any]] = []
 
     # 1. Kredibel Phone Fraud Signal
@@ -76,17 +76,19 @@ def explain_verification_shap(
             "description": "Alamat kantor yang dicantumkan tidak dapat dikonfirmasi di OpenStreetMap",
         })
 
-    # 5. Email Domain Gratisan (@gmail.com / @yahoo.com)
-    domain_info = osint_results.get("domain") or {}
-    is_free_email = any("gmail.com" in rf or "domain gratisan" in rf.lower() for rf in risk_factors)
+    # 5. Email domain gratisan — kontribusi RINGAN (UMKM Indonesia sering pakai Gmail)
+    is_free_email = any(
+        "gmail" in rf.lower() or "yahoo" in rf.lower() or "domain gratisan" in rf.lower()
+        for rf in risk_factors
+    )
     if is_free_email:
         contributions.append({
             "feature": "Email Domain Gratisan",
             "feature_key": "email_free_domain",
             "value": 1,
-            "contribution": 10.0,
+            "contribution": 4.0,
             "impact": "risk",
-            "description": "Rekrutmen menggunakan email publik tanpa domain resmi perusahaan",
+            "description": "Email publik (Gmail/Yahoo) — netral-ringan untuk UMKM, bukan red flag tunggal",
         })
 
     # 6. Safe Factor: Alamat Fisik Terverifikasi Valid
