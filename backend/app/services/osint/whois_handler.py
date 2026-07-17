@@ -1,6 +1,7 @@
 import whois
 import dns.resolver
-from datetime import datetime
+from datetime import datetime, timezone
+
 
 def check_domain_age(domain: str):
     """Mengecek umur domain web dalam hitungan hari."""
@@ -8,22 +9,43 @@ def check_domain_age(domain: str):
     try:
         w = whois.whois(domain)
         creation_date = w.creation_date
-        
-        # WHOIS terkadang mengembalikan list datetime jika ada beberapa server
+
         if isinstance(creation_date, list):
             creation_date = creation_date[0]
-            
+
         if not creation_date:
-            return {"age_days": -1, "is_new": True, "created_at": "Unknown"}
-            
-        age_days = (datetime.now() - creation_date).days
+            return {
+                "age_days": -1,
+                "age_years": None,
+                "is_new": True,
+                "created_at": "Unknown",
+            }
+
+        # Samakan timezone-aware vs naive
+        if getattr(creation_date, "tzinfo", None) is not None:
+            now = datetime.now(timezone.utc)
+            if creation_date.tzinfo is None:
+                creation_date = creation_date.replace(tzinfo=timezone.utc)
+            else:
+                creation_date = creation_date.astimezone(timezone.utc)
+        else:
+            now = datetime.now()
+
+        age_days = (now - creation_date).days
         return {
             "age_days": age_days,
-            "is_new": age_days < 90, # Bendera merah jika umur domain < 3 bulan
-            "created_at": creation_date.strftime("%Y-%m-%d")
+            "age_years": round(age_days / 365, 2) if age_days >= 0 else None,
+            "is_new": age_days < 90,
+            "created_at": creation_date.strftime("%Y-%m-%d"),
         }
     except Exception as e:
-        return {"error": str(e), "is_new": True, "age_days": -1}
+        return {
+            "error": str(e),
+            "is_new": True,
+            "age_days": -1,
+            "age_years": None,
+            "created_at": "Unknown",
+        }
 
 def check_email_security(domain: str):
     """Memeriksa record SPF dan DMARC pada DNS domain."""
@@ -47,12 +69,15 @@ def check_email_security(domain: str):
     return results
 
 async def scan_email_osint(email: str, categories: list = None):
-    """Scan email across specified categories or all categories using user-scanner."""
-    from user_scanner.core import engine
+    """Scan email footprint (opsional — butuh paket user-scanner)."""
+    try:
+        from user_scanner.core import engine
+    except ImportError:
+        return []
+
     if not categories:
-        # Check common categories to avoid scanning all 120+ platforms which might be slow
         categories = ["social", "dev", "jobs", "shopping"]
-    
+
     results = []
     for cat in categories:
         try:
@@ -60,16 +85,20 @@ async def scan_email_osint(email: str, categories: list = None):
             results.extend(cat_results)
         except Exception as e:
             print(f"Error scanning email category {cat}: {e}")
-            
-    # Return list of dicts for found/registered accounts
+
     return [r.to_dict() for r in results if r.is_found()]
 
+
 async def scan_username_osint(username: str, categories: list = None):
-    """Scan username across specified categories or all categories using user-scanner."""
-    from user_scanner.core import engine
+    """Scan username footprint (opsional — butuh paket user-scanner)."""
+    try:
+        from user_scanner.core import engine
+    except ImportError:
+        return []
+
     if not categories:
         categories = ["social", "dev", "finance", "community"]
-        
+
     results = []
     for cat in categories:
         try:
@@ -77,5 +106,5 @@ async def scan_username_osint(username: str, categories: list = None):
             results.extend(cat_results)
         except Exception as e:
             print(f"Error scanning username category {cat}: {e}")
-            
+
     return [r.to_dict() for r in results if r.is_found()]
