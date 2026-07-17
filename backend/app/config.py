@@ -30,31 +30,21 @@ DATABASE_URL = os.getenv("DATABASE_URL")
 if not DATABASE_URL:
     DATABASE_URL = f"postgresql://{DB_USER}:{DB_PASSWORD}@{DB_HOST}:{DB_PORT}/{DB_NAME}"
 
-# Redis Configuration
+# Redis (opsional — cache/queue nanti; core verify tidak wajib)
 REDIS_URL = os.getenv("REDIS_URL", "redis://localhost:6379/0")
 
-# Neo4j Configuration
-NEO4J_URI = os.getenv("NEO4J_URI", "bolt://localhost:7687")
-NEO4J_USER = os.getenv("NEO4J_USER", "neo4j")
-NEO4J_PASSWORD = os.getenv("NEO4J_PASSWORD", "password123")
 
-
-# Settings class wrapper for backward-compatibility with database clients
 class Settings:
     PROJECT_NAME: str = "Verifin API"
     VERSION: str = "0.1.0"
-    
+
     DB_USER = DB_USER
     DB_PASSWORD = DB_PASSWORD
     DB_HOST = DB_HOST
     DB_PORT = DB_PORT
     DB_NAME = DB_NAME
     DATABASE_URL = DATABASE_URL
-    
     REDIS_URL = REDIS_URL
-    
-    NEO4J_URI = NEO4J_URI
-    NEO4J_USER = NEO4J_USER
-    NEO4J_PASSWORD = NEO4J_PASSWORD
+
 
 settings = Settings()

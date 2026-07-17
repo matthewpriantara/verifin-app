@@ -12,12 +12,10 @@ python-whois==0.8.0
 dnspython==2.6.1
 requests==2.31.0
 scrapling[fetchers]>=0.4.11
-neo4j==5.18.0
 SQLAlchemy==2.0.28
 psycopg2-binary==2.9.9
 redis==5.0.3
 python-dotenv==1.0.1
-pgvector==0.2.5
 
 # === OCR Engine (PaddleOCR + OpenCV) ===
 # paddlepaddle 2.6.2 + paddleocr 2.8.1: Stable, full support macOS Intel/Windows
