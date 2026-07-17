@@ -9,6 +9,9 @@ neo4j==5.18.0
 SQLAlchemy==2.0.28
 psycopg2-binary==2.9.9
 redis==5.0.3
+python-dotenv==1.0.1
+pgvector==0.2.5
+
 
 # AI & NLP (PaddleOCR & IndoBERT NER)
 transformers==4.38.2
