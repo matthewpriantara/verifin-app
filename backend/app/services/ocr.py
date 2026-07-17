@@ -94,7 +94,7 @@ def preprocess_image(image_path: str) -> np.ndarray:
 
 def extract_text_from_image(image_path: str) -> str:
     """
-    Mengekstrak seluruh teks yang ditemukan di dalam gambar menggunakan PaddleOCR / Tesseract,
+    Mengekstrak seluruh teks yang ditemukan di dalam gambar menggunakan PaddleOCR
     dengan preprocessing OpenCV (CLAHE & padding).
     """
     if not os.path.exists(image_path):
@@ -103,42 +103,28 @@ def extract_text_from_image(image_path: str) -> str:
     try:
         with ocr_lock:
             processed_img = preprocess_image(image_path)
+            ocr = get_ocr_model()
+            result = ocr.ocr(processed_img)
 
             extracted_lines = []
-            try:
-                ocr = get_ocr_model()
-                result = ocr.ocr(processed_img)
-                if result and len(result) > 0:
-                    res = result[0]
-                    if isinstance(res, dict):
-                        texts = res.get("rec_texts", [])
-                        for text in texts:
+            if result and len(result) > 0:
+                res = result[0]
+                if isinstance(res, dict):
+                    # Format dictionary (PaddleX)
+                    texts = res.get("rec_texts", [])
+                    for text in texts:
+                        if len(text.strip()) > 1:
+                            extracted_lines.append(text)
+                elif isinstance(res, list):
+                    # Format standard list-of-lists
+                    for line in res:
+                        if line and len(line) > 1:
+                            text = line[1][0]
                             if len(text.strip()) > 1:
                                 extracted_lines.append(text)
-                    elif isinstance(res, list):
-                        for line in res:
-                            if line and len(line) > 1:
-                                text = line[1][0]
-                                if len(text.strip()) > 1:
-                                    extracted_lines.append(text)
-            except Exception as paddle_err:
-                print(f"[OCR Notice] PaddleOCR fallback to Tesseract: {paddle_err}")
-
-            if not extracted_lines:
-                try:
-                    import pytesseract
-                    from PIL import Image
-
-                    if isinstance(processed_img, np.ndarray):
-                        pil_img = Image.fromarray(cv2.cvtColor(processed_img, cv2.COLOR_BGR2RGB))
-                    else:
-                        pil_img = Image.open(image_path)
-                    raw = pytesseract.image_to_string(pil_img, lang="ind+eng")
-                    extracted_lines = [line.strip() for line in raw.split("\n") if line.strip()]
-                except Exception as tess_err:
-                    print(f"[OCR Error] Tesseract fallback failed: {tess_err}")
 
             return "\n".join(extracted_lines)
     except Exception as e:
         print(f"[OCR Error] Gagal mengekstrak gambar: {str(e)}")
         raise e
+
