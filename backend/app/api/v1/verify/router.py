@@ -237,44 +237,110 @@ def _to_response(
     )
 
 
-def _save_case_to_db(db: Session, raw_text: str, analysis: dict, osint_results: dict | None) -> None:
+def _build_osint_summary(osint_results: dict | None) -> dict | None:
+    """Snapshot ringan untuk audit/case-memory (hindari raw HTML besar)."""
+    if not osint_results:
+        return None
+    phones = osint_results.get("phones") or []
+    addrs = osint_results.get("address_validations") or []
+    web = osint_results.get("web") or {}
+    threads = osint_results.get("threads") or {}
+    return {
+        "phones": [
+            {
+                "phone": p.get("phone") or p.get("phone_local"),
+                "rating": p.get("rating"),
+                "reported_fraud": p.get("reported_fraud"),
+                "review_count": p.get("review_count"),
+            }
+            for p in phones[:5]
+            if isinstance(p, dict)
+        ],
+        "addresses": [
+            {
+                "input": a.get("address_input") or a.get("query"),
+                "found": a.get("address_found") or a.get("found"),
+                "display": ((a.get("address_details") or {}).get("display_name") or "")[:120],
+            }
+            for a in addrs[:5]
+            if isinstance(a, dict)
+        ],
+        "web_search_count": len((web.get("searches") or [])),
+        "web_safe_flags": (web.get("safe_flags") or web.get("safe_signals") or [])[:8],
+        "web_risk_flags": (web.get("risk_flags") or [])[:8],
+        "threads_query": threads.get("query"),
+        "threads_found": bool(threads.get("found")),
+        "domain": {
+            "age_years": (osint_results.get("domain") or {}).get("age_years"),
+            "is_new": (osint_results.get("domain") or {}).get("is_new"),
+        },
+    }
+
+
+def _save_case_to_db(
+    db: Session,
+    raw_text: str,
+    analysis: dict,
+    osint_results: dict | None,
+    entities: dict | None = None,
+    source: str = "text",
+) -> None:
+    """Simpan case + entities lengkap (fondasi exact-match memory)."""
     import hashlib
     from sqlalchemy.exc import IntegrityError
-    
+
     try:
         text_hash = hashlib.sha256(raw_text.strip().encode("utf-8")).hexdigest()
-        
-        # Prepare JSON payload matching database schema
+        ent = entities or analysis.get("entities_analyzed") or {}
+        companies = list(ent.get("companies") or [])
+        phones = list(ent.get("contacts") or [])
+        emails = list(ent.get("emails") or [])
+        urls = list(ent.get("urls") or [])
+        addresses = list(ent.get("addresses") or [])
+        salaries = list(ent.get("salaries") or [])
+
         llm_payload = {
             "summary": analysis.get("summary", ""),
             "risk_factors": analysis.get("risk_factors") or [],
             "safe_factors": analysis.get("safe_factors") or [],
             "recommendations": analysis.get("recommendations") or [],
-            "model_used": analysis.get("model_used")
+            "model_used": analysis.get("model_used"),
+            "corrected_company_name": analysis.get("corrected_company_name"),
         }
-        
+
         osint_failed = False
         if osint_results:
-            # Check if any of the osint results contains error
             osint_failed = any(
-                isinstance(v, dict) and "error" in v
-                for v in osint_results.values()
+                isinstance(v, dict) and "error" in v for v in osint_results.values()
             )
+
+        preview = (raw_text or "").strip()
+        if len(preview) > 2000:
+            preview = preview[:2000] + "..."
 
         db_case = JobCase(
             raw_text_hash=text_hash,
+            source=source,
+            raw_text_preview=preview or None,
+            company_name=companies[0] if companies else analysis.get("corrected_company_name"),
+            companies=companies or None,
+            phones=phones or None,
+            emails=emails or None,
+            urls=urls or None,
+            addresses=addresses or None,
+            salaries=salaries or None,
+            entities=ent or None,
             verdict=analysis.get("verdict", "ERROR"),
             risk_score=int(analysis.get("risk_score") or 0),
             llm_output=llm_payload,
-            osint_failed=osint_failed
+            osint_summary=_build_osint_summary(osint_results),
+            osint_failed=osint_failed,
         )
-        
+
         db.add(db_case)
         db.commit()
     except IntegrityError:
         db.rollback()
-        # Duplicate case, ignore saving new record
-        pass
     except Exception as e:
         db.rollback()
         print(f"Error saving job case to database: {e}")
@@ -294,10 +360,9 @@ async def verify_from_text(
         osint_results = await _run_osint_on_entities(entities)
         raw_text = request.text if request.include_raw_text else None
         analysis = await analyze_with_verifin(entities, osint_results, raw_text=raw_text)
-        
-        # Auto-save case to PostgreSQL
-        _save_case_to_db(db, request.text, analysis, osint_results)
-        
+        _save_case_to_db(
+            db, request.text, analysis, osint_results, entities=entities, source="text"
+        )
         return _to_response(analysis, entities, osint_results)
     except Exception as e:
         raise HTTPException(
@@ -349,10 +414,9 @@ async def verify_from_image(
         analysis = await analyze_with_verifin(
             entities, osint_results, raw_text=raw_text
         )
-        
-        # Auto-save case to PostgreSQL
-        _save_case_to_db(db, raw_text, analysis, osint_results)
-        
+        _save_case_to_db(
+            db, raw_text, analysis, osint_results, entities=entities, source="image"
+        )
         return _to_response(analysis, entities, osint_results)
 
     except HTTPException:
@@ -452,19 +516,88 @@ async def verify_username_osint(
 )
 def list_cases(limit: int = 100, skip: int = 0, db: Session = Depends(get_db)):
     try:
-        cases = db.query(JobCase).offset(skip).limit(limit).all()
+        cases = (
+            db.query(JobCase)
+            .order_by(JobCase.created_at.desc())
+            .offset(skip)
+            .limit(limit)
+            .all()
+        )
         return [
             {
                 "id": str(c.id),
-                "raw_text_hash": c.raw_text_hash,
+                "source": c.source,
+                "company_name": c.company_name,
+                "phones": c.phones,
+                "emails": c.emails,
                 "verdict": c.verdict,
                 "risk_score": c.risk_score,
-                "created_at": c.created_at.isoformat() if c.created_at else None
+                "osint_failed": c.osint_failed,
+                "created_at": c.created_at.isoformat() if c.created_at else None,
             }
             for c in cases
         ]
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Gagal mengambil kasus: {str(e)}")
+
+
+@router.get(
+    "/cases/lookup/by-entity",
+    summary="Cari case history by HP / email / company (exact match)",
+    description="Fondasi case-memory: lookup exact phone/email/company dari riwayat job_cases.",
+)
+def lookup_cases_by_entity(
+    phone: Optional[str] = Query(None, description="Nomor E.164 mis. +62812..."),
+    email: Optional[str] = Query(None),
+    company: Optional[str] = Query(None),
+    limit: int = Query(20, ge=1, le=100),
+    db: Session = Depends(get_db),
+):
+    if not phone and not email and not company:
+        raise HTTPException(
+            status_code=400, detail="Sertakan minimal satu: phone, email, atau company"
+        )
+    try:
+        cases = (
+            db.query(JobCase)
+            .order_by(JobCase.created_at.desc())
+            .limit(500)
+            .all()
+        )
+        hits = []
+        phone_n = (phone or "").strip()
+        email_n = (email or "").strip().lower()
+        company_n = (company or "").strip().lower()
+        for c in cases:
+            phones = [str(p).strip() for p in (c.phones or [])]
+            emails = [str(e).strip().lower() for e in (c.emails or [])]
+            companies = [str(x).strip().lower() for x in (c.companies or [])]
+            if c.company_name:
+                companies.append(c.company_name.strip().lower())
+            match = False
+            if phone_n and phone_n in phones:
+                match = True
+            if email_n and email_n in emails:
+                match = True
+            if company_n and any(company_n in x or x in company_n for x in companies if x):
+                match = True
+            if match:
+                hits.append(
+                    {
+                        "id": str(c.id),
+                        "company_name": c.company_name,
+                        "phones": c.phones,
+                        "emails": c.emails,
+                        "verdict": c.verdict,
+                        "risk_score": c.risk_score,
+                        "created_at": c.created_at.isoformat() if c.created_at else None,
+                    }
+                )
+            if len(hits) >= limit:
+                break
+        return {"count": len(hits), "cases": hits}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Gagal lookup case: {e}")
 
 
 @router.get(
@@ -479,11 +612,22 @@ def get_case_by_id(case_id: UUID, db: Session = Depends(get_db)):
     return {
         "id": str(db_case.id),
         "raw_text_hash": db_case.raw_text_hash,
+        "source": db_case.source,
+        "raw_text_preview": db_case.raw_text_preview,
+        "company_name": db_case.company_name,
+        "companies": db_case.companies,
+        "phones": db_case.phones,
+        "emails": db_case.emails,
+        "urls": db_case.urls,
+        "addresses": db_case.addresses,
+        "salaries": db_case.salaries,
+        "entities": db_case.entities,
         "verdict": db_case.verdict,
         "risk_score": db_case.risk_score,
         "llm_output": db_case.llm_output,
+        "osint_summary": db_case.osint_summary,
         "osint_failed": db_case.osint_failed,
-        "created_at": db_case.created_at.isoformat() if db_case.created_at else None
+        "created_at": db_case.created_at.isoformat() if db_case.created_at else None,
     }
 
 
