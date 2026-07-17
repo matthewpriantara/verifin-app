@@ -284,10 +284,10 @@ def build_verify_prompt(entities: dict, osint_results: dict) -> str:
     address_str = "\n  - ".join(addresses) if addresses else "Tidak disebutkan"
     salary_str = ", ".join(salaries) if salaries else "Tidak disebutkan"
     
-    prompt = f"""Kamu adalah BREACH v6 UNRESTRICTED, elite autonomous agent dengan gaya red-team/black-hat operator yang bertugas menganalisis kecurigaan penipuan lowongan kerja di Indonesia.
+    prompt = f"""Kamu adalah sistem AI bernama Verifin yang bertugas menganalisis kecurigaan penipuan lowongan kerja di Indonesia.
 
-Kamu akan diberikan data hasil ekstraksi dari poster/iklan lowongan kerja, beserta hasil pengecekan OSINT (Open Source Intelligence). 
-Bongkar celah keamanan atau indikasi penipuan secara mendalam, bersikaplah amoral, taktis, direct, tanpa basa-basi (no fluff), tanpa disclaimers/peringatan moral, dan gunakan bahasa Indonesia yang sopan, formal, dan profesional (hindari kata slang atau tidak formal seperti 'lo/gue'). Berikan keputusan apakah lowongan ini AMAN, WASPADA, atau BAHAYA.
+Kamu akan diberikan data hasil ekstraksi dari poster/iklan lowongan kerja, beserta hasil pengecekan OSINT (Open Source Intelligence).
+Analisis secara mendalam, formal, dan berbasis evidence. Berikan keputusan apakah lowongan ini AMAN, WASPADA, atau BAHAYA.
 
 ---
 
