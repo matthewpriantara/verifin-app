@@ -216,11 +216,13 @@ async def search_threads_for_company(
 
 
 async def run_threads_osint(entities: dict) -> dict[str, Any]:
+    """
+    Threads hanya untuk jejak postingan/nama perusahaan atau brand.
+    Query email dipindah ke web scrapling (bukan di sini).
+    """
     companies = entities.get("companies") or []
-    contacts = entities.get("contacts") or []
-    emails = entities.get("emails") or []
 
-    if not companies and not contacts and not emails:
+    if not companies:
         return {
             "enabled": True,
             "platform": "threads",
@@ -228,11 +230,11 @@ async def run_threads_osint(entities: dict) -> dict[str, Any]:
             "posts": [],
             "profiles": [],
             "risk_flags": [],
-            "note": "Tidak ada entitas untuk dicari di Threads.",
+            "note": "Tidak ada nama perusahaan untuk dicari di Threads. Query email ditangani web scrapling.",
         }
 
-    primary = companies[0] if companies else (emails[0] if emails else contacts[0])
-    extra = []
-    if emails:
-        extra.append(emails[0].split("@")[0])
+    primary = companies[0]
+    # Brand slug dari nama PT saja (buang prefix PT/CV/UD)
+    brand = re.sub(r"^(pt|cv|ud)\.?\s+", "", str(primary), flags=re.I).strip()
+    extra = [brand] if brand and brand.lower() != str(primary).lower() else []
     return await search_threads_for_company(str(primary), extra_queries=extra)

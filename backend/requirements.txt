@@ -22,6 +22,4 @@ paddleocr==2.8.1
 opencv-python>=4.9.0
 Pillow>=10.0.0
 
-# === NER (opsional, aktifkan jika transformers tersedia) ===
-# transformers>=4.38.2
-# torch>=2.2.1
+# NER: full regex struktural di app/services/ner.py (tanpa transformers/torch)
