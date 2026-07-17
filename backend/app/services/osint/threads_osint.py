@@ -234,7 +234,5 @@ async def run_threads_osint(entities: dict) -> dict[str, Any]:
         }
 
     primary = companies[0]
-    # Brand slug dari nama PT saja (buang prefix PT/CV/UD)
-    brand = re.sub(r"^(pt|cv|ud)\.?\s+", "", str(primary), flags=re.I).strip()
-    extra = [brand] if brand and brand.lower() != str(primary).lower() else []
-    return await search_threads_for_company(str(primary), extra_queries=extra)
+    # Satu query saja (latency): nama PT penuh
+    return await search_threads_for_company(str(primary), extra_queries=[])

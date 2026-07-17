@@ -32,17 +32,26 @@ def _normalize_company_name(name: str) -> str:
     return n
 
 
+_FREE_EMAIL_DOMAINS = {
+    "gmail.com",
+    "yahoo.com",
+    "yahoo.co.id",
+    "hotmail.com",
+    "outlook.com",
+    "live.com",
+    "ymail.com",
+    "icloud.com",
+    "protonmail.com",
+    "mail.com",
+}
+
+
 def _search_company_traces(company: str) -> list[dict[str, Any]]:
-    """Beberapa query search nyata; hasil = URL yang benar-benar muncul di SERP."""
-    queries = [
-        f'"{company}"',
-        f'"{company}" AHU OR OSS OR NIB',
-        f'"{company}" lowongan penipuan OR penipu',
-        f'"{company}" site:jobstreet.co.id OR site:linkedin.com OR site:glints.com',
-    ]
+    """1 query scam check saja (web_evidence sudah cover presence search)."""
+    queries = [f'"{company}" lowongan penipuan OR penipu OR scam']
     out = []
     for q in queries:
-        res = search_web_evidence(q, max_results=4)
+        res = search_web_evidence(q, max_results=3)
         out.append(
             {
                 "query": q,
@@ -55,44 +64,6 @@ def _search_company_traces(company: str) -> list[dict[str, Any]]:
             }
         )
     return out
-
-
-def _probe_ahu_landing() -> dict[str, Any]:
-    """
-    Cek ketersediaan portal AHU (bukan klaim PT terdaftar).
-    Hanya: apakah situs AHU merespons.
-    """
-    url = "https://ahu.go.id/pencarian/profil-pt"
-    try:
-        page = Fetcher.get(url, stealthy_headers=True)
-        status = getattr(page, "status", None) or getattr(page, "status_code", None)
-        title = ""
-        try:
-            title = (page.css("title::text").get() or "").strip()
-        except Exception:
-            pass
-        return {
-            "source": "ahu.go.id",
-            "url": url,
-            "ok": status is None or int(status) < 400,
-            "status": status,
-            "title": title[:160],
-            "note": (
-                "Portal AHU dapat diakses, tetapi pencarian profil PT resmi "
-                "belum diotomasi (sering butuh captcha/sesi). "
-                "Status legalitas PT individual = BELUM TERVERIFIKASI lewat API AHU."
-            ),
-            "pt_registry_verified": False,
-        }
-    except Exception as exc:
-        return {
-            "source": "ahu.go.id",
-            "url": url,
-            "ok": False,
-            "error": str(exc),
-            "pt_registry_verified": False,
-            "note": "Gagal menghubungi portal AHU; legalitas PT tidak diverifikasi.",
-        }
 
 
 def validate_company_public(company: str, entities: dict | None = None) -> dict[str, Any]:
@@ -117,18 +88,18 @@ def validate_company_public(company: str, entities: dict | None = None) -> dict[
     risk_flags: list[str] = []
     safe_flags: list[str] = []
 
-    # 1) Website dari domain email / urls
+    # 1) Website hanya domain korporat (skip Gmail dll) — max 1
     domains = []
-    for em in (entities.get("emails") or [])[:2]:
+    for em in (entities.get("emails") or [])[:1]:
         d = _domain_from_email(em)
-        if d:
+        if d and d not in _FREE_EMAIL_DOMAINS:
             domains.append(d)
-    for u in (entities.get("urls") or [])[:2]:
+    for u in (entities.get("urls") or [])[:1]:
         if u:
             domains.append(u)
 
     websites = []
-    for d in list(dict.fromkeys(domains))[:2]:
+    for d in list(dict.fromkeys(domains))[:1]:
         w = fetch_company_website(d)
         websites.append(w)
         evidence.append(
@@ -145,10 +116,8 @@ def validate_company_public(company: str, entities: dict | None = None) -> dict[
         )
         risk_flags.extend(w.get("risk_flags") or [])
         safe_flags.extend(w.get("safe_flags") or [])
-        if w.get("ok") is False:
-            risk_flags.append(f"Website terkait tidak dapat diakses: {w.get('url')}")
 
-    # 2) Search jejak publik
+    # 2) 1 search scam (presence search sudah di web_evidence)
     searches = _search_company_traces(name)
     mention_count = 0
     fraud_mentions = 0
@@ -173,31 +142,21 @@ def validate_company_public(company: str, entities: dict | None = None) -> dict[
 
     if fraud_mentions >= 1:
         risk_flags.append(
-            f"Pencarian web memuat {fraud_mentions} hasil dengan indikasi penipuan terkait nama PT "
-            f"(lihat evidence URL)."
+            f"Pencarian web memuat {fraud_mentions} hasil indikasi penipuan terkait nama PT."
         )
-    if mention_count == 0:
-        risk_flags.append(
-            "Tidak ditemukan jejak publik yang jelas untuk nama PT di hasil pencarian terbatas."
-        )
-    elif mention_count >= 3 and fraud_mentions == 0:
+    elif mention_count >= 1:
         safe_flags.append(
             f"Ditemukan {mention_count} jejak publik di search (bukan klaim legalitas AHU)."
         )
 
-    # 3) Portal AHU availability (bukan status registrasi PT)
-    registry = _probe_ahu_landing()
-    evidence.append(
-        {
-            "type": "registry_portal_probe",
-            "source": "ahu.go.id",
-            "url": registry.get("url"),
-            "ok": registry.get("ok"),
-            "title": registry.get("title"),
-            "note": registry.get("note"),
-            "pt_registry_verified": False,
-        }
-    )
+    # AHU probe di-skip (selalu unverified + lambat); legalitas tetap jujur
+    registry = {
+        "source": "ahu.go.id",
+        "ok": False,
+        "pt_registry_verified": False,
+        "note": "Legalitas formal PT (AHU/OSS) tidak diotomasi; hanya jejak web publik.",
+        "skipped": True,
+    }
 
     # Dedup flags
     def uniq(xs: list[str]) -> list[str]:

@@ -41,7 +41,13 @@ router = APIRouter()
 
 
 async def _run_osint_on_entities(entities: dict) -> dict:
-    """OSINT live: WHOIS/DNS + OSM + Kredibel HP + Scrapling web + Threads."""
+    """
+    OSINT live paralel: WHOIS/DNS + OSM + Kredibel + Scrapling web + Threads.
+    Optimasi latency: asyncio.gather (bukan serial await).
+    """
+    import asyncio
+    from app.services.llm.prompt_builder import FREE_EMAIL_DOMAINS
+
     osint_results: dict = {
         "domain": {
             "age_years": None,
@@ -75,96 +81,139 @@ async def _run_osint_on_entities(entities: dict) -> dict:
             ),
             "social": "threads_only",
         },
+        "timing": {},
     }
 
-    emails = entities.get("emails", [])
-    if emails:
-        first_email = emails[0]
-        domain = first_email.split("@")[-1] if "@" in first_email else None
-        if domain:
-            try:
-                age_info = check_domain_age(domain)
-                if "age_years" not in age_info and age_info.get("age_days", -1) > 0:
-                    age_info["age_years"] = round(age_info["age_days"] / 365, 2)
-                security_info = check_email_security(domain)
-                osint_results["domain"] = age_info
-                osint_results["email_security"] = security_info
-            except Exception as exc:
-                osint_results["domain"] = {
+    emails = entities.get("emails", []) or []
+    addresses = (entities.get("addresses") or [])[:2]
+    companies = entities.get("companies") or []
+    company_name = companies[0] if companies else None
+
+    # Domain: skip WHOIS/DNS untuk Gmail/Yahoo (netral + buang waktu)
+    def _domain_job() -> tuple[dict, dict]:
+        if not emails:
+            return osint_results["domain"], osint_results["email_security"]
+        domain = emails[0].split("@")[-1].lower() if "@" in emails[0] else ""
+        if not domain:
+            return osint_results["domain"], osint_results["email_security"]
+        if domain in FREE_EMAIL_DOMAINS:
+            return (
+                {
+                    "age_years": None,
+                    "created_at": "N/A (free email)",
+                    "is_new": False,
+                    "domain": domain,
+                    "skipped": "free_email",
+                },
+                {"spf_active": False, "dmarc_active": False, "skipped": "free_email"},
+            )
+        try:
+            age_info = check_domain_age(domain)
+            if "age_years" not in age_info and age_info.get("age_days", -1) > 0:
+                age_info["age_years"] = round(age_info["age_days"] / 365, 2)
+            security_info = check_email_security(domain)
+            return age_info, security_info
+        except Exception as exc:
+            return (
+                {
                     "error": str(exc),
                     "is_new": True,
                     "age_years": None,
                     "created_at": "Unknown",
-                }
+                },
+                {"spf_active": False, "dmarc_active": False},
+            )
 
-    addresses = entities.get("addresses", [])
-    companies = entities.get("companies", [])
-    company_name = companies[0] if companies else None
+    async def _addresses_job() -> list:
+        if not addresses:
+            return []
 
-    for address in addresses[:2]:
-        try:
-            addr_result = await validate_address_and_business(address, company_name)
-            osint_results["address_validations"].append(addr_result)
-        except Exception:
-            osint_results["address_validations"].append(
-                {
-                    "address_input": address,
+        async def one(addr: str):
+            try:
+                return await validate_address_and_business(addr, company_name)
+            except Exception:
+                return {
+                    "address_input": addr,
                     "address_found": False,
                     "error": "Gagal memvalidasi alamat.",
                 }
-            )
 
-    # HP via Kredibel (Scrapling + cookies login)
-    try:
-        osint_results["phones"] = await check_phones_kredibel(
-            entities.get("contacts") or [], limit=2
-        )
-    except Exception as exc:
-        osint_results["phones"] = [
-            {"source": "kredibel", "found": False, "error": str(exc), "risk_flags": []}
-        ]
+        return list(await asyncio.gather(*[one(a) for a in addresses]))
 
-    # Web evidence via Scrapling (website + search) — data fetch nyata
-    try:
-        osint_results["web"] = await run_web_evidence(entities)
-    except Exception as exc:
-        osint_results["web"] = {
-            "enabled": True,
-            "websites": [],
-            "searches": [],
-            "risk_flags": [],
-            "safe_flags": [],
-            "error": str(exc),
-        }
+    async def _phones_job() -> list:
+        try:
+            return await check_phones_kredibel(entities.get("contacts") or [], limit=1)
+        except Exception as exc:
+            return [
+                {"source": "kredibel", "found": False, "error": str(exc), "risk_flags": []}
+            ]
 
-    # Company / PT — jejak publik saja (bukan klaim AHU palsu)
-    try:
-        osint_results["companies"] = await validate_companies(entities, limit=1)
-    except Exception as exc:
-        osint_results["companies"] = [
-            {
-                "checked": False,
-                "error": str(exc),
-                "registry": {"pt_registry_verified": False},
+    async def _web_job() -> dict:
+        try:
+            return await run_web_evidence(entities)
+        except Exception as exc:
+            return {
+                "enabled": True,
+                "websites": [],
+                "searches": [],
                 "risk_flags": [],
                 "safe_flags": [],
-                "evidence": [],
+                "error": str(exc),
             }
-        ]
 
-    # Medsos: Threads saja (cookie session)
-    try:
-        osint_results["threads"] = await run_threads_osint(entities)
-    except Exception as exc:
-        osint_results["threads"] = {
-            "enabled": True,
-            "found": False,
-            "posts": [],
-            "profiles": [],
-            "risk_flags": [],
-            "error": str(exc),
-        }
+    async def _companies_job() -> list:
+        try:
+            return await validate_companies(entities, limit=1)
+        except Exception as exc:
+            return [
+                {
+                    "checked": False,
+                    "error": str(exc),
+                    "registry": {"pt_registry_verified": False},
+                    "risk_flags": [],
+                    "safe_flags": [],
+                    "evidence": [],
+                }
+            ]
 
+    async def _threads_job() -> dict:
+        try:
+            return await run_threads_osint(entities)
+        except Exception as exc:
+            return {
+                "enabled": True,
+                "found": False,
+                "posts": [],
+                "profiles": [],
+                "risk_flags": [],
+                "error": str(exc),
+            }
+
+    loop = asyncio.get_event_loop()
+    t0 = loop.time()
+    (
+        domain_pair,
+        addr_list,
+        phones,
+        web,
+        companies_osint,
+        threads,
+    ) = await asyncio.gather(
+        loop.run_in_executor(None, _domain_job),
+        _addresses_job(),
+        _phones_job(),
+        _web_job(),
+        _companies_job(),
+        _threads_job(),
+    )
+    osint_results["timing"]["osint_parallel_sec"] = round(loop.time() - t0, 3)
+
+    osint_results["domain"], osint_results["email_security"] = domain_pair
+    osint_results["address_validations"] = addr_list
+    osint_results["phones"] = phones
+    osint_results["web"] = web
+    osint_results["companies"] = companies_osint
+    osint_results["threads"] = threads
     return osint_results
 
 

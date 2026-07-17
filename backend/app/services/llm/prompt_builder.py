@@ -415,7 +415,7 @@ def build_text_verify_prompt(raw_text: str, entities: dict, osint_results: dict)
 ## TEKS ASLI LOWONGAN (Hasil OCR / Input Manual)
 
 ```
-{raw_text[:2000]}{"...(terpotong)" if len(raw_text) > 2000 else ""}
+{raw_text[:900]}{"...(terpotong)" if len(raw_text) > 900 else ""}
 ```
 
 """

@@ -14,16 +14,17 @@ ocr_lock = threading.Lock()
 def get_ocr_model():
     global ocr_model
     if ocr_model is None:
-        # det_db_thresh (0.15), det_db_box_thresh (0.3), unclip_ratio (2.0)
-        # dioptimalkan agar teks kecil/kontras rendah di dalam logo, stempel,
-        # dan icon (seperti email & kata 'BADAN') tetap terdeteksi dan tidak terbuang.
+        # Latency-first: angle cls OFF (mahal di CPU), det threshold tetap longgar
+        # agar teks kecil di logo/footer tetap kebaca.
         ocr_model = PaddleOCR(
-            use_angle_cls=True,
-            lang='en',
+            use_angle_cls=False,
+            lang="en",
             enable_mkldnn=False,
-            det_db_thresh=0.15,
-            det_db_box_thresh=0.3,
-            det_db_unclip_ratio=2.0,
+            show_log=False,
+            det_db_thresh=0.2,
+            det_db_box_thresh=0.4,
+            det_db_unclip_ratio=1.8,
+            rec_batch_num=6,
         )
     return ocr_model
 
@@ -76,20 +77,26 @@ def preprocess_image(image_path: str) -> np.ndarray:
     if len(img.shape) == 2:
         img = cv2.cvtColor(img, cv2.COLOR_GRAY2BGR)
 
-    # Upscale 2x hanya untuk gambar yang resolusinya sangat kecil (< 600px).
-    # Gambar poster normal (800x1000px) tidak perlu di-upscale agar proses OCR 4x lebih cepat.
     h, w = img.shape[:2]
+    # Upscale hanya gambar sangat kecil
     if max(h, w) < 600:
         img = cv2.resize(img, (w * 2, h * 2), interpolation=cv2.INTER_CUBIC)
+        h, w = img.shape[:2]
 
-    # Terapkan peningkatan kontras CLAHE
+    # Downscale poster besar — OCR CPU jauh lebih cepat, akurasi teks utama tetap
+    max_side = 1100
+    if max(h, w) > max_side:
+        scale = max_side / float(max(h, w))
+        img = cv2.resize(
+            img,
+            (int(w * scale), int(h * scale)),
+            interpolation=cv2.INTER_AREA,
+        )
+
     img = enhance_contrast(img)
-
-    # Tambahkan margin/padding putih 30px di sekeliling gambar agar teks
-    # di pinggir paling atas (seperti logo/header 'BADAN') atau paling bawah
-    # tidak terpotong oleh kotak deteksi (bounding box) OCR.
-    img = cv2.copyMakeBorder(img, 30, 30, 30, 30, cv2.BORDER_CONSTANT, value=[255, 255, 255])
-
+    img = cv2.copyMakeBorder(
+        img, 20, 20, 20, 20, cv2.BORDER_CONSTANT, value=[255, 255, 255]
+    )
     return img
 
 def extract_text_from_image(image_path: str) -> str:
