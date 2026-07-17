@@ -309,6 +309,24 @@ def collect_web_evidence(entities: dict) -> dict[str, Any]:
     elif domains:
         searches.append(search_web_evidence(f"{domains[0]} penipuan OR scam"))
 
+    # Query email → web search (bukan Threads). Cari jejak email + reputasi.
+    for em in emails[:2]:
+        em_clean = (em or "").strip().lower()
+        if not em_clean or "@" not in em_clean:
+            continue
+        local = em_clean.split("@")[0]
+        searches.append(search_web_evidence(f'"{em_clean}"'))
+        searches.append(
+            search_web_evidence(f'"{em_clean}" penipu OR scam OR penipuan OR loker')
+        )
+        # local-part sering jadi handle medsos / brand
+        if len(local) >= 5:
+            searches.append(
+                search_web_evidence(
+                    f'"{local}" instagram OR threads OR facebook OR tokopedia OR shopee'
+                )
+            )
+
     gform_inspections: list[dict[str, Any]] = []
     for u in urls[:3]:
         if is_gform_url(u):
