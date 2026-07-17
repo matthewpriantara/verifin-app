@@ -2,15 +2,14 @@ import uuid
 from sqlalchemy import Column, String, Integer, Boolean, DateTime, Text
 from sqlalchemy.dialects.postgresql import UUID, JSONB
 from sqlalchemy.sql import func
-from pgvector.sqlalchemy import Vector
 
 from app.database.postgres_client import Base
 
 
 class JobCase(Base):
     """
-    Riwayat verifikasi lowongan — fondasi case memory.
-    embedding (pgvector) disiapkan untuk semantic search nanti; belum diisi.
+    Riwayat verifikasi lowongan — fondasi case memory (exact-match HP/email/PT).
+    Vector/graph (pgvector, Neo4j) ditunda ke fase berikutnya.
     """
 
     __tablename__ = "job_cases"
@@ -18,27 +17,22 @@ class JobCase(Base):
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     raw_text_hash = Column(String(64), unique=True, nullable=False, index=True)
     source = Column(String(16), nullable=True)  # text | image
-    raw_text_preview = Column(Text, nullable=True)  # potongan teks (max ~2k)
+    raw_text_preview = Column(Text, nullable=True)
 
-    # Entities untuk exact-match memory (HP/email/PT)
     company_name = Column(String(255), nullable=True, index=True)
-    companies = Column(JSONB, nullable=True)  # list[str]
-    phones = Column(JSONB, nullable=True)  # list[str] E.164
-    emails = Column(JSONB, nullable=True)  # list[str]
+    companies = Column(JSONB, nullable=True)
+    phones = Column(JSONB, nullable=True)
+    emails = Column(JSONB, nullable=True)
     urls = Column(JSONB, nullable=True)
     addresses = Column(JSONB, nullable=True)
     salaries = Column(JSONB, nullable=True)
-    entities = Column(JSONB, nullable=True)  # full NER dump
+    entities = Column(JSONB, nullable=True)
 
-    # Hasil analisis
-    verdict = Column(String(10), nullable=False)  # AMAN, WASPADA, BAHAYA, ERROR
-    risk_score = Column(Integer, nullable=False)  # 0-100
+    verdict = Column(String(10), nullable=False)
+    risk_score = Column(Integer, nullable=False)
     llm_output = Column(JSONB, nullable=True)
-    osint_summary = Column(JSONB, nullable=True)  # snapshot ringan, bukan full dump
+    osint_summary = Column(JSONB, nullable=True)
     osint_failed = Column(Boolean, default=False, nullable=False)
-
-    # Siap semantic search (belum diisi pipeline)
-    embedding = Column(Vector(384), nullable=True)
 
     created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
 
@@ -51,7 +45,7 @@ class AhuWhitelist(Base):
 
     id = Column(Integer, primary_key=True, autoincrement=True)
     company_name = Column(String(255), nullable=False, index=True)
-    legal_type = Column(String(10), nullable=False)  # PT or CV
+    legal_type = Column(String(10), nullable=False)
     synced_at = Column(
         DateTime(timezone=True),
         server_default=func.now(),

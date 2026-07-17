@@ -85,9 +85,7 @@ logs/
 *.bin
 *.onnx
 
-# Data lokal Neo4j Graph DB & Hasil Harvesting OSINT
-neo4j/data/
-neo4j/logs/
+
 data/raw/
 data/processed/
 downloads/osint_raw/
