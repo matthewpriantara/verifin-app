@@ -213,6 +213,43 @@ def check_ai_status():
 
 
 # ─────────────────────────────────────────────────────────────────────────────
+# ENDPOINT 4: Debug / Inspect OCR Raw Extraction
+# ─────────────────────────────────────────────────────────────────────────────
+
+@router.post(
+    "/verify/debug/ocr",
+    summary="[DEBUG] Cek Hasil Murni OCR Gambar",
+    description="Endpoint murni untuk melihat langsung hasil pembacaan teks piksel dari PaddleOCR + OpenCV (per baris dan teks utuh) tanpa memanggil NER, OSINT, atau LLM."
+)
+async def debug_ocr(file: UploadFile = File(...)):
+    if not file.content_type.startswith("image/"):
+        raise HTTPException(status_code=400, detail="File harus berupa gambar (JPEG, PNG, WEBP, dll).")
+
+    contents = await file.read()
+    ext = os.path.splitext(file.filename)[-1] or ".png"
+
+    with tempfile.NamedTemporaryFile(delete=False, suffix=ext) as tmp:
+        tmp.write(contents)
+        tmp_path = tmp.name
+
+    try:
+        raw_text = extract_text_from_image(tmp_path)
+        lines = [line.strip() for line in raw_text.split("\n") if line.strip()]
+        return {
+            "filename": file.filename,
+            "total_lines_read": len(lines),
+            "ocr_lines": lines,
+            "raw_ocr_text": raw_text
+        }
+    finally:
+        if os.path.exists(tmp_path):
+            try:
+                os.remove(tmp_path)
+            except Exception:
+                pass
+
+
+# ─────────────────────────────────────────────────────────────────────────────
 # ENDPOINT LAMA (Tetap dipertahankan)
 # ─────────────────────────────────────────────────────────────────────────────
 
