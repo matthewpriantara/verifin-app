@@ -74,11 +74,21 @@ class VerifyResponse(BaseModel):
         default=None,
         description="Model LLM yang digunakan untuk analisis."
     )
+    osint: Optional[Dict[str, Any]] = Field(
+        default=None,
+        description="Bukti OSINT mentah (fakta scrape/API) untuk transparansi laporan."
+    )
+    shap_explanation: Optional[Dict[str, Any]] = Field(
+        default=None,
+        description="Penjelasan SHAP value XAI untuk visualisasi dashboard."
+    )
 
 
-class OllamaStatusResponse(BaseModel):
-    """Response untuk endpoint health check Ollama."""
-    ollama_running: bool
-    hermes_available: bool
-    available_models: List[str]
+class LlmStatusResponse(BaseModel):
+    """Response health check LLM (OpenAgentic)."""
+    provider: str = "openagentic"
+    configured: bool
+    reachable: bool
+    available_models: List[str] = []
     target_model: str
+    detail: Optional[str] = None

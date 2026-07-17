@@ -1,3 +1,5 @@
+"""Konfigurasi aplikasi Verifin — LLM via OpenAgentic & Database."""
+
 import os
 from pathlib import Path
 from dotenv import load_dotenv
@@ -9,30 +11,50 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 env_path = BASE_DIR / ".env"
 load_dotenv(dotenv_path=env_path)
 
+# OpenAgentic (OpenAI-compatible) — Untuk Pipeline Main
+LLM_BASE_URL = os.getenv("LLM_BASE_URL", "https://openagentic.id/api/v1").rstrip("/")
+LLM_API_KEY = os.getenv("LLM_API_KEY", "")
+LLM_MODEL = os.getenv("LLM_MODEL", "grok-4.5")
+LLM_VISION_MODEL = os.getenv("LLM_VISION_MODEL", LLM_MODEL)
+LLM_TIMEOUT = float(os.getenv("LLM_TIMEOUT", "120"))
+
+# PostgreSQL Configuration
+DB_USER = os.getenv("DB_USER", "postgres")
+DB_PASSWORD = os.getenv("DB_PASSWORD", "postgres")
+DB_HOST = os.getenv("DB_HOST", "localhost")
+DB_PORT = os.getenv("DB_PORT", "5432")
+DB_NAME = os.getenv("DB_NAME", "verifin_db")
+
+# Fallback to direct url if specified, otherwise build it
+DATABASE_URL = os.getenv("DATABASE_URL")
+if not DATABASE_URL:
+    DATABASE_URL = f"postgresql://{DB_USER}:{DB_PASSWORD}@{DB_HOST}:{DB_PORT}/{DB_NAME}"
+
+# Redis Configuration
+REDIS_URL = os.getenv("REDIS_URL", "redis://localhost:6379/0")
+
+# Neo4j Configuration
+NEO4J_URI = os.getenv("NEO4J_URI", "bolt://localhost:7687")
+NEO4J_USER = os.getenv("NEO4J_USER", "neo4j")
+NEO4J_PASSWORD = os.getenv("NEO4J_PASSWORD", "password123")
+
+
+# Settings class wrapper for backward-compatibility with database clients
 class Settings:
     PROJECT_NAME: str = "Verifin API"
     VERSION: str = "0.1.0"
     
-    # PostgreSQL Configuration
-    DB_USER: str = os.getenv("DB_USER", "postgres")
-    DB_PASSWORD: str = os.getenv("DB_PASSWORD", "postgres")
-    DB_HOST: str = os.getenv("DB_HOST", "localhost")
-    DB_PORT: str = os.getenv("DB_PORT", "5432")
-    DB_NAME: str = os.getenv("DB_NAME", "verifin_db")
+    DB_USER = DB_USER
+    DB_PASSWORD = DB_PASSWORD
+    DB_HOST = DB_HOST
+    DB_PORT = DB_PORT
+    DB_NAME = DB_NAME
+    DATABASE_URL = DATABASE_URL
     
-    @property
-    def DATABASE_URL(self) -> str:
-        env_url = os.getenv("DATABASE_URL")
-        if env_url:
-            return env_url
-        return f"postgresql://{self.DB_USER}:{self.DB_PASSWORD}@{self.DB_HOST}:{self.DB_PORT}/{self.DB_NAME}"
+    REDIS_URL = REDIS_URL
     
-    # Redis Configuration
-    REDIS_URL: str = os.getenv("REDIS_URL", "redis://localhost:6379/0")
-    
-    # Neo4j Configuration
-    NEO4J_URI: str = os.getenv("NEO4J_URI", "bolt://localhost:7687")
-    NEO4J_USER: str = os.getenv("NEO4J_USER", "neo4j")
-    NEO4J_PASSWORD: str = os.getenv("NEO4J_PASSWORD", "password123")
+    NEO4J_URI = NEO4J_URI
+    NEO4J_USER = NEO4J_USER
+    NEO4J_PASSWORD = NEO4J_PASSWORD
 
 settings = Settings()

@@ -12,10 +12,9 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# Hubungkan router
+# Hubungkan router dari api/v1
 app.include_router(verify_router, prefix="/api/v1")
 app.include_router(health_router, prefix="/api/v1")
-
 
 if __name__ == "__main__":
     import uvicorn

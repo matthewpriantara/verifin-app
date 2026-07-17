@@ -1,7 +1,7 @@
 """
 Prompt Builder untuk Verifin AI Reasoning Engine.
 Mengubah data OSINT & NER yang sudah diekstrak menjadi prompt terstruktur
-yang siap dikirim ke LLM (Hermes via Ollama) untuk analisis risiko penipuan.
+yang siap dikirim ke LLM (OpenAgentic / Grok) untuk analisis risiko penipuan.
 """
 
 # Domain gratisan yang umum digunakan — tidak perlu dicek WHOIS/SPF/DMARC
@@ -46,6 +46,165 @@ def _build_domain_osint_section(emails: list, domain_info: dict, email_security:
         f"- Proteksi SPF: {'✅ Aktif' if spf_ok else '❌ Tidak Aktif (Rentan pemalsuan email)'}\n"
         f"- Proteksi DMARC: {'✅ Aktif' if dmarc_ok else '❌ Tidak Aktif'}"
     )
+
+
+def _build_phone_osint_section(phones: list) -> str:
+    if not phones:
+        return "- Tidak ada nomor HP yang dicek."
+    lines = []
+    for p in phones:
+        phone = p.get("phone") or p.get("phone_local") or "?"
+        if p.get("error") and not p.get("found"):
+            lines.append(f"- `{phone}`: gagal dicek ({p.get('error')})")
+            continue
+        parts = [f"- `{phone}` via Kredibel"]
+        if p.get("rating") is not None:
+            parts.append(f"rating {p.get('rating')}")
+        if p.get("review_count") is not None:
+            parts.append(f"{p.get('review_count')} review")
+        if p.get("reported_fraud"):
+            parts.append("⚠️ PERNAH DILAPORKAN PENIPUAN")
+        if p.get("url"):
+            parts.append(f"sumber: {p.get('url')}")
+        lines.append(" | ".join(parts))
+        for f in p.get("risk_flags") or []:
+            lines.append(f"  → {f}")
+        if p.get("summary"):
+            lines.append(f"  → ringkas: {p.get('summary')}")
+    return "\n".join(lines) if lines else "- Tidak ada data telepon."
+
+
+def _build_company_osint_section(companies: list) -> str:
+    if not companies:
+        return "- Tidak ada pengecekan nama PT/perusahaan."
+    lines = []
+    for c in companies:
+        name = c.get("name") or "?"
+        lines.append(f"- Nama: `{name}` | method={c.get('method', 'public_web_only')}")
+        reg = c.get("registry") or {}
+        lines.append(
+            f"  → Legalitas AHU/OSS per-entitas: "
+            f"{'TERVERIFIKASI' if reg.get('pt_registry_verified') else 'BELUM TERVERIFIKASI (jangan dikarang)'}"
+        )
+        if reg.get("disclaimer"):
+            lines.append(f"  → Disclaimer: {reg.get('disclaimer')}")
+        stats = c.get("stats") or {}
+        if stats:
+            lines.append(
+                f"  → Jejak search: {stats.get('public_mentions', 0)} hasil, "
+                f"indikasi penipuan di SERP: {stats.get('fraud_related_mentions', 0)}"
+            )
+        for ev in (c.get("evidence") or [])[:6]:
+            et = ev.get("type")
+            if et == "website_fetch":
+                lines.append(
+                    f"  → [FETCH] {ev.get('url')} ok={ev.get('ok')} title={(ev.get('title') or '')[:60]}"
+                )
+            elif et == "web_search":
+                lines.append(f"  → [SEARCH] q=`{ev.get('query')}` ok={ev.get('ok')}")
+                for r in (ev.get("results") or [])[:2]:
+                    lines.append(
+                        f"     · {(r.get('title') or '')[:90]} | {r.get('url')}"
+                    )
+            elif et == "registry_portal_probe":
+                lines.append(
+                    f"  → [AHU PORTAL] {ev.get('url')} ok={ev.get('ok')} — {ev.get('note', '')[:120]}"
+                )
+        for f in c.get("risk_flags") or []:
+            lines.append(f"  → ⚠️ {f}")
+        for f in c.get("safe_flags") or []:
+            lines.append(f"  → ✅ {f}")
+        if c.get("error"):
+            lines.append(f"  → error: {c.get('error')}")
+    return "\n".join(lines)
+
+
+def _build_web_osint_section(web: dict) -> str:
+    if not web:
+        return "- Tidak ada data web evidence."
+    if web.get("error") and not web.get("websites") and not web.get("searches"):
+        return f"- Web evidence error: {web.get('error')}"
+
+    lines = [f"- Engine: {web.get('engine', 'scrapling')}"]
+    for w in (web.get("websites") or [])[:3]:
+        if w.get("ok"):
+            lines.append(
+                f"- Website OK: {w.get('url')} | title: {(w.get('title') or '-')[:80]}"
+            )
+            if w.get("snippet"):
+                lines.append(f"  → cuplikan: {w.get('snippet')[:180]}")
+        else:
+            lines.append(
+                f"- Website GAGAL: {w.get('url')} ({w.get('error') or w.get('status')})"
+            )
+        for f in w.get("risk_flags") or []:
+            lines.append(f"  → ⚠️ {f}")
+        for f in w.get("safe_flags") or []:
+            lines.append(f"  → ✅ {f}")
+
+    for gf in web.get("gform_inspections") or []:
+        if gf.get("is_gform"):
+            lines.append(f"- Google Form Inspection: `{gf.get('url')}`")
+            lines.append(f"  · Judul Formulir: {gf.get('form_title')}")
+            qs = gf.get("questions") or []
+            if qs:
+                qs_str = ", ".join(qs[:5])
+                lines.append(f"  · Pertanyaan Formulir: {qs_str}")
+            if gf.get("has_phishing_signals"):
+                lines.append("  · 🚨 PERINGATAN: Formulir memuat pertanyaan sensitif/keuangan mencurigakan!")
+
+    for s in (web.get("searches") or [])[:2]:
+        lines.append(f"- Search: `{s.get('query')}` (ok={s.get('ok')})")
+        for r in (s.get("results") or [])[:3]:
+            lines.append(
+                f"  · {(r.get('title') or '-')[:100]} — {r.get('url')}"
+            )
+            if r.get("snippet"):
+                lines.append(f"    {r.get('snippet')[:140]}")
+        for f in s.get("risk_flags") or []:
+            lines.append(f"  → ⚠️ {f}")
+
+    for f in web.get("risk_flags") or []:
+        lines.append(f"- ⚠️ {f}")
+    for f in web.get("safe_flags") or []:
+        lines.append(f"- ✅ {f}")
+
+    if len(lines) == 1:
+        lines.append("- Tidak ada website/search yang berhasil dikumpulkan.")
+    return "\n".join(lines)
+
+
+def _build_threads_osint_section(threads: dict) -> str:
+    """Format hasil OSINT Threads untuk prompt reasoner."""
+    if not threads:
+        return "- Tidak ada data Threads."
+    if not threads.get("enabled"):
+        return f"- Threads OSINT nonaktif: {threads.get('error') or threads.get('note') or 'cookie belum diset'}."
+    if threads.get("error") and not threads.get("found"):
+        return f"- Threads OSINT error: {threads.get('error')}"
+
+    lines = [
+        f"- Query: {threads.get('query', '-')}",
+        f"- Ditemukan jejak: {'Ya' if threads.get('found') else 'Tidak'}",
+    ]
+    profiles = threads.get("profiles") or []
+    if profiles:
+        lines.append("- Profil terkait:")
+        for p in profiles[:3]:
+            lines.append(f"  · @{p.get('username')} — {p.get('url')}")
+    posts = threads.get("posts") or []
+    if posts:
+        lines.append("- Cuplikan postingan:")
+        for p in posts[:4]:
+            lines.append(f"  · ({p.get('source')}) {p.get('snippet', '')[:180]}")
+    flags = threads.get("risk_flags") or []
+    if flags:
+        lines.append("- Bendera risiko medsos:")
+        for f in flags:
+            lines.append(f"  · {f}")
+    if not profiles and not posts:
+        lines.append("- Tidak ada postingan/profil yang cocok dari pencarian terbatas.")
+    return "\n".join(lines)
 
 
 def _build_address_osint_section(address_validations: list) -> str:
@@ -160,22 +319,49 @@ Analisis secara mendalam dan berikan keputusan apakah lowongan ini AMAN, WASPADA
 **Validasi Alamat Fisik (OpenStreetMap):**
 {_build_address_osint_section(osint_results.get("address_validations", []))}
 
+**Reputasi Nomor HP (Kredibel — scrape halaman nyata):**
+{_build_phone_osint_section(osint_results.get("phones", []))}
+
+**Cek Nama PT / Perusahaan (jejak publik, BUKAN sertifikat AHU palsu):**
+{_build_company_osint_section(osint_results.get("companies", []))}
+
+**Bukti Web (Scrapling — website + pencarian nyata):**
+{_build_web_osint_section(osint_results.get("web", {}))}
+
+**Jejak Threads saja (medsos; cookie session):**
+{_build_threads_osint_section(osint_results.get("threads", {}))}
+
+**Kebijakan evidence:**
+{(osint_results.get("evidence_policy") or {}).get("note", "Hanya fakta dari sumber OSINT.")}
+
 ---
+
+## ATURAN KERAS (ANTI-HALUSINASI & VALUASI LOWONGAN VALID)
+
+1. Kamu HANYA boleh memakai FAKTA yang tertulis di bagian OSINT / TEKS ASLI di atas.
+2. DILARANG mengarang: laporan medsos fiktif, status AHU/OSS, atau rating Kredibel yang tidak ada di data.
+3. Gunakan hasil Scrapling (Instagram/Facebook/TikTok/Marketplace/Threads/SERP) yang ada di `safe_flags` / `safe_signals`.
+4. VALUASI LOWONGAN VALID (UMKM/RITEL/STARTUP LOKAL):
+   - Jika ALAMAT FISIK TERVERIFIKASI VALID di peta OpenStreetMap Indonesia (misal: Sleman, Yogyakarta),
+   - Dan rentang GAJI RASIONAL/WAJAR (contoh: Rp 2 - 4.5 juta/bulan),
+   - Dan deskripsi benefit/persyaratan kerja terperinci tanpa indikasi permintaan biaya/uang,
+   - Dan terdeteksi PROFIL MEDSOS / TOKO PUBLIK AKTIF (Instagram/Tokopedia/Shopee):
+   - ➔ MAKA BERIKAN VERDICT: "AMAN" dengan skor risiko 15 - 35 (skor AMAN)!
+   - Catatan: Penggunaan shortlink bit.ly atau Google Forms (forms.gle) adalah praktik standar yang SANGAT UMUM untuk rekrutmen UMKM/Startups di Indonesia dan BUKAN indikator penipuan jika lokasi fisik & medsos terbukti nyata.
 
 ## INSTRUKSI ANALISIS
 
-Berdasarkan data di atas, lakukan analisis mendalam dengan mempertimbangkan:
-1. Apakah email perusahaan menggunakan domain gratisan (gmail, yahoo, dll.) padahal mengaku sebagai perusahaan besar/PT resmi?
-2. Apakah domain email baru dibuat (< 1 tahun) yang menunjukkan perusahaan fiktif?
-3. Apakah gaji yang ditawarkan tidak realistis atau tidak disebutkan sama sekali (taktik umum penipu)?
-4. Apakah alamat fisik terdengar valid atau mencurigakan?
-5. Apakah tidak ada website resmi perusahaan yang dicantumkan?
-6. Apakah proteksi SPF/DMARC tidak aktif? (Hanya pertimbangkan ini jika email ditemukan dan BUKAN domain gratisan seperti gmail/yahoo).
-7. WAJIB tentukan nama bisnis lengkap dari TEKS ASLI LOWONGAN (misalnya: jika teks asli menulis 'SEKOTAK ROTI' tetapi di data tertulis 'Roti', maka corrected_company_name harus diisi 'Sekotak Roti').
-8. PENTING - KLASIFIKASI SKALA BISNIS:
-   - Jika ini adalah bisnis UMKM/Informal (toko, bakery, cafe, warung, dll. tanpa PT/CV): Ketiadaan website resmi atau email korporat adalah HAL YANG SANGAT WAJAR. Jika alamat fisiknya valid di peta dan ada nomor kontak (WA), lowongan ini harus dikategorikan **AMAN (Verdict: AMAN, skor 15-35)**. Jangan mengarang risiko palsu hanya karena tidak ada email.
-   - Jika ini adalah perusahaan besar/Formal (menggunakan nama PT/CV resmi): Penggunaan email gratisan (gmail/yahoo) harus dinilai sebagai **WASPADA (skor 40-55)** untuk kehati-hatian, bukan langsung BAHAYA.
-9. DILARANG KERAS BERHALUSINASI GEOGRAFIS: Jangan pernah mengarang bahwa suatu alamat di daerah perkotaan/pemukiman Jawa (seperti Yogyakarta, Sleman, Bantul, Jakarta, dll.) sebagai "terpencil" atau "mencurigakan" jika alamat tersebut valid ditemukan di peta.
+1. Email domain gratisan vs klaim PT formal?
+2. Umur domain / SPF / DMARC (hanya dari data WHOIS/DNS di atas)?
+3. Gaji tidak wajar / minta biaya (dari teks)?
+4. Alamat: valid di OSM atau tidak (hanya dari validasi alamat)?
+5. Website: jika web korporat tidak aktif namun akun Instagram/toko publik resmi DITEMUKAN ➔ nilai sebagai AMAN/RITEL VALID!
+6. Kredibel: reported_fraud / rating (hanya jika ada di data telepon)?
+7. Search/PT traces: indikasi penipuan di SERP (hanya URL yang tertera)?
+8. Threads & Medsos: perhatikan hasil pencarian medsos yang tertera di safe_flags!
+9. corrected_company_name dari teks asli.
+10. Skala bisnis UMKM vs PT formal.
+11. risk_score konsisten: AMAN 0-39, WASPADA 40-74, BAHAYA 75-100.
 
 ---
 
