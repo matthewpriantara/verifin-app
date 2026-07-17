@@ -91,3 +91,6 @@ neo4j/logs/
 data/raw/
 data/processed/
 downloads/osint_raw/
+# Secrets lokal (cookies, keys)
+secrets/
+*.cookies.json

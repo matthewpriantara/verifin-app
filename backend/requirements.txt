@@ -5,16 +5,16 @@ python-multipart==0.0.9
 python-whois==0.8.0
 dnspython==2.6.1
 requests==2.31.0
+httpx>=0.27.0
+scrapling[fetchers]>=0.4.11
 neo4j==5.18.0
 SQLAlchemy==2.0.28
 psycopg2-binary==2.9.9
 redis==5.0.3
 
-# AI & NLP (PaddleOCR & IndoBERT NER)
-transformers==4.38.2
-torch==2.2.1
-paddlepaddle>=2.6.2
-paddleocr>=2.7.3
-
-# OSINT (Custom Git Repo)
-git+https://github.com/kaifcodec/user-scanner.git
+# Opsional berat (OCR Python / IndoBERT — dikerjakan terpisah):
+# transformers==4.38.2
+# torch==2.2.1
+# paddlepaddle>=2.6.2
+# paddleocr>=2.7.3
+# git+https://github.com/kaifcodec/user-scanner.git

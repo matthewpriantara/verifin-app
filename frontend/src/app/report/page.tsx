@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/Button";
 import { RiskMeter } from "@/components/report/RiskMeter";
 import { FactorList } from "@/components/report/FactorList";
 import { EntityPanel } from "@/components/report/EntityPanel";
+import { EvidencePanel } from "@/components/report/EvidencePanel";
 import { REPORT_STORAGE_KEY } from "@/lib/utils";
 import type { VerifyResponse } from "@/types/verify";
 
@@ -115,6 +116,7 @@ export default function ReportPage() {
         />
 
         <EntityPanel entities={report.entities} />
+        <EvidencePanel osint={report.osint} />
       </div>
 
       <div className="mt-10 flex flex-wrap gap-3">
