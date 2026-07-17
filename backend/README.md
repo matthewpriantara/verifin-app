@@ -11,26 +11,29 @@ Verifin bekerja menggunakan arsitektur 3 tahap (Multi-Stage Processing Pipeline)
 ```
 +-------------------+      +-------------------------+      +--------------------------+
 | 1. OCR & NER      | ---> | 2. OSINT & Scrapling    | ---> | 3. LLM Reasoner & XAI    |
-| (Local OpenCV/    |      | (WHOIS, OSM, Kredibel,  |      | (Grok-4.5 + SHAP         |
-|  PaddleOCR/NER)   |      |  GForm Phishing, Web)   |      |  Feature Explainer)      |
+| (OpenCV CLAHE +   |      | (WHOIS, OSM, Kredibel,  |      | (Grok-4.5 + SHAP         |
+|  PaddleOCR +      |      |  GForm, Web, Threads)   |      |  Feature Explainer)      |
+|  Regex struktural)|      |                         |      |                          |
 +-------------------+      +-------------------------+      +--------------------------+
 ```
 
 ### 1. Ekstraksi Teks & Entitas (OCR + NER)
-* **OpenCV CLAHE & Border Padding:** Memproses citra poster/flyer secara lokal (penajaman kontras adaptif pada stempel/logo dan penambahan margin 30px agar teks pinggir tidak terpotong).
-* **PaddleOCR / Tesseract:** Mengekstrak piksel teks secara presisi di bawah 1 detik.
-* **Regex NER & IndoBERT:** Mengidentifikasi entitas penting (Nama Perusahaan, Nomor WhatsApp `+62`, Email, URL Situs, Alamat Fisik, dan Rentang Gaji).
+* **OpenCV CLAHE & Border Padding:** Preprocess poster/flyer lokal (kontras adaptif + margin 30px).
+* **PaddleOCR (paddlepaddle 2.6.2 + paddleocr 2.8.1):** Ekstraksi teks lokal (wajib venv Python 3.11 di macOS Intel).
+* **Regex NER struktural (`ner.py`):** Full regex (tanpa IndoBERT) — company legal form, alamat multi-layout berbasis pola Indonesia (Jl/Dusun/RT-RW/kode pos, **bukan whitelist kota**), phone `+62`, email, URL, gaji.
 
 ### 2. Investigasi Intelijen Real-Time (OSINT Engine)
-* **WHOIS & DNS Security:** Mengecek umur domain dan enkripsi email (SPF/DMARC).
-* **Kredibel Phone API:** Memeriksa reputasi nomor HP/WA pada basis data aduan penipuan publik.
-* **OpenStreetMap Geocoding:** Memvalidasi keberadaan koordinat dan alamat kantor fisik secara presisi.
-* **Google Form Phishing Inspector (`gform_inspector`):** Mem-follow redirect shortlink (`bit.ly`, `forms.gle`), membaca formulir target, dan mendeteksi indikasi phishing (permintaan No. Rekening, KTP, atau Biaya Admin).
-* **Web Scrapling & Medsos Fallback:** Mencari jejak digital perusahaan di web publik, Instagram, Shopee, dan Threads.
+* **WHOIS & DNS Security:** Umur domain + SPF/DMARC (domain korporat saja; Gmail/Yahoo = netral).
+* **Kredibel Phone:** Reputasi nomor HP/WA (scrape + cookie session).
+* **OpenStreetMap Geocoding:** Validasi alamat fisik.
+* **Google Form Phishing Inspector:** Follow shortlink (`bit.ly`, `forms.gle`), deteksi minta rekening/KTP/biaya.
+* **Web Scrapling:** Website + SERP + **query email footprint** (email tidak lagi dicari di Threads).
+* **Threads OSINT:** Jejak postingan/brand dari **nama perusahaan** saja.
 
 ### 3. Penalaran & Penjelasan Transparan (LLM Reasoner + SHAP XAI)
-* **Verifin Reasoning Engine (`verifin_reasoning.py` via Grok-4.5):** Menganalisis laporan bukti faktual OSINT tanpa halusinasi, menentukan *Verdict* (`AMAN`, `WASPADA`, `BAHAYA`), dan skor risiko (0-100).
-* **SHAP Feature Explainer (`shap_explainer.py`):** Menghitung nilai kontribusi additif Shapley untuk setiap fitur (risiko vs aman) dan menghasilkan data `waterfall_chart` siap render di dashboard frontend Next.js.
+* **Verifin Reasoning Engine (`verifin_reasoning.py` via Grok-4.5 / OpenAgentic):** Verdict `AMAN` | `WASPADA` | `BAHAYA` + skor 0–100, anti-halusinasi (hanya fakta OSINT).
+* **Kalibrasi skor:** Gmail netral untuk UMKM; target UMKM valid (OSM + HP bersih + no fee) **AMAN 5–15**.
+* **SHAP Feature Explainer (`shap_explainer.py`):** Kontribusi fitur + `waterfall_chart` untuk frontend.
 
 ---
 
@@ -40,31 +43,32 @@ Verifin bekerja menggunakan arsitektur 3 tahap (Multi-Stage Processing Pipeline)
 backend/
 ├── app/
 │   ├── main.py                     # FastAPI Entry Point
-│   ├── config.py                   # Konfigurasi Environment & LLM Settings
+│   ├── config.py                   # Environment & LLM Settings
 │   ├── api/
 │   │   └── v1/
 │   │       ├── health/
-│   │       │   └── router.py       # GET /api/v1/health (Health check)
+│   │       │   └── router.py       # GET /api/v1/health
 │   │       └── verify/
-│   │           ├── router.py       # POST /api/v1/verify/text & POST /api/v1/verify/image
-│   │           └── schema.py       # Pydantic Request/Response Schemas
+│   │           ├── router.py       # verify/text, verify/image, verify/status, ...
+│   │           └── schema.py       # Pydantic Request/Response
 │   └── services/
-│       ├── ocr.py                  # Local OCR Engine (OpenCV CLAHE + PaddleOCR/Tesseract)
-│       ├── ner.py                  # Named Entity Recognition (Regex + IndoBERT)
+│       ├── ocr.py                  # OpenCV CLAHE + PaddleOCR
+│       ├── ner.py                  # Regex struktural NER (no ML)
 │       ├── osint/
-│       │   ├── address_validator.py # OpenStreetMap Geocoding
-│       │   ├── company_validator.py # Identitas & Legalitas Perusahaan
-│       │   ├── gform_inspector.py   # Phishing Shortlink & Google Form Inspector
-│       │   ├── phone_validator.py   # Kredibel.id Fraud Reputation Check
-│       │   ├── threads_osint.py     # Threads Meta Social Media Scraper
-│       │   ├── web_evidence.py      # Scrapling Web & Marketplace Fallback
-│       │   └── whois_handler.py     # Domain Age & SPF/DMARC Security Check
+│       │   ├── address_validator.py
+│       │   ├── company_validator.py
+│       │   ├── gform_inspector.py
+│       │   ├── phone_validator.py
+│       │   ├── threads_osint.py    # query company/brand only
+│       │   ├── web_evidence.py     # website + SERP + email search
+│       │   └── whois_handler.py
 │       ├── llm/
-│       │   ├── prompt_builder.py    # Anti-Hallucination Prompt Engineering
-│       │   ├── client.py            # OpenAgentic LLM HTTP Client
-│       │   └── verifin_reasoning.py # LLM Grok-4.5 Reasoning Engine
+│       │   ├── prompt_builder.py   # anti-halusinasi + kalibrasi skor
+│       │   ├── client.py
+│       │   └── verifin_reasoning.py
 │       └── xai/
-│           └── shap_explainer.py   # SHAP Additive Feature Value Explainer
+│           └── shap_explainer.py
+├── secrets/                        # cookies OSINT (gitignored)
 ├── .env.example
 ├── requirements.txt
 └── README.md
@@ -74,27 +78,33 @@ backend/
 
 ## 🚀 Cara Menjalankan Server Backend
 
-1. **Persiapkan Virtual Environment:**
+> **Penting (macOS Intel):** Pakai **Python 3.11** + `paddlepaddle==2.6.2`.  
+> Venv Python 3.14 (`.venv`) biasanya **tidak** punya paddle yang jalan.
+
+1. **Virtual Environment (disarankan `.venv311`):**
    ```bash
-   python3 -m venv .venv
-   source .venv/bin/activate
+   cd backend
+   python3.11 -m venv .venv311
+   source .venv311/bin/activate
    pip install -r requirements.txt
    ```
 
-2. **Konfigurasi Environment Variable (`.env`):**
+2. **Environment Variable (`.env`):**
    ```env
    LLM_BASE_URL=https://openagentic.id/api/v1
    LLM_API_KEY=your_api_key_here
    LLM_MODEL=grok-4.5
    ```
 
-3. **Jalankan Server Uvicorn:**
+3. **Jalankan Uvicorn:**
    ```bash
-   uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
+   .venv311/bin/uvicorn app.main:app --host 127.0.0.1 --port 8000 --reload
+   # atau setelah activate:
+   uvicorn app.main:app --host 127.0.0.1 --port 8000 --reload
    ```
 
-4. **Akses Dokumentasi API:**
-   * Swagger UI: `http://localhost:8000/docs`
+4. **Docs:**
+   * Swagger: `http://localhost:8000/docs`
    * Redoc: `http://localhost:8000/redoc`
 
 ---
@@ -103,7 +113,28 @@ backend/
 
 | Method | Endpoint | Deskripsi |
 | :--- | :--- | :--- |
-| `GET` | `/api/v1/health` | Status kesehatan server, LLM, dan OSINT services. |
-| `POST` | `/api/v1/verify/text` | Verifikasi lowongan kerja dari input teks. |
-| `POST` | `/api/v1/verify/image` | Verifikasi lowongan kerja dari gambar poster/flyer (Local OCR). |
-| `POST` | `/api/v1/verify/debug/ocr` | Debugging murni ekstraksi piksel teks OCR. |
+| `GET` | `/api/v1/health` | Status server + LLM + OSINT |
+| `POST` | `/api/v1/verify/text` | Verifikasi dari teks |
+| `POST` | `/api/v1/verify/image` | Verifikasi dari gambar (PaddleOCR lokal) |
+| `GET` | `/api/v1/verify/status` | Status LLM OpenAgentic |
+| `GET` | `/api/v1/check-domain` | Cek cepat umur domain + SPF/DMARC |
+| `GET` | `/api/v1/osint/scan-email` | Footprint email |
+| `GET` | `/api/v1/osint/scan-username` | Footprint username |
+
+### Contoh test poster
+```bash
+curl -X POST "http://127.0.0.1:8000/api/v1/verify/image" \
+  -F "file=@loker_test2.jpeg"
+```
+
+---
+
+## 📊 Verdict & Skor Risiko
+
+| Verdict | Skor | Arti singkat |
+| :--- | :--- | :--- |
+| `AMAN` | 0–39 | UMKM valid target **5–15**; 0–10 sangat aman |
+| `WASPADA` | 40–74 | Ada red flag kombinasi / jejak meragukan |
+| `BAHAYA` | 75–100 | Minta biaya, HP fraud, phishing form, scam SERP |
+
+**Netral (bukan red flag tunggal):** email Gmail/Yahoo, gaji tidak disebut, tidak ada website jika alamat OSM valid / medsos aktif.
