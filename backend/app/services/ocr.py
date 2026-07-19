@@ -83,8 +83,8 @@ def preprocess_image(image_path: str) -> np.ndarray:
         img = cv2.resize(img, (w * 2, h * 2), interpolation=cv2.INTER_CUBIC)
         h, w = img.shape[:2]
 
-    # Downscale poster besar — OCR CPU jauh lebih cepat, akurasi teks utama tetap
-    max_side = 1100
+    # Downscale poster besar — pertahankan detail teks kecil (no HP, email, alamat) di footer/header poster
+    max_side = 1800
     if max(h, w) > max_side:
         scale = max_side / float(max(h, w))
         img = cv2.resize(

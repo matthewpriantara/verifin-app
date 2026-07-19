@@ -414,12 +414,12 @@ def build_text_verify_prompt(raw_text: str, entities: dict, osint_results: dict)
     """
     base_prompt = build_verify_prompt(entities, osint_results)
     
-    # Sisipkan teks kasar OCR sebagai konteks tambahan
+    # Sisipkan teks kasar OCR sebagai konteks tambahan (maks 3500 karakter agar tidak terpotong)
     raw_section = f"""
 ## TEKS ASLI LOWONGAN (Hasil OCR / Input Manual)
 
 ```
-{raw_text[:900]}{"...(terpotong)" if len(raw_text) > 900 else ""}
+{raw_text[:3500]}{"...(terpotong)" if len(raw_text) > 3500 else ""}
 ```
 
 """

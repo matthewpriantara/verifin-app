@@ -346,7 +346,11 @@ def _extract_companies(text: str) -> list[str]:
     for idx, line in enumerate(lines):
         if re.search(r"^(?:WE'?RE|WE\s+ARE|HIRING|LOWONGAN|OPEN\s+RECRUITMENT|DIBUTUHKAN)", line, re.I):
             if idx > 0:
-                header_lines = [l for l in lines[max(0, idx-3):idx] if not re.search(r"\b(?:loker|dibatasi|slide|page|halaman)\b", l, re.I)]
+                header_lines = [
+                    l for l in lines[max(0, idx-3):idx] 
+                    if not re.search(r"^(?:\[|===|URL Target|TEKS|DESKRIPSI)", l, re.I)
+                    and not re.search(r"\b(?:loker|dibatasi|slide|page|halaman)\b", l, re.I)
+                ]
                 if header_lines:
                     candidate = " ".join(header_lines).strip()
                     candidate = _normalize_company_name(candidate)
@@ -356,6 +360,8 @@ def _extract_companies(text: str) -> list[str]:
 
     # 5) Brand names ending with common agency/business keywords (MANAGEMENT, CENTER, GROUP, etc.)
     for line in lines:
+        if re.search(r"^(?:\[|===|URL Target|TEKS|DESKRIPSI)", line, re.I):
+            continue
         if re.search(
             r"\b[A-Za-z0-9&'.-]{2,}\s+(?:[A-Za-z0-9&'.-]{2,}\s+){0,3}(?:MANAGEMENT|CENTER|GROUP|SOLUSINDO|DIGITAL|STUDIO|MEDIA|CORPORATION|SERVICES|STORE|OFFICIAL|ENTERPRISE|LOGISTICS)\b",
             line,
@@ -364,12 +370,20 @@ def _extract_companies(text: str) -> list[str]:
             candidate = _normalize_company_name(line)
             if (
                 candidate
-                and len(candidate) >= 5
-                and not re.search(r"\b(?:loker|info|syarat|gaji|email|kualifikasi|staff|admin)\b", candidate, re.I)
+                and 5 <= len(candidate) <= 60
+                and len(candidate.split()) <= 6
+                and not re.search(r"\b(?:loker|info|syarat|gaji|email|kualifikasi|staff|admin|pengetahuan|dasar|iklan|digital|marketing)\b", candidate, re.I)
             ):
                 companies.append(candidate)
 
-    return companies
+    # Filter akhir: buang tag metadata/header jika ada yang lolos
+    clean_companies = []
+    for comp in companies:
+        c = re.sub(r"^(?:\[.*?\]\s*|===.*?===\s*)", "", comp).strip()
+        if c and not re.search(r"^(?:TEKS UTAMA|POSTER/GAMBAR|DESKRIPSI POSTINGAN|URL Target)", c, re.I):
+            clean_companies.append(c)
+
+    return clean_companies
 
 
 def _extract_addresses(text: str) -> list[str]:
@@ -494,8 +508,13 @@ def _uniq(items: list[str]) -> list[str]:
 
 def extract_entities_from_text(text: str) -> dict:
     """Ekstrak companies, contacts, emails, urls, addresses, salaries (regex only)."""
-    normalized_text = re.sub(r"\bJI\b\.?\s+", "Jl. ", text or "")
-    normalized_text = re.sub(r"\bJ\|\b\.?\s+", "Jl. ", normalized_text)
+    raw_text_input = text or ""
+    normalized_text = re.sub(r"\bJI\b\.?\s*", "Jl. ", raw_text_input, flags=re.I)
+    normalized_text = re.sub(r"\bJI\.\s*", "Jl. ", normalized_text, flags=re.I)
+    normalized_text = re.sub(r"\bJ\|\b\.?\s*", "Jl. ", normalized_text)
+    # Hapus tanda kurung telepon OCR seperti (0274) atau 0274)
+    normalized_text = re.sub(r"([0-9]{3,5})\)", r"\1 ", normalized_text)
+    normalized_text = re.sub(r"\(([0-9]{3,5})\)", r" \1 ", normalized_text)
     normalized_text = normalize_phone_typos(normalized_text)
 
     email_pattern = r"[a-zA-Z0-9_.+-]+@[a-zA-Z0-9-]+\.[a-zA-Z0-9-.]+"
@@ -503,9 +522,10 @@ def extract_entities_from_text(text: str) -> dict:
         r"(?:https?://[^\s\"'\<\>]+|www\.[^\s\"'\<\>]+|"
         r"\b[a-zA-Z0-9-]+\.(?:com|id|co\.id|co|net|org|xyz|info|io|app|shop|store)/(?:[^\s\"'\<\>]+)?)"
     )
-    phone_pattern = r"(?:\+62|62|0)\s*[2-9](?:[\s\-]?\d){7,12}"
+    # Dukung juga nomor telepon area/landline Indonesia (misal 0274 373608 atau 021 5551234)
+    phone_pattern = r"(?:\+62|62|0)\s*[1-9](?:[\s\-]?\d){6,12}"
 
-    search_blob = (text or "") + "\n" + _normalize_ocr_spacing(normalized_text)
+    search_blob = raw_text_input + "\n" + _normalize_ocr_spacing(normalized_text) + "\n" + normalized_text
 
     emails = list(set(re.findall(email_pattern, search_blob)))
     urls = list(set(re.findall(url_pattern, search_blob)))
@@ -520,16 +540,30 @@ def extract_entities_from_text(text: str) -> dict:
             clean_ph = "62" + clean_ph[1:]
         elif clean_ph.startswith("8"):
             clean_ph = "62" + clean_ph
-        if len(clean_ph) >= 10:
+        if len(clean_ph) >= 9:
             standardized_phones.append("+" + clean_ph)
 
     salaries = _extract_salaries(search_blob)
-    extracted_addresses = _extract_addresses(text or "") + _extract_addresses(
+    extracted_addresses = _extract_addresses(raw_text_input) + _extract_addresses(
         _normalize_ocr_spacing(normalized_text)
-    )
-    companies = _extract_companies(text or "") + _extract_companies(
+    ) + _extract_addresses(normalized_text)
+
+    companies = _extract_companies(raw_text_input) + _extract_companies(
         _normalize_ocr_spacing(normalized_text)
-    )
+    ) + _extract_companies(normalized_text)
+
+    # Fallback Perusahaan dari domain email khusus (misal lamaran@deliciabakery.com -> Delicia Bakery)
+    from app.services.llm.prompt_builder import FREE_EMAIL_DOMAINS
+    for email in emails:
+        if "@" in email:
+            dom = email.split("@")[1].lower()
+            if dom not in FREE_EMAIL_DOMAINS and "." in dom:
+                brand_part = dom.split(".")[0]
+                if len(brand_part) >= 4:
+                    # ubah deliciabakery -> Delicia Bakery / Deliciabakery
+                    formatted = re.sub(r"([a-z])(bakery|group|official|store|center|tech|media|studio)\b", r"\1 \2", brand_part, flags=re.I).title()
+                    if formatted not in companies:
+                        companies.insert(0, formatted)
 
     return {
         "companies": _uniq(companies),
