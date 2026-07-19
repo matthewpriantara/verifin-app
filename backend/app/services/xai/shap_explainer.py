@@ -76,12 +76,39 @@ def explain_verification_shap(
             "description": "Alamat kantor yang dicantumkan tidak dapat dikonfirmasi di OpenStreetMap",
         })
 
-    # 5. Email domain gratisan — kontribusi RINGAN (UMKM Indonesia sering pakai Gmail)
-    is_free_email = any(
-        "gmail" in rf.lower() or "yahoo" in rf.lower() or "domain gratisan" in rf.lower()
-        for rf in risk_factors
+    # 5. Email domain gratisan vs Pencatutan Instansi Pemerintah
+    rf_blob = " ".join(risk_factors).lower()
+    comp_blob = " ".join(
+        c.get("name", "") for c in (osint_results.get("companies") or [])
+    ).lower()
+
+    is_gov_claim = any(
+        k in rf_blob or k in comp_blob
+        for k in (
+            "badan gizi",
+            "kementerian",
+            "dinas",
+            "bgn",
+            "sppg",
+            "instansi",
+            "pemerintah",
+        )
     )
-    if is_free_email:
+    is_free_email = any(
+        "gmail" in rf_blob or "yahoo" in rf_blob or "domain gratisan" in rf_blob
+        for _ in [1]
+    )
+
+    if is_gov_claim and is_free_email:
+        contributions.append({
+            "feature": "Klaim Instansi Pemerintah via Email Gratisan",
+            "feature_key": "gov_impersonation_email",
+            "value": 1,
+            "contribution": 35.0,
+            "impact": "risk",
+            "description": "Mengatasnamakan badan/instansi pemerintah tetapi menggunakan kontak email publik (Gmail)",
+        })
+    elif is_free_email:
         contributions.append({
             "feature": "Email Domain Gratisan",
             "feature_key": "email_free_domain",
@@ -135,7 +162,24 @@ def explain_verification_shap(
         scale = target_delta / raw_sum
         if scale > 0:
             for c in contributions:
-                c["contribution"] = round(c["contribution"] * scale, 1)
+                # Cap email_free_domain agar tidak membengkak abnormal
+                if c["feature_key"] == "email_free_domain":
+                    c["contribution"] = min(8.0, round(c["contribution"] * scale, 1))
+                else:
+                    c["contribution"] = round(c["contribution"] * scale, 1)
+
+        # Jika ada sisa selisih yang belum terjelaskan, tambahkan fitur narasi LLM
+        curr_sum = sum(c["contribution"] for c in contributions)
+        remaining = target_delta - curr_sum
+        if abs(remaining) >= 5.0:
+            contributions.append({
+                "feature": "Indikasi Anomali Rekrutmen & Pola Red Flag",
+                "feature_key": "llm_narrative_anomaly",
+                "value": 1,
+                "contribution": round(remaining, 1),
+                "impact": "risk" if remaining > 0 else "safe",
+                "description": "Indikasi pola mencurigakan dari narasi poster/instansi oleh LLM Reasoner",
+            })
 
     # Format data waterfall chart untuk dashboard Next.js
     waterfall_chart_data = []

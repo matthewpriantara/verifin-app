@@ -15,7 +15,8 @@ import re
 # Pemisah konten non-alamat (label seksi lowongan)
 _ADDR_STOP = (
     r"(?:Gaji|GAJI|Salary|Upah|Kontak|Contact|Email|WA|WhatsApp|Hubungi|"
-    r"Kirim|CV|Lamaran|Benefit|Syarat|Kualifikasi|Posisi|Lowongan|"
+    r"Kirim|CV|Cover\s*Letter|Send(?:\s*your)?|Subjek|Subject|Apply|Apply\s*Now|More\s*Information|"
+    r"Lamaran|Benefit|Syarat|Kualifikasi|Posisi|Lowongan|"
     r"Info|Informasi|NB|Catatan|Note|Transfer|Biaya|Deposit|Deskripsi|"
     r"Pekerjaan|Ringkasan|Formulir|Account|Officer|Lamar)"
 )
@@ -58,7 +59,7 @@ def _clean_address(addr: str) -> str:
     # buang label alamat di depan
     a = re.sub(
         r"^(?:Alamat(?:\s*(?:Kantor|Lengkap|Perusahaan|Toko))?|Lokasi(?:\s*Kerja)?|"
-        r"Bertempat\s*di|Tempat(?:\s*Kerja)?|Office|Basecamp|Kode\s*Pos)\s*[:.\-]?\s*",
+        r"Penempatan(?:\s*(?:Kerja|Kantor))?|Bertempat\s*di|Tempat(?:\s*Kerja)?|Office|Basecamp|Kode\s*Pos)\s*[:.\-]?\s*",
         "",
         a,
         flags=re.I,
@@ -70,7 +71,7 @@ def _clean_address(addr: str) -> str:
     a = re.split(rf"\s*[.,;]?\s*{_ADDR_STOP}\b", a, maxsplit=1, flags=re.I)[0]
     a = a.strip(" .,;:-")
     a = re.sub(
-        r"\s+(?:Gaji|Salary|Upah)\s*[:.]?\s*.*$",
+        r"\s+(?:Gaji|Salary|Upah|Send|Subjek|Subject|CV|Apply|More)\s*[:.]?\s*.*$",
         "",
         a,
         flags=re.I,
@@ -340,6 +341,34 @@ def _extract_companies(text: str) -> list[str]:
         if len(name) >= 3:
             companies.append(name)
 
+    # 4) Header banner brand sebelum "WE'RE HIRING" / "HIRING" / "LOWONGAN KERJA"
+    lines = [ln.strip() for ln in (text or "").splitlines() if ln.strip()]
+    for idx, line in enumerate(lines):
+        if re.search(r"^(?:WE'?RE|WE\s+ARE|HIRING|LOWONGAN|OPEN\s+RECRUITMENT|DIBUTUHKAN)", line, re.I):
+            if idx > 0:
+                header_lines = [l for l in lines[max(0, idx-3):idx] if not re.search(r"\b(?:loker|dibatasi|slide|page|halaman)\b", l, re.I)]
+                if header_lines:
+                    candidate = " ".join(header_lines).strip()
+                    candidate = _normalize_company_name(candidate)
+                    if len(candidate) >= 3 and not re.search(r"\b(?:syarat|kualifikasi|gaji|email|loker|info|staff|admin|dapur)\b", candidate, re.I):
+                        companies.append(candidate)
+            break
+
+    # 5) Brand names ending with common agency/business keywords (MANAGEMENT, CENTER, GROUP, etc.)
+    for line in lines:
+        if re.search(
+            r"\b[A-Za-z0-9&'.-]{2,}\s+(?:[A-Za-z0-9&'.-]{2,}\s+){0,3}(?:MANAGEMENT|CENTER|GROUP|SOLUSINDO|DIGITAL|STUDIO|MEDIA|CORPORATION|SERVICES|STORE|OFFICIAL|ENTERPRISE|LOGISTICS)\b",
+            line,
+            flags=re.I,
+        ):
+            candidate = _normalize_company_name(line)
+            if (
+                candidate
+                and len(candidate) >= 5
+                and not re.search(r"\b(?:loker|info|syarat|gaji|email|kualifikasi|staff|admin)\b", candidate, re.I)
+            ):
+                companies.append(candidate)
+
     return companies
 
 
@@ -471,8 +500,8 @@ def extract_entities_from_text(text: str) -> dict:
 
     email_pattern = r"[a-zA-Z0-9_.+-]+@[a-zA-Z0-9-]+\.[a-zA-Z0-9-.]+"
     url_pattern = (
-        r"(https?://[^\s]+|www\.[^\s]+|"
-        r"[a-zA-Z0-9-]+\.(?:com|id|co\.id|net|org|xyz|info|io|app|shop|store))"
+        r"(?:https?://[^\s\"'\<\>]+|www\.[^\s\"'\<\>]+|"
+        r"\b[a-zA-Z0-9-]+\.(?:com|id|co\.id|co|net|org|xyz|info|io|app|shop|store)/(?:[^\s\"'\<\>]+)?)"
     )
     phone_pattern = r"(?:\+62|62|0)\s*[2-9](?:[\s\-]?\d){7,12}"
 

@@ -46,6 +46,18 @@ def _parse_json_value(text: str) -> Any:
     raise json.JSONDecodeError("no json object", cleaned, 0)
 
 
+def _repair_truncated_json(text: str) -> str:
+    t = text.strip()
+    quote_count = len(re.findall(r'(?<!\\)"', t))
+    if quote_count % 2 != 0:
+        t += '"'
+    open_brackets = t.count("[") - t.count("]")
+    open_braces = t.count("{") - t.count("}")
+    t += "]" * max(0, open_brackets)
+    t += "}" * max(0, open_braces)
+    return t
+
+
 def extract_json_from_response(text: str) -> dict:
     cleaned = (text or "").strip()
     if cleaned.startswith("```"):
@@ -57,6 +69,15 @@ def extract_json_from_response(text: str) -> dict:
         if isinstance(obj, dict):
             return obj
     except json.JSONDecodeError:
+        pass
+
+    # Coba perbaiki jika JSON terpotong di akhir
+    try:
+        repaired = _repair_truncated_json(cleaned)
+        obj = _parse_json_value(repaired)
+        if isinstance(obj, dict):
+            return obj
+    except Exception:
         pass
 
     return {
