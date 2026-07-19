@@ -60,30 +60,68 @@ async def _geocode_single(address: str, client: httpx.AsyncClient) -> dict | Non
     return results[0] if results else None
 
 
-def _build_fallback_queries(address: str) -> list:
+def _clean_address_input(addr: str) -> str:
+    a = (addr or "").strip()
+    a = re.sub(
+        r"^(?:Penempatan|Alamat|Lokasi|Office|Basecamp|Tempat|Wilayah|Area)\s*[:.\-]?\s*",
+        "",
+        a,
+        flags=re.IGNORECASE,
+    )
+    a = re.split(
+        r"\s+(?:Send|Apply|CV|Cover|Subjek|Subject|More|Info|Informasi|Hubungi|Gaji|Salary|Email|WA|WhatsApp)\b",
+        a,
+        maxsplit=1,
+        flags=re.IGNORECASE,
+    )[0]
+    return a.strip(" .,;:-")
+
+
+def _build_fallback_queries(address: str) -> list[str]:
     """
     Membangun daftar query fallback dari yang paling spesifik ke yang paling umum.
-    Contoh: 'Jl. Letjen Suprapto No.26, Ngampilan, Kota Yogyakarta'
-    → ['Letjen Suprapto, Ngampilan, Kota Yogyakarta, Indonesia',
-       'Ngampilan, Kota Yogyakarta, Indonesia']
+    Contoh: 'Penempatan:Jl. perumnas mundusaren, Caturtunggal, Depok, Sleman, Yogyakarta Send your'
+    → ['Jl. perumnas mundusaren, Caturtunggal, Depok, Sleman, Yogyakarta',
+       'Jl. perumnas, Caturtunggal, Depok, Sleman, Yogyakarta, Indonesia',
+       'Caturtunggal, Depok, Sleman, Yogyakarta, Indonesia']
     """
-    queries = [address]
+    addr = _clean_address_input(address)
+    queries = [addr, f"{addr}, Indonesia"]
 
     # Hapus nomor rumah (No.XX, No XX, RT/RW, dll.)
-    stripped = re.sub(r'\bNo\.?\s*\d+\b', '', address, flags=re.IGNORECASE)
-    stripped = re.sub(r'\bRT\s*\d+\s*(RW\s*\d+)?\b', '', stripped, flags=re.IGNORECASE)
-    stripped = re.sub(r'\bRW\s*\d+\b', '', stripped, flags=re.IGNORECASE)
+    stripped = re.sub(r"\bNo\.?\s*\d+\b", "", addr, flags=re.IGNORECASE)
+    stripped = re.sub(r"\bRT\s*\d+\s*(RW\s*\d+)?\b", "", stripped, flags=re.IGNORECASE)
+    stripped = re.sub(r"\bRW\s*\d+\b", "", stripped, flags=re.IGNORECASE)
+    if stripped != addr:
+        queries.append(f"{stripped.strip(' ,')}, Indonesia")
+
     # Hapus prefix "Jl." / "Jalan"
-    stripped_no_prefix = re.sub(r'^(Jl\.?|Jalan)\s+', '', stripped.strip(), flags=re.IGNORECASE)
-    queries.append(f"{stripped_no_prefix.strip(', ')}, Indonesia")
+    stripped_no_prefix = re.sub(
+        r"^(?:Jl\.?|Jalan|Jln\.?)\s+", "", stripped.strip(), flags=re.IGNORECASE
+    )
+    if stripped_no_prefix != stripped:
+        queries.append(f"{stripped_no_prefix.strip(' ,')}, Indonesia")
 
-    # Ambil hanya nama kota/kabupaten dari akhir alamat (2 kata terakhir setelah koma terakhir)
-    parts = [p.strip() for p in address.split(',') if p.strip()]
+    parts = [p.strip() for p in addr.split(",") if p.strip()]
     if len(parts) >= 2:
-        city_query = ', '.join(parts[-2:]) + ', Indonesia'
-        queries.append(city_query)
+        street_part = parts[0]
+        words = street_part.split()
+        if len(words) >= 3:
+            short_street = " ".join(words[:2])
+            rest_parts = ", ".join(parts[1:])
+            queries.append(f"{short_street}, {rest_parts}, Indonesia")
 
-    return queries
+        queries.append(f"{', '.join(parts[1:])}, Indonesia")
+        queries.append(f"{', '.join(parts[-2:])}, Indonesia")
+
+    out = []
+    seen = set()
+    for q in queries:
+        q_clean = re.sub(r"\s+", " ", q).strip(" ,")
+        if q_clean and q_clean.lower() not in seen:
+            seen.add(q_clean.lower())
+            out.append(q_clean)
+    return out
 
 
 async def geocode_address(address: str) -> dict:

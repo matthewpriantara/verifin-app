@@ -342,10 +342,14 @@ Analisis secara mendalam, formal, dan berbasis evidence. Berikan keputusan apaka
 
 1. HANYA pakai FAKTA di OSINT / TEKS ASLI. Dilarang mengarang AHU/OSS, medsos, atau rating Kredibel.
 2. Gunakan safe_flags / risk_flags / safe_signals yang ada di data.
-3. Email Gmail/Yahoo = NETRAL untuk UMKM/ritel/startup lokal (bukan red flag utama).
-4. Gaji tidak disebut = NETRAL (banyak loker legitimate tanpa gaji di poster).
-5. Tidak ada website resmi = NETRAL jika ada medsos/toko publik ATAU alamat OSM valid.
-6. shortlink bit.ly / Google Forms = praktik umum rekrutmen UMKM, BUKAN penipuan sendirian.
+3. Email Gmail/Yahoo = NETRAL untuk UMKM/ritel/startup lokal di Indonesia (bukan red flag utama).
+4. PENCATUTAN INSTANSI PEMERINTAH: Jika lowongan mengatasnamakan instansi/badan resmi pemerintah (misal Badan Gizi Nasional/BGN, SPPG, Kementerian, Dinas) namun menggunakan email Gmail/Yahoo tanpa domain .go.id, ini adalah indikasi tidak resmi/pencatutan.
+   ➔ PANDUAN SKOR: Kategori WASPADA (skor 45–60). DILARANG meloncat ke BAHAYA (75+) HANYA karena email Gmail, KECUALI ada bukti pemerasan biaya/transfer uang/KTP/rekening.
+5. Gaji tidak disebut = NETRAL (banyak loker legitimate tanpa gaji di poster).
+6. Tidak ada website resmi = NETRAL jika ada medsos/toko publik ATAU alamat OSM valid.
+7. shortlink bit.ly / Google Forms = praktik umum rekrutmen UMKM, BUKAN penipuan sendirian.
+8. PORTAL LOKER RESMI (JobStreet, LinkedIn, Glints, KitaLulus): Ketiadaan nomor HP atau email kontak langsung di dalam teks ADALAH HAL WARJAR karena lamaran dikirim langsung via tombol portal. DILARANG menjadikan "tidak ada email/telepon" sebagai faktor risiko untuk portal loker resmi.
+9. DILARANG MENGHALUSINASI BERITA UMUM KEPOLISIAN/OJK: Berita portal umum mengenai penipuan umum (misal berita 'Aparat Memburu Penipu Pendirian SPPG', 'Satgas PASTI', atau 'Deretan Hoaks Lowongan Kerja') BUKAN bukti bahwa lowongan ini adalah penipuan tersebut. HANYA klaim berita penipuan jika judul/snippet secara spesifik menyebutkan nama lengkap entitas atau nomor telepon ini.
 
 ## PANDUAN SKOR (WAJIB DIIKUTI — JANGAN PARKIR DI 25-35 TANPA ALASAN)
 
@@ -357,12 +361,12 @@ Analisis secara mendalam, formal, dan berbasis evidence. Berikan keputusan apaka
 - **23–39 (aman dengan catatan):** masih AMAN tapi ada 1–2 kelemahan non-kritis.
 
 **WASPADA (40–74):**
-- kombinasi red flag nyata: alamat gagal OSM + zero footprint, atau klaim instansi besar + Gmail,
+- kombinasi red flag nyata: alamat gagal OSM + zero footprint, atau klaim instansi pemerintah (BGN/SPPG/Kementerian) + Gmail (skor 45-60),
   atau sinyal scam lemah di SERP tanpa konfirmasi kuat.
 
 **BAHAYA (75–100):**
-- minta biaya/transfer/KTP/rekening, ATAU HP reported_fraud Kredibel, ATAU phishing form,
-  ATAU laporan penipuan jelas di SERP/Threads.
+- WAJIB ada bukti keras: permintaan biaya/transfer/KTP/rekening, ATAU HP reported_fraud Kredibel,
+  ATAU phishing form, ATAU laporan penipuan spesifik yang terbukti menargetkan nomor/perusahaan ini.
 
 ## VALUASI UMKM VALID (PRIORITAS)
 Jika SEMUA ini terpenuhi:
@@ -410,12 +414,12 @@ def build_text_verify_prompt(raw_text: str, entities: dict, osint_results: dict)
     """
     base_prompt = build_verify_prompt(entities, osint_results)
     
-    # Sisipkan teks kasar OCR sebagai konteks tambahan
+    # Sisipkan teks kasar OCR sebagai konteks tambahan (maks 3500 karakter agar tidak terpotong)
     raw_section = f"""
 ## TEKS ASLI LOWONGAN (Hasil OCR / Input Manual)
 
 ```
-{raw_text[:900]}{"...(terpotong)" if len(raw_text) > 900 else ""}
+{raw_text[:3500]}{"...(terpotong)" if len(raw_text) > 3500 else ""}
 ```
 
 """
