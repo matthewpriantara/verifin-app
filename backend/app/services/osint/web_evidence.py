@@ -52,16 +52,29 @@ def _normalize_url(url: str) -> str | None:
 
 def _unwrap_ddg_href(href: str) -> str:
     if not href:
-        return href
+        return ""
+    if "/RU=" in href:
+        try:
+            ru = href.split("/RU=")[1].split("/")[0]
+            return unquote(ru)
+        except Exception:
+            pass
+    if "uddg=" in href:
+        try:
+            return unquote(href.split("uddg=")[1].split("&")[0])
+        except Exception:
+            pass
+    if "u=a1" in href:
+        try:
+            import base64
+
+            b64 = href.split("u=a1")[1].split("&")[0]
+            b64 += "=" * ((4 - len(b64) % 4) % 4)
+            return base64.b64decode(b64).decode("utf-8", errors="ignore")
+        except Exception:
+            pass
     if href.startswith("//"):
         href = "https:" + href
-    try:
-        parsed = urlparse(href)
-        qs = parse_qs(parsed.query)
-        if "uddg" in qs and qs["uddg"]:
-            return unquote(qs["uddg"][0])
-    except Exception:
-        pass
     return href
 
 
@@ -174,99 +187,135 @@ def fetch_company_website(url_or_domain: str) -> dict[str, Any]:
 
 
 def search_web_evidence(query: str, max_results: int = 5) -> dict[str, Any]:
+    """
+    Search web evidence multi-engine:
+    1) DuckDuckGo HTML (timeout 2s via curl_cffi, no retry delay)
+    2) Yahoo Search ID (id.search.yahoo.com)
+    3) Bing Search (bing.com)
+    """
     q = (query or "").strip()
     if not q:
         return {"type": "search", "query": q, "results": [], "ok": False, "risk_flags": []}
 
-    url = f"https://html.duckduckgo.com/html/?q={quote_plus(q)}"
     results: list[dict[str, str]] = []
+    engine_used = "none"
+
+    # 1. Try DuckDuckGo via direct curl_cffi (timeout 2.0s, no retry lag)
     try:
-        page = Fetcher.get(url, stealthy_headers=True)
-        try:
-            link_items = list(page.css("a.result__a") or [])
-        except Exception:
-            link_items = []
+        from bs4 import BeautifulSoup
+        from curl_cffi import requests as cffi_req
 
-        for a in link_items[:max_results]:
-            try:
-                href = None
-                if hasattr(a, "attrib"):
-                    href = a.attrib.get("href")
-                if not href:
-                    try:
-                        href = a.css("::attr(href)").get()
-                    except Exception:
-                        href = None
-                href = _unwrap_ddg_href(href or "")
-
-                title_parts = []
-                try:
-                    title_parts = a.css("::text").getall()
-                except Exception:
-                    title_parts = []
-                title = " ".join(t.strip() for t in title_parts if t and t.strip())
-                if not title:
-                    title = (getattr(a, "text", None) or "")[:160]
-                # buang raw HTML kalau kepilih
-                if "<a " in title or "result__a" in title:
-                    title = re.sub(r"<[^>]+>", "", title)
-
-                if href:
-                    results.append(
-                        {
-                            "title": title[:160],
-                            "url": href,
-                            "snippet": "",
-                        }
-                    )
-            except Exception:
-                continue
-
-        # snippets
-        try:
-            snips = list(page.css(".result__snippet::text") or [])
+        s = cffi_req.Session(impersonate="chrome120")
+        url = f"https://html.duckduckgo.com/html/?q={quote_plus(q)}"
+        r = s.get(url, timeout=2.0)
+        if r.status_code == 200:
+            soup = BeautifulSoup(r.text, "html.parser")
+            for a in soup.select("a.result__a")[:max_results]:
+                href = _unwrap_ddg_href(a.get("href", ""))
+                title = a.text.strip()
+                if href and title:
+                    results.append({"title": title[:160], "url": href, "snippet": ""})
+            snips = soup.select(".result__snippet")
             for i, sn in enumerate(snips[: len(results)]):
-                if isinstance(sn, str):
-                    results[i]["snippet"] = sn.strip()[:240]
-                else:
-                    try:
-                        results[i]["snippet"] = (sn.get() if hasattr(sn, "get") else str(sn))[
-                            :240
-                        ]
-                    except Exception:
-                        pass
+                results[i]["snippet"] = sn.text.strip()[:240]
+            if results:
+                engine_used = "duckduckgo"
+    except Exception:
+        pass
+
+    # 2. Fallback: Yahoo Search Indonesia
+    if not results:
+        try:
+            from bs4 import BeautifulSoup
+            from curl_cffi import requests as cffi_req
+
+            s = cffi_req.Session(impersonate="chrome120")
+            y_url = f"https://id.search.yahoo.com/search?p={quote_plus(q)}"
+            r = s.get(y_url, timeout=4.0)
+            if r.status_code == 200:
+                soup = BeautifulSoup(r.text, "html.parser")
+                for div in soup.find_all("div", class_="algo"):
+                    h3 = div.find("h3")
+                    a = h3.find("a") if h3 else None
+                    p = div.find("p") or div.find("div", class_="compText")
+                    if a:
+                        title = a.text.strip()
+                        raw_href = a.get("href", "")
+                        clean_url = _unwrap_ddg_href(raw_href)
+                        snip = p.text.strip() if p else ""
+                        if clean_url:
+                            results.append(
+                                {
+                                    "title": title[:160],
+                                    "url": clean_url,
+                                    "snippet": snip[:240],
+                                }
+                            )
+                if results:
+                    engine_used = "yahoo_id"
         except Exception:
             pass
 
-        risk_flags = []
-        blob = " ".join(
-            (r.get("title", "") + " " + r.get("snippet", "")).lower() for r in results
-        )
+    # 3. Fallback: Bing Search
+    if not results:
+        try:
+            from bs4 import BeautifulSoup
+            from curl_cffi import requests as cffi_req
+
+            s = cffi_req.Session(impersonate="chrome120")
+            b_url = f"https://www.bing.com/search?q={quote_plus(q)}&mkt=id-ID"
+            r = s.get(b_url, timeout=4.0)
+            if r.status_code == 200:
+                soup = BeautifulSoup(r.text, "html.parser")
+                for li in soup.select("li.b_algo"):
+                    a = li.select_one("h2 a")
+                    p = li.select_one("div.b_caption p, p")
+                    if a:
+                        title = a.text.strip()
+                        clean_url = _unwrap_ddg_href(a.get("href", ""))
+                        snip = p.text.strip() if p else ""
+                        if clean_url:
+                            results.append(
+                                {
+                                    "title": title[:160],
+                                    "url": clean_url,
+                                    "snippet": snip[:240],
+                                }
+                            )
+                if results:
+                    engine_used = "bing"
+        except Exception:
+            pass
+
+    risk_flags = []
+    for r in results:
+        t_s = f"{r.get('title', '')} {r.get('snippet', '')}".lower()
         if any(
-            w in blob
-            for w in ("korban penipuan", "laporan penipuan", "loker palsu", "penipu loker", "scam loker", "hati-hati penipuan", "terbukti menipu")
+            w in t_s
+            for w in (
+                "korban penipuan",
+                "laporan penipuan",
+                "loker palsu",
+                "penipu loker",
+                "scam loker",
+                "terbukti menipu",
+            )
+        ) and not any(
+            adv in t_s for adv in ("cara cek", "tips", "mengenali penipuan", "menghindari")
         ):
             risk_flags.append(
                 "Hasil pencarian memuat indikasi laporan penipuan/loker palsu terkait query."
             )
+            break
 
-        return {
-            "type": "search",
-            "query": q,
-            "ok": True,
-            "url": url,
-            "results": results,
-            "risk_flags": risk_flags,
-        }
-    except Exception as exc:
-        return {
-            "type": "search",
-            "query": q,
-            "ok": False,
-            "error": str(exc),
-            "results": [],
-            "risk_flags": [],
-        }
+    return {
+        "type": "search",
+        "query": q,
+        "ok": bool(results),
+        "engine": engine_used,
+        "results": results[:max_results],
+        "risk_flags": risk_flags,
+    }
 
 
 _FREE_WEB_DOMAINS = {
@@ -285,7 +334,7 @@ _FREE_WEB_DOMAINS = {
 
 def collect_web_evidence(entities: dict) -> dict[str, Any]:
     """
-    Web evidence (Scrapling) — dipangkas untuk latency:
+    Web evidence (Multi-engine) — dipangkas untuk latency:
     - skip fetch website domain gratisan (gmail.com dll)
     - max 3 query search (company presence + scam + email scam)
     """
@@ -351,7 +400,9 @@ def collect_web_evidence(entities: dict) -> dict[str, Any]:
         risk_flags.extend(gf.get("risk_flags") or [])
         safe_flags.extend(gf.get("safe_flags") or [])
 
-    has_any_working_web_or_social = any(w.get("ok") for w in website_checks) or any(gf.get("is_gform") for gf in gform_inspections)
+    has_any_working_web_or_social = any(w.get("ok") for w in website_checks) or any(
+        gf.get("is_gform") for gf in gform_inspections
+    )
     for w in website_checks:
         risk_flags.extend(w.get("risk_flags") or [])
         safe_flags.extend(w.get("safe_flags") or [])
@@ -359,6 +410,31 @@ def collect_web_evidence(entities: dict) -> dict[str, Any]:
             risk_flags.append(f"Website tidak dapat diakses: {w.get('url')}")
     for s in searches:
         risk_flags.extend(s.get("risk_flags") or [])
+
+    # Deteksi akun medsos & jejak digital publik dari hasil pencarian
+    found_social: list[str] = []
+    total_public_results = 0
+    for s in searches:
+        for r in s.get("results") or []:
+            total_public_results += 1
+            u = r.get("url") or ""
+            title = r.get("title") or ""
+            if "instagram.com" in u and u not in found_social:
+                found_social.append(u)
+                safe_flags.append(
+                    f"Terdeteksi profil/post Instagram publik aktif: {title} ({u})"
+                )
+            elif (
+                any(soc in u for soc in ("facebook.com", "linkedin.com", "tiktok.com"))
+                and u not in found_social
+            ):
+                found_social.append(u)
+                safe_flags.append(f"Terdeteksi akun media sosial publik: {u}")
+
+    if total_public_results >= 1:
+        safe_flags.append(
+            f"Ditemukan {total_public_results} jejak digital publik di web (portal lowongan/direktori)."
+        )
 
     def uniq(xs: list[str]) -> list[str]:
         seen = set()

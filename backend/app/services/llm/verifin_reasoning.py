@@ -6,7 +6,6 @@ from __future__ import annotations
 
 import httpx
 
-from app.config import LLM_MODEL
 from app.services.llm.client import chat_completion, check_llm_status, extract_json_from_response
 from app.services.llm.prompt_builder import build_text_verify_prompt, build_verify_prompt
 
@@ -16,6 +15,7 @@ async def analyze_with_verifin(
     osint_results: dict | None = None,
     raw_text: str | None = None,
 ) -> dict:
+    from app.config import LLM_MODEL
     if osint_results is None:
         osint_results = {
             "domain": {
@@ -50,7 +50,7 @@ async def analyze_with_verifin(
             ],
             model=LLM_MODEL,
             temperature=0.1,
-            max_tokens=900,
+            max_tokens=2048,
         )
         parsed = extract_json_from_response(raw)
         parsed["model_used"] = LLM_MODEL
@@ -83,6 +83,7 @@ async def analyze_with_verifin(
 
 
 async def check_ai_status() -> dict:
+    from app.config import LLM_MODEL
     status = await check_llm_status()
     detail = status.get("detail")
     if detail is not None and not isinstance(detail, str):

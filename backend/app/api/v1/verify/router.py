@@ -19,6 +19,7 @@ from app.api.v1.verify.schema import (
     ExtractedEntities,
     LlmStatusResponse,
     TextVerifyRequest,
+    UrlVerifyRequest,
     VerifyResponse,
 )
 from app.services.llm.verifin_reasoning import analyze_with_verifin, check_ai_status
@@ -395,6 +396,42 @@ def _save_case_to_db(
         print(f"Error saving job case to database: {e}")
 
 
+def _get_cached_case_from_db(db: Session, raw_input_str: str) -> VerifyResponse | None:
+    """Cek apakah lowongan/URL/gambar ini sudah pernah diuji coba sebelumnya (exact DB cache hit)."""
+    import hashlib
+    if not raw_input_str or not raw_input_str.strip():
+        return None
+    try:
+        text_hash = hashlib.sha256(raw_input_str.strip().encode("utf-8")).hexdigest()
+        cached = db.query(JobCase).filter(JobCase.raw_text_hash == text_hash).first()
+        if cached and cached.verdict and cached.verdict != "ERROR":
+            llm_payload = cached.llm_output or {}
+            ent = cached.entities or {
+                "companies": cached.companies or [],
+                "contacts": cached.phones or [],
+                "emails": cached.emails or [],
+                "urls": cached.urls or [],
+                "addresses": cached.addresses or [],
+                "salaries": cached.salaries or [],
+            }
+            analysis = {
+                "verdict": cached.verdict,
+                "risk_score": cached.risk_score,
+                "summary": llm_payload.get("summary", ""),
+                "risk_factors": llm_payload.get("risk_factors", []),
+                "safe_factors": llm_payload.get("safe_factors", []),
+                "recommendations": llm_payload.get("recommendations", []),
+                "model_used": f"{llm_payload.get('model_used', 'claude-sonnet-4.5')} (DB Cache Hit)",
+                "corrected_company_name": llm_payload.get("corrected_company_name"),
+            }
+            osint = cached.osint_summary or {}
+            print(f"[DB Cache Hit] Mengembalikan hasil dari database untuk hash: {text_hash[:10]}")
+            return _to_response(analysis, ent, osint)
+    except Exception as e:
+        print(f"[DB Cache Lookup Warning] {e}")
+    return None
+
+
 @router.post(
     "/verify/text",
     response_model=VerifyResponse,
@@ -404,6 +441,10 @@ async def verify_from_text(
     request: TextVerifyRequest = Body(...), 
     db: Session = Depends(get_db)
 ):
+    cached_resp = _get_cached_case_from_db(db, request.text)
+    if cached_resp:
+        return cached_resp
+
     try:
         entities = extract_entities_from_text(request.text)
         osint_results = await _run_osint_on_entities(entities)
@@ -480,6 +521,213 @@ async def verify_from_image(
                 os.remove(tmp_path)
             except Exception:
                 pass
+
+
+def _sync_scrapling_fetch(url: str) -> tuple[str, list[str]]:
+    import httpx
+    from bs4 import BeautifulSoup
+
+    combined_caption_text = ""
+    image_urls = []
+
+    try:
+        from scrapling.fetchers import Fetcher
+        headers = {
+            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+            "Accept-Language": "id-ID,id;q=0.9,en-US;q=0.8,en;q=0.7",
+        }
+        page = Fetcher.get(url, headers=headers, verify=False)
+        text_parts = []
+        
+        og_title = page.css("meta[property='og:title']::attr(content)").get() or page.css("title::text").get()
+        if og_title and og_title.strip():
+            text_parts.append(og_title.strip())
+
+        # Ekstrak advertiser/company name spesifik (JobStreet, LinkedIn, dll)
+        company_meta = (
+            page.css("span[data-automation='advertiser-name']::text").get()
+            or page.css("span[data-automation*='company']::text").get()
+            or page.css("a[data-automation*='company']::text").get()
+        )
+        if company_meta and company_meta.strip():
+            text_parts.append(f"Perusahaan/Pengiklan: {company_meta.strip()}")
+
+        og_desc = (
+            page.css("meta[property='og:description']::attr(content)").get() 
+            or page.css("meta[name='description']::attr(content)").get()
+        )
+        if og_desc and og_desc.strip():
+            text_parts.append(og_desc.strip())
+
+        body_texts = [
+            t.strip()
+            for t in page.css(
+                "p::text, h1::text, h2::text, h3::text, li::text, article::text, "
+                "div[data-automation*='job']::text, div[class*='description']::text, "
+                "div[class*='job']::text, span[dir='auto']::text, span[data-automation*='advertiser']::text"
+            ).getall()
+            if len(t.strip()) > 15
+        ]
+        if body_texts:
+            seen_b = set()
+            unique_body = []
+            for b in body_texts:
+                if b not in seen_b and not any(x in b.lower() for x in ["cookie", "privacy policy", "terms of service", "log in", "sign up"]):
+                    seen_b.add(b)
+                    unique_body.append(b)
+            text_parts.append(" ".join(unique_body[:30])[:3000])
+
+        combined_caption_text = "\n".join(text_parts).strip()
+
+        # Ekstrak og:image target postingan sebagai gambar utama (dengan uncrop parameter Instagram jika ada)
+        og_img = (
+            page.css("meta[property='og:image']::attr(content)").get()
+            or page.css("meta[name='twitter:image']::attr(content)").get()
+        )
+        if og_img and og_img.strip():
+            import re
+            clean_og_img = re.sub(r"stp=c[0-9.]+\_?", "stp=", og_img.strip())
+            image_urls.append(clean_og_img)
+
+        # Deduplicate & cap at 3
+        image_urls = list(dict.fromkeys(image_urls))[:3]
+    except Exception as exc:
+        print(f"[Scrapling Fetch Warning] {exc}")
+
+    if not combined_caption_text:
+        try:
+            headers = {
+                "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
+            }
+            res = httpx.get(url, headers=headers, follow_redirects=True, verify=False, timeout=15.0)
+            if res.status_code == 200:
+                soup = BeautifulSoup(res.text, "html.parser")
+                text_parts = []
+                og_title = soup.find("meta", property="og:title") or soup.find("title")
+                if og_title:
+                    text_parts.append(og_title.get("content") or og_title.get_text())
+                og_desc = soup.find("meta", property="og:description") or soup.find("meta", attrs={"name": "description"})
+                if og_desc and og_desc.get("content"):
+                    text_parts.append(og_desc["content"].strip())
+                combined_caption_text = "\n".join(text_parts).strip()
+                if not image_urls:
+                    og_img = soup.find("meta", property="og:image") or soup.find("meta", attrs={"name": "twitter:image"})
+                    if og_img and og_img.get("content"):
+                        image_urls.append(og_img["content"].strip())
+        except Exception as exc:
+            print(f"[HTTPX Scrape Fallback Error] {exc}")
+
+    return combined_caption_text, image_urls
+
+
+async def _fetch_url_content_and_image(url: str) -> tuple[str, list[str]]:
+    """
+    Scrape teks (caption/description) & daftar image URL poster (termasuk carousel slides) dari URL.
+    Returns: (extracted_text, temp_image_paths_list)
+    """
+    import asyncio
+    import httpx
+
+    loop = asyncio.get_event_loop()
+    combined_caption_text, image_urls = await loop.run_in_executor(None, _sync_scrapling_fetch, url)
+
+    tmp_img_paths = []
+    headers = {
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
+    }
+
+    for img_url in image_urls:
+        try:
+            async with httpx.AsyncClient(timeout=15.0, headers=headers, follow_redirects=True, verify=False) as client:
+                img_res = await client.get(img_url)
+                if img_res.status_code == 200:
+                    ext = ".jpg"
+                    if ".png" in img_url.lower():
+                        ext = ".png"
+                    elif ".webp" in img_url.lower():
+                        ext = ".webp"
+                    with tempfile.NamedTemporaryFile(delete=False, suffix=ext) as tmp:
+                        tmp.write(img_res.content)
+                        tmp_img_paths.append(tmp.name)
+        except Exception as exc:
+            print(f"[URL Fetch] Gagal mengunduh gambar poster dari {img_url}: {exc}")
+
+    return combined_caption_text, tmp_img_paths
+
+
+@router.post(
+    "/verify/url",
+    response_model=VerifyResponse,
+    summary="Verifikasi Lowongan Kerja dari Link / URL Postingan",
+    description=(
+        "Menerima URL/link postingan lowongan kerja (misal Instagram, JobStreet, LinkedIn, Facebook, atau website). "
+        "Sistem akan otomatis mengambil caption teks dan seluruh slide poster gambar, lalu memprosesnya melalui OCR, NER, OSINT, dan LLM."
+    ),
+)
+async def verify_from_url(
+    request: UrlVerifyRequest = Body(...),
+    db: Session = Depends(get_db)
+):
+    cached_resp = _get_cached_case_from_db(db, request.url)
+    if cached_resp:
+        return cached_resp
+
+    tmp_paths = []
+    try:
+        caption_text, tmp_paths = await _fetch_url_content_and_image(request.url)
+        
+        ocr_texts = []
+        for p in tmp_paths:
+            if p and os.path.exists(p):
+                try:
+                    t = extract_text_from_image(p)
+                    if t and t.strip():
+                        ocr_texts.append(t.strip())
+                except Exception as exc:
+                    print(f"[URL OCR Error] {exc}")
+
+        combined_ocr_text = "\n".join(ocr_texts)
+        full_raw_text = f"URL Target: {request.url}\n\n[Caption/Web Text]:\n{caption_text}"
+        if request.additional_text and request.additional_text.strip():
+            full_raw_text += f"\n\n[Utas Balasan/Teks Tambahan]:\n{request.additional_text.strip()}"
+        if combined_ocr_text.strip():
+            full_raw_text += f"\n\n[OCR Poster Text]:\n{combined_ocr_text.strip()}"
+        full_raw_text = full_raw_text.strip()
+
+        cached_resp_full = _get_cached_case_from_db(db, full_raw_text)
+        if cached_resp_full:
+            return cached_resp_full
+        
+        if not full_raw_text or len(full_raw_text) < 15:
+            raise HTTPException(
+                status_code=422,
+                detail="Sistem tidak dapat mengambil konten atau teks dari URL tersebut. Pastikan link dapat diakses publik.",
+            )
+
+        entities = extract_entities_from_text(full_raw_text)
+        osint_results = await _run_osint_on_entities(entities)
+        analysis = await analyze_with_verifin(
+            entities, osint_results, raw_text=full_raw_text
+        )
+        _save_case_to_db(
+            db, full_raw_text, analysis, osint_results, entities=entities, source="url"
+        )
+        return _to_response(analysis, entities, osint_results)
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        safe_msg = str(e).encode("ascii", errors="ignore").decode("ascii") or "Terjadi kesalahan internal."
+        raise HTTPException(
+            status_code=500, detail=f"Gagal memproses verifikasi URL: {safe_msg}"
+        ) from e
+    finally:
+        for p in tmp_paths:
+            if p and os.path.exists(p):
+                try:
+                    os.remove(p)
+                except Exception:
+                    pass
 
 
 @router.get(

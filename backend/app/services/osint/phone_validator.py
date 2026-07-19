@@ -264,17 +264,42 @@ def _fetch_page(url: str, jar: dict[str, str]):
 
 
 def _search_phone_public_serp(phone_meta: dict[str, str]) -> dict[str, Any]:
-    query = f'"{phone_meta["display"]}" OR "0{phone_meta["local"]}" penipu OR scam OR Kredibel'
+    phone_digits = phone_meta["local"]
+    query = f'"{phone_meta["display"]}" OR "0{phone_digits}" penipu OR scam OR penipuan'
     from app.services.osint.web_evidence import search_web_evidence
+
     res = search_web_evidence(query, max_results=3)
     results = res.get("results") or []
     risk_flags = []
     found_scam = False
     for r in results:
-        blob = ((r.get("title") or "") + " " + (r.get("snippet") or "")).lower()
-        if any(w in blob for w in ("penipu", "scam", "lapor", "waspada", "palsu", "bohong")):
+        title = (r.get("title") or "").lower()
+        snippet = (r.get("snippet") or "").lower()
+        blob = f"{title} {snippet}"
+        phone_in_result = (
+            phone_digits in re.sub(r"\D", "", blob)
+            or phone_meta["display"] in blob
+            or f"0{phone_digits}" in blob
+        )
+        has_scam_report = any(
+            w in blob
+            for w in (
+                "korban",
+                "laporan penipuan",
+                "loker palsu",
+                "penipu loker",
+                "terbukti menipu",
+                "waspada penipuan",
+            )
+        )
+        is_generic_homepage = (
+            "cek rekening" in title or "cara cek" in title or title.strip() == "kredibel"
+        )
+        if phone_in_result and has_scam_report and not is_generic_homepage:
             found_scam = True
-            risk_flags.append(f"SERP publik: Ditemukan indikasi penipuan terkait nomor {phone_meta['display']}")
+            risk_flags.append(
+                f"SERP publik: Ditemukan laporan penipuan spesifik terkait nomor {phone_meta['display']}"
+            )
             break
     return {
         "serp_checked": True,
