@@ -26,6 +26,20 @@ class TextVerifyRequest(BaseModel):
     )
 
 
+class UrlVerifyRequest(BaseModel):
+    """Request body untuk endpoint POST /verify/url"""
+    url: str = Field(
+        ...,
+        description="URL/Link postingan lowongan kerja (misal Instagram, Threads, LinkedIn, JobStreet, Facebook, atau website perusahan).",
+        examples=["https://www.threads.com/@sigit_gustian/post/Da7SVXVk85J"]
+    )
+    additional_text: Optional[str] = Field(
+        default=None,
+        description="Teks balasan/reply/komentar postingan atau caption tambahan jika lowongan memiliki detail di utas balasan.",
+        examples=["Tugas lo ngapain aja? Handle trouble hardware... Daftar di link resmi ini: loker.staffinc.co/NEV7M"]
+    )
+
+
 # ─────────────────────────────────────────────────────────────────────────────
 # RESPONSE SCHEMAS
 # ─────────────────────────────────────────────────────────────────────────────

@@ -133,16 +133,61 @@ def validate_company_public(company: str, entities: dict | None = None) -> dict[
                 "error": s.get("error"),
             }
         )
+        comp_tokens = [
+            t
+            for t in re.split(r"\s+", name.lower())
+            if len(t) > 3 and t not in ("center", "management", "group", "utama", "persada", "pt", "cv")
+        ]
+        unique_tokens = [
+            t
+            for t in comp_tokens
+            if t not in ("badan", "nasional", "gizi", "sppg", "indonesia", "instansi", "dinas")
+        ]
+
         for r in s.get("results") or []:
             mention_count += 1
             blob = f"{r.get('title','')} {r.get('snippet','')}".lower()
-            if any(k in blob for k in ("penipu", "penipuan", "scam", "berkedok", "waspada tipu")):
+
+            if unique_tokens:
+                matched_unique = [tok for tok in unique_tokens if tok in blob]
+                matched_all = [tok for tok in comp_tokens if tok in blob]
+                has_comp = len(matched_unique) >= 1 and len(matched_all) >= 2
+            else:
+                matched_all = [tok for tok in comp_tokens if tok in blob]
+                has_comp = len(matched_all) >= 2 or (name.lower() in blob)
+
+            has_scam_report = any(
+                k in blob
+                for k in (
+                    "laporan penipuan",
+                    "korban penipuan",
+                    "loker palsu",
+                    "penipu loker",
+                    "scam loker",
+                    "terbukti menipu",
+                )
+            )
+            is_general_news_or_advice = any(
+                n in blob
+                for n in (
+                    "aparat memburu",
+                    "satgas pasti",
+                    "cek fakta",
+                    "deretan hoaks",
+                    "siaran pers",
+                    "cara cek",
+                    "tips",
+                    "mengenali penipuan",
+                )
+            )
+
+            if has_comp and has_scam_report and not is_general_news_or_advice:
                 fraud_mentions += 1
         risk_flags.extend(s.get("risk_flags") or [])
 
     if fraud_mentions >= 1:
         risk_flags.append(
-            f"Pencarian web memuat {fraud_mentions} hasil indikasi penipuan terkait nama PT."
+            f"Pencarian web memuat {fraud_mentions} hasil indikasi penipuan spesifik terkait {name}."
         )
     elif mention_count >= 1:
         safe_flags.append(

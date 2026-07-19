@@ -9,7 +9,7 @@ import {
 } from "@phosphor-icons/react";
 import { Button } from "@/components/ui/Button";
 import { cn, REPORT_STORAGE_KEY } from "@/lib/utils";
-import { verifyImage, verifyText } from "@/lib/api";
+import { verifyImage, verifyText, verifyUrl } from "@/lib/api";
 import type { VerifyResponse } from "@/types/verify";
 
 const STEPS = [
@@ -70,10 +70,10 @@ export function VerifyBox() {
     if (loading) return;
 
     if (!trimmed && !file) {
-      setError("Isi teks lowongan atau lampirkan gambar dulu.");
+      setError("Isi teks/link lowongan atau lampirkan gambar dulu.");
       return;
     }
-    if (trimmed && trimmed.length < 10 && !file) {
+    if (trimmed && trimmed.length < 10 && !file && !trimmed.startsWith("http")) {
       setError("Teks lowongan minimal 10 karakter.");
       return;
     }
@@ -92,6 +92,8 @@ export function VerifyBox() {
       let result: VerifyResponse;
       if (file) {
         result = await verifyImage(file);
+      } else if (trimmed.startsWith("http://") || trimmed.startsWith("https://")) {
+        result = await verifyUrl(trimmed);
       } else {
         result = await verifyText({ text: trimmed });
       }
@@ -131,7 +133,7 @@ export function VerifyBox() {
           value={text}
           onChange={(e) => setText(e.target.value)}
           rows={6}
-          placeholder="Tempel teks lowongan di sini, atau lampirkan screenshot di bawah…"
+          placeholder="Tempel teks atau link postingan lowongan (Instagram, LinkedIn, JobStreet), atau lampirkan screenshot gambar di bawah…"
           disabled={loading}
           className="w-full resize-y rounded-t-xl bg-transparent px-4 py-4 text-[15px] leading-relaxed text-charcoal placeholder:text-muted focus:outline-none disabled:opacity-60"
         />
