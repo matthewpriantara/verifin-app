@@ -1,5 +1,10 @@
 """
-Hybrid NLP Classifier — Layer 1 sebelum LLM.
+Hybrid NLP Classifier — Layer 1 (Trust Pre-Screening) dari Job Trust Infrastructure.
+
+Komponen pertama dalam pipeline Verifin yang melakukan pre-screening awal
+sebelum OSINT dan LLM dijalankan. Tujuannya bukan sekadar fraud detection,
+melainkan membangun sinyal awal untuk trust assessment — membantu pencari
+kerja menyaring lowongan yang layak diverifikasi lebih lanjut.
 
 Arsitektur sesuai jurnal:
 - paper22 (Neural Processing Letters 2022): TF-IDF + ML ensemble untuk fake job detection
@@ -8,7 +13,7 @@ Arsitektur sesuai jurnal:
 Pipeline:
 1. Ekstrak fitur tekstual dari teks lowongan (TF-IDF + behavioral features)
 2. XGBoost classifier → confidence score 0.0–1.0
-3. Jika confidence < 0.60 (gray zone) → fallback ke LLM Layer 2
+3. Jika confidence < 0.60 (gray zone) → fallback ke LLM Layer 4
 4. Output: label (AMAN/WASPADA/BAHAYA) + confidence + fitur paling berpengaruh
 
 Dataset training: EMSCAD (Kaggle) + fitur khusus Indonesia dari ner.py
@@ -97,9 +102,33 @@ def _extract_behavioral_features(text: str) -> dict[str, float]:
 
     # Fitur numerik — gaji disebutkan tapi tidak ada PT/alamat = suspicious
     has_salary = bool(re.search(r"\b(gaji|upah|salary)\b", text_lower))
-    has_company = bool(re.search(r"\b(PT|CV|UD|Yayasan)\b", text))
-    has_address = bool(re.search(r"\b(Jl\.|Jalan|RT|RW|Kecamatan)\b", text))
-    has_contact = bool(re.search(r"\b(08[0-9]{8,11}|\+62[0-9]{9,12})\b", text))
+
+    # has_company: cek nama badan usaha Indonesia — PT, CV, UD, Yayasan, Group, Tbk, Tbk., Inc, Ltd, dsb.
+    # Tidak pakai \b sebelum titik karena titik bukan word char; gunakan (?<!\w) sebagai gantinya.
+    has_company = bool(re.search(
+        r"(?<!\w)(PT\.?|CV\.?|UD\.?|Yayasan|Koperasi|Persero|Tbk\.?|Group|Inc\.?|Ltd\.?|Corp\.?|Perusahaan)\b",
+        text, re.IGNORECASE
+    ))
+
+    # has_address: cek kata kunci alamat Indonesia — Jl/Jalan tidak bisa pakai \b karena diikuti titik
+    has_address = bool(re.search(
+        r"(?<!\w)(Jl\.|Jalan)\s+\w"   # "Jl. " atau "Jalan " diikuti nama jalan
+        r"|(?<!\w)No\.\s*\d"          # Nomor alamat "No. 12"
+        r"|\bRT\.?\s*\d|\bRW\.?\s*\d" # RT/RW
+        r"|\b(Kelurahan|Kecamatan|Kabupaten|Kota|Provinsi|Kel\.|Kec\.)\b"
+        r"|\b(DIY|DKI|Yogyakarta|Jakarta|Surabaya|Bandung|Medan|Semarang|Makassar)\b"
+        r"|\bKode\s*Pos\s*\d{5}|\b\d{5}\b.*\b(Indonesia)\b",
+        text, re.IGNORECASE
+    ))
+
+    # has_contact: cek nomor telepon Indonesia (08xx / +62xx) atau alamat email
+    has_contact = bool(re.search(
+        r"(?<!\d)(08[0-9]{8,11})(?!\d)"   # 08xx — 10 s/d 13 digit total
+        r"|(?<!\d)(\+62[0-9]{8,12})(?!\d)" # +62xx
+        r"|(?<!\d)(62[0-9]{9,12})(?!\d)"   # 62xx tanpa plus
+        r"|[a-zA-Z0-9._%+\-]+@[a-zA-Z0-9.\-]+\.[a-zA-Z]{2,}",  # email
+        text
+    ))
     has_fee_request = bool(re.search(
         r"\b(biaya|transfer|bayar|dp|down\s*payment)\b", text_lower
     ))
