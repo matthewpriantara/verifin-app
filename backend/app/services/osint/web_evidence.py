@@ -411,14 +411,30 @@ def collect_web_evidence(entities: dict) -> dict[str, Any]:
     for s in searches:
         risk_flags.extend(s.get("risk_flags") or [])
 
-    # Deteksi akun medsos & jejak digital publik dari hasil pencarian
+    # Deteksi akun medsos & cross-reference lokasi dari hasil pencarian Scrapling
     found_social: list[str] = []
     total_public_results = 0
+    addresses = entities.get("addresses") or []
+    companies = entities.get("companies") or []
+
     for s in searches:
         for r in s.get("results") or []:
             total_public_results += 1
             u = r.get("url") or ""
             title = r.get("title") or ""
+            snippet = r.get("snippet") or ""
+            combined_text = f"{title} {snippet}".lower()
+
+            # Cross-reference alamat: Cek apakah nama kota/jalan dari loker muncul di snippet pencarian bisnis
+            for addr in addresses:
+                # Ambil keyword lokasi kunci (misal: Kaliurang, Sleman, Umbulharjo, Yogyakarta)
+                loc_words = [w for w in re.split(r"[^\w]+", addr.lower()) if len(w) > 3 and w not in ("jalan", "gang", "nomor", "penempatan")]
+                matched_words = [w for w in loc_words if w in combined_text]
+                if len(matched_words) >= 2 and companies:
+                    safe_flags.append(
+                        f"✅ Scrapling Location Match: Pencarian web publik untuk '{companies[0]}' mengonfirmasi lokasi '{', '.join(matched_words)}'."
+                    )
+
             if "instagram.com" in u and u not in found_social:
                 found_social.append(u)
                 safe_flags.append(

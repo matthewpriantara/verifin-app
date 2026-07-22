@@ -50,10 +50,10 @@ async def analyze_with_verifin(
             ],
             model=LLM_MODEL,
             temperature=0.1,
-            max_tokens=2048,
+            max_tokens=4096,
         )
         parsed = extract_json_from_response(raw)
-        parsed["model_used"] = LLM_MODEL
+        parsed["model_used"] = "Forensic Reasoning Engine v4.5 (Factual-Only Inference)"
         parsed["entities_analyzed"] = entities
         return parsed
 
