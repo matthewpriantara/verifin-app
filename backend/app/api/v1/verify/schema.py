@@ -3,7 +3,7 @@ Pydantic Schema untuk endpoint verifikasi lowongan kerja Verifin.
 Mendefinisikan format request dan response secara ketat agar API konsisten.
 """
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, ConfigDict
 from typing import List, Optional, Dict, Any
 
 
@@ -56,6 +56,7 @@ class ExtractedEntities(BaseModel):
 
 class VerifyResponse(BaseModel):
     """Response utama untuk semua endpoint verifikasi."""
+    model_config = ConfigDict(protected_namespaces=())
     verdict: str = Field(
         description="Keputusan AI: AMAN, WASPADA, BAHAYA, atau ERROR.",
         examples=["WASPADA"]

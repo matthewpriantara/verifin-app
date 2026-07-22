@@ -26,4 +26,9 @@ paddleocr==2.8.1
 opencv-python>=4.9.0
 Pillow>=10.0.0
 
-# NER: full regex struktural di app/services/ner.py (tanpa transformers/torch)
+# === NLP & ML Layer (Layer 1 Classifier — paper22 Springer, Fraud-BERT Springer) ===
+# TF-IDF behavioral features + XGBoost-compatible scoring
+scikit-learn==1.5.2
+
+# === Graph Analysis (Fraud Network — GAR-HGNN ACM 2025 inspired) ===
+networkx==3.4.2

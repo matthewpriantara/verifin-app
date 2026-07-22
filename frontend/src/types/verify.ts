@@ -56,9 +56,18 @@ export interface OsintPayload {
   };
   threads?: {
     enabled?: boolean;
+    platform?: string;
     found?: boolean;
-    posts?: { snippet?: string; source?: string; query?: string }[];
+    posts?: {
+      snippet?: string;
+      source?: string;
+      query?: string;
+      platform?: string;
+      title?: string;
+      url?: string;
+    }[];
     profiles?: { username?: string; url?: string; title?: string }[];
+    platform_hits?: Record<string, boolean>;
     risk_flags?: string[];
     error?: string;
   };
@@ -67,6 +76,36 @@ export interface OsintPayload {
     note?: string;
     social?: string;
   };
+}
+
+export interface ShapFeatureContribution {
+  feature: string;
+  feature_key: string;
+  value: number | string;
+  contribution: number;
+  impact: "risk" | "safe";
+  description: string;
+  delta: number;
+}
+
+export interface ShapWaterfallItem {
+  label: string;
+  value: number;
+  cumulative: number;
+  impact: "risk" | "safe";
+  delta: number;
+}
+
+export interface ShapExplanation {
+  model_type: string;
+  base_value: number;
+  final_risk_score: number;
+  verdict: string;
+  feature_contributions: ShapFeatureContribution[];
+  waterfall_chart: ShapWaterfallItem[];
+  top_risk_features: string[];
+  top_safe_features: string[];
+  summary: string;
 }
 
 export interface VerifyResponse {
@@ -79,6 +118,7 @@ export interface VerifyResponse {
   entities?: ExtractedEntities | null;
   model_used?: string | null;
   osint?: OsintPayload | null;
+  shap_explanation?: ShapExplanation | null;
 }
 
 export interface TextVerifyRequest {

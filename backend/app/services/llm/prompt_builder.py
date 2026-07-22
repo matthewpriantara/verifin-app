@@ -177,35 +177,33 @@ def _build_web_osint_section(web: dict) -> str:
 
 
 def _build_threads_osint_section(threads: dict) -> str:
-    """Format hasil OSINT Threads untuk prompt reasoner."""
+    """Format hasil OSINT Social Media untuk prompt reasoner — ringkas."""
     if not threads:
-        return "- Tidak ada data Threads."
+        return "- Tidak ada data media sosial."
     if not threads.get("enabled"):
-        return f"- Threads OSINT nonaktif: {threads.get('error') or threads.get('note') or 'cookie belum diset'}."
+        return f"- Social Media OSINT nonaktif: {threads.get('note') or 'tidak ada data'}."
     if threads.get("error") and not threads.get("found"):
-        return f"- Threads OSINT error: {threads.get('error')}"
+        return f"- Social Media OSINT error: {threads.get('error')}"
+
+    found = threads.get("found", False)
+    platform_hits = threads.get("platform_hits") or {}
+    active_platforms = [p for p, v in platform_hits.items() if v]
+    risk_flags = threads.get("risk_flags") or []
+    profiles = threads.get("profiles") or []
+    posts = threads.get("posts") or []
 
     lines = [
-        f"- Query: {threads.get('query', '-')}",
-        f"- Ditemukan jejak: {'Ya' if threads.get('found') else 'Tidak'}",
+        f"- Jejak ditemukan: {'Ya' if found else 'Tidak'}",
+        f"- Platform aktif: {', '.join(active_platforms) if active_platforms else 'tidak ada'}",
+        f"- Jumlah postingan ditemukan: {len(posts)}",
+        f"- Jumlah profil ditemukan: {len(profiles)}",
     ]
-    profiles = threads.get("profiles") or []
+    if risk_flags:
+        for f in risk_flags:
+            lines.append(f"- Risiko: {f}")
     if profiles:
-        lines.append("- Profil terkait:")
-        for p in profiles[:3]:
-            lines.append(f"  · @{p.get('username')} — {p.get('url')}")
-    posts = threads.get("posts") or []
-    if posts:
-        lines.append("- Cuplikan postingan:")
-        for p in posts[:4]:
-            lines.append(f"  · ({p.get('source')}) {p.get('snippet', '')[:180]}")
-    flags = threads.get("risk_flags") or []
-    if flags:
-        lines.append("- Bendera risiko medsos:")
-        for f in flags:
-            lines.append(f"  · {f}")
-    if not profiles and not posts:
-        lines.append("- Tidak ada postingan/profil yang cocok dari pencarian terbatas.")
+        for p in profiles[:2]:
+            lines.append(f"- Profil: @{p.get('username', '?')} ({p.get('url', '')})")
     return "\n".join(lines)
 
 
@@ -413,15 +411,16 @@ def build_text_verify_prompt(raw_text: str, entities: dict, osint_results: dict)
     sebagai konteks tambahan untuk LLM.
     """
     base_prompt = build_verify_prompt(entities, osint_results)
-    
-    # Sisipkan teks kasar OCR sebagai konteks tambahan (maks 3500 karakter agar tidak terpotong)
+
+    # Kurangi batas raw_text agar prompt tidak terlalu panjang
+    # Prompt besar = response terpotong = JSON error
+    MAX_RAW = 600
     raw_section = f"""
 ## TEKS ASLI LOWONGAN (Hasil OCR / Input Manual)
 
 ```
-{raw_text[:3500]}{"...(terpotong)" if len(raw_text) > 3500 else ""}
+{raw_text[:MAX_RAW]}{"...(terpotong)" if len(raw_text) > MAX_RAW else ""}
 ```
 
 """
-    # Sisipkan sebelum "## DATA LOWONGAN KERJA"
     return base_prompt.replace("## DATA LOWONGAN KERJA", raw_section + "## DATA LOWONGAN KERJA")

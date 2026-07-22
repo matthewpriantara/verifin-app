@@ -48,9 +48,22 @@ def _parse_json_value(text: str) -> Any:
 
 def _repair_truncated_json(text: str) -> str:
     t = text.strip()
-    quote_count = len(re.findall(r'(?<!\\)"', t))
-    if quote_count % 2 != 0:
+    # Hapus trailing code fence jika ada
+    t = re.sub(r"```(?:json)?\s*$", "", t).strip()
+
+    # Hapus koma atau titik dua gantung di paling akhir
+    t = re.sub(r",\s*$", "", t)
+    t = re.sub(r":\s*$", ': ""', t)
+
+    # Hitung petik ganda yang tidak di-escape
+    quotes = re.findall(r'(?<!\\)"', t)
+    if len(quotes) % 2 != 0:
         t += '"'
+
+    # Hapus koma gantung setelah penutupan petik
+    t = re.sub(r",\s*$", "", t)
+
+    # Seimbangkan kurung siku dan kurawal
     open_brackets = t.count("[") - t.count("]")
     open_braces = t.count("{") - t.count("}")
     t += "]" * max(0, open_brackets)
@@ -60,25 +73,55 @@ def _repair_truncated_json(text: str) -> str:
 
 def extract_json_from_response(text: str) -> dict:
     cleaned = (text or "").strip()
-    if cleaned.startswith("```"):
-        cleaned = re.sub(r"^```(?:json)?\s*", "", cleaned)
-        cleaned = re.sub(r"\s*```$", "", cleaned).strip()
+    # 1. Hapus tag <think>...</think> jika ada (reasoning model / DeepSeek / Grok thinking)
+    cleaned = re.sub(r"<think>[\s\S]*?</think>", "", cleaned).strip()
 
+    # 2. Ekstrak dari blok kode markdown ```json ... ``` lengkap
+    match_code = re.search(r"```(?:json)?\s*(\{[\s\S]*?\})\s*```", cleaned)
+    if match_code:
+        try:
+            obj = _parse_json_value(match_code.group(1))
+            if isinstance(obj, dict):
+                return obj
+        except Exception:
+            pass
+
+    # 3. Bersihkan pembuka ```json jika ada
+    if cleaned.startswith("```"):
+        cleaned_fence = re.sub(r"^```(?:json)?\s*", "", cleaned)
+        cleaned_fence = re.sub(r"\s*```$", "", cleaned_fence).strip()
+    else:
+        cleaned_fence = cleaned
+
+    # 4. Coba parsing langsung dari cleaned_fence
     try:
-        obj = _parse_json_value(cleaned)
+        obj = _parse_json_value(cleaned_fence)
         if isinstance(obj, dict):
             return obj
     except json.JSONDecodeError:
         pass
 
-    # Coba perbaiki jika JSON terpotong di akhir
-    try:
-        repaired = _repair_truncated_json(cleaned)
-        obj = _parse_json_value(repaired)
-        if isinstance(obj, dict):
-            return obj
-    except Exception:
-        pass
+    # 5. Cari objek JSON terluar {...} lengkap di mana saja
+    match_braces = re.search(r"(\{[\s\S]*\})", cleaned)
+    if match_braces:
+        try:
+            obj = _parse_json_value(match_braces.group(1))
+            if isinstance(obj, dict):
+                return obj
+        except Exception:
+            pass
+
+    # 6. Coba perbaiki jika JSON terpotong di akhir (truncation repair)
+    for candidate in [cleaned_fence, cleaned]:
+        try:
+            repaired = _repair_truncated_json(candidate)
+            obj = _parse_json_value(repaired)
+            if isinstance(obj, dict) and "verdict" in obj:
+                return obj
+        except Exception:
+            pass
+
+    print(f"[extract_json_from_response ERROR] Gagal parse JSON dari LLM raw text:\n{text[:500]!r}")
 
     return {
         "verdict": "ERROR",
@@ -95,7 +138,7 @@ async def chat_completion(
     *,
     model: Optional[str] = None,
     temperature: float = 0.1,
-    max_tokens: int = 2048,
+    max_tokens: int = 4096,
     timeout: Optional[float] = None,
 ) -> str:
     if not LLM_API_KEY:

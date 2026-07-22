@@ -1,73 +1,97 @@
 @import "tailwindcss";
 
+/* ─── Design Tokens ─────────────────────────────────────────────────────── */
 :root {
-  --cream: #f5f0e8;
-  --cream-soft: #faf7f2;
-  --cream-deep: #e8dfd0;
-  --charcoal: #2c2825;
-  --charcoal-soft: #4a4540;
-  --muted: #8a8279;
-  --border: #d9d0c4;
-  --surface: #fffdf9;
-  --aman-bg: #edf3ec;
-  --aman-fg: #2f5c34;
-  --waspada-bg: #fbf3db;
-  --waspada-fg: #7a5500;
-  --bahaya-bg: #fdebec;
-  --bahaya-fg: #8f2f2d;
-  --error-bg: #f5eaea;
-  --error-fg: #6b2c2c;
+  /* Base surface — cream family */
+  --bg:          #faf8f4;
+  --bg-elevated: #ffffff;
+  --bg-subtle:   #f2ede6;
+  --bg-muted:    #e8e2d9;
+
+  /* Borders */
+  --border:       rgba(44,40,37,0.10);
+  --border-focus: rgba(44,40,37,0.28);
+
+  /* Text — charcoal family */
+  --text-primary:   #2c2825;
+  --text-secondary: #4a4540;
+  --text-muted:     #8a8279;
+
+  /* Brand accent — charcoal blue-tinted */
+  --accent:     #2c2825;
+  --accent-dim: rgba(44,40,37,0.07);
+
+  /* Semantic — verdict */
+  --aman-bg:     #edf3ec;
+  --aman-fg:     #2f5c34;
+  --aman-border: rgba(47,92,52,0.20);
+
+  --waspada-bg:     #fbf4db;
+  --waspada-fg:     #7a5500;
+  --waspada-border: rgba(122,85,0,0.20);
+
+  --bahaya-bg:     #fdebec;
+  --bahaya-fg:     #8f2f2d;
+  --bahaya-border: rgba(143,47,45,0.20);
 }
 
 @theme inline {
-  --color-cream: var(--cream);
-  --color-cream-soft: var(--cream-soft);
-  --color-cream-deep: var(--cream-deep);
-  --color-charcoal: var(--charcoal);
-  --color-charcoal-soft: var(--charcoal-soft);
-  --color-muted: var(--muted);
-  --color-border: var(--border);
-  --color-surface: var(--surface);
-  --color-aman-bg: var(--aman-bg);
-  --color-aman-fg: var(--aman-fg);
-  --color-waspada-bg: var(--waspada-bg);
-  --color-waspada-fg: var(--waspada-fg);
-  --color-bahaya-bg: var(--bahaya-bg);
-  --color-bahaya-fg: var(--bahaya-fg);
+  --color-bg:             var(--bg);
+  --color-bg-elevated:    var(--bg-elevated);
+  --color-bg-subtle:      var(--bg-subtle);
+  --color-bg-muted:       var(--bg-muted);
+  --color-border:         var(--border);
+  --color-border-focus:   var(--border-focus);
+  --color-text-primary:   var(--text-primary);
+  --color-text-secondary: var(--text-secondary);
+  --color-text-muted:     var(--text-muted);
+  --color-accent:         var(--accent);
+  --color-accent-dim:     var(--accent-dim);
+
+  --color-aman-bg:        var(--aman-bg);
+  --color-aman-fg:        var(--aman-fg);
+  --color-aman-border:    var(--aman-border);
+  --color-waspada-bg:     var(--waspada-bg);
+  --color-waspada-fg:     var(--waspada-fg);
+  --color-waspada-border: var(--waspada-border);
+  --color-bahaya-bg:      var(--bahaya-bg);
+  --color-bahaya-fg:      var(--bahaya-fg);
+  --color-bahaya-border:  var(--bahaya-border);
+
   --font-sans: var(--font-geist-sans);
   --font-mono: var(--font-geist-mono);
 }
 
-* {
-  box-sizing: border-box;
-}
-
-html {
-  scroll-behavior: smooth;
-}
+/* ─── Base ───────────────────────────────────────────────────────────────── */
+*, *::before, *::after { box-sizing: border-box; }
+html { scroll-behavior: smooth; }
 
 body {
-  background: var(--cream);
-  color: var(--charcoal);
+  background: var(--bg);
+  color: var(--text-primary);
   font-family: var(--font-geist-sans), system-ui, sans-serif;
-  font-size: 16px;
+  font-size: 15px;
   line-height: 1.6;
   -webkit-font-smoothing: antialiased;
 }
 
-::selection {
-  background: var(--cream-deep);
-  color: var(--charcoal);
-}
+::selection { background: var(--bg-muted); color: var(--text-primary); }
 
 :focus-visible {
-  outline: 2px solid var(--charcoal);
+  outline: 2px solid var(--text-primary);
   outline-offset: 2px;
 }
 
-input,
-textarea,
-button,
-select {
-  font: inherit;
+input, textarea, button, select { font: inherit; }
+
+/* ─── Scrollbar ──────────────────────────────────────────────────────────── */
+::-webkit-scrollbar { width: 5px; }
+::-webkit-scrollbar-track { background: var(--bg); }
+::-webkit-scrollbar-thumb { background: var(--bg-muted); border-radius: 3px; }
+
+/* ─── Animations ─────────────────────────────────────────────────────────── */
+@keyframes stepPulse {
+  0%, 100% { opacity: 0.3; transform: scale(0.75); }
+  50%       { opacity: 1;   transform: scale(1);    }
 }
+
