@@ -28,7 +28,7 @@ export interface WhitelistEntry {
 
 export async function fetchCases(limit = 50, skip = 0): Promise<AdminCase[]> {
   const res = await fetch(
-    `${API_BASE}/api/v1/verify/cases?limit=${limit}&skip=${skip}`,
+    `${API_BASE}/api/v1/cases?limit=${limit}&skip=${skip}`,
     { cache: "no-store" },
   );
   if (!res.ok) throw new Error(`Gagal mengambil kasus (${res.status})`);
@@ -37,7 +37,7 @@ export async function fetchCases(limit = 50, skip = 0): Promise<AdminCase[]> {
 
 export async function fetchWhitelist(limit = 100): Promise<WhitelistEntry[]> {
   const res = await fetch(
-    `${API_BASE}/api/v1/verify/whitelist?limit=${limit}`,
+    `${API_BASE}/api/v1/whitelist?limit=${limit}`,
     { cache: "no-store" },
   );
   if (!res.ok) throw new Error(`Gagal mengambil whitelist (${res.status})`);
