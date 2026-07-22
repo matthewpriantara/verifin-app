@@ -1,6 +1,11 @@
 """
 SHAP-Inspired Additive Feature Explainer untuk Verifin.
 
+Komponen explainability dari Job Trust Infrastructure — menguraikan setiap
+sinyal bukti yang berkontribusi pada trust assessment suatu lowongan kerja,
+bukan sekadar risk scoring. Output dirancang agar pencari kerja dapat
+memahami alasan di balik penilaian kepercayaan yang diberikan.
+
 Implementasi berdasarkan:
 - Lundberg & Lee (2017) "A Unified Approach to Interpreting Model Predictions"
 - XAI Phishing Detection (IEEE RAICS 2025) — Varsha V G, PA Thomas
@@ -11,8 +16,8 @@ Dimana phi_i = kontribusi Shapley dari fitur ke-i
 
 Berbeda dari versi sebelumnya yang rule-based sederhana, versi ini:
 1. Mengintegrasikan sinyal dari NLP classifier (Layer 1)
-2. Mengintegrasikan sinyal dari OSINT (Layer 2)
-3. Menghitung phi_i dengan bobot proporsional terhadap total risk score
+2. Mengintegrasikan sinyal dari OSINT (Layer 3)
+3. Menghitung phi_i dengan bobot proporsional terhadap total trust score
 4. Menghasilkan waterfall chart data yang bisa divisualisasi di FE
 """
 

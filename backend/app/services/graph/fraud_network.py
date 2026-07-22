@@ -1,5 +1,8 @@
 """
-Fraud Network Analyzer — Case Memory Graph via PostgreSQL + NetworkX.
+Fraud Network Analyzer — Layer 5 dari Job Trust Infrastructure Verifin.
+
+Komponen Case Memory Graph yang memantau jaringan entitas penipuan secara
+berkelanjutan, sebagai bagian dari platform pendamping pencari kerja Verifin.
 
 Implementasi sesuai:
 - GAR-HGNN (ACM ACAIB 2025): Heterogeneous Graph untuk fraud detection

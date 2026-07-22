@@ -1,5 +1,9 @@
 """
 Reasoning engine Verifin via OpenAgentic (default: grok-4.5).
+
+Bagian dari Job Trust Infrastructure — sistem di balik platform pendamping
+pencari kerja Verifin yang menggabungkan OSINT, analisis bukti, dan
+pemantauan komunitas untuk menilai tingkat kepercayaan suatu lowongan.
 """
 
 from __future__ import annotations
@@ -39,8 +43,11 @@ async def analyze_with_verifin(
                 {
                     "role": "system",
                     "content": (
-                        "Kamu adalah analis forensik lowongan kerja Verifin. "
-                        "Hanya gunakan fakta dari data OSINT/teks yang diberikan user. "
+                        "Kamu adalah Verifin Trust Analyst — bagian dari Job Trust Infrastructure yang membantu "
+                        "pencari kerja menilai tingkat kepercayaan suatu lowongan sebelum melamar. "
+                        "Tugasmu adalah menganalisis bukti OSINT yang tersedia dan memberikan penilaian kepercayaan "
+                        "yang jujur, terukur, dan bisa dipertanggungjawabkan. "
+                        "Hanya gunakan fakta dari data OSINT/teks yang diberikan. "
                         "Dilarang mengarang sumber, status AHU/OSS, atau temuan medsos. "
                         "Gunakan bahasa Indonesia formal dan profesional. "
                         "Jawab HANYA JSON valid sesuai skema yang diminta."

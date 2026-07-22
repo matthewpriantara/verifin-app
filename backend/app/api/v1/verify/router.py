@@ -1,6 +1,11 @@
 """
-Router verifikasi Verifin.
-Pipeline (4 layer sesuai proposal + jurnal):
+Router verifikasi Verifin — platform pendamping pencari kerja yang membantu
+pengguna menilai tingkat kepercayaan suatu lowongan sebelum melamar.
+
+Di balik platform ini terdapat Job Trust Infrastructure yang menggabungkan
+OSINT, analisis bukti, dan pemantauan komunitas secara berkelanjutan.
+
+Pipeline (5 layer):
   teks/gambar
     → Layer 1: NLP Classifier (TF-IDF behavioral features, paper22 Springer)
     → Layer 2: NER/regex extraction
