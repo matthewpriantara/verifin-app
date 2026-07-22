@@ -19,7 +19,7 @@ import type { AdminCase, WhitelistEntry } from "@/lib/admin";
 
 const ADMIN_SESSION_KEY = "verifin:admin-auth";
 const ADMIN_PASSWORD =
-  process.env.NEXT_PUBLIC_ADMIN_PASSWORD ?? "verifin2026";
+  process.env.NEXT_PUBLIC_ADMIN_PASSWORD ?? "verifin123";
 
 /* ─── Login Gate ──────────────────────────────────────────────────────────── */
 function LoginGate({ onAuth }: { onAuth: () => void }) {
