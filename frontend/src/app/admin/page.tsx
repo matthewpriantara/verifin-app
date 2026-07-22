@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { motion } from "motion/react";
+import { motion, AnimatePresence } from "motion/react";
 import {
   Shield,
   Warning,
@@ -10,10 +10,91 @@ import {
   Buildings,
   ArrowClockwise,
   Eye,
+  LockKey,
+  SignOut,
 } from "@phosphor-icons/react";
 import { cn } from "@/lib/utils";
 import { fetchCases, fetchWhitelist, fetchAiStatus } from "@/lib/admin";
 import type { AdminCase, WhitelistEntry } from "@/lib/admin";
+
+const ADMIN_SESSION_KEY = "verifin:admin-auth";
+const ADMIN_PASSWORD =
+  process.env.NEXT_PUBLIC_ADMIN_PASSWORD ?? "verifin2026";
+
+/* ─── Login Gate ──────────────────────────────────────────────────────────── */
+function LoginGate({ onAuth }: { onAuth: () => void }) {
+  const [pw, setPw] = useState("");
+  const [error, setError] = useState(false);
+  const [shake, setShake] = useState(false);
+
+  function submit(e: React.FormEvent) {
+    e.preventDefault();
+    if (pw === ADMIN_PASSWORD) {
+      sessionStorage.setItem(ADMIN_SESSION_KEY, "1");
+      onAuth();
+    } else {
+      setError(true);
+      setShake(true);
+      setTimeout(() => setShake(false), 500);
+    }
+  }
+
+  return (
+    <div className="flex min-h-[calc(100vh-56px)] items-center justify-center px-4">
+      <motion.div
+        initial={{ opacity: 0, y: 16 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.3, ease: [0.16, 1, 0.3, 1] }}
+        className="w-full max-w-sm"
+      >
+        <div className="mb-8 flex flex-col items-center gap-3 text-center">
+          <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-text-primary">
+            <LockKey size={22} weight="bold" className="text-bg-elevated" />
+          </div>
+          <div>
+            <h1 className="text-xl font-semibold tracking-tight text-text-primary">
+              Admin Panel
+            </h1>
+            <p className="mt-1 text-[13px] text-text-muted">
+              Masukkan password untuk melanjutkan
+            </p>
+          </div>
+        </div>
+
+        <motion.form
+          onSubmit={submit}
+          animate={shake ? { x: [0, -8, 8, -6, 6, -3, 3, 0] } : {}}
+          transition={{ duration: 0.45 }}
+          className="flex flex-col gap-3"
+        >
+          <input
+            type="password"
+            value={pw}
+            onChange={(e) => { setPw(e.target.value); setError(false); }}
+            placeholder="Password admin"
+            autoFocus
+            className={cn(
+              "w-full rounded-xl border bg-bg-elevated px-4 py-3 text-[14px] text-text-primary placeholder:text-text-muted outline-none transition-colors",
+              error
+                ? "border-bahaya-border focus:border-bahaya-border"
+                : "border-border focus:border-border-focus",
+            )}
+          />
+          {error && (
+            <p className="text-[12px] text-bahaya-fg">Password salah. Coba lagi.</p>
+          )}
+          <button
+            type="submit"
+            disabled={!pw}
+            className="w-full rounded-xl bg-text-primary px-4 py-3 text-[14px] font-semibold text-bg-elevated transition-opacity hover:opacity-90 disabled:opacity-40"
+          >
+            Masuk
+          </button>
+        </motion.form>
+      </motion.div>
+    </div>
+  );
+}
 
 function VerdictBadge({ verdict }: { verdict: string }) {
   const v = verdict.toUpperCase();
@@ -57,33 +138,50 @@ function StatCard({
 }
 
 export default function AdminPage() {
+  // ── Auth gate ──────────────────────────────────────────────────────────────
+  const [authed, setAuthed] = useState(false);
+
+  useEffect(() => {
+    if (sessionStorage.getItem(ADMIN_SESSION_KEY) === "1") setAuthed(true);
+  }, []);
+
+  // ── Data ───────────────────────────────────────────────────────────────────
   const [cases, setCases] = useState<AdminCase[]>([]);
   const [whitelist, setWhitelist] = useState<WhitelistEntry[]>([]);
   const [aiStatus, setAiStatus] = useState<Record<string, unknown> | null>(null);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<"cases" | "whitelist">("cases");
 
   async function load() {
     setLoading(true);
     setError(null);
-    try {
-      const [c, w, s] = await Promise.all([
-        fetchCases(100),
-        fetchWhitelist(200),
-        fetchAiStatus(),
-      ]);
-      setCases(c);
-      setWhitelist(w);
-      setAiStatus(s);
-    } catch (e) {
-      setError(e instanceof Error ? e.message : "Gagal memuat data");
-    } finally {
-      setLoading(false);
-    }
+    // Fetch secara independen agar satu fail tidak block yang lain
+    const [casesRes, whitelistRes, statusRes] = await Promise.allSettled([
+      fetchCases(100),
+      fetchWhitelist(200),
+      fetchAiStatus(),
+    ]);
+    if (casesRes.status === "fulfilled") setCases(casesRes.value);
+    else setError(casesRes.reason instanceof Error ? casesRes.reason.message : "Gagal memuat kasus");
+    if (whitelistRes.status === "fulfilled") setWhitelist(whitelistRes.value);
+    if (statusRes.status === "fulfilled") setAiStatus(statusRes.value);
+    setLoading(false);
   }
 
-  useEffect(() => { load(); }, []);
+  useEffect(() => { if (authed) load(); }, [authed]);
+
+  function logout() {
+    sessionStorage.removeItem(ADMIN_SESSION_KEY);
+    setAuthed(false);
+    setCases([]);
+    setWhitelist([]);
+    setAiStatus(null);
+    setError(null);
+  }
+
+  // ── Login gate render ──────────────────────────────────────────────────────
+  if (!authed) return <LoginGate onAuth={() => setAuthed(true)} />;
 
   const stats = {
     total:   cases.length,
@@ -124,6 +222,21 @@ export default function AdminPage() {
               {aiStatus.reachable ? "AI Online" : "AI Offline"}
             </span>
           )}
+          {/* Error banner inline */}
+          {error && (
+            <span className="inline-flex items-center gap-1.5 rounded-full border border-waspada-border bg-waspada-bg px-3 py-1.5 text-[12px] font-medium text-waspada-fg">
+              <Warning size={12} weight="bold" />
+              {error}
+            </span>
+          )}
+          {/* Logout */}
+          <button
+            onClick={logout}
+            className="inline-flex items-center gap-1.5 rounded-lg border border-border bg-bg-subtle px-3 py-1.5 text-[13px] text-text-secondary transition-colors hover:border-border-focus hover:text-text-primary"
+          >
+            <SignOut size={13} />
+            Keluar
+          </button>
           <button
             onClick={load}
             disabled={loading}
@@ -138,12 +251,6 @@ export default function AdminPage() {
           </button>
         </div>
       </div>
-
-      {error && (
-        <div className="mb-6 rounded-xl border border-bahaya-border bg-bahaya-bg px-4 py-3 text-[13px] text-bahaya-fg">
-          {error} - Pastikan backend berjalan di port 8000
-        </div>
-      )}
 
       {/* Stats */}
       <div className="mb-6 grid grid-cols-2 gap-3 sm:grid-cols-4">
