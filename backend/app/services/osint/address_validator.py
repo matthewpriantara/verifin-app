@@ -60,6 +60,30 @@ async def _geocode_single(address: str, client: httpx.AsyncClient) -> dict | Non
     return results[0] if results else None
 
 
+# Peta koreksi OCR typo umum pada nama wilayah Indonesia
+_OCR_ADDR_FIXES: list[tuple[str, str]] = [
+    # 'l' terbaca sebagai huruf kapital 'I' (atau sebaliknya)
+    (r"\blstimewa\b", "Istimewa"),
+    (r"\blndonesia\b", "Indonesia"),
+    (r"\bJakarta\s+lndonesia\b", "Jakarta Indonesia"),
+    # JI. / JI (tanpa titik) -> Jl. (OCR salah baca 'l' sebagai 'I')
+    (r"\bJI\.\s*", "Jl. "),
+    (r"\bJI\s+(?=[A-Z])", "Jl. "),
+    # Kec./Kab./Kel. tanpa spasi setelahnya (OCR nempel)
+    (r"\b(Kec|Kab|Kel|Desa|Ds)\.([A-Z])", r"\1. \2"),
+]
+
+
+def _normalize_ocr_address(addr: str) -> str:
+    """Koreksi OCR typo umum pada string alamat sebelum dikirim ke Nominatim."""
+    a = addr
+    for pattern, replacement in _OCR_ADDR_FIXES:
+        a = re.sub(pattern, replacement, a)
+    # Tambahkan spasi setelah koma jika langsung disambung huruf ("Sleman,Yogyakarta" → "Sleman, Yogyakarta")
+    a = re.sub(r",([^\s])", r", \1", a)
+    return a
+
+
 def _clean_address_input(addr: str) -> str:
     a = (addr or "").strip()
     a = re.sub(
@@ -86,7 +110,11 @@ def _build_fallback_queries(address: str) -> list[str]:
        'Caturtunggal, Depok, Sleman, Yogyakarta, Indonesia']
     """
     addr = _clean_address_input(address)
-    queries = [addr, f"{addr}, Indonesia"]
+    addr_norm = _normalize_ocr_address(addr)  # versi setelah koreksi OCR typo
+    queries = [addr]
+    if addr_norm != addr:
+        queries.append(addr_norm)
+    queries += [f"{addr_norm}, Indonesia", f"{addr}, Indonesia"]
 
     # Hapus nomor rumah (No.XX, No XX, RT/RW, dll.)
     stripped = re.sub(r"\bNo\.?\s*\d+\b", "", addr, flags=re.IGNORECASE)
@@ -102,17 +130,53 @@ def _build_fallback_queries(address: str) -> list[str]:
     if stripped_no_prefix != stripped:
         queries.append(f"{stripped_no_prefix.strip(' ,')}, Indonesia")
 
-    parts = [p.strip() for p in addr.split(",") if p.strip()]
+    parts = [p.strip() for p in addr_norm.split(",") if p.strip()]
     if len(parts) >= 2:
-        street_part = parts[0]
+        # Strip "Kec.", "Kab.", "Kel.", "Desa", "Daerah" prefix dari setiap part
+        def _strip_admin_prefix(s: str) -> str:
+            return re.sub(
+                r"^(?:Kecamatan|Kabupaten|Kelurahan|Kec\.?\s*|Kab\.?\s*|Kel\.?\s*|Desa\s+|Ds\.?\s*|Kota\s+|Daerah\s+)\s*",
+                "", s, flags=re.IGNORECASE,
+            ).strip()
+
+
+        clean_parts = [_strip_admin_prefix(p) for p in parts]
+
+        street_part = clean_parts[0]
         words = street_part.split()
         if len(words) >= 3:
             short_street = " ".join(words[:2])
-            rest_parts = ", ".join(parts[1:])
+            rest_parts = ", ".join(clean_parts[1:])
             queries.append(f"{short_street}, {rest_parts}, Indonesia")
 
-        queries.append(f"{', '.join(parts[1:])}, Indonesia")
-        queries.append(f"{', '.join(parts[-2:])}, Indonesia")
+        # Versi tanpa part pertama (tanpa nama jalan)
+        queries.append(f"{', '.join(clean_parts[1:])}, Indonesia")
+        queries.append(f"{', '.join(clean_parts[-2:])}, Indonesia")
+
+        # Versi asli (sebelum strip)
+        old_parts = [p.strip() for p in addr_norm.split(",") if p.strip()]
+        if old_parts != clean_parts:
+            queries.append(f"{', '.join(old_parts[1:])}, Indonesia")
+    else:
+        # Untuk alamat tanpa koma (misal "Jl. Klaseman No.15 Ngabean Wetan Ngaglik Sleman"):
+        # Strip street & house number
+        stripped_head = re.sub(
+            r"^(?:Jl\.?|Jalan|Jln\.?)\s+[A-Za-z0-9\.\'-]+\s*(?:No\.?\s*\d+)?\s*",
+            "", addr_norm, flags=re.IGNORECASE,
+        ).strip()
+        if stripped_head and stripped_head != addr_norm:
+            queries.append(f"{stripped_head}, Indonesia")
+
+        # Ambil 2-3 kata terakhir sebagai hirarki wilayah (Kecamatan, Kabupaten)
+        clean_words = [
+            w for w in re.sub(r"\bNo\.?\s*\d+\b", "", addr_norm, flags=re.IGNORECASE).split()
+            if len(w) >= 3 and not re.match(r"^(?:Jl\.?|Jalan|Jln\.?)$", w, re.IGNORECASE)
+        ]
+        if len(clean_words) >= 2:
+            queries.append(f"{clean_words[-2]}, {clean_words[-1]}, Indonesia")
+            if len(clean_words) >= 3:
+                queries.append(f"{' '.join(clean_words[-3:-1])}, {clean_words[-1]}, Indonesia")
+
 
     out = []
     seen = set()
@@ -122,6 +186,7 @@ def _build_fallback_queries(address: str) -> list[str]:
             seen.add(q_clean.lower())
             out.append(q_clean)
     return out
+
 
 
 async def geocode_address(address: str) -> dict:
