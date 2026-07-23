@@ -56,8 +56,23 @@ def _build_phone_osint_section(phones: list) -> str:
     lines = []
     for p in phones:
         phone = p.get("phone") or p.get("phone_local") or "?"
-        if p.get("error") and not p.get("found"):
-            lines.append(f"- `{phone}`: gagal dicek ({p.get('error')})")
+        has_error = bool(p.get("error") and not p.get("found"))
+        serp = p.get("serp_fallback") or {}
+        serp_risk = serp.get("risk_flags") or []
+        if has_error:
+            # Kredibel gagal — tampilkan status SERP fallback agar LLM tidak mengarang
+            if serp_risk:
+                lines.append(
+                    f"- `{phone}`: Kredibel gagal dicek ({p.get('error')}), "
+                    f"NAMUN SERP publik menemukan INDIKASI PENIPUAN:"
+                )
+                for rf in serp_risk:
+                    lines.append(f"  → {rf}")
+            else:
+                lines.append(
+                    f"- `{phone}`: Kredibel tidak dapat diakses ({p.get('error')}). "
+                    f"Pencarian SERP publik tidak menemukan laporan penipuan spesifik terkait nomor ini."
+                )
             continue
         parts = [f"- `{phone}` via Kredibel"]
         if p.get("rating") is not None:
@@ -73,7 +88,11 @@ def _build_phone_osint_section(phones: list) -> str:
             lines.append(f"  → {f}")
         if p.get("summary"):
             lines.append(f"  → ringkas: {p.get('summary')}")
+        # Sertakan juga SERP fallback jika ada flag tambahan
+        for rf in serp_risk:
+            lines.append(f"  → [SERP] {rf}")
     return "\n".join(lines) if lines else "- Tidak ada data telepon."
+
 
 
 def _build_company_osint_section(companies: list) -> str:
@@ -348,6 +367,7 @@ Analisis secara mendalam, formal, dan berbasis evidence. Berikan keputusan apaka
 7. shortlink bit.ly / Google Forms = praktik umum rekrutmen UMKM, BUKAN penipuan sendirian.
 8. PORTAL LOKER RESMI (JobStreet, LinkedIn, Glints, KitaLulus): Ketiadaan nomor HP atau email kontak langsung di dalam teks ADALAH HAL WARJAR karena lamaran dikirim langsung via tombol portal. DILARANG menjadikan "tidak ada email/telepon" sebagai faktor risiko untuk portal loker resmi.
 9. DILARANG MENGHALUSINASI BERITA UMUM KEPOLISIAN/OJK: Berita portal umum mengenai penipuan umum (misal berita 'Aparat Memburu Penipu Pendirian SPPG', 'Satgas PASTI', atau 'Deretan Hoaks Lowongan Kerja') BUKAN bukti bahwa lowongan ini adalah penipuan tersebut. HANYA klaim berita penipuan jika judul/snippet secara spesifik menyebutkan nama lengkap entitas atau nomor telepon ini.
+10. KREDIBEL GAGAL DIAKSES: Jika nomor HP tercatat "Kredibel tidak dapat diakses" DAN "Pencarian SERP publik tidak menemukan laporan penipuan", artinya TIDAK ADA BUKTI PENIPUAN terkait nomor tersebut. DILARANG memasukkan ini sebagai risk_factor. Ini harus masuk sebagai safe_factor atau diabaikan sama sekali.
 
 ## PANDUAN SKOR (WAJIB DIIKUTI — JANGAN PARKIR DI 25-35 TANPA ALASAN)
 

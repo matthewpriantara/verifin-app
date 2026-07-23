@@ -681,9 +681,16 @@ function MapSection({ osint, entities }: { osint: VerifyResponse["osint"]; entit
   const lat = primaryAddr.lat ?? details.lat;
   const lon = primaryAddr.lon ?? details.lon;
   const display = String(primaryAddr.display_name ?? details.display_name ?? primaryAddr.address_input ?? entityAddrs[0] ?? "Alamat Terverifikasi");
-  const gmapsUrl = (primaryAddr.google_maps_url ?? details.google_maps_url ?? `https://maps.google.com/?q=${encodeURIComponent(display)}`) as string;
-  const osmUrl = (primaryAddr.osm_url ?? details.osm_url) as string | undefined;
   const matchedBizName = (bizDetails.matched_name as string | undefined) || String(entities?.companies?.[0] || "");
+  const placeTitle = matchedBizName || display.split(",")[0] || "Lokasi Usaha";
+
+  const mapSearchQuery = matchedBizName
+    ? `${matchedBizName}, ${primaryAddr.address_input || display}`
+    : String(primaryAddr.address_input || display);
+
+  const gmapsUrl = `https://maps.google.com/?q=${encodeURIComponent(mapSearchQuery)}`;
+
+  const osmUrl = (primaryAddr.osm_url ?? details.osm_url) as string | undefined;
 
   const confidence = (details.confidence_score as number | undefined) ?? 0.8;
   const accuracyLabel = primaryAddr.business_found
@@ -691,8 +698,6 @@ function MapSection({ osint, entities }: { osint: VerifyResponse["osint"]; entit
     : confidence >= 0.25
     ? "Alamat jalan & kecamatan valid"
     : "Wilayah kabupaten/kota terverifikasi";
-
-  const placeTitle = matchedBizName || display.split(",")[0] || "Lokasi Usaha";
 
   return (
     <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.26 }}
@@ -741,20 +746,19 @@ function MapSection({ osint, entities }: { osint: VerifyResponse["osint"]; entit
             </div>
           )}
 
-          {lat != null && lon != null && (
-            <div className="relative mt-3.5 overflow-hidden rounded-xl border border-border">
-              <iframe
-                title={`Peta ${placeTitle}`}
-                width="100%"
-                height="230"
-                src={`https://maps.google.com/maps?q=${Number(lat)},${Number(lon)}&z=16&output=embed`}
-                style={{ border: 0 }}
-                allowFullScreen
-                loading="lazy"
-                referrerPolicy="no-referrer-when-downgrade"
-              />
-            </div>
-          )}
+          <div className="relative mt-3.5 overflow-hidden rounded-xl border border-border">
+            <iframe
+              title={`Peta ${placeTitle}`}
+              width="100%"
+              height="230"
+              src={`https://maps.google.com/maps?q=${encodeURIComponent(mapSearchQuery)}&z=16&output=embed`}
+              style={{ border: 0 }}
+              allowFullScreen
+              loading="lazy"
+              referrerPolicy="no-referrer-when-downgrade"
+            />
+          </div>
+
 
           <div className="mt-3.5 flex flex-wrap gap-2">
             <a href={gmapsUrl} target="_blank" rel="noreferrer"

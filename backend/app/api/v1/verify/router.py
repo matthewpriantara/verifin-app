@@ -235,7 +235,8 @@ async def _extract_entities_hybrid(text: str) -> dict:
             any_added = True
         merged["companies"] = new_companies
 
-    # ── addresses & salaries: merge-additive ──────────────────────────────
+    # ── addresses & salaries: merge-additive + smart deduplication ────────
+    from app.services.ner import _uniq
     for key in ("addresses", "salaries"):
         llm_vals = merged_entities.get(key) or []
         if not llm_vals:
@@ -248,6 +249,19 @@ async def _extract_entities_hybrid(text: str) -> dict:
                 existing.add(nv)
                 added[key] = True
                 any_added = True
+    # Clean deduplication across all extracted list entities
+    import re
+    from app.services.ner import _uniq, fix_email_ocr_typos
+    if merged.get("emails"):
+        merged["emails"] = _uniq([fix_email_ocr_typos(e) for e in merged["emails"] if e])
+    if merged.get("urls"):
+        merged["urls"] = [u for u in _uniq(merged["urls"]) if not re.search(r"^(?:[a-zA-Z]\.com|gmail|yahoo|gmai|gamil)\.", u, re.I)]
+    for key in ("companies", "addresses", "salaries", "contacts"):
+        if merged.get(key):
+            merged[key] = _uniq(merged[key])
+
+
+
     merged["_ner_meta"] = {
         "used": True,
         "source": "hybrid_llm_regex" if any_added else "llm_no_new",
@@ -255,6 +269,7 @@ async def _extract_entities_hybrid(text: str) -> dict:
         "cleaned_false_positive_companies": cleaned["companies"],
     }
     return merged
+
 
 
 async def _run_llm_ner(text: str) -> dict | None:
@@ -464,22 +479,43 @@ async def _run_osint_on_entities(entities: dict) -> dict:
 
 
 def _merge_entities(primary: dict, secondary: dict) -> dict:
+    import re
+    from app.services.ner import _uniq, clean_indonesian_phone, fix_email_ocr_typos
+
     keys = ["companies", "contacts", "emails", "urls", "addresses", "salaries"]
     out = {}
     for key in keys:
-        seen = set()
-        merged = []
-        for item in list(primary.get(key) or []) + list(secondary.get(key) or []):
-            val = str(item).strip()
-            if not val:
-                continue
-            low = val.lower()
-            if low in seen:
-                continue
-            seen.add(low)
-            merged.append(val)
-        out[key] = merged
+        combined = list(primary.get(key) or []) + list(secondary.get(key) or [])
+        if key == "contacts":
+            std = []
+            for ph in combined:
+                c_ph = clean_indonesian_phone(ph)
+                if c_ph:
+                    std.append(c_ph)
+            out[key] = _uniq(std)
+        elif key == "emails":
+            out[key] = _uniq([fix_email_ocr_typos(e) for e in combined if e])
+        elif key == "urls":
+            # Filter out single letter domain artifacts like L.com / gmai.com
+            clean_urls = [
+                u for u in combined
+                if u and not re.search(r"^(?:[a-zA-Z]\.com|gmail|yahoo|gmai|gamil)\.", u, re.I)
+            ]
+            out[key] = _uniq(clean_urls)
+        elif key == "addresses":
+            comp_lows = {c.strip().lower() for c in out.get("companies", [])}
+            clean_addrs = [
+                a for a in combined
+                if a and a.strip().lower() not in comp_lows
+                and not any(a.strip().lower() in c or c in a.strip().lower() for c in comp_lows if len(c) >= 6)
+            ]
+            out[key] = _uniq(clean_addrs)
+        else:
+            out[key] = _uniq(combined)
     return out
+
+
+
 
 
 def _to_response(
@@ -953,6 +989,29 @@ def _sync_scrapling_fetch(url: str) -> tuple[str, list[str]]:
             text_parts.append(" ".join(unique_body[:30])[:3000])
 
         combined_caption_text = "\n".join(text_parts).strip()
+
+        # Filter Instagram & Threads footer noise (promosi / komentar spam / UI sosmed)
+        ig_noise_patterns = [
+            r"Jangan pernah lewatkan postingan",
+            r"Daftar Instagram untuk tetap tahu",
+            r"Pengunggahan Kontak & Nonpengguna Meta",
+            r"Order Via Wa Only",
+            r"Jasa Ketik CV",
+            r"upgrade CV",
+            r"Lihat Postingan Lainnya",
+            r"INFO LOWONGAN KERJA SOLO",
+            r"Dibutuhkan staf Kantor",
+            r"Lihat apa yang sedang dibicarakan",
+            r"bergabunglah dengan percakapan",
+            r"Laporkan masalah",
+        ]
+        lines_clean = []
+        for line in (combined_caption_text or "").splitlines():
+            if any(re.search(pat, line, re.I) for pat in ig_noise_patterns):
+                break
+            lines_clean.append(line)
+        combined_caption_text = "\n".join(lines_clean).strip()
+
 
         og_img = (
             page.css("meta[property='og:image']::attr(content)").get()

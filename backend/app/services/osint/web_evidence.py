@@ -288,8 +288,20 @@ def search_web_evidence(query: str, max_results: int = 5) -> dict[str, Any]:
             pass
 
     risk_flags = []
+    # Extract target entity keywords from query (e.g. '"Kedai Nonggo"' -> ['kedai', 'nonggo'])
+    quoted = re.findall(r'"([^"]+)"', q)
+    target_words: list[str] = []
+    if quoted:
+        target_words = [w.lower() for w in quoted[0].split() if len(w) >= 3 and w.lower() not in ("pt", "cv", "ud", "pd", "tbk", "lowongan", "penipuan", "penipu", "scam")]
+    else:
+        target_words = [w.lower() for w in q.split()[:2] if len(w) >= 3 and w.lower() not in ("pt", "cv", "ud", "pd", "tbk", "lowongan", "penipuan", "penipu", "scam")]
+
     for r in results:
         t_s = f"{r.get('title', '')} {r.get('snippet', '')}".lower()
+        # Jika hasil pencarian tidak menyebutkan kata kunci entitas sama sekali (artikel umum), abaikan
+        if target_words and not any(tw in t_s for tw in target_words):
+            continue
+
         if any(
             w in t_s
             for w in (
@@ -301,7 +313,7 @@ def search_web_evidence(query: str, max_results: int = 5) -> dict[str, Any]:
                 "terbukti menipu",
             )
         ) and not any(
-            adv in t_s for adv in ("cara cek", "tips", "mengenali penipuan", "menghindari")
+            adv in t_s for adv in ("cara cek", "tips", "mengenali penipuan", "menghindari", "ciri-ciri", "10 ciri", "8 tips", "seputar")
         ):
             risk_flags.append(
                 "Hasil pencarian memuat indikasi laporan penipuan/loker palsu terkait query."

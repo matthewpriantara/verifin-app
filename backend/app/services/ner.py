@@ -14,19 +14,21 @@ import re
 
 # Pemisah konten non-alamat (label seksi lowongan)
 _ADDR_STOP = (
-    r"(?:Gaji|GAJI|Salary|Upah|Kontak|Contact|Email|WA|WhatsApp|Hubungi|"
-    r"Kirim|CV|Cover\s*Letter|Send(?:\s*your)?|Subjek|Subject|Apply|Apply\s*Now|More\s*Information|"
-    r"Lamaran|Benefit|Syarat|Kualifikasi|Posisi|Lowongan|"
-    r"Info|Informasi|NB|Catatan|Note|Transfer|Biaya|Deposit|Deskripsi|"
-    r"Pekerjaan|Ringkasan|Formulir|Account|Officer|Lamar)"
+    r"(?:\bGaji\b|\bSalary\b|\bUpah\b|\bKontak\b|\bContact\b|\bEmail\b|\bWA\b|\bWhatsApp\b|\bHubungi\b|"
+    r"\bKirim\b|\bCV\b|\bCover\s*Letter\b|\bSend(?:\s*your)?\b|\bSubjek\b|\bSubject\b|\bApply\b|\bApply\s*Now\b|\bMore\s*Information\b|"
+    r"\bLamaran\b|\bBenefit\b|\bSyarat\b|\bKualifikasi\b|\bPosisi\b|\bLowongan\b|"
+    r"\bInfo\b|\bInformasi\b|\bNB\b|\bCatatan\b|\bNote\b|\bTransfer\b|\bBiaya\b|\bDeposit\b|\bDeskripsi\b|"
+    r"\bPekerjaan\b|\bRingkasan\b|\bFormulir\b|\bAccount\b|\bOfficer\b|\bLamar\b)"
 )
+
 
 # Prefix yang boleh MEMULAI alamat (bukan admin murni seperti "Kota X")
 _STREET_PREFIX = (
     r"(?:Jl\.?|Jln\.?|Jalan|Gg\.?|Gang|Dusun|Ds\.?|Desa|"
     r"Komp\.?|Komplek|Kompleks|Perum\.?|Perumahan|Blok|Cluster|"
-    r"Ruko|Rukan|Gedung|Tower|Lt\.?|Lantai|Kampus|Kantor|Outlet|Toko)"
+    r"Ruko|Rukan|Gedung|Tower|Lt\.?|Lantai|Kampus|Kantor)"
 )
+
 
 # B2 fix: daftar kota/kabupaten besar Indonesia sebagai fallback deteksi alamat
 # tanpa prefix jalan. Bukan whitelist eksklusif — hanya confidence booster.
@@ -48,12 +50,15 @@ _INDONESIAN_CITIES = (
     "Sleman|Bantul|Gunungkidul|Kulon Progo|Klaten|Boyolali|Sragen|"
     "Wonogiri|Karanganyar|Magelang|Purworejo|Kebumen|Temanggung|"
     "Wonosobo|Banjarnegara|Purbalingga|Cilacap|Banyumas|"
-    "Godean|Seturan|Mlati|Depok|Kalasan|Prambanan|Berbah|"
+    "Pakem|Sewon|Imogiri|Ngaglik|Ngemplak|Turi|Tempel|Seyegan|Minggir|Moyudan|"
+    "Godean|Seturan|Mlati|Depok|Kalasan|Prambanan|Berbah|Gamping|Piyungan|Kasihan|Sedayu|"
+    "Kotagede|Umbulharjo|Gondokusuman|Wirobrajan|Banguntapan|"
     "Cikarang|Karawang|Purwakarta|Subang|Indramayu|Majalengka|"
     "Kuningan|Sumedang|Garut|Cianjur|Sukabumi|Tasikmalaya|"
     "Gresik|Sidoarjo|Lamongan|Tuban|Bojonegoro|Jombang|"
     "Kediri|Blitar|Tulungagung|Trenggalek|Ponorogo|Pacitan"
 )
+
 
 # Marker admin / RT-RW / kode pos — sinyal kuat baris alamat
 _ADMIN_MARKER = (
@@ -70,6 +75,25 @@ _COMPANY_STOP = (
 )
 
 
+_SOCIAL_UI_NOISE_PATTERNS = [
+    r"lihat\s+apa\s+yang\s+sedang\s+dibicarakan",
+    r"bergabunglah\s+dengan\s+percakapan",
+    r"laporkan\s+masalah",
+    r"full\s+time,?\s+terlibat\s+langsung",
+    r"project\s+nyata",
+    r"pengunggahan\s+kontak",
+    r"nonpengguna\s+meta",
+    r"jangan\s+pernah\s+lewatkan\s+postingan",
+    r"daftar\s+instagram",
+    r"lihat\s+postingan\s+lainnya",
+    r"share\s*&\s*save",
+    r"cek\s+story",
+    r"info\s+lowongan\s+kerja\s+solo",
+    r"waspada.*riset\s*&\s*cek",
+    r"jangan\s+mau\s+transfer",
+]
+
+
 def normalize_phone_typos(text: str) -> str:
     def repl(match):
         s = match.group(0)
@@ -83,7 +107,20 @@ def normalize_phone_typos(text: str) -> str:
 
 def _clean_address(addr: str) -> str:
     a = re.sub(r"\s+", " ", (addr or "").strip())
-    # buang label alamat di depan
+
+    # 1. OCR Typos & Normalizations
+    a = re.sub(r"\bJI\.", "Jl.", a)
+    a = re.sub(r"\bJI(?=[A-Za-z])", "Jl. ", a)
+    a = re.sub(r"\bJalan(?=[A-Z])", "Jalan ", a)
+    a = re.sub(r"\bJl\.(?=[A-Z])", "Jl. ", a)
+    a = re.sub(r"\blstimewa\b", "Istimewa", a, flags=re.I)
+
+    # 2. Buang tag header scraper / OCR / bracket noise
+    a = re.sub(r"URL\s+Target\s*:\s*\S+", "", a, flags=re.I)
+    a = re.sub(r"\[TEKS\s+.*?(?:\]|$)", "", a, flags=re.I)
+    a = re.sub(r"\[.*?\]:?", "", a)
+
+    # 3. Buang label alamat di depan
     a = re.sub(
         r"^(?:Alamat(?:\s*(?:Kantor|Lengkap|Perusahaan|Toko))?|Lokasi(?:\s*Kerja)?|"
         r"Penempatan(?:\s*(?:Kerja|Kantor))?|Bertempat\s*di|Tempat(?:\s*Kerja)?|Office|Basecamp|Kode\s*Pos)\s*[:.\-]?\s*",
@@ -92,33 +129,50 @@ def _clean_address(addr: str) -> str:
         flags=re.I,
     )
     a = re.sub(r"^(?:di|di\s+area)\s+", "", a, flags=re.I)
+
+    # 4. Jika ada Strong Street Prefix (Jl/Jalan/Komp/Perum/Ruko/Gedung/Tower), buang teks sampah sebelumnya
+    _STRONG_STREET_PREFIX = r"(?:Jl\.?|Jln\.?|Jalan|Komp\.?|Komplek|Kompleks|Perum\.?|Perumahan|Ruko|Rukan|Gedung|Tower|Kampus|Kantor)"
+    m_strong = re.search(rf"\b({_STRONG_STREET_PREFIX})\b", a, re.I)
+    if m_strong and m_strong.start() > 0:
+        a = a[m_strong.start():]
+    else:
+        # Untuk weak prefix, buang header nama tempat/brand di depan
+        a = re.sub(r"^[A-Z0-9\s&'.!?-]{3,60},\s*(?=(?:Gg|Dusun|Ds|Lt|Lantai|Outlet|Toko)\b)", "", a, flags=re.I)
+        # Buang frasa kualifikasi di depan
+        a = re.sub(
+            r"^(?:.*?\b(?:kuliah|server|steward|kualifikasi|syarat|pria|wanita|berpengalaman|shift|weekend|bekerjasama|jujur|disiplin|cekatan|komunikatif|posisi|penempatan|pendidikan|sma|smk|d3|s1|usia|maks|thn|tahun)\b.*?)+?(?=(?:Gg|Dusun|Ds|Lt|Lantai)\b)",
+            "",
+            a,
+            flags=re.I,
+        )
+
+    # 5. Buang suffix kontak/email/gaji/company stop words
+    a = re.split(rf"\s*[.,;]?\s*{_ADDR_STOP}", a, maxsplit=1, flags=re.I)[0]
     a = re.sub(r"\s+(?:Phone|Telp|Tel\.?|HP|WA|WhatsApp)\s*[:.]?\s*[\d+\-\s]+$", "", a, flags=re.I)
-    # buang nomor HP yang nyangkut di depan
     a = re.sub(r"^(?:\+?62|0)\d[\d\s\-]{7,16}[,\s]*", "", a)
-    a = re.split(rf"\s*[.,;]?\s*{_ADDR_STOP}\b", a, maxsplit=1, flags=re.I)[0]
-    a = a.strip(" .,;:-")
+    a = re.sub(r"\s+(?:Gaji|Salary|Upah|Send|Subjek|Subject|CV|Apply|More)\s*[:.]?\s*.*$", "", a, flags=re.I)
+
+    # 6. Buang kata posisi pekerjaan penyela di tengah alamat (misal "Steward", "Server", "Staff", "Admin")
     a = re.sub(
-        r"\s+(?:Gaji|Salary|Upah|Send|Subjek|Subject|CV|Apply|More)\s*[:.]?\s*.*$",
-        "",
+        r",?\s*\b(?:Server|Steward|Waitress?|Kasir|Barista|Cook|Kitchen|Helper|Staff|Admin)\b\s*,?",
+        ", ",
         a,
         flags=re.I,
-    ).strip(" .,;:-")
-    # buang prefix badan hukum yang nempel di depan alamat
+    )
+
+    # 7. Buang trailing company legal name (misal ', PT.ASABA' di akhir)
     a = re.sub(
-        rf"^(?:{_COMPANY_LEGAL})\.?\s+[A-Z][A-Za-z0-9\s&'.-]{{2,50}}\s+"
-        rf"(?={_STREET_PREFIX})",
+        rf",?\s*\b(?:{_COMPANY_LEGAL})\.?\s*[A-Za-z0-9\s&'.]+$",
         "",
         a,
         flags=re.I,
     )
-    # buang sisa "PT.XXX," di depan
-    a = re.sub(
-        rf"^(?:{_COMPANY_LEGAL})\.?\s+[A-Za-z0-9\s&'.-]{{2,40}},\s*",
-        "",
-        a,
-        flags=re.I,
-    )
+
+    # 8. Clean up whitespace & formatting
+    a = re.sub(r"\bDaerah\s*,\s*Istimewa\b", "Daerah Istimewa", a, flags=re.I)
+    a = re.sub(r"(?:,\s*)+", ", ", a)
     return a.strip(" .,;:-")
+
 
 
 def _extract_salaries(text: str) -> list[str]:
@@ -157,27 +211,78 @@ def _extract_salaries(text: str) -> list[str]:
     return found
 
 
+def fix_email_ocr_typos(email: str) -> str:
+    e = (email or "").strip()
+    if "@" not in e:
+        return e
+    user, domain = e.split("@", 1)
+    domain_low = domain.lower().strip()
+    typo_map = {
+        "gmai.com": "gmail.com",
+        "gamil.com": "gmail.com",
+        "gmial.com": "gmail.com",
+        "gmal.com": "gmail.com",
+        "gmaill.com": "gmail.com",
+        "gmai.co": "gmail.com",
+        "gmai.id": "gmail.com",
+        "yaho.com": "yahoo.com",
+        "yaho.co.id": "yahoo.co.id",
+        "hotmai.com": "hotmail.com",
+    }
+    if domain_low in typo_map:
+        return f"{user}@{typo_map[domain_low]}"
+    return f"{user}@{domain_low}"
+
+
+
+def clean_indonesian_phone(ph: str) -> str:
+    clean_ph = re.sub(r"\D", "", str(ph))
+    if clean_ph.startswith("0"):
+        clean_ph = "62" + clean_ph[1:]
+    elif clean_ph.startswith("8"):
+        clean_ph = "62" + clean_ph
+
+    # Indonesia landline trimming (+62 2xx, 3xx, 7xx, 9xx)
+    if clean_ph.startswith("622") or clean_ph.startswith("623") or clean_ph.startswith("627") or clean_ph.startswith("629"):
+        if clean_ph.startswith("62274") and len(clean_ph) > 12:
+            clean_ph = clean_ph[:12]
+        elif len(clean_ph) > 13:
+            clean_ph = clean_ph[:13]
+    elif clean_ph.startswith("628") and len(clean_ph) > 14:
+        clean_ph = clean_ph[:13]
+
+    if len(clean_ph) >= 9:
+        return "+" + clean_ph
+    return ""
+
+
 def _normalize_ocr_spacing(text: str) -> str:
     """
-    Perbaiki spacing OCR generik (bukan whitelist kota):
+    Perbaiki spacing OCR generik:
+    - JRetno / JImogiri → Jl. Retno / Jl. Imogiri
     - digit nempel huruf (03Panggung → 03 Panggung)
     - huruf nempel digit (No.190f → No. 190 f)
     - CamelCase nempel (NgropohCondongcatur → Ngropoh Condongcatur)
     - RT/RW tanpa spasi
     """
     t = text or ""
+    t = t.replace("_", " ")
     t = re.sub(r"\b(Jl|Jln|Jalan)\.?\s*", "Jl. ", t, flags=re.I)
+
+    t = re.sub(r"\bJ([A-Z][a-z]{2,})\b", r"Jl. \1", t)
+    t = re.sub(r"\bJl([A-Z][a-z]{2,})\b", r"Jl. \1", t)
     t = re.sub(r"([0-9])([A-Za-z])", r"\1 \2", t)
     t = re.sub(r"([A-Za-z])([0-9])", r"\1 \2", t)
-    # CamelCase: huruf kecil diikuti huruf besar (OCR nempel 2 kata)
     t = re.sub(r"([a-z])([A-Z])", r"\1 \2", t)
-    # ALLCAPS nempel: ...HARJOSEWON → biarkan; potong di batas RT/RW saja
     t = re.sub(r"\bRT\.?\s*0*(\d+)\s*R[Ww]\.?\s*0*(\d+)\b", r"RT \1 RW \2", t, flags=re.I)
     t = re.sub(r"\bRT\.?\s*0*(\d+)\b", r"RT \1", t, flags=re.I)
     t = re.sub(r"\bR[Ww]\.?\s*0*(\d+)\b", r"RW \1", t, flags=re.I)
     t = re.sub(r",\s*", ", ", t)
-    t = re.sub(r"\s+", " ", t)
+    t = re.sub(r"[ \t]+", " ", t)
+    t = re.sub(r"\n{3,}", "\n\n", t)
     return t.strip()
+
+
 
 
 def _address_confidence(s: str) -> float:
@@ -241,17 +346,50 @@ def _is_plausible_address(s: str) -> bool:
     c = _clean_address(s)
     if len(c) < 12 or len(c) > 180:
         return False
+    # Tolak jika baris murni kualifikasi/soft skills (misal "Jujur, Disiplin, Cekatan, Komunikatif")
+    if re.search(
+        r"\b(?:jujur|disiplin|cekatan|komunikatif|ramah|rapi|pria|wanita|berpengalaman|kuliah|shift|weekend|bekerjasama)\b",
+        c,
+        re.I,
+    ) and not re.search(rf"\b(?:{_STREET_PREFIX})\b", c, re.I):
+        return False
     if re.match(rf"^(?:{_COMPANY_LEGAL})\.?\s", c, re.I) and not re.search(
         rf"\b(?:{_STREET_PREFIX})\b", c, re.I
     ):
         return False
-    # B2 fix: pasangan kota "X, Y" Indonesia lolos langsung tanpa wajib street marker
+    # Tolak jika mengandung frasa noise media sosial (Threads/IG UI text)
+    if re.search(
+        r"(?:Lihat\s+apa\s+yang\s+sedang|bergabunglah\s+dengan\s+percakapan|Laporkan\s+masalah|Pengunggahan\s+Kontak|nonpengguna\s+meta|daftar\s+instagram|lihat\s+postingan\s+lainnya)",
+        s,
+        re.I,
+    ):
+        return False
+
+    # Tolak jika weak prefix (ds/gang/gg) diikuti frasa tipe pekerjaan/kualifikasi bukan nama tempat
+    # Gg. Mawar / Ds. Sukamaju = OK (diikuti nama proper)
+    # ds Lihat / gang Full Time = TOLAK (bukan nama lokasi)
+    if re.match(
+        r"^(?:ds\.?\s+|desa\s+|gg\.?\s+|gang\s+|dusun\s+)(?:[a-z]|Full\s*Time|Part\s*Time|Project|Magang|Internship|Freelance|Kerja|Syarat|Kualifikasi|Info|Loker)",
+        c,
+        re.I,
+    ):
+        return False
+
+    # B2 fix: pasangan 2-4 kota/kecamatan "X, Y, Z" Indonesia (misal: Pakem, Sleman, Yogyakarta) lolos langsung
     if re.fullmatch(
-        rf"(?:{_INDONESIAN_CITIES})\s*,\s*(?:{_INDONESIAN_CITIES})",
+        rf"(?:{_INDONESIAN_CITIES})(?:\s*,\s*(?:{_INDONESIAN_CITIES})){{1,3}}",
         c,
         flags=re.I,
     ):
         return True
+    # Fallback Universal: Pasangan 2-4 nama wilayah Title-Case berpemisah koma (misal: "Panyabungan, Mandailing Natal, Sumatera Utara")
+    if re.fullmatch(
+        r"[A-Z][a-z0-9.]+(?:\s+[A-Z][a-z0-9.]+)*(?:\s*,\s*[A-Z][a-z0-9.]+(?:\s+[A-Z][a-z0-9.]+)*){1,3}",
+        c,
+    ):
+        return True
+
+
     # wajib sinyal lokasi konkret (bukan cuma "Kota X" / "Kab. Y")
     if not re.search(
         rf"(?:{_STREET_PREFIX}|\bRT\.?\s*\d+|\b\d{{5}}\b|\bBlok\s*[A-Z0-9]|"
@@ -438,7 +576,8 @@ def _extract_companies(text: str) -> list[str]:
     _BRAND_STOP = (
         r"hiring|lowongan|posisi|syarat|kualifikasi|gaji|email|wa|whatsapp|"
         r"hubungi|loker|info|join|team|crew|outlet|dibutuhkan|segera|"
-        r"ringkasan|deskripsi|benefit|fasilitas|pendidikan|pengalaman|umur|gender"
+        r"ringkasan|deskripsi|benefit|fasilitas|pendidikan|pengalaman|umur|gender|"
+        r"jl|jln|jalan|gg|gang|alamat|lokasi|no|rt|rw|profesional|pelamar|karyawan|pegawai|staff|admin"
     )
     for line in lines:
         ln = line.strip().rstrip("!*")
@@ -462,8 +601,8 @@ def _extract_companies(text: str) -> list[str]:
 
     # 7) Brand setelah frasa "Let's Join to" / "Bergabung dengan" / "Gabung dengan"
     for m in re.finditer(
-        r"(?:Let'?s\s+Join\s+to|Bergabung\s+(?:dengan|ke)|Gabung\s+(?:dengan|di)|"
-        r"Join\s+(?:to|with)|Tim|Team)\s+([A-Z][A-Za-z0-9&'.!?-]{2,}(?:\s+[A-Z][A-Za-z0-9&'.!?-]{1,}){0,3})",
+        r"(?:Let'?s[ \t]+Join[ \t]+to|Bergabung[ \t]+(?:dengan|ke)|Gabung[ \t]+(?:dengan|di)|"
+        r"Join[ \t]+(?:to|with)|Tim|Team)[ \t]+([A-Z][A-Za-z0-9&'.!?-]{2,}(?:[ \t]+[A-Z][A-Za-z0-9&'.!?-]{1,}){0,3})",
         text,
         flags=re.I,
     ):
@@ -489,10 +628,21 @@ def _extract_addresses(text: str) -> list[str]:
     C) Baris struktural (confidence score)
     D) Multi-line join (2-3 baris beruntun yang mirip alamat)
     """
-    raw_lines = [(ln or "").strip() for ln in (text or "").splitlines() if (ln or "").strip()]
-    spaced_lines = [_normalize_ocr_spacing(ln) for ln in raw_lines]
+    norm_text = _normalize_ocr_spacing(text or "")
+    raw_lines = [(ln or "").strip() for ln in norm_text.splitlines() if (ln or "").strip()]
+    spaced_lines = [
+        ln for ln in raw_lines
+        if not re.search(
+            r"^(?:Send(?:\s+your)?\s+CV(?:\s+to)?|Our\s+Location|Subjek\s+emai?l|Pendaftaran(?:\s+Nama)?\s+Pelamar|Kirim\s+lamaran\s+ke|Apply\s+via)\b",
+            ln,
+            re.I,
+        )
+    ]
     spaced = "\n".join(spaced_lines)
-    flat = re.sub(r"\s*\n\s*", " ", spaced)
+    flat = re.sub(r"\s*\n\s*", ", ", spaced)
+    flat = re.sub(r"(?:,\s*)+", ", ", flat)
+
+
 
     candidates: list[str] = []
 
@@ -549,35 +699,34 @@ def _extract_addresses(text: str) -> list[str]:
         ):
             candidates.append(ln.strip())
 
-    # D) Gabung 2 baris beruntun HANYA jika keduanya mirip alamat
-    #    (hindari nyedot HP/PT/syarat di sekitar footer poster)
-    for i in range(len(spaced_lines) - 1):
-        a, b = spaced_lines[i], spaced_lines[i + 1]
-        if any(
-            re.search(
-                r"\b(?:syarat|kualifikasi|gaji|email|lamar|account\s*officer|"
-                r"lowongan|pekerjaan|informasi|hubungi|wa\b|phone|telp)\b",
-                ln,
-                re.I,
-            )
-            or re.match(rf"^(?:{_COMPANY_LEGAL})\.?\s", ln, re.I)
-            or re.search(r"(?:\+?62|0)\d[\d\s\-]{7,}", ln)
-            for ln in (a, b)
-        ):
-            continue
-        streetish = sum(
-            1
-            for ln in (a, b)
-            if re.search(rf"\b(?:{_STREET_PREFIX}|RT\.?\s*\d+)\b", ln, re.I)
+    # D) Gabung 2 s/d 5 baris beruntun yang semuanya mirip elemen alamat
+    # Filter dulu baris non-alamat (seperti label email/pendaftaran/syarat) agar 2-column OCR tidak menyela alamat
+    addr_only_lines = [
+        ln for ln in spaced_lines
+        if not re.search(
+            r"\b(?:syarat|kualifikasi|gaji|email|lamar|account\s*officer|"
+            r"lowongan|pekerjaan|informasi|hubungi|wa\b|phone|telp|cv|subjek|subject|pendaftaran|pelamar|send|"
+            r"kuliah|server|steward|pria|wanita|berpengalaman|shift|weekend|bekerjasama|jujur|disiplin|cekatan|komunikatif|posisi|penempatan)\b",
+            ln,
+            re.I,
         )
-        if streetish < 1:
-            continue
-        # minimal satu baris sudah plausible sendiri
-        if not (_is_plausible_address(a) or _is_plausible_address(b)):
-            continue
-        joined = f"{a}, {b}"
-        if _is_plausible_address(joined):
-            candidates.append(joined)
+        and not re.match(rf"^(?:{_COMPANY_LEGAL})\.?\s", ln, re.I)
+        and not re.search(r"(?:\+?62|0)\d[\d\s\-]{7,}", ln)
+    ]
+
+
+    n_lines = len(addr_only_lines)
+    for length in range(min(5, n_lines), 1, -1):
+        for i in range(n_lines - length + 1):
+            block = addr_only_lines[i : i + length]
+            combined_text = ", ".join(block)
+            if (
+                re.search(rf"\b(?:{_STREET_PREFIX}|RT\.?\s*\d+)\b", combined_text, re.I)
+                or re.search(rf"(?:{_ADMIN_MARKER})", combined_text, re.I)
+            ):
+                if _is_plausible_address(combined_text):
+                    candidates.append(combined_text)
+
 
     cleaned: list[str] = []
     for a in candidates:
@@ -588,44 +737,91 @@ def _extract_addresses(text: str) -> list[str]:
     return cleaned
 
 
+def _is_bare_brand_not_url(url: str) -> bool:
+    """
+    Deteksi apakah string adalah 'nama brand' bukan URL nyata.
+    Contoh yang HARUS dibuang: 'eplus.co', 'brand.co', 'nama.id'
+    Contoh yang BOLEH lolos: 'eplus.co/careers', 'www.eplus.co', 'https://eplus.co', 'eplus.co.id'
+
+    Rule: Jika string tidak punya http/www DAN tidak punya path (/) DAN
+    hanya terdiri dari 2 label domain (misal 'sesuatu.co'), itu kemungkinan nama brand bukan URL.
+    """
+    u = url.strip()
+    # Punya scheme atau www → pasti URL
+    if re.match(r"^https?://", u, re.I) or re.match(r"^www\.", u, re.I):
+        return False
+    # Punya path (slash) → pasti URL atau shortlink
+    if "/" in u:
+        return False
+    # Hitung jumlah label domain
+    parts = u.split(".")
+    # ≥3 label → seperti 'co.id', 'my.id', 'sch.id' → bisa valid
+    if len(parts) >= 3:
+        return False
+    # Tepat 2 label (misal 'eplus.co') → bare brand, bukan URL
+    # HANYA filter .co karena di Indonesia sering dipakai sebagai singkatan brand ("eplus.co" = "eplus company")
+    # .id adalah ccTLD resmi Indonesia → JANGAN difilter (lokerjakarta.id, tokopedia.id = website nyata)
+    tld = parts[-1].lower() if len(parts) >= 2 else ""
+    if len(parts) == 2 and tld == "co":
+        return True
+    return False
+
+
 def _uniq(items: list[str]) -> list[str]:
-    """Dedup exact + near-substring; prefer yang lebih bersih."""
+
+    """Dedup exact + near-substring + truncated addresses/salaries; prefer yang lebih lengkap & bersih."""
     normed = []
     for item in items:
         s = re.sub(r"\s+", " ", (item or "").strip())
         if s:
             normed.append(s)
 
+    def _clean_token_set(text: str) -> set[str]:
+        cleaned = re.sub(r"[^a-z0-9\s]", " ", text.lower())
+        return {w[:6] for w in cleaned.split() if len(w) >= 3}
+
     def rank(s: str) -> tuple:
+        has_strong_street = 1 if re.search(r"\b(?:Jl\.?|Jln\.?|Jalan|Komp\.?|Perum\.?|Ruko|Gedung|Tower)\b", s, re.I) else 0
         has_street = 1 if re.search(rf"\b(?:{_STREET_PREFIX})\b", s, re.I) else 0
-        noise = 0
-        if re.search(r"(?:\+?62|0)\d{8,}", s):
-            noise += 2
-        if len(s) > 120:
-            noise += 1
-        return (-has_street, noise, abs(len(s) - 50))
+        has_zip = 1 if re.search(r"\b\d{5}\b", s) else 0
+        has_admin = 1 if re.search(rf"(?:{_ADMIN_MARKER})", s, re.I) else 0
+        is_truncated = 1 if re.search(r"(?:Istime|Kec|Kab|Prov|Jl)\.?$", s, re.I) else 0
+        has_junk_prefix = 1 if re.match(r"^(?:ds\.?|desa|gg\.?|gang|dusun)\s+", s, re.I) and not re.search(r"\b(?:No\.?|RT|RW|Kec|Kab|Kota|\d{5})\b", s, re.I) else 0
+        noise = 2 if re.search(r"(?:\+?62|0)\d{8,}", s) else 0
+        has_formatting = 1 if " " in s and not "+" in s else 0
+        completeness = (has_strong_street * 3) + (has_street * 1) + (has_zip * 2) + (has_admin * 2)
+        return (-completeness, has_junk_prefix, is_truncated, -has_formatting, noise, -len(s))
 
     normed.sort(key=rank)
+
     out: list[str] = []
     for s in normed:
         key = s.lower()
         dominated = False
+        tokens_s = _clean_token_set(s)
+
         for prev in out:
             pk = prev.lower()
             if key == pk:
                 dominated = True
                 break
-            if len(key) >= 15 and len(pk) >= 15:
-                if key in pk or pk in key:
+            # Check prefix overlap (misal "Jl. Imogiri Barat No.29...")
+            if len(key) >= 12 and len(pk) >= 12:
+                if key[:25] == pk[:25] or pk[:25] == key[:25]:
                     dominated = True
                     break
-                ta, tb = set(key.split()), set(pk.split())
-                if ta and tb and len(ta & tb) / max(len(ta), len(tb)) >= 0.7:
+            # Check token overlap
+            tokens_p = _clean_token_set(prev)
+            if tokens_s and tokens_p:
+                inter = len(tokens_s & tokens_p)
+                min_len = min(len(tokens_s), len(tokens_p))
+                if min_len > 0 and (inter / min_len >= 0.65):
                     dominated = True
                     break
         if not dominated:
             out.append(s)
     return out
+
 
 
 def extract_entities_from_text(text: str) -> dict:
@@ -648,10 +844,10 @@ def extract_entities_from_text(text: str) -> dict:
         r"cutt\.ly|shorturl\.at|rb\.gy|linktr\.ee|linktree|forms\.gle|"
         r"docs\.google\.com/forms|wa\.me|t\.me|telegram\.me)"
         r"/[a-zA-Z0-9][^\s\"'\<\>]*|"
-        # B4 fix: domain dengan atau tanpa path (indonesiacollege.co.id, perusahaan.com)
+        # B4 fix: domain dengan atau tanpa path (indonesiacollege.co.id, perusahaan.com, forms.gle, bit.ly)
         r"\b[a-zA-Z0-9-]+(?:\.[a-zA-Z0-9-]+)*\."
         r"(?:co\.id|or\.id|ac\.id|go\.id|sch\.id|web\.id|my\.id|biz\.id|"
-        r"com|id|net|org|xyz|info|io|app|shop|store|co)"
+        r"com|id|net|org|xyz|info|io|app|shop|store|co|gle|ly|link|site|page)"
         r"(?:/[^\s\"'\<\>]*)?)"
     )
     # Dukung juga nomor telepon area/landline Indonesia (misal 0274 373608 atau 021 5551234)
@@ -659,21 +855,31 @@ def extract_entities_from_text(text: str) -> dict:
 
     search_blob = raw_text_input + "\n" + _normalize_ocr_spacing(normalized_text) + "\n" + normalized_text
 
-    emails = list(set(re.findall(email_pattern, search_blob)))
+    emails_raw = list(set(re.findall(email_pattern, search_blob)))
+    emails = [fix_email_ocr_typos(e) for e in emails_raw]
     urls = list(set(re.findall(url_pattern, search_blob)))
-    email_domains = {email.split("@")[1] for email in emails if "@" in email}
-    urls = [url for url in urls if url not in emails and url not in email_domains]
+    email_domains = {email.split("@")[1].lower() for email in emails if "@" in email}
+    email_domains.update({"gmai.com", "gmail.com", "yahoo.com", "hotmail.com", "gamil.com", "gmial.com"})
+    urls = [
+        url for url in urls
+        if url.lower() not in emails
+        and url.lower() not in email_domains
+        and not re.search(r"^(?:gmail|yahoo|hotmail|gmai|gamil)\.(?:com|co|id)$", url, re.I)
+        and not re.match(r"^[a-zA-Z]\.(?:com|co|id)$", url, re.I)
+        # Tolak bare domain 2-label tanpa http/www/path yang kemungkinan nama brand (misal "eplus.co")
+        # Domain sah minimal: punya http/www, ATAU punya path (/), ATAU ≥3 label (co.id, my.id)
+        and not _is_bare_brand_not_url(url)
+    ]
 
-    phones = list(set(re.findall(phone_pattern, search_blob)))
+
+
+    phones_raw = list(set(re.findall(phone_pattern, search_blob)))
     standardized_phones = []
-    for ph in phones:
-        clean_ph = re.sub(r"\D", "", ph)
-        if clean_ph.startswith("0"):
-            clean_ph = "62" + clean_ph[1:]
-        elif clean_ph.startswith("8"):
-            clean_ph = "62" + clean_ph
-        if len(clean_ph) >= 9:
-            standardized_phones.append("+" + clean_ph)
+    for ph in phones_raw:
+        c_ph = clean_indonesian_phone(ph)
+        if c_ph:
+            standardized_phones.append(c_ph)
+
 
     salaries = _extract_salaries(search_blob)
     extracted_addresses = _extract_addresses(raw_text_input) + _extract_addresses(
@@ -700,7 +906,15 @@ def extract_entities_from_text(text: str) -> dict:
     uniq_companies = _uniq(companies)
     uniq_contacts = _uniq(standardized_phones)
     uniq_emails = _uniq(emails)
-    uniq_addresses = _uniq(extracted_addresses)
+    uniq_addresses_raw = _uniq(extracted_addresses)
+    # Filter out address candidates that are identical to or contained in company names
+    comp_lows = {c.strip().lower() for c in uniq_companies}
+    uniq_addresses = [
+        a for a in uniq_addresses_raw
+        if a.strip().lower() not in comp_lows
+        and not any(a.strip().lower() in c or c in a.strip().lower() for c in comp_lows if len(c) >= 6)
+    ]
+
 
     # Detect conflicts between poster claims & extracted entities
     conflicts = []
