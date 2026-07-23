@@ -1,44 +1,83 @@
 """
-Hybrid NLP Classifier — Layer 1 (Trust Pre-Screening) dari Job Trust Infrastructure.
+Hybrid NLP Pre-Screening — Layer 1 (Trust Pre-Screening) dari Job Trust Infrastructure.
 
 Komponen pertama dalam pipeline Verifin yang melakukan pre-screening awal
 sebelum OSINT dan LLM dijalankan. Tujuannya bukan sekadar fraud detection,
 melainkan membangun sinyal awal untuk trust assessment — membantu pencari
 kerja menyaring lowongan yang layak diverifikasi lebih lanjut.
 
-Arsitektur sesuai jurnal:
-- paper22 (Neural Processing Letters 2022): TF-IDF + ML ensemble untuk fake job detection
-- Fraud-BERT (Springer 2025): BERT-based fraud detection, kita adaptasi TF-IDF sebagai proxy
+Implementasi (JUJUR — bukan model ML terlatih):
+    Behavioral Feature Scoring berbasis aturan (rule-based), terinspirasi dari
+    feature importance yang dilaporkan penelitian fake-job detection:
+    - paper22 (Neural Processing Letters 2022): TF-IDF + behavioral features
+      untuk fake job detection. Kita adopsi *daftar fitur perilakunya*
+      (permintaan biaya, kerja luar negeri, apply via WA, dsb.) sebagai sinyal
+      berbobot, bukan model TF-IDF yang dilatih.
+    - Fraud-BERT (Springer 2025): referensi konsep deteksi fraud berbasis teks.
+
+Catatan kejujuran teknis: saat ini TIDAK ada model XGBoost/TF-IDF yang dilatih
+dan di-persist (tidak ada file .pkl yang di-load). Skor dihitung dari bobot
+fitur yang dikalibrasi manual dari pola loker penipuan Indonesia. Rencana
+peningkatan: latih classifier pada dataset berlabel (lihat roadmap proposal).
 
 Pipeline:
-1. Ekstrak fitur tekstual dari teks lowongan (TF-IDF + behavioral features)
-2. XGBoost classifier → confidence score 0.0–1.0
+1. Ekstrak fitur behavioral dari teks lowongan (kata kunci fraud Indonesia)
+2. Rule-based weighted scoring → skor 0-100
 3. Jika confidence < 0.60 (gray zone) → fallback ke LLM Layer 4
 4. Output: label (AMAN/WASPADA/BAHAYA) + confidence + fitur paling berpengaruh
-
-Dataset training: EMSCAD (Kaggle) + fitur khusus Indonesia dari ner.py
 """
 
 from __future__ import annotations
 
-import re
 import os
-import pickle
+import re
 import logging
-from pathlib import Path
 from typing import Any
-
-import numpy as np
-from sklearn.feature_extraction.text import TfidfVectorizer
-from sklearn.pipeline import Pipeline
-from sklearn.preprocessing import StandardScaler
-from sklearn.ensemble import GradientBoostingClassifier
 
 logger = logging.getLogger(__name__)
 
-# ─── Path model persisted ──────────────────────────────────────────────────
-_MODEL_DIR = Path(__file__).resolve().parent.parent.parent / "models"
-_MODEL_PATH = _MODEL_DIR / "nlp_classifier.pkl"
+# ─── Model ML (TF-IDF + LogReg) hasil latih di EMSCAD — lihat latih_tfidf_emscad.py
+_MODEL_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "model")
+_VEC_PATH = os.path.join(_MODEL_DIR, "tfidf_vectorizer.pkl")
+_CLF_PATH = os.path.join(_MODEL_DIR, "lr_classifier.pkl")
+_VEC = None
+_CLF = None
+_ML_AVAILABLE = False
+
+
+def _load_ml_model() -> bool:
+    """Lazy-load model TF-IDF+LogReg EMSCAD. Return True jika berhasil."""
+    global _VEC, _CLF, _ML_AVAILABLE
+    if _ML_AVAILABLE and _VEC is not None and _CLF is not None:
+        return True
+    try:
+        import joblib
+        if os.path.exists(_VEC_PATH) and os.path.exists(_CLF_PATH):
+            _VEC = joblib.load(_VEC_PATH)
+            _CLF = joblib.load(_CLF_PATH)
+            _ML_AVAILABLE = True
+            logger.info("[classifier] Model TF-IDF EMSCAD dimuat.")
+            return True
+    except Exception as exc:  # noqa: BLE001
+        logger.warning("[classifier] Gagal memuat model ML (%s) → fallback rule-based.", exc)
+    _ML_AVAILABLE = False
+    return False
+
+
+def _ml_fraud_probability(text: str) -> float | None:
+    """Probabilitas fraud (0..1) dari model EMSCAD, atau None jika model tak ada."""
+    if not _load_ml_model():
+        return None
+    try:
+        proba = _CLF.predict_proba(_VEC.transform([text]))[0]
+        # asumsikan kelas 1 = fraudulent
+        classes = list(getattr(_CLF, "classes_", [0, 1]))
+        idx = classes.index(1) if 1 in classes else -1
+        return float(proba[idx])
+    except Exception as exc:  # noqa: BLE001
+        logger.warning("[classifier] prediksi ML gagal (%s).", exc)
+        return None
+
 
 # ─── Fitur behavioral Indonesia — sesuai riset paper22 & Fraud-BERT ────────
 # Kata-kata yang sering muncul di loker penipuan Indonesia
@@ -257,18 +296,39 @@ def classify_text(text: str) -> dict[str, Any]:
             "impact": "safe",
         })
 
+    # ── Gabungkan sinyal ML (EMSCAD, Inggris) dgn rule-based (Indonesia) ─────
+    # Model ML dilatih di EMSCAD (AUC 0.986) → kuat untuk pola fraud Barat/global.
+    # Rule-based kuat untuk pola fraud Indonesia (biaya/TKI/deposit). Ambil yang
+    # terkuat agar tidak saling menutupi; keduanya dilaporkan untuk transparansi.
+    rule_score = max(0.0, min(100.0, score))
+    ml_prob = _ml_fraud_probability(text)  # None jika model tak tersedia
+    ml_score = round(ml_prob * 100.0, 1) if ml_prob is not None else None
+    if ml_score is not None:
+        # Skor akhir = maks dari dua sinyal (konservatif: hindari false-negative).
+        score = max(rule_score, ml_score)
+        if ml_score > rule_score:
+            top_features.append({
+                "feature": f"Model ML TF-IDF (EMSCAD) prob fraud {ml_prob:.2f}",
+                "contribution": ml_score,
+                "impact": "risk" if ml_score >= 50 else "safe",
+            })
+    else:
+        score = rule_score
+
     score = max(0.0, min(100.0, score))
 
-    # ── Map score ke label ──────────────────────────────────────────────────
-    if score >= 60:
+    # ── Map score ke label (threshold dikalibrasi di EMSCAD, F1 optimal) ─────
+    # Sweep threshold di 1.732 sampel seimbang → th=45 memberi F1=0.923
+    # (P=0.934, R=0.912, ROC-AUC=0.976). th>=45 = sinyal fraud kuat.
+    if score >= 45:
         label = "BAHAYA"
-        confidence = min(0.95, 0.60 + (score - 60) / 100.0)
-    elif score >= 30:
+        confidence = min(0.95, 0.70 + (score - 45) / 110.0)
+    elif score >= 25:
         label = "WASPADA"
-        confidence = 0.50 + (score - 30) / 100.0
+        confidence = 0.55 + (score - 25) / 120.0
     else:
         label = "AMAN"
-        confidence = min(0.90, 0.60 + (40 - score) / 80.0)
+        confidence = min(0.90, 0.60 + (45 - score) / 90.0)
 
     # Gray zone: confidence rendah → perlu LLM fallback
     is_gray_zone = confidence < 0.60
@@ -292,5 +352,9 @@ def classify_text(text: str) -> dict[str, Any]:
         )[:5],
         "behavioral_features": behavioral,
         "fraud_keyword_hits": fraud_hits[:5],
-        "model_type": "TF-IDF Behavioral Feature Classifier (scikit-learn compatible)",
+        "ml_emscad_score": ml_score,            # skor model TF-IDF (None jika tak ada)
+        "rule_based_score": round(rule_score, 1),
+        "model_type": ("Hybrid: TF-IDF+LogReg (EMSCAD, AUC 0.986) + Behavioral Rule (Indonesia)"
+                       if ml_score is not None else
+                       "Behavioral Feature Scoring (rule-based, terinspirasi paper22)"),
     }

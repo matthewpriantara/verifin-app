@@ -8,6 +8,7 @@ if hasattr(sys.stderr, "reconfigure"):
     sys.stderr.reconfigure(encoding="utf-8")
 from app.api.v1.verify.router import router as verify_router
 from app.api.v1.health.router import router as health_router
+from app.api.v1.community.router import router as community_router
 
 app = FastAPI(title="Verifin OSINT API", version="0.1.0")
 
@@ -21,6 +22,7 @@ app.add_middleware(
 # Hubungkan router dari api/v1
 app.include_router(verify_router, prefix="/api/v1")
 app.include_router(health_router, prefix="/api/v1")
+app.include_router(community_router, prefix="/api/v1")
 
 
 @app.on_event("startup")

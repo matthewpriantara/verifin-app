@@ -4,7 +4,6 @@ import {
   Globe,
   Phone,
   Buildings,
-  MapPin,
   ThreadsLogo,
   Warning,
   CheckCircle,
