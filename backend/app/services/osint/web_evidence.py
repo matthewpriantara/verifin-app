@@ -370,15 +370,16 @@ def collect_web_evidence(entities: dict) -> dict[str, Any]:
             continue
         website_checks.append(fetch_company_website(d))
 
-    # Search minimal berprioritas (parallel sequential tapi sedikit)
+    # Search minimal berprioritas. Nama perusahaan diapit tanda kutip agar search
+    # engine mencari frasa persis (mengurangi hasil generik/tak relevan).
     searches: list[dict[str, Any]] = []
     if companies:
         company = companies[0]
         clean_comp = re.sub(r"\s+cab(?:ang)?\s+.*$", "", company, flags=re.I).strip()
-        searches.append(search_web_evidence(f"{clean_comp} instagram OR website OR toko"))
+        searches.append(search_web_evidence(f'"{clean_comp}" instagram OR website OR toko'))
         searches.append(search_web_evidence(f'"{clean_comp}" penipu OR scam'))
     elif domains:
-        searches.append(search_web_evidence(f"{domains[0]} penipuan OR scam"))
+        searches.append(search_web_evidence(f'"{domains[0]}" penipuan OR scam'))
 
     # Email: 1 query scam (cukup); skip local-part medsos (lambat + noise)
     for em in emails[:1]:
@@ -411,19 +412,76 @@ def collect_web_evidence(entities: dict) -> dict[str, Any]:
     for s in searches:
         risk_flags.extend(s.get("risk_flags") or [])
 
-    # Deteksi akun medsos & cross-reference lokasi dari hasil pencarian Scrapling
+    # Deteksi akun medsos & cross-reference lokasi dari hasil pencarian web
     found_social: list[str] = []
     total_public_results = 0
     addresses = entities.get("addresses") or []
     companies = entities.get("companies") or []
 
+    # ── Relevance filter: bangun token entitas agar hasil SERP yang tidak
+    # terkait (mis. situs acak yang kebetulan muncul) TIDAK dihitung sebagai
+    # jejak digital. Fleksibel: cocok via nama perusahaan, brand dalam kurung,
+    # domain website resmi, atau potongan kata kunci nama yang khas. ─────────
+    def _entity_tokens() -> list[str]:
+        toks: set[str] = set()
+        for comp in companies:
+            c = (comp or "").strip()
+            if not c:
+                continue
+            # brand dalam kurung, mis. "PT. X (PT. VIS)" → "pt. vis", "vis"
+            for m in re.findall(r"\(([^)]+)\)", c):
+                m = m.strip().lower()
+                if len(m) >= 3:
+                    toks.add(m)
+            # nama lengkap & bentuk bersih (tanpa PT/CV/UD/lembaga dsb.)
+            base = re.sub(r"\b(pt\.?|cv\.?|ud\.?|tbk\.?|lembaga|konsultasi|bimbingan|belajar|group|indonesia)\b", " ", c.lower())
+            base = re.sub(r"\s+", " ", base).strip()
+            if len(base) >= 4:
+                toks.add(base)
+            # kata kunci khas (>=5 huruf) dari nama
+            for w in re.split(r"[^\w]+", c.lower()):
+                if len(w) >= 5 and w not in ("international", "solution", "sejahtera"):
+                    toks.add(w)
+        # domain website resmi (indonesiacollege.co.id → "indonesiacollege")
+        for d in domains:
+            host = d.split(".")[0].lower()
+            if len(host) >= 4:
+                toks.add(host)
+        return sorted(toks, key=len, reverse=True)
+
+    _ENT_TOKENS = _entity_tokens()
+
+    def _is_generic_social_url(url: str) -> bool:
+        """True jika URL adalah halaman generik platform (login/signup/home), bukan
+        profil/post spesifik entitas — mis. instagram.com/p/signin, /accounts/login."""
+        ul = url.lower()
+        generic_bits = ("/signin", "/signup", "/login", "/accounts/", "/home",
+                        "/explore/", "/p/signin", "/?hl=", "sharer", "/share")
+        return any(b in ul for b in generic_bits)
+
+    def _is_relevant(url: str, text: str) -> bool:
+        """True jika hasil SERP relevan dgn entitas (url atau teks mengandung token)."""
+        if not _ENT_TOKENS:
+            return True  # tak ada entitas → jangan difilter (biarkan)
+        hay = f"{url} {text}".lower().replace("-", "").replace("_", "").replace(".", "").replace(" ", "")
+        for tok in _ENT_TOKENS:
+            t = tok.replace(" ", "").replace(".", "")
+            if t and t in hay:
+                return True
+        return False
+
     for s in searches:
         for r in s.get("results") or []:
-            total_public_results += 1
             u = r.get("url") or ""
             title = r.get("title") or ""
             snippet = r.get("snippet") or ""
             combined_text = f"{title} {snippet}".lower()
+
+            # Hanya hitung jejak digital yang RELEVAN dengan entitas — buang
+            # hasil SERP acak/iklan yang tidak mengandung token entitas.
+            if not _is_relevant(u, combined_text):
+                continue
+            total_public_results += 1
 
             # Cross-reference alamat: Cek apakah nama kota/jalan dari loker muncul di snippet pencarian bisnis
             for addr in addresses:
@@ -432,10 +490,10 @@ def collect_web_evidence(entities: dict) -> dict[str, Any]:
                 matched_words = [w for w in loc_words if w in combined_text]
                 if len(matched_words) >= 2 and companies:
                     safe_flags.append(
-                        f"✅ Scrapling Location Match: Pencarian web publik untuk '{companies[0]}' mengonfirmasi lokasi '{', '.join(matched_words)}'."
+                        f"✅ Location Match: Pencarian web publik untuk '{companies[0]}' mengonfirmasi lokasi '{', '.join(matched_words)}'."
                     )
 
-            if "instagram.com" in u and u not in found_social:
+            if "instagram.com" in u and u not in found_social and _is_relevant(u, combined_text) and not _is_generic_social_url(u):
                 found_social.append(u)
                 safe_flags.append(
                     f"Terdeteksi profil/post Instagram publik aktif: {title} ({u})"
@@ -443,6 +501,8 @@ def collect_web_evidence(entities: dict) -> dict[str, Any]:
             elif (
                 any(soc in u for soc in ("facebook.com", "linkedin.com", "tiktok.com"))
                 and u not in found_social
+                and _is_relevant(u, combined_text)
+                and not _is_generic_social_url(u)
             ):
                 found_social.append(u)
                 safe_flags.append(f"Terdeteksi akun media sosial publik: {u}")
@@ -464,7 +524,9 @@ def collect_web_evidence(entities: dict) -> dict[str, Any]:
 
     return {
         "enabled": True,
-        "engine": "scrapling",
+        # Jujur: web search memakai multi-engine (DuckDuckGo/Yahoo/Bing via
+        # curl_cffi+BeautifulSoup); Scrapling dipakai untuk fetch halaman web.
+        "engine": "multi-engine (DDG/Yahoo/Bing) + Scrapling fetch",
         "websites": website_checks,
         "gform_inspections": gform_inspections,
         "searches": searches,

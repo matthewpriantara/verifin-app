@@ -19,6 +19,20 @@ import { cn, REPORT_STORAGE_KEY } from "@/lib/utils";
 import { verifyImage, verifyText, verifyUrl } from "@/lib/api";
 import type { VerifyResponse } from "@/types/verify";
 
+/* ─── URL detection ─────────────────────────────────────────────────────── */
+// Cocokkan URL dengan/tanpa skema: bit.ly/x, www.foo.com/a, https://foo.com/a
+const URL_RE = /^(?:https?:\/\/)?(?:www\.)?[a-z0-9-]+(?:\.[a-z0-9-]+)+(?:\/[^\s]*)?$/i;
+
+function isPureUrl(s: string): boolean {
+  const t = s.trim();
+  // Murni 1 token & cocok pola domain → dianggap URL (bukan teks campuran)
+  return !/\s/.test(t) && URL_RE.test(t);
+}
+function normalizeUrl(s: string): string {
+  const t = s.trim();
+  return /^https?:\/\//i.test(t) ? t : `https://${t}`;
+}
+
 const STEPS = [
   {
     id: "ocr",
@@ -194,7 +208,10 @@ export function VerifyBox() {
   }, [loading]);
 
   useEffect(() => {
-    if (!loading) { setStepIndex(0); return; }
+    if (!loading) {
+      const t = setTimeout(() => setStepIndex(0), 0);
+      return () => clearTimeout(t);
+    }
     if (stepIndex >= STEPS.length - 1) return;
     const timer = setTimeout(
       () => setStepIndex((s) => Math.min(s + 1, STEPS.length - 1)),
@@ -236,8 +253,8 @@ export function VerifyBox() {
       let result: VerifyResponse;
       if (file) {
         result = await verifyImage(file);
-      } else if (/^https?:\/\//i.test(trimmed)) {
-        result = await verifyUrl(trimmed);
+      } else if (isPureUrl(trimmed)) {
+        result = await verifyUrl(normalizeUrl(trimmed));
       } else {
         result = await verifyText({ text: trimmed, include_raw_text: true });
       }
@@ -281,10 +298,16 @@ export function VerifyBox() {
               <textarea
                 ref={textareaRef}
                 value={text}
-                onChange={(e) => setText(e.target.value)}
+                onChange={(e) => {
+                  setText(e.target.value);
+                  // Auto-resize: grow sesuai isi, batasi maks 320px
+                  const el = e.target;
+                  el.style.height = "auto";
+                  el.style.height = `${Math.min(el.scrollHeight, 320)}px`;
+                }}
                 placeholder="Tempel teks lowongan, URL postingan, atau lampirkan screenshot..."
-                rows={6}
-                className="w-full resize-none rounded-xl bg-transparent py-4 pl-10 pr-4 text-[14px] leading-relaxed text-text-primary placeholder:text-text-muted focus:outline-none focus:ring-0 focus-visible:outline-none focus-visible:ring-0"
+                rows={5}
+                className="max-h-80 w-full resize-none overflow-y-auto rounded-xl bg-transparent py-4 pl-10 pr-4 text-[14px] leading-relaxed text-text-primary placeholder:text-text-muted focus:outline-none focus:ring-0 focus-visible:outline-none focus-visible:ring-0"
               />
               <div className="flex items-center justify-between border-t border-border px-3 py-2.5">
                 <button

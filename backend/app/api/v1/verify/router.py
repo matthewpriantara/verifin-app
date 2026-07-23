@@ -15,6 +15,8 @@ Pipeline (5 layer):
     → Output: SHAP XAI Explanation + VerifyResponse
 """
 
+import asyncio
+import copy
 import os
 import tempfile
 from typing import List, Optional
@@ -32,6 +34,7 @@ from app.api.v1.verify.schema import (
     UrlVerifyRequest,
     VerifyResponse,
 )
+from app.services.llm.entity_extraction import extract_entities_llm, hybrid_merge_entities
 from app.services.llm.verifin_reasoning import analyze_with_verifin, check_ai_status
 from app.services.ner import extract_entities_from_text
 from app.services.nlp.classifier import classify_text
@@ -90,7 +93,44 @@ def _check_fraud_network(db: Session, entities: dict) -> dict:
         G = build_fraud_network(cases_data)
 
         # Cek entitas baru terhadap graf
-        return check_entity_in_network(G, entities)
+        network_ctx = check_entity_in_network(G, entities)
+
+        # ── Syndicate identity reuse — dihitung dari cases_data nyata ───────
+        try:
+            from app.services.cache_service import detect_identity_syndicate
+            # siapkan company_name per kasus agar reuse lintas perusahaan terdeteksi
+            hist = [
+                {
+                    "phones": cd.get("phones") or [],
+                    "emails": cd.get("emails") or [],
+                    "company_name": (cd.get("companies") or [None])[0],
+                }
+                for cd in cases_data
+            ]
+            network_ctx["syndicate_analysis"] = detect_identity_syndicate(
+                contacts=entities.get("contacts") or [],
+                emails=entities.get("emails") or [],
+                current_company=(entities.get("companies") or ["Unknown"])[0],
+                historical_cases=hist,
+            )
+        except Exception as _syn_exc:
+            network_ctx["syndicate_analysis"] = {
+                "syndicate_detected": False, "syndicate_alerts": [],
+                "note": f"analisis sindikat dilewati: {_syn_exc}",
+            }
+
+        # ── Suplemen: agregasi Community Reports untuk entitas ini ─────────
+        # Laporan komunitas yang berulang pada entitas yang sama = sinyal risiko kuat.
+        community = _community_report_signal(db, entities)
+        network_ctx["community_reports"] = community
+        if community.get("report_count", 0) > 0:
+            network_ctx["entity_in_fraud_network"] = True
+            # Eskalasi threat_level bila belum tinggi
+            if community["report_count"] >= 3:
+                network_ctx["threat_level"] = "HIGH"
+            elif network_ctx.get("threat_level") not in ("HIGH",):
+                network_ctx["threat_level"] = "MEDIUM"
+        return network_ctx
 
     except Exception as exc:
         import logging
@@ -98,12 +138,138 @@ def _check_fraud_network(db: Session, entities: dict) -> dict:
         return {"entity_in_fraud_network": False, "error": str(exc)}
 
 
+def _community_report_signal(db: Session, entities: dict) -> dict:
+    """Hitung berapa kali entitas lowongan ini dilaporkan komunitas."""
+    from app.database.models import CommunityReport
+    from sqlalchemy import func, or_
+
+    conditions = []
+    for comp in (entities.get("companies") or []):
+        conditions.append(func.lower(CommunityReport.company_name) == str(comp).strip().lower())
+    for em in (entities.get("emails") or []):
+        conditions.append(func.lower(CommunityReport.email) == str(em).strip().lower())
+    for url in (entities.get("urls") or []):
+        conditions.append(CommunityReport.url == str(url).strip())
+    for ph in (entities.get("contacts") or []):
+        digits = "".join(c for c in str(ph) if c.isdigit())
+        if digits.startswith("0"):
+            digits = "62" + digits[1:]
+        if digits:
+            conditions.append(CommunityReport.phone == digits)
+
+    if not conditions:
+        return {"report_count": 0, "reported_by_community": False}
+
+    try:
+        count = db.query(func.count(CommunityReport.id)).filter(or_(*conditions)).scalar() or 0
+    except Exception:  # noqa: BLE001
+        return {"report_count": 0, "reported_by_community": False}
+
+    return {
+        "report_count": int(count),
+        "reported_by_community": count > 0,
+        "risk_signal": "HIGH" if count >= 3 else ("MEDIUM" if count == 2 else ("LOW" if count == 1 else "NONE")),
+    }
+
+
+async def _extract_entities_hybrid(text: str) -> dict:
+    """
+    Hybrid NER: regex (entitas struktural) + LLM extraction (entitas semantik).
+
+    LLM extraction untuk companies/addresses/salaries berjalan PARALEL dengan
+    regex via asyncio.gather — regex selesai instan, LLM overlap sehingga tidak
+    menambah critical path secara signifikan. Jika LLM down/timeout/JSON rusak,
+    hybrid_merge_entities fallback penuh ke hasil regex (safety net).
+
+    Metadata extraction disimpan di entities["_ner_meta"] untuk observability
+    (sumber: regex | hybrid_llm_regex | llm_no_new).
+    """
+    regex_task = asyncio.to_thread(extract_entities_from_text, text)
+    regex_entities, merged_entities = await asyncio.gather(
+        regex_task,
+        # hybrid_merge_entities butuh hasil regex → kita jalankan LLM-nya
+        # paralel dengan regex lewat task terpisah, lalu merge di dalam.
+        _run_llm_ner(text),
+    )
+    # regex_entities = hasil regex; merged_entities = hasil LLM (atau None)
+    if merged_entities is None:
+        regex_entities["_ner_meta"] = {"used": False, "source": "regex"}
+        return regex_entities
+    # Merge dengan strategi per-kategori:
+    # - companies: LLM adalah daftar OTORITATIF (lebih akurat secara semantik).
+    #   Regex hanya dipertahankan bila namanya dikonfirmasi LLM (fuzzy match),
+    #   sehingga false positive regex ("dan cekatan", "bersedia training") dibuang.
+    # - addresses & salaries: MERGE-ADDITIVE (LLM menambah yang regex lewatkan,
+    #   regex tetap jadi suplemen — keduanya cenderung precision-tinggi).
+    def _norm(s: str) -> str:
+        import re as _re
+        return _re.sub(r"[^a-z0-9 ]", "", s.lower()).strip()
+
+    def _fuzzy_contains(a: str, b: str) -> bool:
+        """True bila salah satu normalized string mengandung yang lain (min 4 char)."""
+        na, nb = _norm(a), _norm(b)
+        if len(na) < 4 or len(nb) < 4:
+            return na == nb
+        return na in nb or nb in na
+
+    merged = copy.deepcopy(regex_entities)
+    added = {"companies": False, "addresses": False, "salaries": False}
+    cleaned = {"companies": 0}
+    any_added = False
+
+    # ── companies: LLM otoritatif ──────────────────────────────────────────
+    llm_companies = merged_entities.get("companies") or []
+    if llm_companies:
+        regex_companies = merged.get("companies") or []
+        # Mulai dari daftar LLM (urut), lalu tambah regex yang dikonfirmasi LLM.
+        new_companies: list[str] = list(llm_companies)
+        for rc in regex_companies:
+            if any(_fuzzy_contains(rc, lc) for lc in llm_companies):
+                # regex dikonfirmasi LLM → pertahankan jika belum ada
+                if not any(_fuzzy_contains(rc, e) for e in new_companies):
+                    new_companies.append(rc)
+            else:
+                cleaned["companies"] += 1  # regex tidak dikonfirmasi → dibuang
+        if len(new_companies) > len(regex_companies):
+            added["companies"] = True
+            any_added = True
+        merged["companies"] = new_companies
+
+    # ── addresses & salaries: merge-additive ──────────────────────────────
+    for key in ("addresses", "salaries"):
+        llm_vals = merged_entities.get(key) or []
+        if not llm_vals:
+            continue
+        existing = {_norm(v) for v in (merged.get(key) or [])}
+        for v in llm_vals:
+            nv = _norm(v)
+            if nv and nv not in existing:
+                merged.setdefault(key, []).append(v)
+                existing.add(nv)
+                added[key] = True
+                any_added = True
+    merged["_ner_meta"] = {
+        "used": True,
+        "source": "hybrid_llm_regex" if any_added else "llm_no_new",
+        "added": added,
+        "cleaned_false_positive_companies": cleaned["companies"],
+    }
+    return merged
+
+
+async def _run_llm_ner(text: str) -> dict | None:
+    """Jalankan LLM extraction terisolasi; return None jika gagal/tidak aktif."""
+    try:
+        return await extract_entities_llm(text)
+    except Exception:  # noqa: BLE001 — fallback by design
+        return None
+
+
 async def _run_osint_on_entities(entities: dict) -> dict:
     """
     OSINT live paralel: WHOIS/DNS + OSM + Kredibel + Scrapling web + Threads.
     Optimasi latency: asyncio.gather (bukan serial await).
     """
-    import asyncio
     from app.services.llm.prompt_builder import FREE_EMAIL_DOMAINS
 
     osint_results: dict = {
@@ -354,13 +520,24 @@ def _to_response(
     except Exception:
         shap_explanation = None
 
-    if osint_results:
-        from app.services.cache_service import detect_identity_syndicate
-        osint_results["syndicate_analysis"] = detect_identity_syndicate(
-            contacts=safe_entities["contacts"],
-            emails=safe_entities["emails"],
-            current_company=safe_entities["companies"][0] if safe_entities["companies"] else "Unknown"
-        )
+    # Tulis network_context (case memory + community reports) ke response agar
+    # FE/pengguna dapat melihat sinyal Fraud Network — bukan hanya internal SHAP.
+    network_ctx = analysis.get("network_context")
+    if network_ctx and osint_results is not None:
+        existing_fn = osint_results.get("fraud_network") or {}
+        existing_fn.update(network_ctx)
+        osint_results["fraud_network"] = existing_fn
+        # Syndicate analysis: gunakan hasil yang dihitung dari DB nyata di
+        # _check_fraud_network (bukan mock tanpa data).
+        if network_ctx.get("syndicate_analysis"):
+            osint_results["syndicate_analysis"] = network_ctx["syndicate_analysis"]
+        elif "syndicate_analysis" not in osint_results:
+            from app.services.cache_service import detect_identity_syndicate
+            osint_results["syndicate_analysis"] = detect_identity_syndicate(
+                contacts=safe_entities["contacts"],
+                emails=safe_entities["emails"],
+                current_company=safe_entities["companies"][0] if safe_entities["companies"] else "Unknown"
+            )
 
     return VerifyResponse(
         verdict=verdict,
@@ -553,7 +730,7 @@ async def verify_from_text(
         # Layer 1: NLP Classifier — TF-IDF behavioral features (paper22 Springer)
         nlp_result = classify_text(request.text)
 
-        entities = extract_entities_from_text(request.text)
+        entities = await _extract_entities_hybrid(request.text)
         osint_results = await _run_osint_on_entities(entities)
 
         # Layer 5: Fraud Network Check via case memory (GAR-HGNN inspired)
@@ -615,7 +792,13 @@ async def verify_from_image(
                 detail="Tidak ada teks yang berhasil dibaca dari gambar. Coba unggah gambar yang lebih jelas.",
             )
 
-        entities = extract_entities_from_text(raw_text)
+        # Cache-check berbasis hash teks OCR (idempoten pada gambar identik),
+        # agar kanal image konsisten ter-cache seperti kanal text.
+        cached_resp = _get_cached_case_from_db(db, raw_text)
+        if cached_resp:
+            return cached_resp
+
+        entities = await _extract_entities_hybrid(raw_text)
         osint_results = await _run_osint_on_entities(entities)
 
         # Layer 1: NLP Classifier
@@ -817,7 +1000,6 @@ async def _fetch_url_content_and_image(url: str) -> tuple[str, list[str]]:
     Scrape teks (caption/description) & daftar image URL poster (termasuk carousel slides) dari URL.
     Returns: (extracted_text, temp_image_paths_list)
     """
-    import asyncio
     import httpx
 
     loop = asyncio.get_event_loop()
@@ -903,11 +1085,16 @@ async def verify_from_url(
                 detail="Sistem tidak dapat mengambil konten atau teks dari URL tersebut. Pastikan link dapat diakses publik.",
             )
 
-        entities = extract_entities_from_text(full_raw_text)
+        entities = await _extract_entities_hybrid(full_raw_text)
         osint_results = await _run_osint_on_entities(entities)
+
+        # Layer 5: Fraud Network Check (case memory + community reports)
+        network_context = _check_fraud_network(db, entities)
+
         analysis = await analyze_with_verifin(
             entities, osint_results, raw_text=full_raw_text
         )
+        analysis["network_context"] = network_context
         _save_case_to_db(
             db, full_raw_text, analysis, osint_results, entities=entities, source="url"
         )

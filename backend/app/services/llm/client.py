@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 import json
 import re
 from typing import Any, Optional
@@ -137,9 +138,11 @@ async def chat_completion(
     messages: list[dict[str, Any]],
     *,
     model: Optional[str] = None,
-    temperature: float = 0.1,
+    temperature: float = 0.0,
     max_tokens: int = 4096,
     timeout: Optional[float] = None,
+    max_retries: int = 4,
+    seed: Optional[int] = 42,
 ) -> str:
     if not LLM_API_KEY:
         raise RuntimeError(
@@ -150,33 +153,54 @@ async def chat_completion(
     payload = {
         "model": model or LLM_MODEL,
         "messages": messages,
+        # temperature=0 + seed tetap → output deterministik (penting untuk audit/forensik).
         "temperature": temperature,
         "max_tokens": max_tokens,
         "stream": False,
     }
+    # Beberapa penyedia (OpenAI-compatible) mendukung seed untuk reprodusibilitas.
+    # Dikirim hanya bila di-set agar tidak merusak provider yang menolak field asing.
+    if seed is not None:
+        payload["seed"] = seed
     headers = {
         "Authorization": f"Bearer {LLM_API_KEY}",
         "Content-Type": "application/json",
     }
 
-    async with httpx.AsyncClient(timeout=timeout or LLM_TIMEOUT) as client:
-        response = await client.post(url, json=payload, headers=headers)
-        response.raise_for_status()
+    last_exc: Exception | None = None
+    for attempt in range(1, max_retries + 1):
         try:
-            data = _parse_json_value(response.text)
-        except json.JSONDecodeError as exc:
-            raise RuntimeError(
-                f"Respons LLM bukan JSON valid (awal): {response.text[:200]!r}"
-            ) from exc
+            async with httpx.AsyncClient(timeout=timeout or LLM_TIMEOUT) as client:
+                response = await client.post(url, json=payload, headers=headers)
+                response.raise_for_status()
+                try:
+                    data = _parse_json_value(response.text)
+                except json.JSONDecodeError as exc:
+                    raise RuntimeError(
+                        f"Respons LLM bukan JSON valid (awal): {response.text[:200]!r}"
+                    ) from exc
 
-    if not isinstance(data, dict):
-        raise RuntimeError(f"Format respons LLM tidak dikenali: {type(data)}")
+            if not isinstance(data, dict):
+                raise RuntimeError(f"Format respons LLM tidak dikenali: {type(data)}")
 
-    try:
-        content = data["choices"][0]["message"]["content"]
-        return content if isinstance(content, str) else json.dumps(content)
-    except (KeyError, IndexError, TypeError) as exc:
-        raise RuntimeError(f"Format respons LLM tidak dikenali: {data}") from exc
+            try:
+                content = data["choices"][0]["message"]["content"]
+                return content if isinstance(content, str) else json.dumps(content)
+            except (KeyError, IndexError, TypeError) as exc:
+                raise RuntimeError(f"Format respons LLM tidak dikenali: {data}") from exc
+
+        except (httpx.HTTPStatusError, httpx.ConnectError, httpx.TimeoutException) as exc:
+            last_exc = exc
+            status = getattr(exc.response, "status_code", None) if isinstance(exc, httpx.HTTPStatusError) else None
+            # Retry hanya untuk 5xx / rate limit / network error
+            retryable = status is None or status >= 500 or status == 429
+            if not retryable or attempt >= max_retries:
+                raise
+            wait = 2 ** attempt  # 2, 4, 8 detik
+            print(f"[chat_completion] attempt {attempt} gagal ({status or exc}), retry dalam {wait}s...")
+            await asyncio.sleep(wait)
+
+    raise RuntimeError(f"LLM gagal setelah {max_retries} percobaan: {last_exc}")
 
 
 async def check_llm_status() -> dict:

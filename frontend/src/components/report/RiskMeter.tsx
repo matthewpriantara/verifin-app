@@ -82,9 +82,9 @@ export function RiskMeter({ score, verdict }: RiskMeterProps) {
           />
         </div>
         <div className="mt-2 flex justify-between font-mono text-[10px] uppercase tracking-wide text-text-muted">
-          <span>0 Aman</span>
-          <span>50 Waspada</span>
-          <span>100 Bahaya</span>
+          <span>0 · Aman</span>
+          <span>45 · Waspada</span>
+          <span>80+ · Bahaya</span>
         </div>
       </div>
     </motion.div>

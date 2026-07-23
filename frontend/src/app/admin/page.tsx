@@ -1,15 +1,13 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { motion, AnimatePresence } from "motion/react";
+import { motion } from "motion/react";
 import {
-  Shield,
   Warning,
   CheckCircle,
   ClockCounterClockwise,
   Buildings,
   ArrowClockwise,
-  Eye,
   LockKey,
   SignOut,
 } from "@phosphor-icons/react";
@@ -17,25 +15,34 @@ import { cn } from "@/lib/utils";
 import { fetchCases, fetchWhitelist, fetchAiStatus } from "@/lib/admin";
 import type { AdminCase, WhitelistEntry } from "@/lib/admin";
 
-const ADMIN_SESSION_KEY = "verifin:admin-auth";
-const ADMIN_PASSWORD =
-  process.env.NEXT_PUBLIC_ADMIN_PASSWORD ?? "verifin123";
-
 /* ─── Login Gate ──────────────────────────────────────────────────────────── */
 function LoginGate({ onAuth }: { onAuth: () => void }) {
   const [pw, setPw] = useState("");
   const [error, setError] = useState(false);
   const [shake, setShake] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
 
-  function submit(e: React.FormEvent) {
+  async function submit(e: React.FormEvent) {
     e.preventDefault();
-    if (pw === ADMIN_PASSWORD) {
-      sessionStorage.setItem(ADMIN_SESSION_KEY, "1");
-      onAuth();
-    } else {
+    if (submitting) return;
+    setSubmitting(true);
+    try {
+      const res = await fetch("/api/admin/login", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ password: pw }),
+      });
+      if (res.ok) {
+        onAuth();
+      } else {
+        setError(true);
+        setShake(true);
+        setTimeout(() => setShake(false), 500);
+      }
+    } catch {
       setError(true);
-      setShake(true);
-      setTimeout(() => setShake(false), 500);
+    } finally {
+      setSubmitting(false);
     }
   }
 
@@ -85,10 +92,10 @@ function LoginGate({ onAuth }: { onAuth: () => void }) {
           )}
           <button
             type="submit"
-            disabled={!pw}
+            disabled={!pw || submitting}
             className="w-full rounded-xl bg-text-primary px-4 py-3 text-[14px] font-semibold text-bg-elevated transition-opacity hover:opacity-90 disabled:opacity-40"
           >
-            Masuk
+            {submitting ? "Memeriksa..." : "Masuk"}
           </button>
         </motion.form>
       </motion.div>
@@ -140,9 +147,15 @@ function StatCard({
 export default function AdminPage() {
   // ── Auth gate ──────────────────────────────────────────────────────────────
   const [authed, setAuthed] = useState(false);
+  const [authChecked, setAuthChecked] = useState(false);
 
   useEffect(() => {
-    if (sessionStorage.getItem(ADMIN_SESSION_KEY) === "1") setAuthed(true);
+    // Verifikasi sesi admin via cookie httpOnly (server-side).
+    fetch("/api/admin/session")
+      .then((r) => (r.ok ? r.json() : { authed: false }))
+      .then((d) => setAuthed(Boolean(d?.authed)))
+      .catch(() => setAuthed(false))
+      .finally(() => setAuthChecked(true));
   }, []);
 
   // ── Data ───────────────────────────────────────────────────────────────────
@@ -169,10 +182,16 @@ export default function AdminPage() {
     setLoading(false);
   }
 
-  useEffect(() => { if (authed) load(); }, [authed]);
+  useEffect(() => {
+    if (!authed) return;
+    // Hindari setState sinkron di effect body; jadwalkan via microtask.
+    let cancelled = false;
+    queueMicrotask(() => { if (!cancelled) void load(); });
+    return () => { cancelled = true; };
+  }, [authed]);
 
-  function logout() {
-    sessionStorage.removeItem(ADMIN_SESSION_KEY);
+  async function logout() {
+    try { await fetch("/api/admin/login", { method: "DELETE" }); } catch { /* abaikan */ }
     setAuthed(false);
     setCases([]);
     setWhitelist([]);
@@ -181,6 +200,13 @@ export default function AdminPage() {
   }
 
   // ── Login gate render ──────────────────────────────────────────────────────
+  if (!authChecked) {
+    return (
+      <div className="flex min-h-[calc(100vh-56px)] items-center justify-center text-text-muted">
+        <span className="text-[14px]">Memeriksa sesi...</span>
+      </div>
+    );
+  }
   if (!authed) return <LoginGate onAuth={() => setAuthed(true)} />;
 
   const stats = {

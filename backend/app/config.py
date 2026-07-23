@@ -14,7 +14,7 @@ load_dotenv(dotenv_path=env_path)
 # OpenAgentic (OpenAI-compatible) — Untuk Pipeline Main
 LLM_BASE_URL = os.getenv("LLM_BASE_URL", "https://openagentic.id/api/v1").rstrip("/")
 LLM_API_KEY = os.getenv("LLM_API_KEY", "")
-LLM_MODEL = os.getenv("LLM_MODEL", "grok-4.5")
+LLM_MODEL = os.getenv("LLM_MODEL", "kimi-k3-high")
 LLM_VISION_MODEL = os.getenv("LLM_VISION_MODEL", LLM_MODEL)
 LLM_TIMEOUT = float(os.getenv("LLM_TIMEOUT", "120"))
 

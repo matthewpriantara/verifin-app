@@ -25,7 +25,34 @@ _ADDR_STOP = (
 _STREET_PREFIX = (
     r"(?:Jl\.?|Jln\.?|Jalan|Gg\.?|Gang|Dusun|Ds\.?|Desa|"
     r"Komp\.?|Komplek|Kompleks|Perum\.?|Perumahan|Blok|Cluster|"
-    r"Ruko|Rukan|Gedung|Tower|Lt\.?|Lantai)"
+    r"Ruko|Rukan|Gedung|Tower|Lt\.?|Lantai|Kampus|Kantor|Outlet|Toko)"
+)
+
+# B2 fix: daftar kota/kabupaten besar Indonesia sebagai fallback deteksi alamat
+# tanpa prefix jalan. Bukan whitelist eksklusif — hanya confidence booster.
+_INDONESIAN_CITIES = (
+    "Ambon|Balikpapan|Banda Aceh|Bandar Lampung|Bandung|Banjar|Banjarbaru|"
+    "Banjarmasin|Batam|Batu|Bau-Bau|Bekasi|Bengkulu|Binjai|Bogor|Bontang|"
+    "Bukittinggi|Cilegon|Cimahi|Cirebon|Denpasar|Depok|Dumai|Gorontalo|"
+    "Jakarta|Jambi|Jayapura|Kediri|Kendari|Kotamobagu|Kupang|Langsa|"
+    "Lhokseumawe|Lubuklinggau|Madiun|Magelang|Makassar|Malang|Manado|"
+    "Mataram|Medan|Metro|Mojokerto|Padang|Padangsidimpuan|Pagar Alam|"
+    "Palangka Raya|Palembang|Palopo|Palu|Pangkalpinang|Parepare|Pariaman|"
+    "Pasuruan|Payakumbuh|Pekalongan|Pekanbaru|Pematangsiantar|Pontianak|"
+    "Prabumulih|Probolinggo|Purwokerto|Sabang|Salatiga|Samarinda|Semarang|"
+    "Serang|Sibolga|Singkawang|Sofifi|Solok|Sorong|Subulussalam|Sukabumi|"
+    "Sungai Penuh|Surabaya|Surakarta|Solo|Tangerang|Tanjungbalai|"
+    "Tanjungpinang|Tarakan|Tasikmalaya|Tebing Tinggi|Tegal|Ternate|"
+    "Tidore Kepulauan|Tomohon|Tual|Yogyakarta|"
+    # Kabupaten & wilayah DIY / Jateng / Jabar / Jatim yang sering muncul
+    "Sleman|Bantul|Gunungkidul|Kulon Progo|Klaten|Boyolali|Sragen|"
+    "Wonogiri|Karanganyar|Magelang|Purworejo|Kebumen|Temanggung|"
+    "Wonosobo|Banjarnegara|Purbalingga|Cilacap|Banyumas|"
+    "Godean|Seturan|Mlati|Depok|Kalasan|Prambanan|Berbah|"
+    "Cikarang|Karawang|Purwakarta|Subang|Indramayu|Majalengka|"
+    "Kuningan|Sumedang|Garut|Cianjur|Sukabumi|Tasikmalaya|"
+    "Gresik|Sidoarjo|Lamongan|Tuban|Bojonegoro|Jombang|"
+    "Kediri|Blitar|Tulungagung|Trenggalek|Ponorogo|Pacitan"
 )
 
 # Marker admin / RT-RW / kode pos — sinyal kuat baris alamat
@@ -95,18 +122,37 @@ def _clean_address(addr: str) -> str:
 
 
 def _extract_salaries(text: str) -> list[str]:
+    # Normalisasi non-breaking space / thin space dari OCR
+    text = re.sub(r"[\u00a0\u202f\u2009]", " ", text or "")
+    # B1 fix: "2,8 - 9 Juta" → tangkap bilangan desimal koma sebelum rentang,
+    # dan jangan biarkan label (Gaji:) nyedot angka di sebelah kiri koma.
     patterns = [
+        # Rp2.500.000 - Rp5.000.000 / bulan
         r"(?:Rp\.?\s*)\d{1,3}(?:[.,]\d{3})+(?:\s*[-–]\s*(?:Rp\.?\s*)?\d{1,3}(?:[.,]\d{3})+)?(?:\s*/\s*(?:bulan|bln|month))?",
+        # Rp 2,5 juta - 9 juta / 2,5jt - 9jt
         r"(?:Rp\.?\s*)\d{1,3}(?:[.,]\d{1,3})?\s*(?:jt|juta|rb|ribu)(?:\s*[-–]\s*\d{1,3}(?:[.,]\d{1,3})?\s*(?:jt|juta|rb|ribu))?",
-        r"(?:Gaji|Salary|Upah|THP)\s*[:.]?\s*\d{1,3}(?:[.,]\d{3})*(?:\s*[-–]\s*\d{1,3}(?:[.,]\d{3})*)?\s*(?:jt|juta|rb|ribu)?",
-        r"(?:Gaji|Salary|Upah|THP)\s*[:.]?\s*\d{1,2}\s*[-–]\s*\d{1,2}\s*(?:jt|juta)",
-        r"\b\d{1,2}\s*[-–]\s*\d{1,2}\s*(?:jt|juta)\b",
+        # Label + rentang dengan satu satuan di ujung: "Gaji: 2,8 - 9 Juta" / "Gaji 2,8-9 jt"
+        r"(?:Gaji|Salary|Upah|THP|Besaran\s*Gaji|Rentang\s*[Gg]aji)\s*[:.]?\s*"
+        r"\d{1,3}(?:[.,]\d+)?\s*[-–]\s*\d{1,3}(?:[.,]\d+)?\s*(?:jt|juta|rb|ribu)?",
+        # Label + angka tunggal: "Gaji: 4.500.000" / "Gaji: 4,5 juta"
+        r"(?:Gaji|Salary|Upah|THP|Besaran\s*Gaji|Rentang\s*[Gg]aji)\s*[:.]?\s*"
+        r"\d{1,3}(?:[.,]\d+){0,2}\s*(?:jt|juta|rb|ribu)?",
+        # Rentang polos: "2,8 - 9 Juta" / "3-5 jt" (tanpa label)
+        r"\b\d{1,3}(?:[.,]\d+)?\s*[-–]\s*\d{1,3}(?:[.,]\d+)?\s*(?:jt|juta|ribu|rb)\b",
     ]
     found: list[str] = []
     for pat in patterns:
         for m in re.finditer(pat, text, flags=re.I):
             s = re.sub(r"\s+", " ", m.group(0)).strip(" .,;:")
-            if s and s.lower() not in {x.lower() for x in found}:
+            if not s:
+                continue
+            s_low = s.lower()
+            # Skip jika sudah ada entri yang lebih lengkap (substring)
+            if any(s_low in x.lower() and len(x) > len(s) for x in found):
+                continue
+            # Hapus entri yang lebih pendek & substring dari yang baru
+            found = [x for x in found if not (x.lower() in s_low and len(x) < len(s))]
+            if s_low not in {x.lower() for x in found}:
                 found.append(s)
     return found
 
@@ -161,6 +207,9 @@ def _address_confidence(s: str) -> float:
         score += 0.8
     if "," in s:
         score += 0.4
+    # B2 fix: pasangan "Kec/Kota, Kota/Kab" Indonesia (Godean, Yogyakarta)
+    if re.search(rf"\b(?:{_INDONESIAN_CITIES})\s*,\s*(?:{_INDONESIAN_CITIES})\b", s, re.I):
+        score += 1.8
     tokens = [t for t in re.split(r"\s+", s) if t]
     if len(tokens) >= 4:
         score += 0.5
@@ -170,7 +219,8 @@ def _address_confidence(s: str) -> float:
     # penalti
     if re.search(
         r"\b(?:gaji|syarat|kualifikasi|lamar|email|whatsapp|account\s*officer|"
-        r"lowongan|pekerjaan|benefit|transfer|biaya|membutuhkan|dibutuhkan)\b",
+        r"lowongan|pekerjaan|benefit|transfer|biaya|membutuhkan|dibutuhkan|"
+        r"crew|hiring|hanya|dibawah|kontak|hubungi|posisi|join|team|outlet)\b",
         low,
     ):
         score -= 3.0
@@ -195,6 +245,13 @@ def _is_plausible_address(s: str) -> bool:
         rf"\b(?:{_STREET_PREFIX})\b", c, re.I
     ):
         return False
+    # B2 fix: pasangan kota "X, Y" Indonesia lolos langsung tanpa wajib street marker
+    if re.fullmatch(
+        rf"(?:{_INDONESIAN_CITIES})\s*,\s*(?:{_INDONESIAN_CITIES})",
+        c,
+        flags=re.I,
+    ):
+        return True
     # wajib sinyal lokasi konkret (bukan cuma "Kota X" / "Kab. Y")
     if not re.search(
         rf"(?:{_STREET_PREFIX}|\bRT\.?\s*\d+|\b\d{{5}}\b|\bBlok\s*[A-Z0-9]|"
@@ -296,7 +353,7 @@ def _extract_companies(text: str) -> list[str]:
             continue
         m = re.match(
             rf"^((?:{_COMPANY_LEGAL})\.?\s*[A-Z0-9][A-Za-z0-9&'.-]*(?:\s+[A-Z0-9][A-Za-z0-9&'.-]*){{0,5}})"
-            rf"(?:\s*$|\s*[,.]|\s+(?:{_COMPANY_STOP}))",
+            rf"(?:\s*\(|\s*$|\s*[,.]|\s+(?:{_COMPANY_STOP}))",
             ln,
             flags=re.I,
         )
@@ -376,6 +433,44 @@ def _extract_companies(text: str) -> list[str]:
             ):
                 companies.append(candidate)
 
+    # 6) Brand ALLCAPS berdiri sendiri (OCR poster): "SUSHI YAY!", "INDONESIA COLLEGE"
+    #    Minimal 2 kata, max 5 kata, tidak ada stopword lowongan
+    _BRAND_STOP = (
+        r"hiring|lowongan|posisi|syarat|kualifikasi|gaji|email|wa|whatsapp|"
+        r"hubungi|loker|info|join|team|crew|outlet|dibutuhkan|segera|"
+        r"ringkasan|deskripsi|benefit|fasilitas|pendidikan|pengalaman|umur|gender"
+    )
+    for line in lines:
+        ln = line.strip().rstrip("!*")
+        # baris harus ALLCAPS atau Title Case multiword
+        if not re.match(r"^[A-Z][A-Z0-9\s&'.!?-]{3,60}$", ln):
+            continue
+        words = ln.split()
+        if not (2 <= len(words) <= 5):
+            continue
+        if re.search(rf"\b(?:{_BRAND_STOP})\b", ln, re.I):
+            continue
+        # Skip jika sudah diawali legal form (sudah ditangkap pattern 1)
+        if re.match(rf"^(?:{_COMPANY_LEGAL})\b", ln, re.I):
+            continue
+        # Skip jika baris ini adalah label umum
+        if re.match(r"^(?:WE|ARE|THE|AND|FOR|WITH|DARI|UNTUK|YANG)\b", ln):
+            continue
+        candidate = _normalize_company_name(ln)
+        if len(candidate) >= 5:
+            companies.append(candidate)
+
+    # 7) Brand setelah frasa "Let's Join to" / "Bergabung dengan" / "Gabung dengan"
+    for m in re.finditer(
+        r"(?:Let'?s\s+Join\s+to|Bergabung\s+(?:dengan|ke)|Gabung\s+(?:dengan|di)|"
+        r"Join\s+(?:to|with)|Tim|Team)\s+([A-Z][A-Za-z0-9&'.!?-]{2,}(?:\s+[A-Z][A-Za-z0-9&'.!?-]{1,}){0,3})",
+        text,
+        flags=re.I,
+    ):
+        brand = re.sub(r"!+$", "", m.group(1)).strip()
+        if len(brand) >= 3 and not re.search(rf"\b(?:{_BRAND_STOP})\b", brand, re.I):
+            companies.append(brand)
+
     # Filter akhir: buang tag metadata/header jika ada yang lolos
     clean_companies = []
     for comp in companies:
@@ -426,6 +521,33 @@ def _extract_addresses(text: str) -> list[str]:
     for ln in spaced_lines:
         if _is_plausible_address(ln):
             candidates.append(ln)
+
+    # C2) B2 fix — lokasi kota/kecamatan tanpa prefix jalan:
+    #     "Godean, Yogyakarta", "Seturan, Yogyakarta"
+    #     Match per baris supaya koma batas antar baris tidak ikut.
+    for ln in spaced_lines:
+        m_city = re.search(
+            rf"\b((?:{_INDONESIAN_CITIES})\s*,\s*(?:{_INDONESIAN_CITIES}))\b",
+            ln,
+            flags=re.I,
+        )
+        if m_city:
+            span = m_city.group(1).strip(" .,;:-")
+            candidates.append(span)
+            continue  # baris ini sudah selesai
+
+        # Fallback: satu baris hanya nama kota + tidak ada stopword
+        # (misal poster hanya tulis "Yogyakarta" atau "Sleman, DIY")
+        if re.fullmatch(
+            rf"(?:{_INDONESIAN_CITIES})(?:\s*,\s*(?:{_INDONESIAN_CITIES}))?",
+            ln.strip(),
+            flags=re.I,
+        ) and not re.search(
+            r"\b(?:gaji|syarat|kualifikasi|email|wa|hubungi|lamar)\b",
+            ln,
+            re.I,
+        ):
+            candidates.append(ln.strip())
 
     # D) Gabung 2 baris beruntun HANYA jika keduanya mirip alamat
     #    (hindari nyedot HP/PT/syarat di sekitar footer poster)
@@ -520,7 +642,17 @@ def extract_entities_from_text(text: str) -> dict:
     email_pattern = r"[a-zA-Z0-9_.+-]+@[a-zA-Z0-9-]+\.[a-zA-Z0-9-.]+"
     url_pattern = (
         r"(?:https?://[^\s\"'\<\>]+|www\.[^\s\"'\<\>]+|"
-        r"\b[a-zA-Z0-9-]+\.(?:com|id|co\.id|co|net|org|xyz|info|io|app|shop|store)/(?:[^\s\"'\<\>]+)?)"
+        # B3 fix: shortlink populer tanpa scheme (bit.ly/x, s.id/x, dll)
+        # [a-zA-Z0-9] di awal path supaya tidak nyedot karakter OCR liar
+        r"\b(?:bit\.ly|s\.id|tinyurl\.com|t\.co|goo\.gl|ow\.ly|rebrand\.ly|"
+        r"cutt\.ly|shorturl\.at|rb\.gy|linktr\.ee|linktree|forms\.gle|"
+        r"docs\.google\.com/forms|wa\.me|t\.me|telegram\.me)"
+        r"/[a-zA-Z0-9][^\s\"'\<\>]*|"
+        # B4 fix: domain dengan atau tanpa path (indonesiacollege.co.id, perusahaan.com)
+        r"\b[a-zA-Z0-9-]+(?:\.[a-zA-Z0-9-]+)*\."
+        r"(?:co\.id|or\.id|ac\.id|go\.id|sch\.id|web\.id|my\.id|biz\.id|"
+        r"com|id|net|org|xyz|info|io|app|shop|store|co)"
+        r"(?:/[^\s\"'\<\>]*)?)"
     )
     # Dukung juga nomor telepon area/landline Indonesia (misal 0274 373608 atau 021 5551234)
     phone_pattern = r"(?:\+62|62|0)\s*[1-9](?:[\s\-]?\d){6,12}"
