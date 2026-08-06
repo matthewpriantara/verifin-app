@@ -210,8 +210,14 @@ async def run_social_osint(entities: dict) -> dict[str, Any]:
             platform_hits[platform_key] = False
 
     # Gabungkan semua posts & dedup berdasarkan URL, set platform dinamis
-    seen_urls = set()
+    seen_urls: set[str] = set()
     all_posts = []
+
+    # Token unik nama perusahaan untuk scoring relevansi
+    _comp_tokens = {
+        t for t in re.sub(r"[^\w]", " ", raw_company.lower()).split()
+        if len(t) > 3 and t not in {"yang", "untuk", "dari", "dengan", "adalah"}
+    } - {"pt", "cv", "ud", "tb"}
 
     raw_posts = extra_posts + list(threads_result.get("posts") or [])
     for p in raw_posts:
@@ -226,6 +232,19 @@ async def run_social_osint(entities: dict) -> dict[str, Any]:
             real_plat = "portal_loker"
 
         p["platform"] = real_plat
+
+        # Skor relevansi — berapa token nama perusahaan match di snippet/title
+        if _comp_tokens:
+            blob = f"{p.get('title', '')} {p.get('snippet', '')}".lower()
+            matched = {t for t in _comp_tokens if t in blob}
+            p["match_confidence"] = round(len(matched) / len(_comp_tokens), 2)
+        else:
+            p["match_confidence"] = 0.0
+
+        # Buang post yang tidak mengandung satupun token nama perusahaan
+        if p["match_confidence"] == 0.0 and real_plat not in ("instagram", "threads"):
+            continue
+
         all_posts.append(p)
 
     # Prioritaskan media sosial resmi di posisi teratas
