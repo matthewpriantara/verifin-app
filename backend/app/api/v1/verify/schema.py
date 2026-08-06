@@ -1,15 +1,10 @@
 """
-Pydantic Schema untuk endpoint verifikasi lowongan kerja Verifin.
-Mendefinisikan format request dan response secara ketat agar API konsisten.
+Pydantic schema request dan response untuk endpoint verifikasi Verifin.
 """
 
 from pydantic import BaseModel, Field, ConfigDict
 from typing import List, Optional, Dict, Any
 
-
-# ─────────────────────────────────────────────────────────────────────────────
-# REQUEST SCHEMAS
-# ─────────────────────────────────────────────────────────────────────────────
 
 class TextVerifyRequest(BaseModel):
     """Request body untuk endpoint POST /verify/text"""
@@ -30,7 +25,7 @@ class UrlVerifyRequest(BaseModel):
     """Request body untuk endpoint POST /verify/url"""
     url: str = Field(
         ...,
-        description="URL/Link postingan lowongan kerja (misal Instagram, Threads, LinkedIn, JobStreet, Facebook, atau website perusahan).",
+        description="URL/Link postingan lowongan kerja (misal Instagram, Threads, LinkedIn, JobStreet, Facebook, atau website perusahaan).",
         examples=["https://www.threads.com/@sigit_gustian/post/Da7SVXVk85J"]
     )
     additional_text: Optional[str] = Field(
@@ -39,10 +34,6 @@ class UrlVerifyRequest(BaseModel):
         examples=["Tugas lo ngapain aja? Handle trouble hardware... Daftar di link resmi ini: loker.staffinc.co/NEV7M"]
     )
 
-
-# ─────────────────────────────────────────────────────────────────────────────
-# RESPONSE SCHEMAS
-# ─────────────────────────────────────────────────────────────────────────────
 
 class ExtractedEntities(BaseModel):
     """Entitas yang berhasil diekstrak dari teks/gambar."""
