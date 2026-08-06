@@ -7,7 +7,6 @@ Endpoint:
 - GET  /community/recent   → laporan terbaru (transparansi publik)
 """
 
-from __future__ import annotations
 
 import logging
 from typing import Optional
@@ -65,10 +64,10 @@ def submit_report(payload: CommunityReportIn, db: Session = Depends(get_db)):
 
 @router.get("/community/check", summary="Cek Agregasi Laporan untuk Suatu Entitas")
 def check_entity(
-    company_name: Optional[str] = Query(None),
-    phone: Optional[str] = Query(None),
-    email: Optional[str] = Query(None),
-    url: Optional[str] = Query(None),
+    company_name: str | None = Query(None),
+    phone: str | None = Query(None),
+    email: str | None = Query(None),
+    url: str | None = Query(None),
     db: Session = Depends(get_db),
 ):
     """Kembalikan berapa kali entitas dilaporkan — dipakai Fraud Network."""

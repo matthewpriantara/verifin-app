@@ -7,21 +7,21 @@ from pydantic import BaseModel, Field
 
 
 class CommunityReportIn(BaseModel):
-    company_name: Optional[str] = Field(None, max_length=255)
-    phone: Optional[str] = Field(None, max_length=32)
-    email: Optional[str] = Field(None, max_length=255)
-    url: Optional[str] = Field(None, max_length=512)
+    company_name: str | None = Field(None, max_length=255)
+    phone: str | None = Field(None, max_length=32)
+    email: str | None = Field(None, max_length=255)
+    url: str | None = Field(None, max_length=512)
     report_type: str = Field("penipuan", max_length=24)
-    description: Optional[str] = Field(None, max_length=4000)
-    reporter_contact: Optional[str] = Field(None, max_length=255)
+    description: str | None = Field(None, max_length=4000)
+    reporter_contact: str | None = Field(None, max_length=255)
 
 
 class CommunityReportOut(BaseModel):
     id: str
     report_type: str
-    company_name: Optional[str]
-    phone: Optional[str]
-    email: Optional[str]
-    url: Optional[str]
-    description: Optional[str]
+    company_name: str | None
+    phone: str | None
+    email: str | None
+    url: str | None
+    description: str | None
     created_at: str

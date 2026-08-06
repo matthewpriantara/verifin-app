@@ -28,7 +28,7 @@ class UrlVerifyRequest(BaseModel):
         description="URL/Link postingan lowongan kerja (misal Instagram, Threads, LinkedIn, JobStreet, Facebook, atau website perusahaan).",
         examples=["https://www.threads.com/@sigit_gustian/post/Da7SVXVk85J"]
     )
-    additional_text: Optional[str] = Field(
+    additional_text: str | None = Field(
         default=None,
         description="Teks balasan/reply/komentar postingan atau caption tambahan jika lowongan memiliki detail di utas balasan.",
         examples=["Tugas lo ngapain aja? Handle trouble hardware... Daftar di link resmi ini: loker.staffinc.co/NEV7M"]
@@ -72,11 +72,11 @@ class VerifyResponse(BaseModel):
         default=[],
         description="Saran tindakan untuk pencari kerja."
     )
-    entities: Optional[ExtractedEntities] = Field(
+    entities: ExtractedEntities | None = Field(
         default=None,
         description="Entitas yang berhasil diekstrak dari input."
     )
-    model_used: Optional[str] = Field(
+    model_used: str | None = Field(
         default=None,
         description="Model LLM yang digunakan untuk analisis."
     )
@@ -97,4 +97,4 @@ class LlmStatusResponse(BaseModel):
     reachable: bool
     available_models: List[str] = []
     target_model: str
-    detail: Optional[str] = None
+    detail: str | None = None

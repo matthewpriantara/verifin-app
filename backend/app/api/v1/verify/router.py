@@ -307,7 +307,7 @@ def verify_domain(
 @router.get("/osint/scan-email")
 async def verify_email_osint(
     email: str = Query(..., description="Email yang dilacak footprint-nya"),
-    categories: Optional[List[str]] = Query(None),
+    categories: list[str] | None = Query(None),
 ):
     try:
         results = await scan_email_osint(email, categories)
@@ -319,7 +319,7 @@ async def verify_email_osint(
 @router.get("/osint/scan-username")
 async def verify_username_osint(
     username: str = Query(..., description="Username yang dilacak footprint-nya"),
-    categories: Optional[List[str]] = Query(None),
+    categories: list[str] | None = Query(None),
 ):
     try:
         results = await scan_username_osint(username, categories)

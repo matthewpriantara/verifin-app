@@ -5,7 +5,6 @@ Menggunakan DuckDuckGo HTML SERP (site: query) untuk setiap platform.
 Mendukung cookie session (secrets/threads_cookies.json) untuk Threads langsung.
 """
 
-from __future__ import annotations
 
 import json
 import re

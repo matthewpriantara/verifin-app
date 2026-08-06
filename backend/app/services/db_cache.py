@@ -1,5 +1,4 @@
 """DB cache — simpan dan ambil JobCase berdasarkan hash teks (exact-match memory)."""
-from __future__ import annotations  # noqa: F401 — stdlib compat shim, harmless
 
 import logging
 

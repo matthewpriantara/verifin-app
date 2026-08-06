@@ -2,7 +2,6 @@
 SHA-256 hasher + deteksi sindikat identitas lintas perusahaan.
 """
 
-from __future__ import annotations
 
 import hashlib
 from typing import Any
