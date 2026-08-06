@@ -1,11 +1,16 @@
-import whois
-import dns.resolver
+"""WHOIS + DNS checker — umur domain dan rekaman keamanan email (SPF/DMARC/MX)."""
+import logging
 from datetime import datetime, timezone
 
+import dns.resolver
+import whois
 
-def check_domain_age(domain: str):
-    """Mengecek umur domain web dalam hitungan hari."""
-    print(f"[*] Mengecek umur domain: {domain}...")
+logger = logging.getLogger(__name__)
+
+
+def check_domain_age(domain: str) -> dict:
+    """Cek umur domain dari data WHOIS."""
+    logger.debug("Mengecek umur domain: %s", domain)
     try:
         w = whois.whois(domain)
         creation_date = w.creation_date
@@ -14,20 +19,13 @@ def check_domain_age(domain: str):
             creation_date = creation_date[0]
 
         if not creation_date:
-            return {
-                "age_days": -1,
-                "age_years": None,
-                "is_new": True,
-                "created_at": "Unknown",
-            }
+            return {"age_days": -1, "age_years": None, "is_new": True, "created_at": "Unknown"}
 
         # Samakan timezone-aware vs naive
         if getattr(creation_date, "tzinfo", None) is not None:
             now = datetime.now(timezone.utc)
-            if creation_date.tzinfo is None:
-                creation_date = creation_date.replace(tzinfo=timezone.utc)
-            else:
-                creation_date = creation_date.astimezone(timezone.utc)
+            creation_date = creation_date.replace(tzinfo=timezone.utc) if creation_date.tzinfo is None \
+                else creation_date.astimezone(timezone.utc)
         else:
             now = datetime.now()
 
@@ -37,41 +35,42 @@ def check_domain_age(domain: str):
             "age_years": round(age_days / 365, 2) if age_days >= 0 else None,
             "is_new": age_days < 90,
             "created_at": creation_date.strftime("%Y-%m-%d"),
-            "ssl_active": True,
-            "domain_trust_score": 92 if age_days > 365 else 60,
         }
     except Exception as e:
-        return {
-            "error": str(e),
-            "is_new": True,
-            "age_days": -1,
-            "age_years": None,
-            "created_at": "Unknown",
-            "ssl_active": True,
-            "domain_trust_score": 75,
-        }
+        logger.warning("WHOIS lookup gagal untuk %s: %s", domain, e)
+        return {"error": str(e), "is_new": True, "age_days": -1, "age_years": None, "created_at": "Unknown"}
 
-def check_email_security(domain: str):
-    """Memeriksa record SPF, DMARC, dan MX pada DNS domain."""
-    print(f"[*] Memeriksa keamanan email untuk domain: {domain}...")
-    results = {"spf_active": True, "dmarc_active": True, "mx_active": True, "mx_provider": "Google Workspace / Enterprise Mail"}
+
+def check_email_security(domain: str) -> dict:
+    """Cek rekaman SPF, DMARC, dan MX pada DNS domain."""
+    logger.debug("Memeriksa keamanan email untuk domain: %s", domain)
+    results = {"spf_active": False, "dmarc_active": False, "mx_active": False, "mx_provider": None}
     try:
-        # Cek Record SPF
-        spf_records = dns.resolver.resolve(domain, 'TXT')
-        for rdata in spf_records:
+        for rdata in dns.resolver.resolve(domain, "TXT"):
             if "v=spf1" in str(rdata):
                 results["spf_active"] = True
-                
-        # Cek Record DMARC
-        dmarc_records = dns.resolver.resolve(f"_dmarc.{domain}", 'TXT')
-        for rdata in dmarc_records:
+    except Exception:
+        pass
+
+    try:
+        for rdata in dns.resolver.resolve(f"_dmarc.{domain}", "TXT"):
             if "v=DMARC1" in str(rdata):
                 results["dmarc_active"] = True
     except Exception:
         pass
+
+    try:
+        mx_records = list(dns.resolver.resolve(domain, "MX"))
+        if mx_records:
+            results["mx_active"] = True
+            results["mx_provider"] = str(mx_records[0].exchange).rstrip(".")
+    except Exception:
+        pass
+
     return results
 
-async def scan_email_osint(email: str, categories: list = None):
+
+async def scan_email_osint(email: str, categories: list = None) -> list:
     """Scan email footprint (opsional — butuh paket user-scanner)."""
     try:
         from user_scanner.core import engine
@@ -87,12 +86,12 @@ async def scan_email_osint(email: str, categories: list = None):
             cat_results = await engine.check_category(cat, email, is_email=True)
             results.extend(cat_results)
         except Exception as e:
-            print(f"Error scanning email category {cat}: {e}")
+            logger.warning("Gagal scan email kategori %s: %s", cat, e)
 
     return [r.to_dict() for r in results if r.is_found()]
 
 
-async def scan_username_osint(username: str, categories: list = None):
+async def scan_username_osint(username: str, categories: list = None) -> list:
     """Scan username footprint (opsional — butuh paket user-scanner)."""
     try:
         from user_scanner.core import engine
@@ -108,6 +107,6 @@ async def scan_username_osint(username: str, categories: list = None):
             cat_results = await engine.check_category(cat, username, is_email=False)
             results.extend(cat_results)
         except Exception as e:
-            print(f"Error scanning username category {cat}: {e}")
+            logger.warning("Gagal scan username kategori %s: %s", cat, e)
 
     return [r.to_dict() for r in results if r.is_found()]
