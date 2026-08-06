@@ -212,12 +212,20 @@ async def run_social_osint(entities: dict) -> dict[str, Any]:
         if real_plat == "social_media" and p["match_confidence"] < 1.0:
             link_lower = (p.get("url") or "").lower()
             snippet_lower = (p.get("snippet") or "").lower()
-            blob_lower = f"{link_lower} {snippet_lower}"
-            is_foreign = (
+            title_lower = (p.get("title") or "").lower()
+            blob_lower = f"{link_lower} {snippet_lower} {title_lower}"
+            _id_signals = ("indonesia", " indo ", "jogja", "jakarta", "surabaya",
+                           "bandung", "semarang", ".co.id", "lowongan", "loker",
+                           "gaji", "pelamar", "rekrutmen")
+            has_id_context = any(w in blob_lower for w in _id_signals)
+            # domain .com tanpa konteks Indonesia = buang juga
+            is_foreign = not has_id_context and (
                 any(tld in link_lower for tld in (".com.my", ".sg", ".au", ".uk", ".us", ".ph"))
-                and not any(w in blob_lower for w in ("indonesia", " indo ", "jogja", "jakarta",
-                                                       "surabaya", "bandung", "semarang", ".co.id",
-                                                       "lowongan", "loker"))
+                or (
+                    not any(tld in link_lower for tld in (".co.id", ".id/", "instagram.com",
+                                                           "facebook.com", "tiktok.com"))
+                    and p["match_confidence"] <= 0.75
+                )
             )
             if is_foreign:
                 continue
