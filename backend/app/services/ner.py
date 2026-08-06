@@ -936,7 +936,7 @@ def extract_entities_from_text(text: str) -> dict:
 
     return {
         "companies": uniq_companies,
-        "contacts": uniq_contacts,
+        "phones": uniq_contacts,
         "emails": uniq_emails,
         "urls": _uniq(urls),
         "addresses": uniq_addresses,
@@ -944,7 +944,7 @@ def extract_entities_from_text(text: str) -> dict:
         # Metadata ekstraksi — jujur tentang apa yang berhasil diekstrak, bukan pseudo-confidence
         "extraction_meta": {
             "has_company": bool(uniq_companies),
-            "has_contact": bool(uniq_contacts),
+            "has_phone": bool(uniq_contacts),
             "has_email": bool(uniq_emails),
             "has_address": bool(uniq_addresses),
             "has_salary": bool(_uniq(salaries)),
