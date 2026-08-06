@@ -520,9 +520,9 @@ def _to_response(
         elif "syndicate_analysis" not in osint_results:
             from app.services.hasher import detect_identity_syndicate
             osint_results["syndicate_analysis"] = detect_identity_syndicate(
-                contacts=safe_entities["phones"],
-                emails=safe_entities["emails"],
-                current_company=safe_entities["companies"][0] if safe_entities["companies"] else "Unknown"
+                contacts=safe_entities.get("phones") or [],
+                emails=safe_entities.get("emails") or [],
+                current_company=safe_entities["companies"][0] if safe_entities.get("companies") else "Unknown"
             )
 
     return VerifyResponse(
