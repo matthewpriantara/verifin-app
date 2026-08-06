@@ -9,6 +9,7 @@ from typing import Any
 from urllib.parse import quote, unquote
 
 from scrapling.fetchers import Fetcher
+from app.services.osint.web_evidence import search_web_evidence
 
 
 def _classify_platform(url: str, default: str = "social_media") -> str:
@@ -59,33 +60,19 @@ def _slug_candidates(company: str) -> list[str]:
 
 
 def _search_threads_public_serp(query: str) -> list[dict[str, str]]:
-    """Fallback: Scrape postingan Threads.net publik via DuckDuckGo HTML SERP."""
-    search_q = f'"{query}" threads'
-    url = f"https://html.duckduckgo.com/html/?q={quote(search_q)}"
-    posts = []
-    try:
-        page = Fetcher.get(url, stealthy_headers=True)
-        results = page.css(".result")
-        for r in results[:4]:
-            t = (r.css(".result__title::text").get() or "").strip()
-            snip = (r.css(".result__snippet::text").get() or "").strip()
-            link = (r.css(".result__url::text").get() or "").strip()
-            if "uddg=" in link:
-                try:
-                    link = unquote(link.split("uddg=")[1].split("&")[0])
-                except Exception:
-                    pass
-            if t or snip:
-                posts.append({
-                    "platform": "threads",
-                    "source": "threads_serp_fallback",
-                    "title": t[:120],
-                    "snippet": snip[:280],
-                    "url": link if link.startswith("http") else f"https://{link}",
-                })
-    except Exception:
-        pass
-    return posts
+    """Cari postingan Threads.net publik via search_web_evidence (DDG/Yahoo/Bing)."""
+    result = search_web_evidence(f'"{query}" site:threads.net', max_results=4)
+    return [
+        {
+            "platform": "threads",
+            "source": "threads_serp",
+            "title": r.get("title", "")[:120],
+            "snippet": r.get("snippet", "")[:280],
+            "url": r.get("url", ""),
+        }
+        for r in result.get("results", [])
+        if r.get("title") or r.get("snippet")
+    ]
 
 
 async def search_threads_for_company(
