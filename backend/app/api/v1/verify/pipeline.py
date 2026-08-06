@@ -19,7 +19,7 @@ from app.services.ner import (
 from app.services.osint.address_validator import validate_address_and_business
 from app.services.osint.company_validator import validate_companies
 from app.services.osint.phone_validator import check_phones_kredibel
-from app.services.osint.social_osint import run_social_osint
+from app.services.osint.social import run_social_osint
 from app.services.osint.web_evidence import run_web_evidence
 from app.services.osint.whois_handler import check_domain_age, check_email_security
 from app.services.xai.shap_explainer import explain_verification_shap
@@ -63,7 +63,7 @@ def _check_fraud_network(db: Session, entities: dict) -> dict:
 
         # Syndicate: deteksi reuse no HP/email lintas perusahaan berbeda
         try:
-            from app.services.cache_service import detect_identity_syndicate
+            from app.services.hasher import detect_identity_syndicate
             # siapkan company_name per kasus agar reuse lintas perusahaan terdeteksi
             hist = [
                 {
@@ -521,7 +521,7 @@ def _to_response(
         if network_ctx.get("syndicate_analysis"):
             osint_results["syndicate_analysis"] = network_ctx["syndicate_analysis"]
         elif "syndicate_analysis" not in osint_results:
-            from app.services.cache_service import detect_identity_syndicate
+            from app.services.hasher import detect_identity_syndicate
             osint_results["syndicate_analysis"] = detect_identity_syndicate(
                 contacts=safe_entities["contacts"],
                 emails=safe_entities["emails"],

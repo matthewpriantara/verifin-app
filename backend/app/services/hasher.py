@@ -1,5 +1,5 @@
 """
-SHA-256 deduplication poster + deteksi sindikat identitas lintas perusahaan.
+SHA-256 hasher + deteksi sindikat identitas lintas perusahaan.
 """
 
 from __future__ import annotations
