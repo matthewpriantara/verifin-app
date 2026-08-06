@@ -246,6 +246,61 @@ export function VerifyBox() {
     setPreview((prev) => { if (prev) URL.revokeObjectURL(prev); return URL.createObjectURL(f); });
   }, []);
 
+  const handlePaste = useCallback(async () => {
+    try {
+      if (navigator.clipboard.read) {
+        const clipboardItems = await navigator.clipboard.read();
+        for (const item of clipboardItems) {
+          const imageType = item.types.find((type) => type.startsWith("image/"));
+          if (imageType) {
+            const blob = await item.getType(imageType);
+            const ext = imageType.split("/")[1] || "png";
+            const file = new File([blob], `pasted-image.${ext}`, { type: imageType });
+            attachFile(file);
+            return;
+          }
+        }
+      }
+    } catch {
+      // Fallback ke readText jika permisi read() tidak diizinkan atau berisi teks
+    }
+
+    try {
+      const clipboardText = await navigator.clipboard.readText();
+      if (!clipboardText) return;
+      setText((prev) => (prev ? `${prev}\n${clipboardText}` : clipboardText));
+      if (textareaRef.current) {
+        const el = textareaRef.current;
+        setTimeout(() => {
+          el.style.height = "auto";
+          el.style.height = `${Math.min(el.scrollHeight, 320)}px`;
+          el.focus();
+        }, 0);
+      }
+    } catch (err) {
+      console.error("Gagal membaca clipboard:", err);
+    }
+  }, [attachFile]);
+
+  const handleTextareaPaste = useCallback(
+    (e: React.ClipboardEvent<HTMLTextAreaElement>) => {
+      const items = e.clipboardData?.items;
+      if (items) {
+        for (let i = 0; i < items.length; i++) {
+          if (items[i].type.startsWith("image/")) {
+            const imageFile = items[i].getAsFile();
+            if (imageFile) {
+              e.preventDefault();
+              attachFile(imageFile);
+              return;
+            }
+          }
+        }
+      }
+    },
+    [attachFile]
+  );
+
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     setError(null);
@@ -299,34 +354,44 @@ export function VerifyBox() {
         >
           {!file ? (
             <>
-              <div className="pointer-events-none absolute left-4 top-4">
-                <ClipboardText size={16} className="text-text-muted/50" />
-              </div>
-              <textarea
-                ref={textareaRef}
-                value={text}
-                onChange={(e) => {
-                  setText(e.target.value);
-                  // Auto-resize: grow sesuai isi, batasi maks 320px
-                  const el = e.target;
-                  el.style.height = "auto";
-                  el.style.height = `${Math.min(el.scrollHeight, 320)}px`;
-                }}
-                placeholder="Tempel teks lowongan, URL postingan, atau lampirkan screenshot..."
-                rows={5}
-                className="max-h-80 w-full resize-none overflow-y-auto rounded-xl bg-transparent py-4 pl-10 pr-4 text-[14px] leading-relaxed text-text-primary placeholder:text-text-muted focus:outline-none focus:ring-0 focus-visible:outline-none focus-visible:ring-0"
-              />
-              <div className="flex items-center justify-between border-t border-border px-3 py-2.5">
+              <div className="relative">
+                <textarea
+                  ref={textareaRef}
+                  value={text}
+                  onPaste={handleTextareaPaste}
+                  onChange={(e) => {
+                    setText(e.target.value);
+                    // Auto-resize: grow sesuai isi, batasi maks 320px
+                    const el = e.target;
+                    el.style.height = "auto";
+                    el.style.height = `${Math.min(el.scrollHeight, 320)}px`;
+                  }}
+                  placeholder="Tempel teks lowongan, URL postingan, atau lampirkan screenshot..."
+                  rows={5}
+                  className="max-h-80 w-full resize-none overflow-y-auto rounded-xl bg-transparent p-4 pb-10 text-[14px] leading-relaxed text-text-primary placeholder:text-text-muted focus:outline-none focus:ring-0 focus-visible:outline-none focus-visible:ring-0"
+                />
                 <button
                   type="button"
-                  onClick={() => fileInputRef.current?.click()}
-                  className="flex items-center gap-1.5 rounded-md px-2.5 py-1.5 text-[12px] text-text-muted transition-colors hover:bg-bg-subtle hover:text-text-secondary"
+                  onClick={handlePaste}
+                  title="Tempel teks atau gambar dari clipboard (Paste)"
+                  className="absolute right-3 bottom-3 z-10 flex items-center justify-center rounded-md border border-border bg-bg-subtle/80 px-2.5 py-1 text-[11px] font-medium text-text-muted transition-all hover:border-border-focus hover:bg-bg-subtle hover:text-text-primary active:scale-95 shadow-sm"
                 >
-                  <ImageSquare size={14} />
-                  Lampirkan gambar
+                  Paste
                 </button>
-                <span className="text-[11px] text-text-muted">JPG · PNG · WEBP · maks 20 MB</span>
               </div>
+              {!text.trim() && (
+                <div className="flex items-center justify-between border-t border-border px-3 py-2.5">
+                  <button
+                    type="button"
+                    onClick={() => fileInputRef.current?.click()}
+                    className="flex items-center gap-1.5 rounded-md px-2.5 py-1.5 text-[12px] text-text-muted transition-colors hover:bg-bg-subtle hover:text-text-secondary"
+                  >
+                    <ImageSquare size={14} />
+                    Lampirkan gambar
+                  </button>
+                  <span className="text-[11px] text-text-muted">JPG · PNG · WEBP · maks 20 MB</span>
+                </div>
+              )}
             </>
           ) : (
             <div className="flex items-start gap-3 p-4">
