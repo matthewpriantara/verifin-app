@@ -99,12 +99,14 @@ def _build_company_osint_section(companies: list) -> str:
         name = c.get("name") or "?"
         lines.append(f"- Nama: `{name}` | method={c.get('method', 'public_web_only')}")
         reg = c.get("registry") or {}
-        lines.append(
-            f"  → Legalitas AHU/OSS per-entitas: "
-            f"{'TERVERIFIKASI' if reg.get('pt_registry_verified') else 'BELUM TERVERIFIKASI (jangan dikarang)'}"
-        )
-        if reg.get("disclaimer"):
-            lines.append(f"  → Disclaimer: {reg.get('disclaimer')}")
+        # registry field hanya ada kalau company_validator melakukan probe AHU — umumnya kosong
+        if reg.get("pt_registry_verified") is not None:
+            lines.append(
+                f"  → Legalitas AHU/OSS: "
+                f"{'TERVERIFIKASI' if reg.get('pt_registry_verified') else 'BELUM TERVERIFIKASI (jangan dikarang)'}"
+            )
+            if reg.get("disclaimer"):
+                lines.append(f"  → Disclaimer: {reg.get('disclaimer')}")
         stats = c.get("stats") or {}
         if stats:
             lines.append(
@@ -343,7 +345,7 @@ Analisis secara mendalam, formal, dan berbasis evidence. Berikan keputusan apaka
 **Bukti Web (Scrapling — website + pencarian nyata):**
 {_build_web_osint_section(osint_results.get("web", {}))}
 
-**Jejak Threads saja (medsos; cookie session):**
+**Jejak Media Sosial (Instagram, Threads, TikTok, Facebook, X):**
 {_build_social_osint_section(osint_results.get("threads", {}))}
 
 **Kebijakan evidence:**
