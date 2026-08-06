@@ -258,17 +258,23 @@ async def _check_gmaps_serp_existence(company_name: str, address: str) -> dict:
     from urllib.parse import quote_plus
     from bs4 import BeautifulSoup
 
-    if not company_name or not address:
+    if not address:
         return {"found_via_serp": False}
 
     # Bersihkan alamat dari garbage sebelum dijadikan query
     clean_addr = _clean_address_input(address)
-    # Query: cari nama bisnis + alamat di platform maps/kuliner
-    query = (
-        f'"{company_name}" {clean_addr} '
-        f'site:maps.google.com OR site:gofood.co.id OR site:grab.com OR '
-        f'site:tripadvisor.com OR site:zomato.com OR site:qraved.com'
-    )
+    comp_clean = (company_name or "").strip()
+    is_generic_company = not comp_clean or comp_clean.lower() in {"perusahaan", "unknown", "tidak diketahui"}
+
+    if is_generic_company:
+        query = f'{clean_addr} site:maps.google.com OR site:gofood.co.id OR site:grab.com OR site:tripadvisor.com'
+    else:
+        # Query: cari nama bisnis + alamat di platform maps/kuliner
+        query = (
+            f'"{comp_clean}" {clean_addr} '
+            f'site:maps.google.com OR site:gofood.co.id OR site:grab.com OR '
+            f'site:tripadvisor.com OR site:zomato.com OR site:qraved.com'
+        )
     sources_found = []
     try:
         async with httpx.AsyncClient(
@@ -283,13 +289,19 @@ async def _check_gmaps_serp_existence(company_name: str, address: str) -> dict:
                 for a in soup.select("a.result__a")[:5]:
                     href = a.get("href", "")
                     title = a.text.strip().lower()
-                    company_lower = company_name.lower()
-                    # Pastikan hasil relevan dengan nama bisnis
-                    if any(w in title for w in company_lower.split() if len(w) > 3):
-                        for platform in ["maps.google", "gofood", "grab", "tripadvisor", "zomato", "qraved"]:
+                    if is_generic_company:
+                        for platform in ["maps.google", "gofood", "grab", "tripadvisor"]:
                             if platform in href.lower() or platform in title:
                                 sources_found.append(platform)
                                 break
+                    else:
+                        company_lower = comp_clean.lower()
+                        # Pastikan hasil relevan dengan nama bisnis
+                        if any(w in title for w in company_lower.split() if len(w) > 3):
+                            for platform in ["maps.google", "gofood", "grab", "tripadvisor", "zomato", "qraved"]:
+                                if platform in href.lower() or platform in title:
+                                    sources_found.append(platform)
+                                    break
     except Exception:
         pass
 
@@ -454,6 +466,8 @@ async def validate_address_with_gmaps_fallback(company_name: str, address: str) 
         serp = await _check_gmaps_serp_existence(company_name, address)
         result["gmaps_serp_fallback"] = serp
         if serp.get("found_via_serp"):
+            result["found"] = True
+            result["matched_source"] = "google_maps_serp"
             result["found_via_serp"] = True
             result["serp_note"] = serp.get("note", "")
     return result
