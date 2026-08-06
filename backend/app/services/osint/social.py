@@ -207,6 +207,21 @@ async def run_social_osint(entities: dict) -> dict[str, Any]:
         if p["match_confidence"] == 0.0 and real_plat not in ("instagram", "threads"):
             continue
 
+        # Filter post luar negeri yang tidak relevan (bukan Indonesia)
+        # Hanya berlaku untuk platform social_media, bukan portal_loker/instagram
+        if real_plat == "social_media" and p["match_confidence"] < 1.0:
+            link_lower = (p.get("url") or "").lower()
+            snippet_lower = (p.get("snippet") or "").lower()
+            blob_lower = f"{link_lower} {snippet_lower}"
+            is_foreign = (
+                any(tld in link_lower for tld in (".com.my", ".sg", ".au", ".uk", ".us", ".ph"))
+                and not any(w in blob_lower for w in ("indonesia", " indo ", "jogja", "jakarta",
+                                                       "surabaya", "bandung", "semarang", ".co.id",
+                                                       "lowongan", "loker"))
+            )
+            if is_foreign:
+                continue
+
         all_posts.append(p)
 
     # Prioritaskan media sosial resmi di posisi teratas
@@ -224,6 +239,20 @@ async def run_social_osint(entities: dict) -> dict[str, Any]:
 
     if any(w in blob for w in ("penipu", "scam", "tipu", "waspada", "bohong", "palsu")):
         risk_flags.append("Ditemukan postingan medsos yang menyebut indikasi penipuan/scam.")
+
+    # Update platform_hits dari all_posts yang sudah di-merge (SERP posts termasuk)
+    for p in all_posts:
+        plat = p.get("platform", "")
+        if plat == "instagram":
+            platform_hits["instagram"] = True
+        elif plat == "threads":
+            platform_hits["threads"] = True
+        elif plat == "tiktok":
+            platform_hits["tiktok"] = True
+        elif plat == "facebook":
+            platform_hits["facebook"] = True
+        elif plat in ("x_twitter", "twitter"):
+            platform_hits["x_twitter"] = True
 
     return {
         "enabled": True,

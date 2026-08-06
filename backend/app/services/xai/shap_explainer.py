@@ -184,6 +184,18 @@ def explain_verification_shap(
             "Nomor HP terdeteksi berbahaya/spam di Kaspersky Who Calls",
         ))
 
+    # Free email saja tanpa domain korporat = sinyal risiko ringan
+    domain_info_pre = osint_results.get("domain") or {}
+    if domain_info_pre.get("skipped") == "free_email":
+        contributions.append(_make_contrib(
+            "Kontak Hanya Email Gratisan",
+            "free_email_only",
+            1,
+            8.0,
+            "risk",
+            "Tidak ada domain korporat — kontak hanya via Gmail/Yahoo tanpa infrastruktur resmi",
+        ))
+
     web_data = osint_results.get("web") or {}
     websites = web_data.get("websites") or []
 
@@ -257,6 +269,18 @@ def explain_verification_shap(
             12.0,
             "safe",
             "Alamat fisik ditemukan dan valid di OpenStreetMap — mengurangi risiko loker fiktif",
+        ))
+
+    # Tidak ada alamat fisik = sinyal risiko medium
+    address_validations_check = osint_results.get("address_validations") or []
+    if not address_validations_check:
+        contributions.append(_make_contrib(
+            "Tidak Ada Alamat Fisik Tercantum",
+            "no_address",
+            1,
+            10.0,
+            "risk",
+            "Tidak ada alamat kantor yang dapat diverifikasi — perusahaan tidak memiliki keberadaan fisik yang jelas",
         ))
 
     companies = osint_results.get("companies") or []
