@@ -6,12 +6,9 @@ pencari kerja Verifin yang menggabungkan OSINT, analisis bukti, dan
 pemantauan komunitas untuk menilai tingkat kepercayaan suatu lowongan.
 """
 
-from __future__ import annotations
-
-import httpx
-
 from app.services.llm.client import chat_completion, check_llm_status, extract_json_from_response
 from app.services.llm.prompt_builder import build_text_verify_prompt, build_verify_prompt
+from app.config import LLM_MODEL
 
 
 async def analyze_with_verifin(
@@ -19,7 +16,6 @@ async def analyze_with_verifin(
     osint_results: dict | None = None,
     raw_text: str | None = None,
 ) -> dict:
-    from app.config import LLM_MODEL
     if osint_results is None:
         osint_results = {
             "domain": {
@@ -90,8 +86,9 @@ async def analyze_with_verifin(
             safe_factors.append("Alamat fisik berhasil dipetakan di OpenStreetMap (GIS spatial verified).")
 
         verdict = "AMAN" if risk_score < 30 else "WASPADA" if risk_score < 60 else "BAHAYA"
+        verdict_label = {"AMAN": "berisiko rendah", "WASPADA": "perlu diperiksa lebih lanjut", "BAHAYA": "berisiko tinggi"}[verdict]
         summary = (
-            f"Berdasarkan pemeriksaan bukti publik independen, lowongan {comp_name} dinilai berisiko rendah. "
+            f"Berdasarkan pemeriksaan bukti publik independen, lowongan {comp_name} dinilai {verdict_label}. "
             f"Alamat fisik terdaftar di peta dan nomor kontak bebas laporan aduan penipuan."
         )
 
@@ -111,7 +108,6 @@ async def analyze_with_verifin(
 
 
 async def check_ai_status() -> dict:
-    from app.config import LLM_MODEL
     status = await check_llm_status()
     detail = status.get("detail")
     if detail is not None and not isinstance(detail, str):

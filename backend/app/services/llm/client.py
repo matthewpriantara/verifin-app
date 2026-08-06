@@ -1,15 +1,16 @@
 """Client OpenAI-compatible untuk OpenAgentic (Grok, Claude, dll)."""
 
-from __future__ import annotations
-
 import asyncio
 import json
 import re
-from typing import Any, Optional
+import logging
+from typing import Any
 
 import httpx
 
 from app.config import LLM_API_KEY, LLM_BASE_URL, LLM_MODEL, LLM_TIMEOUT
+
+logger = logging.getLogger(__name__)
 
 
 def _parse_json_value(text: str) -> Any:
@@ -122,7 +123,7 @@ def extract_json_from_response(text: str) -> dict:
         except Exception:
             pass
 
-    print(f"[extract_json_from_response ERROR] Gagal parse JSON dari LLM raw text:\n{text[:500]!r}")
+    logger.error("Gagal parse JSON dari LLM raw text:\n%s", text[:500])
 
     return {
         "verdict": "ERROR",
@@ -137,12 +138,12 @@ def extract_json_from_response(text: str) -> dict:
 async def chat_completion(
     messages: list[dict[str, Any]],
     *,
-    model: Optional[str] = None,
+    model: str | None = None,
     temperature: float = 0.0,
     max_tokens: int = 4096,
-    timeout: Optional[float] = None,
+    timeout: float | None = None,
     max_retries: int = 4,
-    seed: Optional[int] = 42,
+    seed: int | None = 42,
 ) -> str:
     if not LLM_API_KEY:
         raise RuntimeError(
@@ -197,7 +198,7 @@ async def chat_completion(
             if not retryable or attempt >= max_retries:
                 raise
             wait = 2 ** attempt  # 2, 4, 8 detik
-            print(f"[chat_completion] attempt {attempt} gagal ({status or exc}), retry dalam {wait}s...")
+            logger.warning("attempt %d gagal (%s), retry dalam %ds...", attempt, status or exc, wait)
             await asyncio.sleep(wait)
 
     raise RuntimeError(f"LLM gagal setelah {max_retries} percobaan: {last_exc}")
