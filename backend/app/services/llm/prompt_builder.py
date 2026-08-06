@@ -59,18 +59,18 @@ def _build_phone_osint_section(phones: list) -> str:
             # Kredibel gagal — tampilkan status SERP fallback agar LLM tidak mengarang
             if serp_risk:
                 lines.append(
-                    f"- `{phone}`: Kredibel gagal dicek ({p.get('error')}), "
+                    f"- `{phone}`: Kaspersky Who Calls gagal dicek ({p.get('error')}), "
                     f"NAMUN SERP publik menemukan INDIKASI PENIPUAN:"
                 )
                 for rf in serp_risk:
                     lines.append(f"  → {rf}")
             else:
                 lines.append(
-                    f"- `{phone}`: Kredibel tidak dapat diakses ({p.get('error')}). "
+                    f"- `{phone}`: Kaspersky Who Calls tidak dapat diakses ({p.get('error')}). "
                     f"Pencarian SERP publik tidak menemukan laporan penipuan spesifik terkait nomor ini."
                 )
             continue
-        parts = [f"- `{phone}` via Kredibel"]
+        parts = [f"- `{phone}` via Kaspersky Who Calls"]
         if p.get("rating") is not None:
             parts.append(f"rating {p.get('rating')}")
         if p.get("review_count") is not None:
@@ -336,7 +336,7 @@ Analisis secara mendalam, formal, dan berbasis evidence. Berikan keputusan apaka
 **Validasi Alamat Fisik (OpenStreetMap):**
 {_build_address_osint_section(osint_results.get("address_validations", []))}
 
-**Reputasi Nomor HP (Kredibel — scrape halaman nyata):**
+**Reputasi Nomor HP (Kaspersky Who Calls — scrape halaman nyata):**
 {_build_phone_osint_section(osint_results.get("phones", []))}
 
 **Cek Nama PT / Perusahaan (jejak publik, BUKAN sertifikat AHU palsu):**
@@ -355,7 +355,8 @@ Analisis secara mendalam, formal, dan berbasis evidence. Berikan keputusan apaka
 
 ## ATURAN KERAS (ANTI-HALUSINASI & KALIBRASI SKOR)
 
-1. HANYA pakai FAKTA di OSINT / TEKS ASLI. Dilarang mengarang AHU/OSS, medsos, atau rating Kredibel.
+1. HANYA pakai FAKTA di OSINT / TEKS ASLI. Dilarang mengarang AHU/OSS, medsos, atau rating Kaspersky.
+2. EMAIL GMAIL/YAHOO: Email gratisan umum di UMKM dan perusahaan kecil Indonesia — BUKAN indikator penipuan tunggal. Hanya masukkan sebagai risk_factor jika dikombinasikan dengan sinyal lain (tidak ada alamat, tidak ada website, tidak ada jejak AHU).
 2. Gunakan safe_flags / risk_flags / safe_signals yang ada di data.
 3. Email Gmail/Yahoo = NETRAL untuk UMKM/ritel/startup lokal di Indonesia (bukan red flag utama).
 4. PENCATUTAN INSTANSI PEMERINTAH: Jika lowongan mengatasnamakan instansi/badan resmi pemerintah (misal Badan Gizi Nasional/BGN, SPPG, Kementerian, Dinas) namun menggunakan email Gmail/Yahoo tanpa domain .go.id, ini adalah indikasi tidak resmi/pencatutan.
@@ -365,12 +366,12 @@ Analisis secara mendalam, formal, dan berbasis evidence. Berikan keputusan apaka
 7. shortlink bit.ly / Google Forms = praktik umum rekrutmen UMKM, BUKAN penipuan sendirian.
 8. PORTAL LOKER RESMI (JobStreet, LinkedIn, Glints, KitaLulus): Ketiadaan nomor HP atau email kontak langsung di dalam teks ADALAH HAL WARJAR karena lamaran dikirim langsung via tombol portal. DILARANG menjadikan "tidak ada email/telepon" sebagai faktor risiko untuk portal loker resmi.
 9. DILARANG MENGHALUSINASI BERITA UMUM KEPOLISIAN/OJK: Berita portal umum mengenai penipuan umum (misal berita 'Aparat Memburu Penipu Pendirian SPPG', 'Satgas PASTI', atau 'Deretan Hoaks Lowongan Kerja') BUKAN bukti bahwa lowongan ini adalah penipuan tersebut. HANYA klaim berita penipuan jika judul/snippet secara spesifik menyebutkan nama lengkap entitas atau nomor telepon ini.
-10. KREDIBEL GAGAL DIAKSES: Jika nomor HP tercatat "Kredibel tidak dapat diakses" DAN "Pencarian SERP publik tidak menemukan laporan penipuan", artinya TIDAK ADA BUKTI PENIPUAN terkait nomor tersebut. DILARANG memasukkan ini sebagai risk_factor. Ini harus masuk sebagai safe_factor atau diabaikan sama sekali.
+10. KREDIBEL GAGAL DIAKSES: Jika nomor HP tercatat "Kaspersky Who Calls tidak dapat diakses" DAN "Pencarian SERP publik tidak menemukan laporan penipuan", artinya TIDAK ADA BUKTI PENIPUAN terkait nomor tersebut. DILARANG memasukkan ini sebagai risk_factor. Ini harus masuk sebagai safe_factor atau diabaikan sama sekali.
 
 ## PANDUAN SKOR (WAJIB DIIKUTI — JANGAN PARKIR DI 25-35 TANPA ALASAN)
 
 **AMAN (0–39)** — pecah band:
-- **0–10 (sangat aman):** alamat OSM valid + HP bersih Kredibel + tidak minta biaya +
+- **0–10 (sangat aman):** alamat OSM valid + HP bersih Kaspersky Who Calls + tidak minta biaya +
   (medsos/toko aktif ATAU website hidup) + tidak ada indikasi scam di SERP.
   Gmail diperbolehkan di band ini untuk UMKM.
 - **11–22 (aman):** mayoritas sinyal aman; sisa keraguan ringan (gaji kosong, jejak web tipis).
@@ -381,13 +382,13 @@ Analisis secara mendalam, formal, dan berbasis evidence. Berikan keputusan apaka
   atau sinyal scam lemah di SERP tanpa konfirmasi kuat.
 
 **BAHAYA (75–100):**
-- WAJIB ada bukti keras: permintaan biaya/transfer/KTP/rekening, ATAU HP reported_fraud Kredibel,
+- WAJIB ada bukti keras: permintaan biaya/transfer/KTP/rekening, ATAU HP reported_fraud Kaspersky Who Calls,
   ATAU phishing form, ATAU laporan penipuan spesifik yang terbukti menargetkan nomor/perusahaan ini.
 
 ## VALUASI UMKM VALID (PRIORITAS)
 Jika SEMUA ini terpenuhi:
 - alamat fisik terverifikasi OSM, DAN
-- HP tidak reported_fraud di Kredibel, DAN
+- HP tidak reported_fraud di Kaspersky Who Calls, DAN
 - tidak ada permintaan biaya/uang di teks, DAN
 - (medsos/toko publik aktif ATAU deskripsi syarat kerja wajar terperinci):
 ➔ verdict **AMAN**, risk_score **5–15** (boleh under 10).

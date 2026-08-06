@@ -80,7 +80,7 @@ async def analyze_with_verifin(
             risk_score += 65
             risk_factors.append("Nomor telepon kontak terdaftar dalam aduan penipuan publik.")
         else:
-            safe_factors.append("Nomor HP kontak bebas dari riwayat laporan aduan penipuan di Kredibel API.")
+            safe_factors.append("Nomor HP kontak bebas dari laporan penipuan di Kaspersky Who Calls.")
 
         if has_free_email:
             risk_score += 10
