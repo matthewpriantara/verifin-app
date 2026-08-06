@@ -941,12 +941,14 @@ def extract_entities_from_text(text: str) -> dict:
         "urls": _uniq(urls),
         "addresses": uniq_addresses,
         "salaries": _uniq(salaries),
-        # ponytail: confidence statis per-kategori — upgrade ke skor per-entitas saat ada labeled dataset
-        "entity_confidences": {
-            "companies": round(min(0.98, 0.7 + len(uniq_companies) * 0.05), 2) if uniq_companies else 0.0,
-            "contacts": round(min(0.95, 0.75 + len(uniq_contacts) * 0.05), 2) if uniq_contacts else 0.0,
-            "emails": round(min(0.99, 0.85 + len(uniq_emails) * 0.05), 2) if uniq_emails else 0.0,
-            "addresses": round(min(0.88, 0.6 + len(uniq_addresses) * 0.07), 2) if uniq_addresses else 0.0,
+        # Metadata ekstraksi — jujur tentang apa yang berhasil diekstrak, bukan pseudo-confidence
+        "extraction_meta": {
+            "has_company": bool(uniq_companies),
+            "has_contact": bool(uniq_contacts),
+            "has_email": bool(uniq_emails),
+            "has_address": bool(uniq_addresses),
+            "has_salary": bool(_uniq(salaries)),
+            "text_too_short": len(raw_text_input) < 50,
         },
         # ponytail: template_similarity belum diimplementasi — upgrade ke MinHash/SimHash saat ada dataset template fraud
         "fraud_fingerprint": {
