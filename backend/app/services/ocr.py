@@ -2,6 +2,13 @@
 OCR engine wrapper — gambar → teks via PaddleOCR + OpenCV preprocessing.
 """
 import os
+# Mencegah C++ OpenMP / MKL thread deadlock pada macOS/multi-core CPU
+os.environ["OMP_NUM_THREADS"] = "1"
+os.environ["MKL_NUM_THREADS"] = "1"
+os.environ["OPENBLAS_NUM_THREADS"] = "1"
+os.environ["VECLIB_MAXIMUM_THREADS"] = "1"
+os.environ["NUMEXPR_NUM_THREADS"] = "1"
+
 import cv2
 import logging
 from paddleocr import PaddleOCR
@@ -17,8 +24,7 @@ ocr_lock = threading.Lock()
 def get_ocr_model():
     global ocr_model
     if ocr_model is None:
-        # Latency-first: angle cls OFF (mahal di CPU), det threshold tetap longgar
-        # agar teks kecil di logo/footer tetap kebaca.
+        # Latency-first: angle cls OFF (mahal di CPU), cpu_threads=1 agar tidak deadlock di Mac
         ocr_model = PaddleOCR(
             use_angle_cls=False,
             lang="en",
@@ -27,7 +33,8 @@ def get_ocr_model():
             det_db_thresh=0.2,
             det_db_box_thresh=0.4,
             det_db_unclip_ratio=1.8,
-            rec_batch_num=6,
+            rec_batch_num=1,
+            cpu_threads=1,
         )
     return ocr_model
 
@@ -60,10 +67,16 @@ def preprocess_image(image_path: str) -> np.ndarray:
     if img is None:
         raise ValueError(f"OpenCV gagal membaca gambar di {image_path}")
 
-    # Batasi resolusi maksimum (maks 4000x4000 piksel) untuk mencegah crash memori (OOM)
+    # Batasi resolusi maksimum (maks 8000x8000 piksel) untuk mencegah crash memori (OOM)
     h, w = img.shape[:2]
-    if h > 4000 or w > 4000:
-        raise ValueError(f"Resolusi gambar terlalu besar ({w}x{h}px). Maksimal resolusi adalah 4000x4000px.")
+    if h > 8000 or w > 8000:
+        raise ValueError(f"Resolusi gambar terlalu besar ({w}x{h}px). Maksimal resolusi adalah 8000x8000px.")
+
+    # Jika resolusi di atas 4000px, resize secara proporsional ke 4000px terlebih dahulu agar aman diproses
+    if max(h, w) > 4000:
+        scale = 4000.0 / float(max(h, w))
+        img = cv2.resize(img, (int(w * scale), int(h * scale)), interpolation=cv2.INTER_AREA)
+        h, w = img.shape[:2]
 
     # Jika gambar punya transparansi (4 channels: BGRA), ubah ke BGR dengan background putih
     if len(img.shape) == 3 and img.shape[-1] == 4:
@@ -102,6 +115,30 @@ def preprocess_image(image_path: str) -> np.ndarray:
     )
     return img
 
+def _do_ocr_inference(image_path: str) -> str:
+    with ocr_lock:
+        processed_img = preprocess_image(image_path)
+        ocr = get_ocr_model()
+        result = ocr.ocr(processed_img)
+
+        extracted_lines = []
+        if result and len(result) > 0:
+            res = result[0]
+            if isinstance(res, dict):
+                texts = res.get("rec_texts", [])
+                for text in texts:
+                    if len(text.strip()) > 1:
+                        extracted_lines.append(text)
+            elif isinstance(res, list):
+                for line in res:
+                    if line and len(line) > 1:
+                        text = line[1][0]
+                        if len(text.strip()) > 1:
+                            extracted_lines.append(text)
+
+        return "\n".join(extracted_lines)
+
+
 def extract_text_from_image(image_path: str) -> str:
     """
     Mengekstrak seluruh teks yang ditemukan di dalam gambar menggunakan PaddleOCR
@@ -111,29 +148,7 @@ def extract_text_from_image(image_path: str) -> str:
         raise FileNotFoundError(f"File gambar tidak ditemukan di path: {image_path}")
 
     try:
-        with ocr_lock:
-            processed_img = preprocess_image(image_path)
-            ocr = get_ocr_model()
-            result = ocr.ocr(processed_img)
-
-            extracted_lines = []
-            if result and len(result) > 0:
-                res = result[0]
-                if isinstance(res, dict):
-                    # Format dictionary (PaddleX)
-                    texts = res.get("rec_texts", [])
-                    for text in texts:
-                        if len(text.strip()) > 1:
-                            extracted_lines.append(text)
-                elif isinstance(res, list):
-                    # Format standard list-of-lists
-                    for line in res:
-                        if line and len(line) > 1:
-                            text = line[1][0]
-                            if len(text.strip()) > 1:
-                                extracted_lines.append(text)
-
-            return "\n".join(extracted_lines)
+        return _do_ocr_inference(image_path)
     except Exception as e:
         logger.error("[OCR Error] Gagal mengekstrak gambar: %s", e)
         raise e
