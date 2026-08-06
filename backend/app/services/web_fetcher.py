@@ -11,6 +11,22 @@ from bs4 import BeautifulSoup
 
 logger = logging.getLogger(__name__)
 
+# Noise pattern footer Instagram/Threads — break saat ketemu baris ini
+_IG_NOISE_PATTERNS = [
+    r"Jangan pernah lewatkan postingan",
+    r"Daftar Instagram untuk tetap tahu",
+    r"Pengunggahan Kontak & Nonpengguna Meta",
+    r"Order Via Wa Only",
+    r"Jasa Ketik CV",
+    r"upgrade CV",
+    r"Lihat Postingan Lainnya",
+    r"INFO LOWONGAN KERJA SOLO",
+    r"Dibutuhkan staf Kantor",
+    r"Lihat apa yang sedang dibicarakan",
+    r"bergabunglah dengan percakapan",
+    r"Laporkan masalah",
+]
+
 def _sync_scrapling_fetch(url: str) -> tuple[str, list[str]]:
     """Scrape teks + image URLs dari URL (IG embed, oEmbed, proxy, Scrapling, HTTPX fallback)."""
 
@@ -131,24 +147,10 @@ def _sync_scrapling_fetch(url: str) -> tuple[str, list[str]]:
 
         combined_caption_text = "\n".join(text_parts).strip()
 
-        # Filter Instagram & Threads footer noise (promosi / komentar spam / UI sosmed)
-        ig_noise_patterns = [
-            r"Jangan pernah lewatkan postingan",
-            r"Daftar Instagram untuk tetap tahu",
-            r"Pengunggahan Kontak & Nonpengguna Meta",
-            r"Order Via Wa Only",
-            r"Jasa Ketik CV",
-            r"upgrade CV",
-            r"Lihat Postingan Lainnya",
-            r"INFO LOWONGAN KERJA SOLO",
-            r"Dibutuhkan staf Kantor",
-            r"Lihat apa yang sedang dibicarakan",
-            r"bergabunglah dengan percakapan",
-            r"Laporkan masalah",
-        ]
+        # Filter footer noise Instagram/Threads
         lines_clean = []
         for line in (combined_caption_text or "").splitlines():
-            if any(re.search(pat, line, re.I) for pat in ig_noise_patterns):
+            if any(re.search(pat, line, re.I) for pat in _IG_NOISE_PATTERNS):
                 break
             lines_clean.append(line)
         combined_caption_text = "\n".join(lines_clean).strip()
@@ -198,7 +200,7 @@ async def _fetch_url_content_and_image(url: str) -> tuple[str, list[str]]:
     Scrape teks (caption/description) & daftar image URL poster (termasuk carousel slides) dari URL.
     Returns: (extracted_text, temp_image_paths_list)
     """
-    loop = asyncio.get_event_loop()
+    loop = asyncio.get_running_loop()
     combined_caption_text, image_urls = await loop.run_in_executor(None, _sync_scrapling_fetch, url)
 
     tmp_img_paths = []
@@ -208,20 +210,16 @@ async def _fetch_url_content_and_image(url: str) -> tuple[str, list[str]]:
         "Accept": "image/avif,image/webp,image/apng,image/svg+xml,image/*,*/*;q=0.8",
     }
 
-    for img_url in image_urls:
-        try:
-            async with httpx.AsyncClient(timeout=15.0, headers=headers, follow_redirects=True, verify=False) as client:
+    async with httpx.AsyncClient(timeout=15.0, headers=headers, follow_redirects=True, verify=False) as client:
+        for img_url in image_urls:
+            try:
                 img_res = await client.get(img_url)
                 if img_res.status_code == 200 and len(img_res.content) > 1000:
-                    ext = ".jpg"
-                    if ".png" in img_url.lower():
-                        ext = ".png"
-                    elif ".webp" in img_url.lower():
-                        ext = ".webp"
+                    ext = ".png" if ".png" in img_url.lower() else ".webp" if ".webp" in img_url.lower() else ".jpg"
                     with tempfile.NamedTemporaryFile(delete=False, suffix=ext) as tmp:
                         tmp.write(img_res.content)
                         tmp_img_paths.append(tmp.name)
-        except Exception as exc:
-            logger.warning("[URL Fetch] gagal unduh gambar %s: %s", img_url, exc)
+            except Exception as exc:
+                logger.warning("[URL Fetch] gagal unduh gambar %s: %s", img_url, exc)
 
     return combined_caption_text, tmp_img_paths
