@@ -469,7 +469,7 @@ def _build_forensic_metadata(
          "detail": f"Entitas terdeteksi: {company_name}; {len(phones)} no HP, {len(companies)} perusahaan, {len(addr)} alamat."},
         {"step": "2. Address OSM Geocoding", "status": "PASS" if address_found else "UNKNOWN",
          "detail": ("Alamat tervalidasi di OpenStreetMap." if address_found else "Alamat tidak ditemukan/tidak dicantumkan.")},
-        {"step": "3. Phone Kaspersky Who Calls Check", "status": "PASS" if phone_clean else ("FLAG" if phone_flagged else "SKIP"),
+        {"step": "3. Phone Kaspersky Who Calls Check", "status": "PASS" if (phone_checked and not phone_flagged) else ("FLAG" if phone_flagged else "SKIP"),
          "detail": phone_status},
         {"step": "4. Email Domain Infrastructure Check", "status": "PASS",
          "detail": (f"Free provider ({domain.get('domain', 'email gratis')}); SPF/DMARC tidak relevan." if is_free_email
