@@ -131,8 +131,9 @@ def validate_company_public(company: str, entities: dict | None = None) -> dict[
         )
         comp_tokens = [
             t for t in re.split(r"\s+", name.lower())
-            if len(t) > 3 and t not in _COMP_GENERIC_TOKENS
+            if len(t) > 3 and t not in {"pt", "cv", "ud", "tb", "firma"}
         ]
+        # Token unik = comp_tokens minus kata geografis/industri generik Indonesia
         unique_tokens = [t for t in comp_tokens if t not in _COMP_GENERIC_TOKENS]
 
         for r in s.get("results") or []:
