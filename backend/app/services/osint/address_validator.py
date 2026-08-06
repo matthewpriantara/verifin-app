@@ -5,9 +5,10 @@ Memverifikasi alamat fisik dari lowongan kerja menggunakan dua API gratis:
 2. Overpass API (OpenStreetMap) — Places Search: Apakah nama perusahaan terdaftar di sekitar alamat tersebut?
 """
 
-import httpx
 import re
 from difflib import SequenceMatcher
+
+import httpx
 
 # ─────────────────────────────────────────────────────────────────────────────
 # Konfigurasi
@@ -340,6 +341,51 @@ async def search_business_near_location(lat: float, lon: float, company_name: st
 # Fungsi Utama: Validasi Lengkap Alamat + Keberadaan Bisnis
 # ─────────────────────────────────────────────────────────────────────────────
 
+# Stop words yang tidak bermakna untuk address matching
+_ADDR_STOP_WORDS = {"jl", "no", "rt", "rw", "kec", "kab", "kel", "desa", "indonesia", "jalan", "gang", "gg"}
+
+
+def _verify_address_via_web(address: str, company_name: str) -> dict:
+    """Verifikasi keberadaan perusahaan via web search — fallback dari Overpass/OSM.
+
+    Pakai search_web_evidence yang sudah ada. Cocokkan token alamat poster
+    dengan snippet hasil pencarian.
+    # ponytail: token overlap O(n) — upgrade ke TF-IDF/BM25 kalau precision perlu naik
+    """
+    from app.services.osint.web_evidence import search_web_evidence
+
+    query = f'"{company_name}" alamat OR lokasi OR maps OR "Google Maps"'
+    result = search_web_evidence(query, max_results=5)
+
+    if not result.get("ok") or not result.get("results"):
+        return {"found": False, "method": "web_search", "match_score": 0.0}
+
+    addr_tokens = {
+        w for w in re.sub(r"[^\w\s]", " ", address.lower()).split()
+        if len(w) >= 3 and w not in _ADDR_STOP_WORDS
+    }
+    if not addr_tokens:
+        return {"found": False, "method": "web_search", "match_score": 0.0}
+
+    best_score = 0.0
+    best_snippet = ""
+    for r in result["results"]:
+        snippet = f"{r.get('title', '')} {r.get('snippet', '')}".lower()
+        snippet_tokens = set(re.sub(r"[^\w\s]", " ", snippet).split())
+        score = len(addr_tokens & snippet_tokens) / len(addr_tokens)
+        if score > best_score:
+            best_score = score
+            best_snippet = snippet
+
+    found = best_score >= 0.4
+    return {
+        "found": found,
+        "method": "web_search",
+        "match_score": round(best_score, 2),
+        "matched_snippet": best_snippet[:200] if found else None,
+    }
+
+
 async def validate_address_and_business(address: str, company_name: str = None) -> dict:
     """
     Fungsi utama yang menggabungkan geocoding + pencarian bisnis menjadi
@@ -409,17 +455,29 @@ async def validate_address_and_business(address: str, company_name: str = None) 
     else:
         result["business_found"] = None  # Tidak bisa dicek karena tidak ada nama perusahaan
 
+    # Step 3: Web search fallback — kalau Overpass miss atau Nominatim miss
+    if company_name and result["business_found"] is not True:
+        web = _verify_address_via_web(address, company_name)
+        result["web_verification"] = web
+        if web.get("found"):
+            result["business_found"] = True
+            result["safe_signals"].append(
+                f"Perusahaan '{company_name}' ditemukan di web dengan referensi alamat "
+                f"(skor kemiripan: {web['match_score']})."
+            )
+
     if result.get("address_details"):
-        result["address_details"]["distance_to_nearest_business_meters"] = 12 if result["business_found"] else 45
+        # Similarity nyata dari hasil Overpass — None kalau bisnis tidak ditemukan
         result["address_details"]["business_name_similarity"] = (
-            round((result.get("business_details") or {}).get("similarity", 0.85), 2)
+            round((result.get("business_details") or {}).get("similarity", 0.0), 2)
             if result["business_found"]
-            else 0.75
+            else None
         )
+        # Confidence score langsung dari Nominatim tanpa inflate
         result["address_details"]["coordinate_confidence"] = (
-            round(min((result["address_details"].get("confidence_score") or 0.8) * 1.1, 0.98), 2)
+            result["address_details"].get("confidence_score")
             if result["address_found"]
-            else 0.5
+            else None
         )
 
     return result
