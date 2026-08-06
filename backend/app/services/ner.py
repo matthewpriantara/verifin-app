@@ -806,7 +806,7 @@ def _uniq(items: list[str]) -> list[str]:
             if key == pk:
                 dominated = True
                 break
-            # Check prefix overlap (misal "Jl. Imogiri Barat No.29...")
+            # Cek prefix overlap (misal "Jl. Imogiri Barat No.29...")
             if len(key) >= 12 and len(pk) >= 12:
                 if key[:25] == pk[:25] or pk[:25] == key[:25]:
                     dominated = True
@@ -907,7 +907,7 @@ def extract_entities_from_text(text: str) -> dict:
     uniq_contacts = _uniq(standardized_phones)
     uniq_emails = _uniq(emails)
     uniq_addresses_raw = _uniq(extracted_addresses)
-    # Filter out address candidates that are identical to or contained in company names
+    # Buang kandidat alamat yang sama atau bagian dari nama perusahaan
     comp_lows = {c.strip().lower() for c in uniq_companies}
     uniq_addresses = [
         a for a in uniq_addresses_raw
@@ -935,11 +935,12 @@ def extract_entities_from_text(text: str) -> dict:
         "urls": _uniq(urls),
         "addresses": uniq_addresses,
         "salaries": _uniq(salaries),
+        # ponytail: confidence statis per-kategori — upgrade ke skor per-entitas saat ada labeled dataset
         "entity_confidences": {
-            "companies": 0.98 if uniq_companies else 0.0,
-            "contacts": 0.95 if uniq_contacts else 0.0,
-            "emails": 0.99 if uniq_emails else 0.0,
-            "addresses": 0.88 if uniq_addresses else 0.0,
+            "companies": round(min(0.98, 0.7 + len(uniq_companies) * 0.05), 2) if uniq_companies else 0.0,
+            "contacts": round(min(0.95, 0.75 + len(uniq_contacts) * 0.05), 2) if uniq_contacts else 0.0,
+            "emails": round(min(0.99, 0.85 + len(uniq_emails) * 0.05), 2) if uniq_emails else 0.0,
+            "addresses": round(min(0.88, 0.6 + len(uniq_addresses) * 0.07), 2) if uniq_addresses else 0.0,
         },
         # ponytail: template_similarity belum diimplementasi — upgrade ke MinHash/SimHash saat ada dataset template fraud
         "fraud_fingerprint": {
