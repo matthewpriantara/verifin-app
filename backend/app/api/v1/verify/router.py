@@ -123,7 +123,7 @@ def _check_fraud_network(db: Session, entities: dict) -> dict:
         # Laporan komunitas yang berulang pada entitas yang sama = sinyal risiko kuat.
         community = _community_report_signal(db, entities)
         network_ctx["community_reports"] = community
-        if community.get("report_count", 0) > 0:
+        if community.get("report_count", 0) >= 2:
             network_ctx["entity_in_fraud_network"] = True
             # Eskalasi threat_level bila belum tinggi
             if community["report_count"] >= 3:

@@ -200,16 +200,22 @@ def search_web_evidence(query: str, max_results: int = 5) -> dict[str, Any]:
     results: list[dict[str, str]] = []
     engine_used = "none"
 
-    # 1. Try DuckDuckGo via direct curl_cffi (timeout 2.0s, no retry lag)
+    # 1. Try DuckDuckGo — httpx dulu (lebih stabil SSL), curl_cffi sebagai fallback
+    ddg_url = f"https://html.duckduckgo.com/html/?q={quote_plus(q)}"
+    ddg_headers = {
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
+                      "(KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36",
+        "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+        "Accept-Language": "id-ID,id;q=0.9,en;q=0.8",
+    }
     try:
+        import httpx as _httpx
         from bs4 import BeautifulSoup
-        from curl_cffi import requests as cffi_req
 
-        s = cffi_req.Session(impersonate="chrome120")
-        url = f"https://html.duckduckgo.com/html/?q={quote_plus(q)}"
-        r = s.get(url, timeout=2.0)
-        if r.status_code == 200:
-            soup = BeautifulSoup(r.text, "html.parser")
+        with _httpx.Client(timeout=5.0, follow_redirects=True) as _hc:
+            _r = _hc.get(ddg_url, headers=ddg_headers)
+        if _r.status_code == 200:
+            soup = BeautifulSoup(_r.text, "html.parser")
             for a in soup.select("a.result__a")[:max_results]:
                 href = _unwrap_ddg_href(a.get("href", ""))
                 title = a.text.strip()
@@ -221,7 +227,27 @@ def search_web_evidence(query: str, max_results: int = 5) -> dict[str, Any]:
             if results:
                 engine_used = "duckduckgo"
     except Exception:
-        pass
+        # Fallback curl_cffi jika httpx juga gagal
+        try:
+            from bs4 import BeautifulSoup
+            from curl_cffi import requests as cffi_req
+
+            s = cffi_req.Session(impersonate="chrome120")
+            r = s.get(ddg_url, timeout=4.0)
+            if r.status_code == 200:
+                soup = BeautifulSoup(r.text, "html.parser")
+                for a in soup.select("a.result__a")[:max_results]:
+                    href = _unwrap_ddg_href(a.get("href", ""))
+                    title = a.text.strip()
+                    if href and title:
+                        results.append({"title": title[:160], "url": href, "snippet": ""})
+                snips = soup.select(".result__snippet")
+                for i, sn in enumerate(snips[: len(results)]):
+                    results[i]["snippet"] = sn.text.strip()[:240]
+                if results:
+                    engine_used = "duckduckgo"
+        except Exception:
+            pass
 
     # 2. Fallback: Yahoo Search Indonesia
     if not results:
