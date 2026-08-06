@@ -891,7 +891,7 @@ def extract_entities_from_text(text: str) -> dict:
     ) + _extract_companies(normalized_text)
 
     # Fallback Perusahaan dari domain email khusus (misal lamaran@deliciabakery.com -> Delicia Bakery)
-    from app.services.llm.prompt_builder import FREE_EMAIL_DOMAINS
+    from app.services.constants import FREE_EMAIL_DOMAINS
     for email in emails:
         if "@" in email:
             dom = email.split("@")[1].lower()

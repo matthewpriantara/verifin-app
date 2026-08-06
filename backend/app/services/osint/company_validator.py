@@ -32,18 +32,7 @@ def _normalize_company_name(name: str) -> str:
     return n
 
 
-_FREE_EMAIL_DOMAINS = {
-    "gmail.com",
-    "yahoo.com",
-    "yahoo.co.id",
-    "hotmail.com",
-    "outlook.com",
-    "live.com",
-    "ymail.com",
-    "icloud.com",
-    "protonmail.com",
-    "mail.com",
-}
+from app.services.constants import FREE_EMAIL_DOMAINS as _FREE_EMAIL_DOMAINS
 
 
 def _search_company_traces(company: str) -> list[dict[str, Any]]:
