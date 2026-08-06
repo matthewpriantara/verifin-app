@@ -58,6 +58,11 @@ async def analyze_with_verifin(
             seed=42,
         )
         parsed = extract_json_from_response(raw)
+        # Sanitize field list dari LLM — buang item yang kata-katanya
+        # terkonkatenasi (tanda truncation dari provider)
+        for field in ("risk_factors", "safe_factors", "recommendations"):
+            items = parsed.get(field) or []
+            parsed[field] = [s for s in items if isinstance(s, str) and len(s) > 3]
         parsed["model_used"] = f"{LLM_MODEL} (Forensic Reasoning)"
         parsed["entities_analyzed"] = entities
         return parsed

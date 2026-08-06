@@ -78,11 +78,35 @@ def _search_phone_public_serp(phone_meta: dict[str, str]) -> dict[str, Any]:
     query = f'"{phone_meta["display"]}" OR "0{phone_digits}" penipu OR scam OR penipuan'
     from app.services.osint.web_evidence import search_web_evidence
 
-    res = search_web_evidence(query, max_results=3)
+    res = search_web_evidence(query, max_results=5)
     results = res.get("results") or []
     risk_flags = []
     found_scam = False
+
+    # Filter noise: buang result yang tidak relevan dengan nomor HP Indonesia
+    # (Baidu, Yahoo JP, Microsoft JP, dsb sering masuk saat query nomor tidak ditemukan)
+    _ID_DOMAINS = (
+        ".id/", "detik.com", "kompas.com", "tribun", "liputan6", "kaskus",
+        "kredibel", "cekrekening", "urgent.id", "lapor.go.id", "facebook.com",
+        "instagram.com", "whatsapp", "tokopedia", "shopee",
+    )
+    filtered = []
     for r in results:
+        url = (r.get("url") or "").lower()
+        title = (r.get("title") or "").lower()
+        snippet = (r.get("snippet") or "").lower()
+        blob = f"{title} {snippet}"
+        # Simpan kalau URL domain Indonesia atau nomor HP muncul di konten
+        phone_in_result = (
+            phone_digits in re.sub(r"\D", "", blob)
+            or phone_meta["display"] in blob
+            or f"0{phone_digits}" in blob
+        )
+        is_id_domain = any(d in url for d in _ID_DOMAINS)
+        if phone_in_result or is_id_domain:
+            filtered.append(r)
+
+    for r in filtered:
         title = (r.get("title") or "").lower()
         snippet = (r.get("snippet") or "").lower()
         blob = f"{title} {snippet}"
@@ -108,7 +132,7 @@ def _search_phone_public_serp(phone_meta: dict[str, str]) -> dict[str, Any]:
                 f"SERP publik: laporan penipuan terkait nomor {phone_meta['display']}"
             )
             break
-    return {"serp_checked": True, "serp_results": results, "risk_flags": risk_flags, "found_scam": found_scam}
+    return {"serp_checked": True, "serp_results": filtered, "risk_flags": risk_flags, "found_scam": found_scam}
 
 
 def check_phone_kredibel(phone: str) -> dict[str, Any]:
