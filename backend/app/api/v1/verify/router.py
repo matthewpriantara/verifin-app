@@ -34,8 +34,6 @@ from app.services.ocr import extract_text_from_image
 from app.services.osint.whois_handler import (
     check_domain_age,
     check_email_security,
-    scan_email_osint,
-    scan_username_osint,
 )
 
 # Import helpers dari modul terpisah
@@ -302,30 +300,6 @@ def verify_domain(
         "reasons": reasons,
         "details": {"age": age_info, "security": security_info},
     }
-
-
-@router.get("/osint/scan-email")
-async def verify_email_osint(
-    email: str = Query(..., description="Email yang dilacak footprint-nya"),
-    categories: list[str] | None = Query(None),
-):
-    try:
-        results = await scan_email_osint(email, categories)
-        return {"email": email, "found_count": len(results), "results": results}
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e)) from e
-
-
-@router.get("/osint/scan-username")
-async def verify_username_osint(
-    username: str = Query(..., description="Username yang dilacak footprint-nya"),
-    categories: list[str] | None = Query(None),
-):
-    try:
-        results = await scan_username_osint(username, categories)
-        return {"username": username, "found_count": len(results), "results": results}
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e)) from e
 
 
 # ─────────────────────────────────────────────────────────────────────────────
