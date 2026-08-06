@@ -1,19 +1,24 @@
 """
 Web evidence via Scrapling:
 1) Fetch website dari domain email / URL di loker
-2) Search evidence lewat DuckDuckGo HTML
+2) Search evidence lewat DuckDuckGo HTML → Yahoo ID → Bing fallback
 """
 
-from __future__ import annotations
-
+import base64
 import re
 from typing import Any
 from urllib.parse import parse_qs, quote_plus, unquote, urlparse
 
 from scrapling.fetchers import Fetcher
 from app.services.osint.gform_inspector import inspect_gform, is_gform_url
-
 from app.services.constants import FREE_EMAIL_DOMAINS
+
+try:
+    from bs4 import BeautifulSoup
+    from curl_cffi import requests as cffi_req
+    _SEARCH_AVAILABLE = True
+except ImportError:
+    _SEARCH_AVAILABLE = False
 
 
 def _domain_from_email(email: str) -> str | None:
@@ -191,9 +196,6 @@ def search_web_evidence(query: str, max_results: int = 5) -> dict[str, Any]:
 
     # 1. Try DuckDuckGo via direct curl_cffi (timeout 2.0s, no retry lag)
     try:
-        from bs4 import BeautifulSoup
-        from curl_cffi import requests as cffi_req
-
         s = cffi_req.Session(impersonate="chrome120")
         url = f"https://html.duckduckgo.com/html/?q={quote_plus(q)}"
         r = s.get(url, timeout=2.0)
@@ -215,9 +217,6 @@ def search_web_evidence(query: str, max_results: int = 5) -> dict[str, Any]:
     # 2. Fallback: Yahoo Search Indonesia
     if not results:
         try:
-            from bs4 import BeautifulSoup
-            from curl_cffi import requests as cffi_req
-
             s = cffi_req.Session(impersonate="chrome120")
             y_url = f"https://id.search.yahoo.com/search?p={quote_plus(q)}"
             r = s.get(y_url, timeout=4.0)
@@ -248,9 +247,6 @@ def search_web_evidence(query: str, max_results: int = 5) -> dict[str, Any]:
     # 3. Fallback: Bing Search
     if not results:
         try:
-            from bs4 import BeautifulSoup
-            from curl_cffi import requests as cffi_req
-
             s = cffi_req.Session(impersonate="chrome120")
             b_url = f"https://www.bing.com/search?q={quote_plus(q)}&mkt=id-ID"
             r = s.get(b_url, timeout=4.0)
@@ -319,18 +315,52 @@ def search_web_evidence(query: str, max_results: int = 5) -> dict[str, Any]:
     }
 
 
-_FREE_WEB_DOMAINS = {
-    "gmail.com",
-    "yahoo.com",
-    "yahoo.co.id",
-    "hotmail.com",
-    "outlook.com",
-    "live.com",
-    "ymail.com",
-    "icloud.com",
-    "protonmail.com",
-    "mail.com",
-}
+_FREE_WEB_DOMAINS = FREE_EMAIL_DOMAINS  # alias — set sama persis
+
+
+def _entity_tokens(companies: list, domains: list) -> list[str]:
+    """Bangun token unik dari nama perusahaan + domain untuk relevance filter."""
+    toks: set[str] = set()
+    for comp in companies:
+        c = (comp or "").strip()
+        if not c:
+            continue
+        for m in re.findall(r"\(([^)]+)\)", c):
+            m = m.strip().lower()
+            if len(m) >= 3:
+                toks.add(m)
+        base = re.sub(r"\b(pt\.?|cv\.?|ud\.?|tbk\.?|lembaga|konsultasi|bimbingan|belajar|group|indonesia)\b", " ", c.lower())
+        base = re.sub(r"\s+", " ", base).strip()
+        if len(base) >= 4:
+            toks.add(base)
+        for w in re.split(r"[^\w]+", c.lower()):
+            if len(w) >= 5 and w not in ("international", "solution", "sejahtera"):
+                toks.add(w)
+    for d in domains:
+        host = d.split(".")[0].lower()
+        if len(host) >= 4:
+            toks.add(host)
+    return sorted(toks, key=len, reverse=True)
+
+
+def _is_generic_social_url(url: str) -> bool:
+    """True jika URL adalah halaman generik platform (login/home), bukan profil spesifik."""
+    ul = url.lower()
+    generic_bits = ("/signin", "/signup", "/login", "/accounts/", "/home",
+                    "/explore/", "/p/signin", "/?hl=", "sharer", "/share")
+    return any(b in ul for b in generic_bits)
+
+
+def _is_relevant(url: str, text: str, ent_tokens: list[str]) -> bool:
+    """True jika hasil SERP relevan dengan entitas."""
+    if not ent_tokens:
+        return True
+    hay = f"{url} {text}".lower().replace("-", "").replace("_", "").replace(".", "").replace(" ", "")
+    for tok in ent_tokens:
+        t = tok.replace(" ", "").replace(".", "")
+        if t and t in hay:
+            return True
+    return False
 
 
 def collect_web_evidence(entities: dict) -> dict[str, Any]:
@@ -419,57 +449,8 @@ def collect_web_evidence(entities: dict) -> dict[str, Any]:
     addresses = entities.get("addresses") or []
     companies = entities.get("companies") or []
 
-    # ── Relevance filter: bangun token entitas agar hasil SERP yang tidak
-    # terkait (mis. situs acak yang kebetulan muncul) TIDAK dihitung sebagai
-    # jejak digital. Fleksibel: cocok via nama perusahaan, brand dalam kurung,
-    # domain website resmi, atau potongan kata kunci nama yang khas. ─────────
-    def _entity_tokens() -> list[str]:
-        toks: set[str] = set()
-        for comp in companies:
-            c = (comp or "").strip()
-            if not c:
-                continue
-            # brand dalam kurung, mis. "PT. X (PT. VIS)" → "pt. vis", "vis"
-            for m in re.findall(r"\(([^)]+)\)", c):
-                m = m.strip().lower()
-                if len(m) >= 3:
-                    toks.add(m)
-            # nama lengkap & bentuk bersih (tanpa PT/CV/UD/lembaga dsb.)
-            base = re.sub(r"\b(pt\.?|cv\.?|ud\.?|tbk\.?|lembaga|konsultasi|bimbingan|belajar|group|indonesia)\b", " ", c.lower())
-            base = re.sub(r"\s+", " ", base).strip()
-            if len(base) >= 4:
-                toks.add(base)
-            # kata kunci khas (>=5 huruf) dari nama
-            for w in re.split(r"[^\w]+", c.lower()):
-                if len(w) >= 5 and w not in ("international", "solution", "sejahtera"):
-                    toks.add(w)
-        # domain website resmi (indonesiacollege.co.id → "indonesiacollege")
-        for d in domains:
-            host = d.split(".")[0].lower()
-            if len(host) >= 4:
-                toks.add(host)
-        return sorted(toks, key=len, reverse=True)
-
-    _ENT_TOKENS = _entity_tokens()
-
-    def _is_generic_social_url(url: str) -> bool:
-        """True jika URL adalah halaman generik platform (login/signup/home), bukan
-        profil/post spesifik entitas — mis. instagram.com/p/signin, /accounts/login."""
-        ul = url.lower()
-        generic_bits = ("/signin", "/signup", "/login", "/accounts/", "/home",
-                        "/explore/", "/p/signin", "/?hl=", "sharer", "/share")
-        return any(b in ul for b in generic_bits)
-
-    def _is_relevant(url: str, text: str) -> bool:
-        """True jika hasil SERP relevan dgn entitas (url atau teks mengandung token)."""
-        if not _ENT_TOKENS:
-            return True  # tak ada entitas → jangan difilter (biarkan)
-        hay = f"{url} {text}".lower().replace("-", "").replace("_", "").replace(".", "").replace(" ", "")
-        for tok in _ENT_TOKENS:
-            t = tok.replace(" ", "").replace(".", "")
-            if t and t in hay:
-                return True
-        return False
+    # ── Relevance filter: bangun token entitas ─────────
+    _ENT_TOKENS = _entity_tokens(companies, domains)
 
     for s in searches:
         for r in s.get("results") or []:
@@ -480,7 +461,7 @@ def collect_web_evidence(entities: dict) -> dict[str, Any]:
 
             # Hanya hitung jejak digital yang RELEVAN dengan entitas — buang
             # hasil SERP acak/iklan yang tidak mengandung token entitas.
-            if not _is_relevant(u, combined_text):
+            if not _is_relevant(u, combined_text, _ENT_TOKENS):
                 continue
             total_public_results += 1
 
@@ -494,7 +475,7 @@ def collect_web_evidence(entities: dict) -> dict[str, Any]:
                         f"✅ Location Match: Pencarian web publik untuk '{companies[0]}' mengonfirmasi lokasi '{', '.join(matched_words)}'."
                     )
 
-            if "instagram.com" in u and u not in found_social and _is_relevant(u, combined_text) and not _is_generic_social_url(u):
+            if "instagram.com" in u and u not in found_social and _is_relevant(u, combined_text, _ENT_TOKENS) and not _is_generic_social_url(u):
                 found_social.append(u)
                 safe_flags.append(
                     f"Terdeteksi profil/post Instagram publik aktif: {title} ({u})"
@@ -502,7 +483,7 @@ def collect_web_evidence(entities: dict) -> dict[str, Any]:
             elif (
                 any(soc in u for soc in ("facebook.com", "linkedin.com", "tiktok.com"))
                 and u not in found_social
-                and _is_relevant(u, combined_text)
+                and _is_relevant(u, combined_text, _ENT_TOKENS)
                 and not _is_generic_social_url(u)
             ):
                 found_social.append(u)
@@ -514,14 +495,7 @@ def collect_web_evidence(entities: dict) -> dict[str, Any]:
         )
 
     def uniq(xs: list[str]) -> list[str]:
-        seen = set()
-        out = []
-        for x in xs:
-            if x in seen:
-                continue
-            seen.add(x)
-            out.append(x)
-        return out
+        return list(dict.fromkeys(xs))
 
     return {
         "enabled": True,
@@ -539,5 +513,5 @@ def collect_web_evidence(entities: dict) -> dict[str, Any]:
 async def run_web_evidence(entities: dict) -> dict[str, Any]:
     import asyncio
 
-    loop = asyncio.get_event_loop()
+    loop = asyncio.get_running_loop()
     return await loop.run_in_executor(None, collect_web_evidence, entities)
