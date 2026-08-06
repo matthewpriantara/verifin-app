@@ -7,7 +7,7 @@ from sqlalchemy.orm import Session
 
 from app.api.v1.verify.schema import VerifyResponse
 from app.database.models import JobCase
-from app.services.cache_service import compute_content_sha256
+from app.services.hasher import compute_content_sha256
 
 logger = logging.getLogger(__name__)
 
