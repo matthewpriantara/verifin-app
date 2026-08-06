@@ -199,7 +199,6 @@ async def _extract_entities_hybrid(text: str) -> dict:
         merged["companies"] = new_companies
 
     # ── addresses & salaries: merge-additive + smart deduplication ────────
-    from app.services.ner import _uniq
     for key in ("addresses", "salaries"):
         llm_vals = merged_entities.get(key) or []
         if not llm_vals:
@@ -213,7 +212,6 @@ async def _extract_entities_hybrid(text: str) -> dict:
                 added[key] = True
                 any_added = True
     # Dedup dan bersihkan hasil merge
-    from app.services.ner import _uniq, fix_email_ocr_typos
     if merged.get("emails"):
         merged["emails"] = _uniq([fix_email_ocr_typos(e) for e in merged["emails"] if e])
     if merged.get("urls"):
@@ -441,7 +439,6 @@ async def _run_osint_on_entities(entities: dict) -> dict:
 
 
 def _merge_entities(primary: dict, secondary: dict) -> dict:
-    from app.services.ner import _uniq, clean_indonesian_phone, fix_email_ocr_typos
 
     keys = ["companies", "contacts", "emails", "urls", "addresses", "salaries"]
     out = {}
