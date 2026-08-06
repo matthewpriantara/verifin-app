@@ -46,9 +46,13 @@ _FREE_EMAIL_DOMAINS = {
 }
 
 
-def _search_company_traces(company: str) -> list[dict[str, Any]]:
+def _search_company_traces(company: str, location: str | None = None) -> list[dict[str, Any]]:
     """1 query scam check saja (web_evidence sudah cover presence search)."""
-    queries = [f'"{company}" lowongan penipuan OR penipu OR scam']
+    norm_comp = company.strip()
+    if len(norm_comp) <= 6 and location:
+        queries = [f'"{norm_comp}" "{location}" lowongan OR profil OR penipuan OR penipu OR scam']
+    else:
+        queries = [f'"{norm_comp}" lowongan penipuan OR penipu OR scam']
     out = []
     for q in queries:
         res = search_web_evidence(q, max_results=3)
@@ -117,8 +121,21 @@ def validate_company_public(company: str, entities: dict | None = None) -> dict[
         risk_flags.extend(w.get("risk_flags") or [])
         safe_flags.extend(w.get("safe_flags") or [])
 
+    # Extract location context if available in entities
+    location_ctx = None
+    addrs = entities.get("addresses") or []
+    if addrs and isinstance(addrs, list):
+        # Pick city/location token from address if available
+        first_addr = str(addrs[0])
+        # Simple extraction of last parts or city names if present
+        location_parts = [p.strip() for p in first_addr.split(",") if p.strip()]
+        if location_parts:
+            location_ctx = location_parts[-1] if len(location_parts) == 1 else location_parts[-2]
+    elif isinstance(entities.get("location"), str):
+        location_ctx = entities["location"]
+
     # 2) 1 search scam (presence search sudah di web_evidence)
-    searches = _search_company_traces(name)
+    searches = _search_company_traces(name, location=location_ctx)
     mention_count = 0
     fraud_mentions = 0
     for s in searches:

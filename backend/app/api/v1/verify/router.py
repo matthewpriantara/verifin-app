@@ -38,7 +38,7 @@ from app.services.llm.entity_extraction import extract_entities_llm, hybrid_merg
 from app.services.llm.verifin_reasoning import analyze_with_verifin, check_ai_status
 from app.services.ner import extract_entities_from_text
 from app.services.nlp.classifier import classify_text
-from app.services.osint.address_validator import validate_address_and_business
+from app.services.osint.address_validator import validate_address_and_business, validate_address_with_gmaps_fallback
 from app.services.osint.company_validator import validate_companies
 from app.services.osint.phone_validator import check_phones_kredibel
 from app.services.osint.social_osint import run_social_osint

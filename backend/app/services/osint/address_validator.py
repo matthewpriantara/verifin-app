@@ -73,6 +73,8 @@ _OCR_ADDR_FIXES: list[tuple[str, str]] = [
 def _normalize_ocr_address(addr: str) -> str:
     """Koreksi OCR typo umum pada string alamat sebelum dikirim ke Nominatim."""
     a = addr
+    a = re.sub(r'(Jl\.?|Jalan)\s+[a-z]\.', r'\1 ', a, flags=re.IGNORECASE)
+    a = re.sub(r'([A-Za-z]+)\.([A-Za-z]+)', r'\1, \2', a)
     for pattern, replacement in _OCR_ADDR_FIXES:
         a = re.sub(pattern, replacement, a, flags=re.IGNORECASE)
     a = re.sub(r",([^\s])", r", \1", a)
@@ -108,7 +110,8 @@ def _normalize_street_number_to_roman(addr: str) -> str:
 # Kata kunci yang menandai akhir dari string alamat (setelah ini bukan alamat lagi)
 _ADDR_CUTOFF_PATTERN = re.compile(
     r"[,;\s]+(?:"
-    r"KIRIMKAN|KIRIM|Send|Apply|Atau|Walk(?:\s*-?\s*in)?|Dan\b|Via\b|Melalui|Ke\s+lokasi"
+    r"OKER|LOKER|JOB|VACANCY|POSISI"
+    r"|KIRIMKAN|KIRIM|Send|Apply|Atau|Walk(?:\s*-?\s*in)?|Dan\b|Via\b|Melalui|Ke\s+lokasi"
     r"|CV|Cover\s*Letter|Lamaran"
     r"|Commissary|Commissary\s+QC"
     r"|dari\s+industri|industri\s+bakery|pengolahan"
@@ -552,14 +555,22 @@ async def validate_address_and_business(address: str, company_name: str = None) 
         "neutral_notes": []
     }
 
-    geo = await geocode_address(address)
+    geo = await validate_address_with_gmaps_fallback(company_name, address)
     result["address_details"] = geo
+    if geo.get("found_via_serp"):
+        result["found_via_serp"] = True
+        result["gmaps_serp_fallback"] = geo.get("gmaps_serp_fallback")
 
     if not geo.get("found"):
         result["address_found"] = False
-        result["risk_signals"].append(
-            f"Alamat '{address}' tidak ditemukan di peta OpenStreetMap Indonesia."
-        )
+        if geo.get("found_via_serp"):
+            result["safe_signals"].append(
+                f"Alamat/Perusahaan terverifikasi via Google Maps SERP Fallback: {geo.get('serp_note', '')}"
+            )
+        else:
+            result["risk_signals"].append(
+                f"Alamat '{address}' tidak ditemukan di peta OpenStreetMap Indonesia."
+            )
         return result
 
     result["address_found"] = True
