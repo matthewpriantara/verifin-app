@@ -46,7 +46,7 @@ const STEPS = [
 /* Titik cahaya mengalir di connector garis */
 function FlowConnector({ delay }: { delay: number }) {
   return (
-    <div className="relative mx-2 hidden h-px w-12 flex-shrink-0 overflow-hidden bg-border lg:block">
+    <div className="relative mx-2 hidden h-0.5 w-12 flex-shrink-0 overflow-hidden bg-border lg:block">
       <motion.div
         className="absolute inset-y-0 w-8 bg-gradient-to-r from-transparent via-text-primary/50 to-transparent"
         animate={{ x: ["-32px", "48px"] }}
@@ -77,7 +77,7 @@ function StepCard({
       whileInView={{ opacity: 1, y: 0 }}
       viewport={{ once: true, amount: 0.3 }}
       transition={{ duration: 0.5, delay: index * 0.1, ease: [0.16, 1, 0.3, 1] }}
-      className="flex-1 rounded-2xl border border-border bg-bg-elevated p-5 transition-colors hover:border-border-focus"
+      className="flex h-full flex-col rounded-2xl border border-border bg-bg-elevated p-5 transition-colors hover:border-border-focus"
     >
       <div className="mb-3 flex items-center gap-2.5">
         <motion.div
@@ -94,8 +94,8 @@ function StepCard({
         </span>
       </div>
       <h3 className="text-[15px] font-semibold text-text-primary">{step.title}</h3>
-      <p className="mt-1.5 text-[13px] leading-relaxed text-text-secondary">{step.desc}</p>
-      <div className="mt-3 flex flex-wrap gap-1">
+      <p className="mt-1.5 flex-1 text-[13px] leading-relaxed text-text-secondary">{step.desc}</p>
+      <div className="mt-4 flex flex-wrap gap-1">
         {step.tags.map((tag) => (
           <span
             key={tag}
@@ -173,7 +173,7 @@ export default function HomePage() {
             animate={{ opacity: 1 }}
             transition={{ delay: 0.9 }}
             onClick={() => howRef.current?.scrollIntoView({ behavior: "smooth" })}
-            className="mt-10 hidden items-center gap-2 text-[12px] text-text-muted transition-colors hover:text-text-secondary lg:flex"
+            className="mt-10 hidden items-center gap-2 rounded-lg border border-border bg-text-primary px-3.5 py-2 text-[12px] font-medium text-white transition-colors hover:border-border-focus hover:text-black hover:bg-bg-elevated lg:flex"
           >
             <motion.span
               animate={{ y: [0, 3, 0] }}
@@ -226,14 +226,16 @@ export default function HomePage() {
           </motion.div>
 
           {/* Cards + connector mengalir */}
-          <div className="flex flex-col gap-4 lg:flex-row lg:items-stretch">
+          <div className="flex flex-col gap-4 lg:flex-row lg:items-stretch lg:justify-between">
             {STEPS.map((step, i) => (
-              <div key={step.num} className="flex flex-1 items-center">
-                <div className="flex-1">
+              <div key={step.num} className="flex flex-1 flex-col lg:flex-row lg:items-stretch">
+                <div className="w-full lg:w-[220px] xl:w-[240px] flex-shrink-0">
                   <StepCard step={step} index={i} />
                 </div>
                 {i < STEPS.length - 1 && (
-                  <FlowConnector delay={i * 0.5} />
+                  <div className="flex items-center justify-center">
+                    <FlowConnector delay={i * 0.5} />
+                  </div>
                 )}
               </div>
             ))}
