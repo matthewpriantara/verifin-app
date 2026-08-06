@@ -1,5 +1,5 @@
 """DB cache — simpan dan ambil JobCase berdasarkan hash teks (exact-match memory)."""
-from __future__ import annotations
+from __future__ import annotations  # noqa: F401 — stdlib compat shim, harmless
 
 import logging
 
@@ -26,7 +26,7 @@ def _save_case_to_db(
         text_hash = compute_content_sha256(raw_text)
         ent = entities or analysis.get("entities_analyzed") or {}
         companies = list(ent.get("companies") or [])
-        phones = list(ent.get("contacts") or [])
+        phones = list(ent.get("phones") or [])
         emails = list(ent.get("emails") or [])
         urls = list(ent.get("urls") or [])
         addresses = list(ent.get("addresses") or [])
@@ -105,7 +105,7 @@ def _get_cached_case_from_db(db: Session, raw_input_str: str) -> VerifyResponse 
             llm_payload = cached.llm_output or {}
             ent = cached.entities or {
                 "companies": cached.companies or [],
-                "contacts": cached.phones or [],
+                "phones": cached.phones or [],
                 "emails": cached.emails or [],
                 "urls": cached.urls or [],
                 "addresses": cached.addresses or [],
@@ -118,7 +118,7 @@ def _get_cached_case_from_db(db: Session, raw_input_str: str) -> VerifyResponse 
                 "risk_factors": llm_payload.get("risk_factors", []),
                 "safe_factors": llm_payload.get("safe_factors", []),
                 "recommendations": llm_payload.get("recommendations", []),
-                "model_used": f"{llm_payload.get('model_used', 'claude-sonnet-4.5')} (DB Cache Hit)",
+                "model_used": f"{llm_payload.get('model_used', 'unknown')} (DB Cache Hit)",
                 "corrected_company_name": llm_payload.get("corrected_company_name"),
             }
             osint = cached.osint_summary or {}
