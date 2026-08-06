@@ -18,6 +18,7 @@ Pipeline (5 layer):
 import asyncio
 import copy
 import os
+import re
 import tempfile
 from typing import List, Optional
 from uuid import UUID
@@ -202,8 +203,7 @@ async def _extract_entities_hybrid(text: str) -> dict:
     # - addresses & salaries: MERGE-ADDITIVE (LLM menambah yang regex lewatkan,
     #   regex tetap jadi suplemen — keduanya cenderung precision-tinggi).
     def _norm(s: str) -> str:
-        import re as _re
-        return _re.sub(r"[^a-z0-9 ]", "", s.lower()).strip()
+        return re.sub(r"[^a-z0-9 ]", "", s.lower()).strip()
 
     def _fuzzy_contains(a: str, b: str) -> bool:
         """True bila salah satu normalized string mengandung yang lain (min 4 char)."""
@@ -249,8 +249,7 @@ async def _extract_entities_hybrid(text: str) -> dict:
                 existing.add(nv)
                 added[key] = True
                 any_added = True
-    # Clean deduplication across all extracted list entities
-    import re
+    # Dedup dan bersihkan hasil merge
     from app.services.ner import _uniq, fix_email_ocr_typos
     if merged.get("emails"):
         merged["emails"] = _uniq([fix_email_ocr_typos(e) for e in merged["emails"] if e])
@@ -479,7 +478,6 @@ async def _run_osint_on_entities(entities: dict) -> dict:
 
 
 def _merge_entities(primary: dict, secondary: dict) -> dict:
-    import re
     from app.services.ner import _uniq, clean_indonesian_phone, fix_email_ocr_typos
 
     keys = ["companies", "contacts", "emails", "urls", "addresses", "salaries"]
@@ -638,11 +636,11 @@ def _save_case_to_db(
     source: str = "text",
 ) -> None:
     """Simpan case + entities lengkap (fondasi exact-match memory)."""
-    import hashlib
     from sqlalchemy.exc import IntegrityError
+    from app.services.cache_service import compute_content_sha256
 
     try:
-        text_hash = hashlib.sha256(raw_text.strip().encode("utf-8")).hexdigest()
+        text_hash = compute_content_sha256(raw_text)
         ent = entities or analysis.get("entities_analyzed") or {}
         companies = list(ent.get("companies") or [])
         phones = list(ent.get("contacts") or [])
@@ -715,11 +713,11 @@ def _save_case_to_db(
 
 def _get_cached_case_from_db(db: Session, raw_input_str: str) -> VerifyResponse | None:
     """Cek apakah lowongan/URL/gambar ini sudah pernah diuji coba sebelumnya (exact DB cache hit)."""
-    import hashlib
+    from app.services.cache_service import compute_content_sha256
     if not raw_input_str or not raw_input_str.strip():
         return None
     try:
-        text_hash = hashlib.sha256(raw_input_str.strip().encode("utf-8")).hexdigest()
+        text_hash = compute_content_sha256(raw_input_str)
         cached = db.query(JobCase).filter(JobCase.raw_text_hash == text_hash).first()
         if cached and cached.verdict and cached.verdict != "ERROR":
             llm_payload = cached.llm_output or {}
@@ -835,10 +833,11 @@ async def verify_from_image(
             return cached_resp
 
         entities = await _extract_entities_hybrid(raw_text)
-        osint_results = await _run_osint_on_entities(entities)
 
-        # Layer 1: NLP Classifier
+        # Layer 1: NLP Classifier — sama seperti text endpoint, jalan sebelum OSINT
         nlp_result = classify_text(raw_text)
+
+        osint_results = await _run_osint_on_entities(entities)
 
         # Layer 5: Fraud Network Check
         network_context = _check_fraud_network(db, entities)

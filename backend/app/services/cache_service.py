@@ -22,22 +22,6 @@ def compute_content_sha256(text_or_bytes: str | bytes) -> str:
     return hashlib.sha256(data).hexdigest()
 
 
-def get_cached_verification(sha256_hash: str) -> dict | None:
-    """Returns cached verification payload if fresh within TTL."""
-    if sha256_hash in _MEMORY_CACHE:
-        timestamp, data = _MEMORY_CACHE[sha256_hash]
-        if time.time() - timestamp < CACHE_TTL_SECONDS:
-            data["cache_hit"] = True
-            data["cache_sha256"] = sha256_hash
-            return data
-    return None
-
-
-def set_cached_verification(sha256_hash: str, data: dict) -> None:
-    """Saves verification result to cache."""
-    _MEMORY_CACHE[sha256_hash] = (time.time(), data)
-
-
 def detect_identity_syndicate(
     contacts: list[str],
     emails: list[str],
