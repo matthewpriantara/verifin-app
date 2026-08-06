@@ -1,30 +1,7 @@
 import { API_BASE } from "@/lib/api";
+import type { AdminCase, WhitelistEntry } from "@/types/admin";
 
-export interface AdminCase {
-  id: string;
-  verdict: string;
-  risk_score: number;
-  source: string;
-  company_name: string | null;
-  phones: string[] | null;
-  emails: string[] | null;
-  raw_text_preview: string | null;
-  created_at: string;
-}
-
-export interface AdminStats {
-  total: number;
-  aman: number;
-  waspada: number;
-  bahaya: number;
-}
-
-export interface WhitelistEntry {
-  id: number;
-  company_name: string;
-  legal_type: string;
-  synced_at: string;
-}
+export type { AdminCase, AdminStats, WhitelistEntry } from "@/types/admin";
 
 export async function fetchCases(limit = 50, skip = 0): Promise<AdminCase[]> {
   const res = await fetch(
