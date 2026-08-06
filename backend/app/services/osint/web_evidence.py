@@ -13,18 +13,7 @@ from urllib.parse import parse_qs, quote_plus, unquote, urlparse
 from scrapling.fetchers import Fetcher
 from app.services.osint.gform_inspector import inspect_gform, is_gform_url
 
-FREE_EMAIL_DOMAINS = {
-    "gmail.com",
-    "yahoo.com",
-    "yahoo.co.id",
-    "hotmail.com",
-    "outlook.com",
-    "live.com",
-    "ymail.com",
-    "icloud.com",
-    "protonmail.com",
-    "mail.com",
-}
+from app.services.constants import FREE_EMAIL_DOMAINS
 
 
 def _domain_from_email(email: str) -> str | None:

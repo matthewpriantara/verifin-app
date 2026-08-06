@@ -247,7 +247,7 @@ async def _run_osint_on_entities(entities: dict) -> dict:
     OSINT live paralel: WHOIS/DNS + OSM + Kredibel + Scrapling web + Threads.
     Optimasi latency: asyncio.gather (bukan serial await).
     """
-    from app.services.llm.prompt_builder import FREE_EMAIL_DOMAINS
+    from app.services.constants import FREE_EMAIL_DOMAINS
 
     osint_results: dict = {
         "domain": {

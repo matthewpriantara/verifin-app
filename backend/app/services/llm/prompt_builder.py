@@ -5,11 +5,7 @@ yang siap dikirim ke LLM (OpenAgentic / Grok) untuk analisis risiko penipuan.
 """
 
 # Domain gratisan yang umum digunakan — tidak perlu dicek WHOIS/SPF/DMARC
-FREE_EMAIL_DOMAINS = {
-    "gmail.com", "yahoo.com", "yahoo.co.id", "hotmail.com",
-    "outlook.com", "live.com", "ymail.com", "icloud.com",
-    "protonmail.com", "mail.com"
-}
+from app.services.constants import FREE_EMAIL_DOMAINS
 
 
 def _build_domain_osint_section(emails: list, domain_info: dict, email_security: dict) -> str:
