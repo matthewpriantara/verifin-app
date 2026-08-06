@@ -1,4 +1,5 @@
 """Web/social fetcher — Scrapling + Instagram/Threads scraper untuk URL OSINT."""
+from __future__ import annotations
 
 import asyncio
 import logging
