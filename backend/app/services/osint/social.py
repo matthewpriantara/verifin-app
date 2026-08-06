@@ -1,7 +1,7 @@
 """
 Social Media OSINT — Scraping jejak rekrutmen/scam di berbagai platform media sosial.
 Platform: Threads, Instagram, X (Twitter), TikTok, Facebook.
-Menggunakan DuckDuckGo HTML SERP (site: query) untuk setiap platform.
+Menggunakan SearXNG self-hosted untuk semua SERP query.
 """
 
 import re
