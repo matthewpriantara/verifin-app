@@ -49,8 +49,8 @@ def _check_kaspersky(phone_meta: dict[str, str]) -> dict[str, Any]:
 
         result["checked"] = True
 
-        verdict_el = page.css_first('[class*="NumberInfoWrapper_title"]')
-        verdict = verdict_el.text.strip().upper() if verdict_el else "NETRAL"
+        verdict_el = page.css('[class*="NumberInfoWrapper_title"]')
+        verdict = verdict_el[0].text.strip().upper() if verdict_el else "NETRAL"
         result["category"] = verdict
 
         comments = [el.text.strip() for el in page.css('[class*="Comments_comment"]') if el.text.strip()]
