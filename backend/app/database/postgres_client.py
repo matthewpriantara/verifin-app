@@ -1,12 +1,9 @@
 from sqlalchemy import create_engine
 from sqlalchemy.orm import declarative_base, sessionmaker
-from app.config import settings
+from app.config import DATABASE_URL
 
 # Create engine for PostgreSQL connection
-engine = create_engine(
-    settings.DATABASE_URL,
-    pool_pre_ping=True
-)
+engine = create_engine(DATABASE_URL, pool_pre_ping=True)
 
 # Configure database session factory
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)

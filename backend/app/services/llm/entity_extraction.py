@@ -21,8 +21,6 @@ LLM reasoning (Layer 4, verdict). Ini memperkuat proposal — 2 peran LLM yang
 jelas dan dapat diaudit. Output di-cache oleh router via raw_text_hash.
 """
 
-from __future__ import annotations
-
 import asyncio
 import logging
 import re

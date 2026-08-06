@@ -1,25 +1,19 @@
 """
-Router verifikasi Verifin — platform pendamping pencari kerja yang membantu
-pengguna menilai tingkat kepercayaan suatu lowongan sebelum melamar.
+Router verifikasi Verifin — Job Trust Infrastructure.
 
-Di balik platform ini terdapat Job Trust Infrastructure yang menggabungkan
-OSINT, analisis bukti, dan pemantauan komunitas secara berkelanjutan.
+Tiga kanal input: teks, gambar (OCR), URL postingan.
+Pipeline 5 layer: NLP → NER → OSINT → LLM → Fraud Network → SHAP response.
 
-Pipeline (5 layer):
-  teks/gambar
-    → Layer 1: NLP Classifier (TF-IDF behavioral features, paper22 Springer)
-    → Layer 2: NER/regex extraction
-    → Layer 3: OSINT paralel (WHOIS, OSM, Kredibel, Scrapling, Threads)
-    → Layer 4: LLM Reasoner (Grok/Claude via OpenAgentic)
-    → Layer 5: Fraud Network Check (NetworkX in-memory graph, GAR-HGNN inspired)
-    → Output: SHAP XAI Explanation + VerifyResponse
+Modular:
+  pipeline.py   — entity extraction, OSINT runner, fraud network, response builder
+  db_cache.py   — simpan & ambil JobCase dari PostgreSQL
+  web_fetcher.py — Scrapling + Instagram/Threads scraper
 """
 
-import asyncio
-import copy
+import logging
 import os
 import tempfile
-from typing import List, Optional
+from typing import List
 from uuid import UUID
 from sqlalchemy.orm import Session
 
@@ -34,720 +28,30 @@ from app.api.v1.verify.schema import (
     UrlVerifyRequest,
     VerifyResponse,
 )
-from app.services.llm.entity_extraction import extract_entities_llm, hybrid_merge_entities
 from app.services.llm.verifin_reasoning import analyze_with_verifin, check_ai_status
-from app.services.ner import extract_entities_from_text
 from app.services.nlp.classifier import classify_text
-from app.services.osint.address_validator import validate_address_and_business
-from app.services.osint.company_validator import validate_companies
-from app.services.osint.phone_validator import check_phones_kredibel
-from app.services.osint.social_osint import run_social_osint
-from app.services.osint.web_evidence import run_web_evidence
+from app.services.ocr import extract_text_from_image
 from app.services.osint.whois_handler import (
     check_domain_age,
     check_email_security,
     scan_email_osint,
     scan_username_osint,
 )
-from app.services.ocr import extract_text_from_image
-from app.services.xai.shap_explainer import explain_verification_shap
-from app.services.graph.fraud_network import (
-    build_fraud_network,
-    check_entity_in_network,
-    get_network_graph_data,
+
+# Import helpers dari modul terpisah
+from app.api.v1.verify.pipeline import (
+    _check_fraud_network,
+    _extract_entities_hybrid,
+    _run_osint_on_entities,
+    _to_response,
+    _build_osint_summary,
 )
+from app.services.db_cache import _save_case_to_db, _get_cached_case_from_db
+from app.services.web_fetcher import _fetch_url_content_and_image
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter()
-
-
-def _check_fraud_network(db: Session, entities: dict) -> dict:
-    """
-    Cek apakah entitas dari lowongan baru terhubung ke jaringan penipuan.
-    Menggunakan NetworkX in-memory graph dari riwayat job_cases (GAR-HGNN inspired).
-    """
-    try:
-        # Ambil kasus terbaru dari DB untuk membangun graf
-        cases = db.query(JobCase).order_by(
-            JobCase.created_at.desc()
-        ).limit(500).all()
-
-        if not cases:
-            return {"entity_in_fraud_network": False, "total_case_count": 0}
-
-        # Konversi SQLAlchemy objects ke dict
-        cases_data = [
-            {
-                "id": str(c.id),
-                "verdict": c.verdict,
-                "risk_score": c.risk_score,
-                "phones": c.phones or [],
-                "emails": c.emails or [],
-                "companies": c.companies or [],
-                "urls": c.urls or [],
-                "created_at": str(c.created_at),
-            }
-            for c in cases
-        ]
-
-        # Build in-memory graph
-        G = build_fraud_network(cases_data)
-
-        # Cek entitas baru terhadap graf
-        network_ctx = check_entity_in_network(G, entities)
-
-        # ── Syndicate identity reuse — dihitung dari cases_data nyata ───────
-        try:
-            from app.services.cache_service import detect_identity_syndicate
-            # siapkan company_name per kasus agar reuse lintas perusahaan terdeteksi
-            hist = [
-                {
-                    "phones": cd.get("phones") or [],
-                    "emails": cd.get("emails") or [],
-                    "company_name": (cd.get("companies") or [None])[0],
-                }
-                for cd in cases_data
-            ]
-            network_ctx["syndicate_analysis"] = detect_identity_syndicate(
-                contacts=entities.get("contacts") or [],
-                emails=entities.get("emails") or [],
-                current_company=(entities.get("companies") or ["Unknown"])[0],
-                historical_cases=hist,
-            )
-        except Exception as _syn_exc:
-            network_ctx["syndicate_analysis"] = {
-                "syndicate_detected": False, "syndicate_alerts": [],
-                "note": f"analisis sindikat dilewati: {_syn_exc}",
-            }
-
-        # ── Suplemen: agregasi Community Reports untuk entitas ini ─────────
-        # Laporan komunitas yang berulang pada entitas yang sama = sinyal risiko kuat.
-        community = _community_report_signal(db, entities)
-        network_ctx["community_reports"] = community
-        if community.get("report_count", 0) > 0:
-            network_ctx["entity_in_fraud_network"] = True
-            # Eskalasi threat_level bila belum tinggi
-            if community["report_count"] >= 3:
-                network_ctx["threat_level"] = "HIGH"
-            elif network_ctx.get("threat_level") not in ("HIGH",):
-                network_ctx["threat_level"] = "MEDIUM"
-        return network_ctx
-
-    except Exception as exc:
-        import logging
-        logging.getLogger(__name__).warning(f"Fraud network check failed: {exc}")
-        return {"entity_in_fraud_network": False, "error": str(exc)}
-
-
-def _community_report_signal(db: Session, entities: dict) -> dict:
-    """Hitung berapa kali entitas lowongan ini dilaporkan komunitas."""
-    from app.database.models import CommunityReport
-    from sqlalchemy import func, or_
-
-    conditions = []
-    for comp in (entities.get("companies") or []):
-        conditions.append(func.lower(CommunityReport.company_name) == str(comp).strip().lower())
-    for em in (entities.get("emails") or []):
-        conditions.append(func.lower(CommunityReport.email) == str(em).strip().lower())
-    for url in (entities.get("urls") or []):
-        conditions.append(CommunityReport.url == str(url).strip())
-    for ph in (entities.get("contacts") or []):
-        digits = "".join(c for c in str(ph) if c.isdigit())
-        if digits.startswith("0"):
-            digits = "62" + digits[1:]
-        if digits:
-            conditions.append(CommunityReport.phone == digits)
-
-    if not conditions:
-        return {"report_count": 0, "reported_by_community": False}
-
-    try:
-        count = db.query(func.count(CommunityReport.id)).filter(or_(*conditions)).scalar() or 0
-    except Exception:  # noqa: BLE001
-        return {"report_count": 0, "reported_by_community": False}
-
-    return {
-        "report_count": int(count),
-        "reported_by_community": count > 0,
-        "risk_signal": "HIGH" if count >= 3 else ("MEDIUM" if count == 2 else ("LOW" if count == 1 else "NONE")),
-    }
-
-
-async def _extract_entities_hybrid(text: str) -> dict:
-    """
-    Hybrid NER: regex (entitas struktural) + LLM extraction (entitas semantik).
-
-    LLM extraction untuk companies/addresses/salaries berjalan PARALEL dengan
-    regex via asyncio.gather — regex selesai instan, LLM overlap sehingga tidak
-    menambah critical path secara signifikan. Jika LLM down/timeout/JSON rusak,
-    hybrid_merge_entities fallback penuh ke hasil regex (safety net).
-
-    Metadata extraction disimpan di entities["_ner_meta"] untuk observability
-    (sumber: regex | hybrid_llm_regex | llm_no_new).
-    """
-    regex_task = asyncio.to_thread(extract_entities_from_text, text)
-    regex_entities, merged_entities = await asyncio.gather(
-        regex_task,
-        # hybrid_merge_entities butuh hasil regex → kita jalankan LLM-nya
-        # paralel dengan regex lewat task terpisah, lalu merge di dalam.
-        _run_llm_ner(text),
-    )
-    # regex_entities = hasil regex; merged_entities = hasil LLM (atau None)
-    if merged_entities is None:
-        regex_entities["_ner_meta"] = {"used": False, "source": "regex"}
-        return regex_entities
-    # Merge dengan strategi per-kategori:
-    # - companies: LLM adalah daftar OTORITATIF (lebih akurat secara semantik).
-    #   Regex hanya dipertahankan bila namanya dikonfirmasi LLM (fuzzy match),
-    #   sehingga false positive regex ("dan cekatan", "bersedia training") dibuang.
-    # - addresses & salaries: MERGE-ADDITIVE (LLM menambah yang regex lewatkan,
-    #   regex tetap jadi suplemen — keduanya cenderung precision-tinggi).
-    def _norm(s: str) -> str:
-        import re as _re
-        return _re.sub(r"[^a-z0-9 ]", "", s.lower()).strip()
-
-    def _fuzzy_contains(a: str, b: str) -> bool:
-        """True bila salah satu normalized string mengandung yang lain (min 4 char)."""
-        na, nb = _norm(a), _norm(b)
-        if len(na) < 4 or len(nb) < 4:
-            return na == nb
-        return na in nb or nb in na
-
-    merged = copy.deepcopy(regex_entities)
-    added = {"companies": False, "addresses": False, "salaries": False}
-    cleaned = {"companies": 0}
-    any_added = False
-
-    # ── companies: LLM otoritatif ──────────────────────────────────────────
-    llm_companies = merged_entities.get("companies") or []
-    if llm_companies:
-        regex_companies = merged.get("companies") or []
-        # Mulai dari daftar LLM (urut), lalu tambah regex yang dikonfirmasi LLM.
-        new_companies: list[str] = list(llm_companies)
-        for rc in regex_companies:
-            if any(_fuzzy_contains(rc, lc) for lc in llm_companies):
-                # regex dikonfirmasi LLM → pertahankan jika belum ada
-                if not any(_fuzzy_contains(rc, e) for e in new_companies):
-                    new_companies.append(rc)
-            else:
-                cleaned["companies"] += 1  # regex tidak dikonfirmasi → dibuang
-        if len(new_companies) > len(regex_companies):
-            added["companies"] = True
-            any_added = True
-        merged["companies"] = new_companies
-
-    # ── addresses & salaries: merge-additive + smart deduplication ────────
-    from app.services.ner import _uniq
-    for key in ("addresses", "salaries"):
-        llm_vals = merged_entities.get(key) or []
-        if not llm_vals:
-            continue
-        existing = {_norm(v) for v in (merged.get(key) or [])}
-        for v in llm_vals:
-            nv = _norm(v)
-            if nv and nv not in existing:
-                merged.setdefault(key, []).append(v)
-                existing.add(nv)
-                added[key] = True
-                any_added = True
-    # Clean deduplication across all extracted list entities
-    import re
-    from app.services.ner import _uniq, fix_email_ocr_typos
-    if merged.get("emails"):
-        merged["emails"] = _uniq([fix_email_ocr_typos(e) for e in merged["emails"] if e])
-    if merged.get("urls"):
-        merged["urls"] = [u for u in _uniq(merged["urls"]) if not re.search(r"^(?:[a-zA-Z]\.com|gmail|yahoo|gmai|gamil)\.", u, re.I)]
-    for key in ("companies", "addresses", "salaries", "contacts"):
-        if merged.get(key):
-            merged[key] = _uniq(merged[key])
-
-
-
-    merged["_ner_meta"] = {
-        "used": True,
-        "source": "hybrid_llm_regex" if any_added else "llm_no_new",
-        "added": added,
-        "cleaned_false_positive_companies": cleaned["companies"],
-    }
-    return merged
-
-
-
-async def _run_llm_ner(text: str) -> dict | None:
-    """Jalankan LLM extraction terisolasi; return None jika gagal/tidak aktif."""
-    try:
-        return await extract_entities_llm(text)
-    except Exception:  # noqa: BLE001 — fallback by design
-        return None
-
-
-async def _run_osint_on_entities(entities: dict) -> dict:
-    """
-    OSINT live paralel: WHOIS/DNS + OSM + Kredibel + Scrapling web + Threads.
-    Optimasi latency: asyncio.gather (bukan serial await).
-    """
-    from app.services.llm.prompt_builder import FREE_EMAIL_DOMAINS
-
-    osint_results: dict = {
-        "domain": {
-            "age_years": None,
-            "created_at": "Tidak diketahui",
-            "is_new": False,
-        },
-        "email_security": {"spf_active": False, "dmarc_active": False},
-        "address_validations": [],
-        "phones": [],
-        "companies": [],
-        "web": {
-            "enabled": False,
-            "websites": [],
-            "searches": [],
-            "risk_flags": [],
-            "safe_flags": [],
-        },
-        "threads": {
-            "enabled": False,
-            "found": False,
-            "posts": [],
-            "profiles": [],
-            "risk_flags": [],
-        },
-        "evidence_policy": {
-            "mode": "factual_sources_only",
-            "note": (
-                "Semua temuan OSINT berasal dari fetch/scrape/API nyata "
-                "(WHOIS, DNS, OSM, Kredibel, Scrapling, Threads). "
-                "LLM reasoner dilarang mengarang fakta di luar evidence."
-            ),
-            "social": "threads_only",
-        },
-        "fraud_network": {
-            "nodes": [
-                {"id": comp, "type": "company", "risk_score": 0, "status": "CLEAN"} for comp in (entities.get("companies") or [])
-            ] + [
-                {"id": phone, "type": "phone", "risk_score": 0, "status": "CLEAN"} for phone in (entities.get("contacts") or [])
-            ] + [
-                {"id": email, "type": "email", "risk_score": 0, "status": "FREE_PROVIDER"} for email in (entities.get("emails") or [])
-            ] + [
-                {"id": addr, "type": "address", "risk_score": 0, "status": "VALID_GIS"} for addr in (entities.get("addresses") or [])
-            ],
-            "edges": [
-                {"source": phone, "target": comp, "relation": "contact_of"} for comp in (entities.get("companies") or []) for phone in (entities.get("contacts") or [])
-            ] + [
-                {"source": email, "target": comp, "relation": "email_of"} for comp in (entities.get("companies") or []) for email in (entities.get("emails") or [])
-            ] + [
-                {"source": addr, "target": comp, "relation": "location_of"} for comp in (entities.get("companies") or []) for addr in (entities.get("addresses") or [])
-            ],
-            "cluster_id": "Threat Cluster #14 (Verified Clean Entity Network)",
-            "entity_in_fraud_network": False,
-            "total_case_count": 0,
-            "threat_level": "LOW",
-        },
-        "timing": {},
-    }
-
-    emails = entities.get("emails", []) or []
-    addresses = (entities.get("addresses") or [])[:2]
-    companies = entities.get("companies") or []
-    company_name = companies[0] if companies else None
-
-    # Domain: skip WHOIS/DNS untuk Gmail/Yahoo (netral + buang waktu)
-    def _domain_job() -> tuple[dict, dict]:
-        if not emails:
-            return osint_results["domain"], osint_results["email_security"]
-        domain = emails[0].split("@")[-1].lower() if "@" in emails[0] else ""
-        if not domain:
-            return osint_results["domain"], osint_results["email_security"]
-        if domain in FREE_EMAIL_DOMAINS:
-            return (
-                {
-                    "age_years": None,
-                    "created_at": "N/A (free email)",
-                    "is_new": False,
-                    "domain": domain,
-                    "skipped": "free_email",
-                },
-                {"spf_active": False, "dmarc_active": False, "skipped": "free_email"},
-            )
-        try:
-            age_info = check_domain_age(domain)
-            if "age_years" not in age_info and age_info.get("age_days", -1) > 0:
-                age_info["age_years"] = round(age_info["age_days"] / 365, 2)
-            security_info = check_email_security(domain)
-            return age_info, security_info
-        except Exception as exc:
-            return (
-                {
-                    "error": str(exc),
-                    "is_new": True,
-                    "age_years": None,
-                    "created_at": "Unknown",
-                },
-                {"spf_active": False, "dmarc_active": False},
-            )
-
-    async def _addresses_job() -> list:
-        if not addresses:
-            return []
-
-        async def one(addr: str):
-            try:
-                return await validate_address_and_business(addr, company_name)
-            except Exception:
-                return {
-                    "address_input": addr,
-                    "address_found": False,
-                    "error": "Gagal memvalidasi alamat.",
-                }
-
-        return list(await asyncio.gather(*[one(a) for a in addresses]))
-
-    async def _phones_job() -> list:
-        try:
-            return await check_phones_kredibel(entities.get("contacts") or [], limit=1)
-        except Exception as exc:
-            return [
-                {"source": "kredibel", "found": False, "error": str(exc), "risk_flags": []}
-            ]
-
-    async def _web_job() -> dict:
-        try:
-            return await run_web_evidence(entities)
-        except Exception as exc:
-            return {
-                "enabled": True,
-                "websites": [],
-                "searches": [],
-                "risk_flags": [],
-                "safe_flags": [],
-                "error": str(exc),
-            }
-
-    async def _companies_job() -> list:
-        try:
-            return await validate_companies(entities, limit=1)
-        except Exception as exc:
-            return [
-                {
-                    "checked": False,
-                    "error": str(exc),
-                    "registry": {"pt_registry_verified": False},
-                    "risk_flags": [],
-                    "safe_flags": [],
-                    "evidence": [],
-                }
-            ]
-
-    async def _threads_job() -> dict:
-        try:
-            return await run_social_osint(entities)
-        except Exception as exc:
-            return {
-                "enabled": True,
-                "found": False,
-                "posts": [],
-                "profiles": [],
-                "risk_flags": [],
-                "error": str(exc),
-            }
-
-    loop = asyncio.get_event_loop()
-    t0 = loop.time()
-    (
-        domain_pair,
-        addr_list,
-        phones,
-        web,
-        companies_osint,
-        threads,
-    ) = await asyncio.gather(
-        loop.run_in_executor(None, _domain_job),
-        _addresses_job(),
-        _phones_job(),
-        _web_job(),
-        _companies_job(),
-        _threads_job(),
-    )
-    osint_results["timing"]["osint_parallel_sec"] = round(loop.time() - t0, 3)
-
-    osint_results["domain"], osint_results["email_security"] = domain_pair
-    osint_results["address_validations"] = addr_list
-    osint_results["phones"] = phones
-    osint_results["web"] = web
-    osint_results["companies"] = companies_osint
-    osint_results["threads"] = threads
-    return osint_results
-
-
-def _merge_entities(primary: dict, secondary: dict) -> dict:
-    import re
-    from app.services.ner import _uniq, clean_indonesian_phone, fix_email_ocr_typos
-
-    keys = ["companies", "contacts", "emails", "urls", "addresses", "salaries"]
-    out = {}
-    for key in keys:
-        combined = list(primary.get(key) or []) + list(secondary.get(key) or [])
-        if key == "contacts":
-            std = []
-            for ph in combined:
-                c_ph = clean_indonesian_phone(ph)
-                if c_ph:
-                    std.append(c_ph)
-            out[key] = _uniq(std)
-        elif key == "emails":
-            out[key] = _uniq([fix_email_ocr_typos(e) for e in combined if e])
-        elif key == "urls":
-            # Filter out single letter domain artifacts like L.com / gmai.com
-            clean_urls = [
-                u for u in combined
-                if u and not re.search(r"^(?:[a-zA-Z]\.com|gmail|yahoo|gmai|gamil)\.", u, re.I)
-            ]
-            out[key] = _uniq(clean_urls)
-        elif key == "addresses":
-            comp_lows = {c.strip().lower() for c in out.get("companies", [])}
-            clean_addrs = [
-                a for a in combined
-                if a and a.strip().lower() not in comp_lows
-                and not any(a.strip().lower() in c or c in a.strip().lower() for c in comp_lows if len(c) >= 6)
-            ]
-            out[key] = _uniq(clean_addrs)
-        else:
-            out[key] = _uniq(combined)
-    return out
-
-
-
-
-
-def _to_response(
-    analysis: dict,
-    entities: dict,
-    osint_results: dict | None = None,
-) -> VerifyResponse:
-    corrected = analysis.get("corrected_company_name")
-    if corrected and corrected not in (None, "null", ""):
-        entities = {**entities, "companies": [str(corrected)]}
-
-    # sanitize entities keys for schema
-    safe_entities = {
-        "companies": entities.get("companies") or [],
-        "contacts": entities.get("contacts") or [],
-        "emails": entities.get("emails") or [],
-        "urls": entities.get("urls") or [],
-        "addresses": entities.get("addresses") or [],
-        "salaries": entities.get("salaries") or [],
-    }
-
-    risk_score = int(analysis.get("risk_score") or 0)
-    verdict = analysis.get("verdict", "ERROR")
-    risk_factors = analysis.get("risk_factors") or []
-    safe_factors = analysis.get("safe_factors") or []
-
-    shap_explanation = None
-    try:
-        shap_explanation = explain_verification_shap(
-            risk_score=risk_score,
-            verdict=verdict,
-            osint_results=osint_results or {},
-            risk_factors=risk_factors,
-            safe_factors=safe_factors,
-            nlp_result=analysis.get("nlp_result"),
-            network_context=analysis.get("network_context"),
-        )
-    except Exception:
-        shap_explanation = None
-
-    # Tulis network_context (case memory + community reports) ke response agar
-    # FE/pengguna dapat melihat sinyal Fraud Network — bukan hanya internal SHAP.
-    network_ctx = analysis.get("network_context")
-    if network_ctx and osint_results is not None:
-        existing_fn = osint_results.get("fraud_network") or {}
-        existing_fn.update(network_ctx)
-        osint_results["fraud_network"] = existing_fn
-        # Syndicate analysis: gunakan hasil yang dihitung dari DB nyata di
-        # _check_fraud_network (bukan mock tanpa data).
-        if network_ctx.get("syndicate_analysis"):
-            osint_results["syndicate_analysis"] = network_ctx["syndicate_analysis"]
-        elif "syndicate_analysis" not in osint_results:
-            from app.services.cache_service import detect_identity_syndicate
-            osint_results["syndicate_analysis"] = detect_identity_syndicate(
-                contacts=safe_entities["contacts"],
-                emails=safe_entities["emails"],
-                current_company=safe_entities["companies"][0] if safe_entities["companies"] else "Unknown"
-            )
-
-    return VerifyResponse(
-        verdict=verdict,
-        risk_score=risk_score,
-        summary=analysis.get("summary", ""),
-        risk_factors=risk_factors,
-        safe_factors=safe_factors,
-        recommendations=analysis.get("recommendations") or [],
-        entities=ExtractedEntities(**safe_entities),
-        model_used=analysis.get("model_used"),
-        osint=osint_results,
-        shap_explanation=shap_explanation,
-    )
-
-
-def _build_osint_summary(osint_results: dict | None) -> dict | None:
-    """Snapshot ringan untuk audit/case-memory (hindari raw HTML besar)."""
-    if not osint_results:
-        return None
-    phones = osint_results.get("phones") or []
-    addrs = osint_results.get("address_validations") or []
-    web = osint_results.get("web") or {}
-    threads = osint_results.get("threads") or {}
-    return {
-        "phones": [
-            {
-                "phone": p.get("phone") or p.get("phone_local"),
-                "rating": p.get("rating"),
-                "reported_fraud": p.get("reported_fraud"),
-                "review_count": p.get("review_count"),
-            }
-            for p in phones[:5]
-            if isinstance(p, dict)
-        ],
-        "addresses": [
-            {
-                "input": a.get("address_input") or a.get("query"),
-                "found": a.get("address_found") or a.get("found"),
-                "display": ((a.get("address_details") or {}).get("display_name") or "")[:120],
-            }
-            for a in addrs[:5]
-            if isinstance(a, dict)
-        ],
-        "web_search_count": len((web.get("searches") or [])),
-        "web_safe_flags": (web.get("safe_flags") or web.get("safe_signals") or [])[:8],
-        "web_risk_flags": (web.get("risk_flags") or [])[:8],
-        "threads_query": threads.get("query"),
-        "threads_found": bool(threads.get("found")),
-        "domain": {
-            "age_years": (osint_results.get("domain") or {}).get("age_years"),
-            "is_new": (osint_results.get("domain") or {}).get("is_new"),
-        },
-    }
-
-
-def _save_case_to_db(
-    db: Session,
-    raw_text: str,
-    analysis: dict,
-    osint_results: dict | None,
-    entities: dict | None = None,
-    source: str = "text",
-) -> None:
-    """Simpan case + entities lengkap (fondasi exact-match memory)."""
-    import hashlib
-    from sqlalchemy.exc import IntegrityError
-
-    try:
-        text_hash = hashlib.sha256(raw_text.strip().encode("utf-8")).hexdigest()
-        ent = entities or analysis.get("entities_analyzed") or {}
-        companies = list(ent.get("companies") or [])
-        phones = list(ent.get("contacts") or [])
-        emails = list(ent.get("emails") or [])
-        urls = list(ent.get("urls") or [])
-        addresses = list(ent.get("addresses") or [])
-        salaries = list(ent.get("salaries") or [])
-
-        llm_payload = {
-            "summary": analysis.get("summary", ""),
-            "risk_factors": analysis.get("risk_factors") or [],
-            "safe_factors": analysis.get("safe_factors") or [],
-            "recommendations": analysis.get("recommendations") or [],
-            "model_used": analysis.get("model_used"),
-            "corrected_company_name": analysis.get("corrected_company_name"),
-        }
-
-        osint_failed = False
-        if osint_results:
-            osint_failed = any(
-                isinstance(v, dict) and "error" in v for v in osint_results.values()
-            )
-
-        preview = (raw_text or "").strip()
-        if len(preview) > 2000:
-            preview = preview[:2000] + "..."
-
-        existing = db.query(JobCase).filter(JobCase.raw_text_hash == text_hash).first()
-        if existing:
-            existing.source = source
-            existing.raw_text_preview = preview or None
-            existing.company_name = companies[0] if companies else analysis.get("corrected_company_name")
-            existing.companies = companies or None
-            existing.phones = phones or None
-            existing.emails = emails or None
-            existing.urls = urls or None
-            existing.addresses = addresses or None
-            existing.salaries = salaries or None
-            existing.entities = ent or None
-            existing.verdict = analysis.get("verdict", "ERROR")
-            existing.risk_score = int(analysis.get("risk_score") or 0)
-            existing.llm_output = llm_payload
-            existing.osint_summary = _build_osint_summary(osint_results)
-            existing.osint_failed = osint_failed
-        else:
-            db_case = JobCase(
-                raw_text_hash=text_hash,
-                source=source,
-                raw_text_preview=preview or None,
-                company_name=companies[0] if companies else analysis.get("corrected_company_name"),
-                companies=companies or None,
-                phones=phones or None,
-                emails=emails or None,
-                urls=urls or None,
-                addresses=addresses or None,
-                salaries=salaries or None,
-                entities=ent or None,
-                verdict=analysis.get("verdict", "ERROR"),
-                risk_score=int(analysis.get("risk_score") or 0),
-                llm_output=llm_payload,
-                osint_summary=_build_osint_summary(osint_results),
-                osint_failed=osint_failed,
-            )
-            db.add(db_case)
-        db.commit()
-    except Exception as e:
-        db.rollback()
-        print(f"Error saving job case to database: {e}")
-
-
-def _get_cached_case_from_db(db: Session, raw_input_str: str) -> VerifyResponse | None:
-    """Cek apakah lowongan/URL/gambar ini sudah pernah diuji coba sebelumnya (exact DB cache hit)."""
-    import hashlib
-    if not raw_input_str or not raw_input_str.strip():
-        return None
-    try:
-        text_hash = hashlib.sha256(raw_input_str.strip().encode("utf-8")).hexdigest()
-        cached = db.query(JobCase).filter(JobCase.raw_text_hash == text_hash).first()
-        if cached and cached.verdict and cached.verdict != "ERROR":
-            llm_payload = cached.llm_output or {}
-            ent = cached.entities or {
-                "companies": cached.companies or [],
-                "contacts": cached.phones or [],
-                "emails": cached.emails or [],
-                "urls": cached.urls or [],
-                "addresses": cached.addresses or [],
-                "salaries": cached.salaries or [],
-            }
-            analysis = {
-                "verdict": cached.verdict,
-                "risk_score": cached.risk_score,
-                "summary": llm_payload.get("summary", ""),
-                "risk_factors": llm_payload.get("risk_factors", []),
-                "safe_factors": llm_payload.get("safe_factors", []),
-                "recommendations": llm_payload.get("recommendations", []),
-                "model_used": f"{llm_payload.get('model_used', 'claude-sonnet-4.5')} (DB Cache Hit)",
-                "corrected_company_name": llm_payload.get("corrected_company_name"),
-            }
-            osint = cached.osint_summary or {}
-            print(f"[DB Cache Hit] Mengembalikan hasil dari database untuk hash: {text_hash[:10]}")
-            return _to_response(analysis, ent, osint)
-    except Exception as e:
-        print(f"[DB Cache Lookup Warning] {e}")
-    return None
-
 
 @router.post(
     "/verify/text",
@@ -763,13 +67,13 @@ async def verify_from_text(
         return cached_resp
 
     try:
-        # Layer 1: NLP Classifier — TF-IDF behavioral features (paper22 Springer)
+        # Layer 1: NLP — TF-IDF behavioral features (paper22 Springer)
         nlp_result = classify_text(request.text)
 
         entities = await _extract_entities_hybrid(request.text)
         osint_results = await _run_osint_on_entities(entities)
 
-        # Layer 5: Fraud Network Check via case memory (GAR-HGNN inspired)
+        # Layer 5: Fraud Network — case memory (GAR-HGNN inspired)
         network_context = _check_fraud_network(db, entities)
 
         raw_text = request.text if request.include_raw_text else None
@@ -828,17 +132,17 @@ async def verify_from_image(
                 detail="Tidak ada teks yang berhasil dibaca dari gambar. Coba unggah gambar yang lebih jelas.",
             )
 
-        # Cache-check berbasis hash teks OCR (idempoten pada gambar identik),
-        # agar kanal image konsisten ter-cache seperti kanal text.
+        # Cache-check dari hash teks OCR — gambar identik = hasil identik
         cached_resp = _get_cached_case_from_db(db, raw_text)
         if cached_resp:
             return cached_resp
 
         entities = await _extract_entities_hybrid(raw_text)
-        osint_results = await _run_osint_on_entities(entities)
 
-        # Layer 1: NLP Classifier
+        # Layer 1: NLP — jalan sebelum OSINT, konsisten dengan text endpoint
         nlp_result = classify_text(raw_text)
+
+        osint_results = await _run_osint_on_entities(entities)
 
         # Layer 5: Fraud Network Check
         network_context = _check_fraud_network(db, entities)
@@ -866,229 +170,6 @@ async def verify_from_image(
                 os.remove(tmp_path)
             except Exception:
                 pass
-
-
-def _sync_scrapling_fetch(url: str) -> tuple[str, list[str]]:
-    import re
-    import httpx
-    from bs4 import BeautifulSoup
-
-    combined_caption_text = ""
-    image_urls = []
-
-    headers = {
-        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36",
-        "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8",
-        "Accept-Language": "id-ID,id;q=0.9,en-US;q=0.8,en;q=0.7",
-    }
-
-    # Penanganan Khusus Instagram (post / reel / tv)
-    ig_match = re.search(r"instagram\.com/(?:p|reel|tv)/([^/?#&]+)", url, re.I)
-    if ig_match:
-        shortcode = ig_match.group(1)
-        # 1. Coba Halaman Embed Instagram (Sangat efektif mengekstrak poster & caption publik tanpa login)
-        embed_url = f"https://www.instagram.com/p/{shortcode}/embed/captioned/"
-        try:
-            res = httpx.get(embed_url, headers=headers, follow_redirects=True, verify=False, timeout=12.0)
-            if res.status_code == 200:
-                soup = BeautifulSoup(res.text, "html.parser")
-                caption_el = soup.find("div", class_="Caption") or soup.find("div", class_="CaptionComments")
-                if caption_el:
-                    combined_caption_text = caption_el.get_text(separator="\n", strip=True)
-
-                img_els = soup.find_all("img", class_="EmbeddedMediaImage") or soup.find_all("img")
-                for img in img_els:
-                    src = img.get("src")
-                    if src and ("scontent" in src or "cdninstagram.com" in src):
-                        image_urls.append(src)
-
-                # Ekstrak URL scontent CDN dari script/raw text HTML embed
-                found_scontent = re.findall(r'https://scontent[^"\'\s\\]+', res.text)
-                for s_url in found_scontent:
-                    clean = s_url.replace("\\u0026", "&").replace("\\/", "/")
-                    image_urls.append(clean)
-        except Exception as exc:
-            print(f"[Instagram Embed Fetch Warning] {exc}")
-
-        # 2. Jika belum dapat gambar, coba oEmbed API
-        if not image_urls:
-            try:
-                oembed_url = f"https://www.instagram.com/api/v1/oembed/?url={url}"
-                o_res = httpx.get(oembed_url, headers=headers, follow_redirects=True, verify=False, timeout=8.0)
-                if o_res.status_code == 200:
-                    data = o_res.json()
-                    if data.get("title") and not combined_caption_text:
-                        combined_caption_text = data.get("title")
-                    if data.get("thumbnail_url"):
-                        image_urls.append(data.get("thumbnail_url"))
-            except Exception as exc:
-                print(f"[Instagram oEmbed Warning] {exc}")
-
-        # 3. Jika gambar belum dapat, coba proxy fixer (vxinstagram / ddinstagram)
-        if not image_urls:
-            for domain in ["vxinstagram.com", "ddinstagram.com"]:
-                try:
-                    fix_url = f"https://{domain}/p/{shortcode}/"
-                    f_res = httpx.get(fix_url, headers={"User-Agent": "facebookexternalhit/1.1"}, follow_redirects=True, verify=False, timeout=8.0)
-                    if f_res.status_code == 200:
-                        f_soup = BeautifulSoup(f_res.text, "html.parser")
-                        og_i = f_soup.find("meta", property="og:image") or f_soup.find("meta", attrs={"name": "twitter:image"})
-                        if og_i and og_i.get("content"):
-                            image_urls.append(og_i["content"])
-                        og_d = f_soup.find("meta", property="og:description") or f_soup.find("meta", attrs={"name": "description"})
-                        if og_d and og_d.get("content") and not combined_caption_text:
-                            combined_caption_text = og_d["content"]
-                        if image_urls:
-                            break
-                except Exception:
-                    pass
-
-    # Generic Scrapling/HTTPX fetcher (untuk website non-IG atau fallback)
-    try:
-        from scrapling.fetchers import Fetcher
-        page = Fetcher.get(url, headers=headers, verify=False)
-        text_parts = []
-        if combined_caption_text:
-            text_parts.append(combined_caption_text)
-
-        og_title = page.css("meta[property='og:title']::attr(content)").get() or page.css("title::text").get()
-        if og_title and og_title.strip() and og_title.strip() not in text_parts:
-            text_parts.append(og_title.strip())
-
-        company_meta = (
-            page.css("span[data-automation='advertiser-name']::text").get()
-            or page.css("span[data-automation*='company']::text").get()
-            or page.css("a[data-automation*='company']::text").get()
-        )
-        if company_meta and company_meta.strip():
-            text_parts.append(f"Perusahaan/Pengiklan: {company_meta.strip()}")
-
-        og_desc = (
-            page.css("meta[property='og:description']::attr(content)").get() 
-            or page.css("meta[name='description']::attr(content)").get()
-        )
-        if og_desc and og_desc.strip() and og_desc.strip() not in text_parts:
-            text_parts.append(og_desc.strip())
-
-        body_texts = [
-            t.strip()
-            for t in page.css(
-                "p::text, h1::text, h2::text, h3::text, li::text, article::text, "
-                "div[data-automation*='job']::text, div[class*='description']::text, "
-                "div[class*='job']::text, span[dir='auto']::text, span[data-automation*='advertiser']::text"
-            ).getall()
-            if len(t.strip()) > 15
-        ]
-        if body_texts:
-            seen_b = set()
-            unique_body = []
-            for b in body_texts:
-                if b not in seen_b and not any(x in b.lower() for x in ["cookie", "privacy policy", "terms of service", "log in", "sign up"]):
-                    seen_b.add(b)
-                    unique_body.append(b)
-            text_parts.append(" ".join(unique_body[:30])[:3000])
-
-        combined_caption_text = "\n".join(text_parts).strip()
-
-        # Filter Instagram & Threads footer noise (promosi / komentar spam / UI sosmed)
-        ig_noise_patterns = [
-            r"Jangan pernah lewatkan postingan",
-            r"Daftar Instagram untuk tetap tahu",
-            r"Pengunggahan Kontak & Nonpengguna Meta",
-            r"Order Via Wa Only",
-            r"Jasa Ketik CV",
-            r"upgrade CV",
-            r"Lihat Postingan Lainnya",
-            r"INFO LOWONGAN KERJA SOLO",
-            r"Dibutuhkan staf Kantor",
-            r"Lihat apa yang sedang dibicarakan",
-            r"bergabunglah dengan percakapan",
-            r"Laporkan masalah",
-        ]
-        lines_clean = []
-        for line in (combined_caption_text or "").splitlines():
-            if any(re.search(pat, line, re.I) for pat in ig_noise_patterns):
-                break
-            lines_clean.append(line)
-        combined_caption_text = "\n".join(lines_clean).strip()
-
-
-        og_img = (
-            page.css("meta[property='og:image']::attr(content)").get()
-            or page.css("meta[name='twitter:image']::attr(content)").get()
-        )
-        if og_img and og_img.strip():
-            image_urls.append(og_img.strip())
-
-    except Exception as exc:
-        print(f"[Scrapling Fetch Warning] {exc}")
-
-    if not combined_caption_text:
-        try:
-            res = httpx.get(url, headers=headers, follow_redirects=True, verify=False, timeout=15.0)
-            if res.status_code == 200:
-                soup = BeautifulSoup(res.text, "html.parser")
-                text_parts = []
-                og_title = soup.find("meta", property="og:title") or soup.find("title")
-                if og_title:
-                    text_parts.append(og_title.get("content") or og_title.get_text())
-                og_desc = soup.find("meta", property="og:description") or soup.find("meta", attrs={"name": "description"})
-                if og_desc and og_desc.get("content"):
-                    text_parts.append(og_desc["content"].strip())
-                combined_caption_text = "\n".join(text_parts).strip()
-                if not image_urls:
-                    og_img = soup.find("meta", property="og:image") or soup.find("meta", attrs={"name": "twitter:image"})
-                    if og_img and og_img.get("content"):
-                        image_urls.append(og_img["content"].strip())
-        except Exception as exc:
-            print(f"[HTTPX Scrape Fallback Error] {exc}")
-
-    # Deduplicate preserving order
-    seen_urls = set()
-    dedup_images = []
-    for img_u in image_urls:
-        if img_u and img_u not in seen_urls:
-            seen_urls.add(img_u)
-            dedup_images.append(img_u)
-
-    return combined_caption_text, dedup_images[:3]
-
-
-async def _fetch_url_content_and_image(url: str) -> tuple[str, list[str]]:
-    """
-    Scrape teks (caption/description) & daftar image URL poster (termasuk carousel slides) dari URL.
-    Returns: (extracted_text, temp_image_paths_list)
-    """
-    import httpx
-
-    loop = asyncio.get_event_loop()
-    combined_caption_text, image_urls = await loop.run_in_executor(None, _sync_scrapling_fetch, url)
-
-    tmp_img_paths = []
-    headers = {
-        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36",
-        "Referer": "https://www.instagram.com/",
-        "Accept": "image/avif,image/webp,image/apng,image/svg+xml,image/*,*/*;q=0.8",
-    }
-
-    for img_url in image_urls:
-        try:
-            async with httpx.AsyncClient(timeout=15.0, headers=headers, follow_redirects=True, verify=False) as client:
-                img_res = await client.get(img_url)
-                if img_res.status_code == 200 and len(img_res.content) > 1000:
-                    ext = ".jpg"
-                    if ".png" in img_url.lower():
-                        ext = ".png"
-                    elif ".webp" in img_url.lower():
-                        ext = ".webp"
-                    with tempfile.NamedTemporaryFile(delete=False, suffix=ext) as tmp:
-                        tmp.write(img_res.content)
-                        tmp_img_paths.append(tmp.name)
-        except Exception as exc:
-            print(f"[URL Fetch] Gagal mengunduh gambar poster dari {img_url}: {exc}")
-
-    return combined_caption_text, tmp_img_paths
-
 
 @router.post(
     "/verify/url",
@@ -1119,11 +200,11 @@ async def verify_from_url(
                     if t and t.strip():
                         ocr_texts.append(t.strip())
                 except Exception as exc:
-                    print(f"[URL OCR Error] {exc}")
+                    logger.warning("URL OCR Error: %s", exc)
 
         combined_ocr_text = "\n".join(ocr_texts).strip()
 
-        # FOKUS UTAMA: Jika ada teks dari poster/gambar hasil OCR, letakkan DI POSISI PALING ATAS!
+        # Prioritaskan teks OCR poster di posisi paling atas
         text_blocks = [f"URL Target: {request.url}"]
         if combined_ocr_text:
             text_blocks.append(f"[TEKS UTAMA POSTER/GAMBAR LOWONGAN (OCR)]:\n{combined_ocr_text}")
@@ -1289,9 +370,9 @@ def list_cases(limit: int = 100, skip: int = 0, db: Session = Depends(get_db)):
     description="Fondasi case-memory: lookup exact phone/email/company dari riwayat job_cases.",
 )
 def lookup_cases_by_entity(
-    phone: Optional[str] = Query(None, description="Nomor E.164 mis. +62812..."),
-    email: Optional[str] = Query(None),
-    company: Optional[str] = Query(None),
+    phone: str | None = Query(None, description="Nomor E.164 mis. +62812..."),
+    email: str | None = Query(None),
+    company: str | None = Query(None),
     limit: int = Query(20, ge=1, le=100),
     db: Session = Depends(get_db),
 ):

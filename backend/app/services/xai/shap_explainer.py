@@ -21,10 +21,16 @@ Berbeda dari versi sebelumnya yang rule-based sederhana, versi ini:
 4. Menghasilkan waterfall chart data yang bisa divisualisasi di FE
 """
 
-from __future__ import annotations
-
 from datetime import datetime, timezone
 from typing import Any
+
+from app.services.constants import FREE_EMAIL_DOMAINS
+
+
+def _cs(raw: float, weight: float) -> dict[str, Any]:
+    """Consistency score helper — raw score * weight."""
+    return {"raw_score": round(raw, 1), "weight": weight,
+            "weighted_contribution": round(raw * weight, 1)}
 
 
 # ─── Feature weight registry — dikalibrasi sesuai paper22 ─────────────────
@@ -51,7 +57,7 @@ _FEATURE_WEIGHTS: dict[str, float] = {
     "address_not_found_osm": 10.0,
     "company_not_found_web": 12.0,
     "scam_serp_result":      25.0,
-    "threads_risk_flag":     10.0,
+    "social_risk_flag":      10.0,
 
     # Case memory — fraud network
     "entity_in_fraud_network": 30.0,
@@ -363,9 +369,9 @@ def explain_verification_shap(
         "top_risk_features": [c["feature"] for c in risk_contribs[:3]],
         "top_safe_features": [c["feature"] for c in safe_contribs[:3]],
         "summary": (
-            f"Berdasarkan bukti publik independen yang berhasil dikumpulkan, tidak ditemukan indikator kuat "
-            f"yang mengarah pada aktivitas penipuan. Namun, sistem tidak dapat menjamin legalitas "
-            f"perusahaan secara absolut karena beberapa sumber resmi (seperti registri AHU/OSS) tidak tersedia secara publik."
+            f"Berdasarkan bukti publik independen yang berhasil dikumpulkan, lowongan ini dinilai "
+            f"{'aman — tidak ditemukan indikator kuat penipuan' if verdict == 'AMAN' else 'perlu diwaspadai — ditemukan sinyal risiko' if verdict == 'WASPADA' else 'berisiko tinggi — ditemukan indikator penipuan'}. "
+            f"Sistem tidak dapat menjamin legalitas perusahaan secara absolut karena beberapa sumber resmi (seperti registri AHU/OSS) tidak tersedia secara publik."
         ),
     }
 
@@ -411,7 +417,10 @@ def _build_forensic_metadata(
     phone_flagged = any(p.get("reported_fraud") for p in phones if isinstance(p, dict))
     web_hit = bool((web.get("websites") or []) or (web.get("searches") or []) or (web.get("safe_flags") or []))
     social_hit = bool((threads.get("posts") or []) or (threads.get("profiles") or []))
-    is_free_email = (email_sec.get("skipped") == "free_email") or (domain.get("skipped") == "free_email")
+    is_free_email = any(
+        "@" in e and e.split("@")[-1].lower() in FREE_EMAIL_DOMAINS
+        for e in (osint_results.get("emails") or [])
+    )
     in_fraud_network = bool((network_context or {}).get("entity_in_fraud_network"))
 
     # Coverage: proporsi probe yang berhasil mengembalikan sinyal ------------
@@ -448,9 +457,6 @@ def _build_forensic_metadata(
     ]
 
     # Consistency breakdown — diturunkan dari sinyal nyata --------------------
-    def _cs(raw: float, weight: float) -> dict[str, Any]:
-        return {"raw_score": round(raw, 1), "weight": weight,
-                "weighted_contribution": round(raw * weight, 1)}
     consistency_breakdown = [
         {"factor": "company_name_match", **_cs(100.0 if company_found else 40.0, 0.25)},
         {"factor": "address_gis_match", **_cs(100.0 if address_found else 30.0, 0.20)},

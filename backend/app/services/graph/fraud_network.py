@@ -30,9 +30,8 @@ Edge types:
 - USES_PHONE, USES_EMAIL, MENTIONS_COMPANY, LINKS_TO
 """
 
-from __future__ import annotations
-
 import logging
+import re
 from typing import Any
 
 import networkx as nx
@@ -146,7 +145,7 @@ def check_entity_in_network(
 
     # Cek tiap tipe entitas
     checks = [
-        ("phones",    "phone",   entities.get("contacts") or []),
+        ("phones",    "phone",   entities.get("phones") or []),
         ("emails",    "email",   [e.lower() for e in (entities.get("emails") or [])]),
         ("companies", "company", [(c.upper().strip()) for c in (entities.get("companies") or [])]),
         ("urls",      "url",     [_extract_domain(u) for u in (entities.get("urls") or []) if _extract_domain(u)]),
@@ -230,7 +229,7 @@ def get_network_graph_data(
             for neighbor in G.neighbors(n):
                 fraud_related.add(neighbor)
 
-    selected = list(fraud_related)[:max_nodes]
+    selected = sorted(fraud_related)[:max_nodes]
 
     for node_id in selected:
         d = G.nodes[node_id]
@@ -260,7 +259,6 @@ def get_network_graph_data(
 
 def _extract_domain(url: str) -> str | None:
     """Extract domain dari URL."""
-    import re
     if not url:
         return None
     # Hapus protocol

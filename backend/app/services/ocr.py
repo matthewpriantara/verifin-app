@@ -1,3 +1,6 @@
+"""
+OCR engine wrapper — gambar → teks via PaddleOCR + OpenCV preprocessing.
+"""
 import os
 import cv2
 import logging
@@ -132,6 +135,6 @@ def extract_text_from_image(image_path: str) -> str:
 
             return "\n".join(extracted_lines)
     except Exception as e:
-        print(f"[OCR Error] Gagal mengekstrak gambar: {str(e)}")
+        logger.error("[OCR Error] Gagal mengekstrak gambar: %s", e)
         raise e
 

@@ -1,14 +1,10 @@
 """
-Community Reports Router — laporan penipuan dari komunitas (Layer 5 suplemen).
-
-Pengguna dapat melaporkan lowongan/entitas yang terbukti menipu. Agregasi
-laporan lintas entitas (HP/email/PT/URL) memperkuat Fraud Network: entitas
-yang berulang dilaporkan menjadi sinyal risiko kuat.
+Community Reports — laporan penipuan dari komunitas (suplemen Fraud Network).
 
 Endpoint:
-- POST /community/report          → kirim laporan baru
-- GET  /community/check           → cek berapa kali entitas dilaporkan (agregasi)
-- GET  /community/recent          → laporan terbaru (untuk transparansi publik)
+- POST /community/report   → kirim laporan baru
+- GET  /community/check    → cek berapa kali entitas dilaporkan
+- GET  /community/recent   → laporan terbaru (transparansi publik)
 """
 
 from __future__ import annotations
@@ -17,12 +13,13 @@ import logging
 from typing import Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Query
-from pydantic import BaseModel, Field
 from sqlalchemy import func, or_
 from sqlalchemy.orm import Session
 
 from app.database.models import CommunityReport
 from app.database.postgres_client import Base, engine, get_db
+from app.services.ner import clean_indonesian_phone
+from app.api.v1.community.schema import CommunityReportIn, CommunityReportOut
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
@@ -34,39 +31,8 @@ except Exception as exc:  # noqa: BLE001 — jangan gagalkan boot bila DB sesaat
     logger.warning("[community] create_all skipped: %s", exc)
 
 
-# ─── Schemas ─────────────────────────────────────────────────────────────────
-class CommunityReportIn(BaseModel):
-    company_name: Optional[str] = Field(None, max_length=255)
-    phone: Optional[str] = Field(None, max_length=32)
-    email: Optional[str] = Field(None, max_length=255)
-    url: Optional[str] = Field(None, max_length=512)
-    report_type: str = Field("penipuan", max_length=24)
-    description: Optional[str] = Field(None, max_length=4000)
-    reporter_contact: Optional[str] = Field(None, max_length=255)
-
-
-class CommunityReportOut(BaseModel):
-    id: str
-    report_type: str
-    company_name: Optional[str]
-    phone: Optional[str]
-    email: Optional[str]
-    url: Optional[str]
-    description: Optional[str]
-    created_at: str
-
-
-def _normalize_phone(phone: str) -> str:
-    digits = "".join(c for c in (phone or "") if c.isdigit())
-    if digits.startswith("0"):
-        digits = "62" + digits[1:]
-    return digits
-
-
-# ─── Endpoints ───────────────────────────────────────────────────────────────
 @router.post("/community/report", status_code=201, summary="Kirim Laporan Penipuan Komunitas")
 def submit_report(payload: CommunityReportIn, db: Session = Depends(get_db)):
-    # Minimal satu entitas target harus ada
     if not any([payload.company_name, payload.phone, payload.email, payload.url]):
         raise HTTPException(
             status_code=422,
@@ -75,7 +41,7 @@ def submit_report(payload: CommunityReportIn, db: Session = Depends(get_db)):
 
     report = CommunityReport(
         company_name=(payload.company_name or "").strip() or None,
-        phone=_normalize_phone(payload.phone) or None,
+        phone=clean_indonesian_phone(payload.phone) or None,
         email=(payload.email or "").strip().lower() or None,
         url=(payload.url or "").strip() or None,
         report_type=(payload.report_type or "penipuan").strip(),
@@ -113,7 +79,7 @@ def check_entity(
     if company_name:
         conditions.append(func.lower(CommunityReport.company_name) == company_name.strip().lower())
     if phone:
-        conditions.append(CommunityReport.phone == _normalize_phone(phone))
+        conditions.append(CommunityReport.phone == clean_indonesian_phone(phone))
     if email:
         conditions.append(func.lower(CommunityReport.email) == email.strip().lower())
     if url:
@@ -122,7 +88,7 @@ def check_entity(
     try:
         count = db.query(func.count(CommunityReport.id)).filter(or_(*conditions)).scalar() or 0
     except Exception as exc:  # noqa: BLE001
-        raise HTTPException(status_code=500, detail=f"Gagal memeriksa laporan: {exc}") from exc
+        raise HTTPException(status_code=500, detail=f"Gagal mengambil data: {exc}") from exc
 
     return {
         "status": "ok",
@@ -132,9 +98,9 @@ def check_entity(
     }
 
 
-@router.get("/community/recent", summary="Laporan Komunitas Terbaru (Transparansi Publik)")
+@router.get("/community/recent", summary="Laporan Komunitas Terbaru")
 def recent_reports(
-    limit: int = Query(10, ge=1, le=50),
+    limit: int = Query(20, ge=1, le=100),
     db: Session = Depends(get_db),
 ):
     try:

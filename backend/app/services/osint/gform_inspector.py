@@ -4,7 +4,6 @@ Memfollow redirect shortlink (bit.ly, forms.gle), mengekstrak pertanyaan Google 
 dan menganalisis indikator pertanyaan phishing / sensitif (No Rekening, PIN, KTP, Biaya Transfer).
 """
 
-from __future__ import annotations
 
 import json
 import re

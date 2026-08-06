@@ -5,11 +5,7 @@ yang siap dikirim ke LLM (OpenAgentic / Grok) untuk analisis risiko penipuan.
 """
 
 # Domain gratisan yang umum digunakan — tidak perlu dicek WHOIS/SPF/DMARC
-FREE_EMAIL_DOMAINS = {
-    "gmail.com", "yahoo.com", "yahoo.co.id", "hotmail.com",
-    "outlook.com", "live.com", "ymail.com", "icloud.com",
-    "protonmail.com", "mail.com"
-}
+from app.services.constants import FREE_EMAIL_DOMAINS
 
 
 def _build_domain_osint_section(emails: list, domain_info: dict, email_security: dict) -> str:
@@ -103,12 +99,14 @@ def _build_company_osint_section(companies: list) -> str:
         name = c.get("name") or "?"
         lines.append(f"- Nama: `{name}` | method={c.get('method', 'public_web_only')}")
         reg = c.get("registry") or {}
-        lines.append(
-            f"  → Legalitas AHU/OSS per-entitas: "
-            f"{'TERVERIFIKASI' if reg.get('pt_registry_verified') else 'BELUM TERVERIFIKASI (jangan dikarang)'}"
-        )
-        if reg.get("disclaimer"):
-            lines.append(f"  → Disclaimer: {reg.get('disclaimer')}")
+        # registry field hanya ada kalau company_validator melakukan probe AHU — umumnya kosong
+        if reg.get("pt_registry_verified") is not None:
+            lines.append(
+                f"  → Legalitas AHU/OSS: "
+                f"{'TERVERIFIKASI' if reg.get('pt_registry_verified') else 'BELUM TERVERIFIKASI (jangan dikarang)'}"
+            )
+            if reg.get("disclaimer"):
+                lines.append(f"  → Disclaimer: {reg.get('disclaimer')}")
         stats = c.get("stats") or {}
         if stats:
             lines.append(
@@ -195,7 +193,7 @@ def _build_web_osint_section(web: dict) -> str:
     return "\n".join(lines)
 
 
-def _build_threads_osint_section(threads: dict) -> str:
+def _build_social_osint_section(threads: dict) -> str:
     """Format hasil OSINT Social Media untuk prompt reasoner — ringkas."""
     if not threads:
         return "- Tidak ada data media sosial."
@@ -347,8 +345,8 @@ Analisis secara mendalam, formal, dan berbasis evidence. Berikan keputusan apaka
 **Bukti Web (Scrapling — website + pencarian nyata):**
 {_build_web_osint_section(osint_results.get("web", {}))}
 
-**Jejak Threads saja (medsos; cookie session):**
-{_build_threads_osint_section(osint_results.get("threads", {}))}
+**Jejak Media Sosial (Instagram, Threads, TikTok, Facebook, X):**
+{_build_social_osint_section(osint_results.get("threads", {}))}
 
 **Kebijakan evidence:**
 {(osint_results.get("evidence_policy") or {}).get("note", "Hanya fakta dari sumber OSINT.")}

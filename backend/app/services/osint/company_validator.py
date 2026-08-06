@@ -1,54 +1,48 @@
 """
-Validasi nama PT/perusahaan — HANYA dari sumber publik yang benar-benar di-fetch.
+Validator reputasi perusahaan berbasis sumber publik — bukan cek registrasi AHU/OSS.
 
-PENTING (metodologi Verifin):
-- Kita TIDAK mengklaim "terdaftar di AHU/OSS" kecuali ada bukti fetch nyata.
-- AHU/OSS resmi sering butuh captcha/login; tanpa API resmi, status = unverified.
-- Yang kita lakukan: jejak publik (website, hasil search, sebutan NIB/AHU di web).
+Fungsi utama: deteksi jejak penipuan di web untuk nama perusahaan dari poster lowongan.
+Dipanggil dari pipeline.py setelah NER mengekstrak nama perusahaan.
 
-Sumber yang dipakai:
-1) Fetch website domain (jika ada di entities/email)
-2) DuckDuckGo search fakta: nama PT + (AHU|OSS|NIB|lowongan penipuan)
-3) Scrapling — data mentah disimpan di results (URL + title + snippet)
+Metodologi:
+- TIDAK mengklaim "terdaftar di AHU/OSS" — API resmi butuh captcha/login, tidak tersedia.
+- Yang dilakukan: cari jejak publik (website, hasil search, laporan penipuan di web).
+- Output berupa risk_flags/safe_flags yang digabung di pipeline, bukan verdict final.
+
+Sumber data:
+1. Website domain perusahaan (dari email di entities) — cek konten nyata
+2. Web search: nama PT + kata kunci penipuan (DuckDuckGo → Yahoo → Bing fallback)
 """
-
-from __future__ import annotations
 
 import re
 from typing import Any
-from urllib.parse import quote_plus
 
-from scrapling.fetchers import Fetcher
-
+from app.services.constants import FREE_EMAIL_DOMAINS as _FREE_EMAIL_DOMAINS
 from app.services.osint.web_evidence import (
+    _domain_from_email,
     fetch_company_website,
     search_web_evidence,
-    _domain_from_email,
 )
 
+# Token umum yang tidak bermakna untuk deteksi nama perusahaan di blob search
+_COMP_GENERIC_TOKENS = frozenset({
+    "center", "management", "group", "utama", "persada", "pt", "cv",
+    "badan", "nasional", "gizi", "sppg", "indonesia", "instansi", "dinas",
+})
 
-def _normalize_company_name(name: str) -> str:
-    n = re.sub(r"\s+", " ", (name or "").strip())
-    return n
-
-
-_FREE_EMAIL_DOMAINS = {
-    "gmail.com",
-    "yahoo.com",
-    "yahoo.co.id",
-    "hotmail.com",
-    "outlook.com",
-    "live.com",
-    "ymail.com",
-    "icloud.com",
-    "protonmail.com",
-    "mail.com",
-}
+# Keyword yang menandakan artikel umum (bukan laporan penipuan spesifik)
+_GENERAL_NEWS_KEYWORDS = frozenset({
+    "aparat memburu", "satgas pasti", "cek fakta", "deretan hoaks",
+    "siaran pers", "cara cek", "tips", "mengenali penipuan",
+})
 
 
 def _search_company_traces(company: str) -> list[dict[str, Any]]:
-    """1 query scam check saja (web_evidence sudah cover presence search)."""
-    queries = [f'"{company}" lowongan penipuan OR penipu OR scam']
+    """Dua query: scam check + jejak legalitas (NIB/AHU/akta via web publik)."""
+    queries = [
+        f'"{company}" lowongan penipuan OR penipu OR scam',
+        f'"{company}" NIB OR "akta pendirian" OR "terdaftar" OR AHU OR OSS',
+    ]
     out = []
     for q in queries:
         res = search_web_evidence(q, max_results=3)
@@ -72,7 +66,7 @@ def validate_company_public(company: str, entities: dict | None = None) -> dict[
     Semua field evidence berasal dari fetch/search nyata.
     """
     entities = entities or {}
-    name = _normalize_company_name(company)
+    name = re.sub(r"\s+", " ", (company or "").strip())
     if not name or len(name) < 3:
         return {
             "name": company,
@@ -117,11 +111,13 @@ def validate_company_public(company: str, entities: dict | None = None) -> dict[
         risk_flags.extend(w.get("risk_flags") or [])
         safe_flags.extend(w.get("safe_flags") or [])
 
-    # 2) 1 search scam (presence search sudah di web_evidence)
+    # 2) search scam + jejak legalitas
     searches = _search_company_traces(name)
     mention_count = 0
     fraud_mentions = 0
+    legality_mentions = 0
     for s in searches:
+        is_legality_query = "NIB" in s.get("query", "") or "akta pendirian" in s.get("query", "")
         evidence.append(
             {
                 "type": "web_search",
@@ -134,15 +130,11 @@ def validate_company_public(company: str, entities: dict | None = None) -> dict[
             }
         )
         comp_tokens = [
-            t
-            for t in re.split(r"\s+", name.lower())
-            if len(t) > 3 and t not in ("center", "management", "group", "utama", "persada", "pt", "cv")
+            t for t in re.split(r"\s+", name.lower())
+            if len(t) > 3 and t not in {"pt", "cv", "ud", "tb", "firma"}
         ]
-        unique_tokens = [
-            t
-            for t in comp_tokens
-            if t not in ("badan", "nasional", "gizi", "sppg", "indonesia", "instansi", "dinas")
-        ]
+        # Token unik = comp_tokens minus kata geografis/industri generik Indonesia
+        unique_tokens = [t for t in comp_tokens if t not in _COMP_GENERIC_TOKENS]
 
         for r in s.get("results") or []:
             mention_count += 1
@@ -167,22 +159,17 @@ def validate_company_public(company: str, entities: dict | None = None) -> dict[
                     "terbukti menipu",
                 )
             )
-            is_general_news_or_advice = any(
-                n in blob
-                for n in (
-                    "aparat memburu",
-                    "satgas pasti",
-                    "cek fakta",
-                    "deretan hoaks",
-                    "siaran pers",
-                    "cara cek",
-                    "tips",
-                    "mengenali penipuan",
-                )
-            )
+            is_general_news_or_advice = any(kw in blob for kw in _GENERAL_NEWS_KEYWORDS)
 
             if has_comp and has_scam_report and not is_general_news_or_advice:
                 fraud_mentions += 1
+
+            # Deteksi jejak legalitas dari query kedua
+            if is_legality_query and has_comp and any(
+                kw in blob for kw in ("nib", "akta", "terdaftar", "ahu", "oss", "nomor induk")
+            ):
+                legality_mentions += 1
+
         risk_flags.extend(s.get("risk_flags") or [])
 
     if fraud_mentions >= 1:
@@ -194,6 +181,15 @@ def validate_company_public(company: str, entities: dict | None = None) -> dict[
             f"Ditemukan {mention_count} jejak publik di search (bukan klaim legalitas AHU)."
         )
 
+    if legality_mentions >= 1:
+        safe_flags.append(
+            f"Ditemukan {legality_mentions} jejak legalitas (NIB/AHU/akta) di web publik untuk {name}."
+        )
+    elif mention_count == 0:
+        risk_flags.append(
+            f"Tidak ditemukan jejak publik maupun legalitas untuk '{name}' — perusahaan baru atau fiktif."
+        )
+
     # AHU probe di-skip (selalu unverified + lambat); legalitas tetap jujur
     registry = {
         "source": "ahu.go.id",
@@ -203,16 +199,9 @@ def validate_company_public(company: str, entities: dict | None = None) -> dict[
         "skipped": True,
     }
 
-    # Dedup flags
+    # Dedup flags — dict.fromkeys preserves order
     def uniq(xs: list[str]) -> list[str]:
-        seen = set()
-        out = []
-        for x in xs:
-            if not x or x in seen:
-                continue
-            seen.add(x)
-            out.append(x)
-        return out
+        return list(dict.fromkeys(x for x in xs if x))
 
     return {
         "name": name,
@@ -232,6 +221,7 @@ def validate_company_public(company: str, entities: dict | None = None) -> dict[
         "stats": {
             "public_mentions": mention_count,
             "fraud_related_mentions": fraud_mentions,
+            "legality_mentions": legality_mentions,
         },
         "risk_flags": uniq(risk_flags),
         "safe_flags": uniq(safe_flags),
@@ -245,7 +235,7 @@ async def validate_companies(entities: dict, limit: int = 1) -> list[dict[str, A
     if not companies:
         return []
 
-    loop = asyncio.get_event_loop()
+    loop = asyncio.get_running_loop()
     out = []
     for name in companies:
         result = await loop.run_in_executor(

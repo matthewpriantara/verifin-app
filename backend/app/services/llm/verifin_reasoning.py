@@ -6,12 +6,10 @@ pencari kerja Verifin yang menggabungkan OSINT, analisis bukti, dan
 pemantauan komunitas untuk menilai tingkat kepercayaan suatu lowongan.
 """
 
-from __future__ import annotations
-
-import httpx
-
 from app.services.llm.client import chat_completion, check_llm_status, extract_json_from_response
 from app.services.llm.prompt_builder import build_text_verify_prompt, build_verify_prompt
+from app.config import LLM_MODEL
+from app.services.constants import FREE_EMAIL_DOMAINS
 
 
 async def analyze_with_verifin(
@@ -19,7 +17,6 @@ async def analyze_with_verifin(
     osint_results: dict | None = None,
     raw_text: str | None = None,
 ) -> dict:
-    from app.config import LLM_MODEL
     if osint_results is None:
         osint_results = {
             "domain": {
@@ -69,7 +66,10 @@ async def analyze_with_verifin(
         # Rule-based fallback engine if LLM API is unavailable
         comp_name = (entities.get("companies") or ["Perusahaan"])[0]
         has_fraud_phone = any(p.get("reported_fraud") for p in (osint_results.get("phones") or []))
-        has_free_email = osint_results.get("domain", {}).get("skipped") == "free_email"
+        has_free_email = any(
+            "@" in e and e.split("@")[-1].lower() in FREE_EMAIL_DOMAINS
+            for e in (entities.get("emails") or [])
+        )
         has_address = len(osint_results.get("address_validations") or []) > 0
 
         risk_score = 12
@@ -90,10 +90,15 @@ async def analyze_with_verifin(
             safe_factors.append("Alamat fisik berhasil dipetakan di OpenStreetMap (GIS spatial verified).")
 
         verdict = "AMAN" if risk_score < 30 else "WASPADA" if risk_score < 60 else "BAHAYA"
-        summary = (
-            f"Berdasarkan pemeriksaan bukti publik independen, lowongan {comp_name} dinilai berisiko rendah. "
-            f"Alamat fisik terdaftar di peta dan nomor kontak bebas laporan aduan penipuan."
-        )
+        verdict_label = {"AMAN": "berisiko rendah", "WASPADA": "perlu diperiksa lebih lanjut", "BAHAYA": "berisiko tinggi"}[verdict]
+        summary_parts = [f"Berdasarkan pemeriksaan bukti publik independen, lowongan {comp_name} dinilai {verdict_label}."]
+        if has_address:
+            summary_parts.append("Alamat fisik berhasil dipetakan di OpenStreetMap.")
+        if has_fraud_phone:
+            summary_parts.append("Ditemukan laporan penipuan pada nomor kontak.")
+        elif not has_fraud_phone and osint_results.get("phones"):
+            summary_parts.append("Nomor kontak bebas laporan aduan penipuan.")
+        summary = " ".join(summary_parts)
 
         return {
             "verdict": verdict,
@@ -111,7 +116,6 @@ async def analyze_with_verifin(
 
 
 async def check_ai_status() -> dict:
-    from app.config import LLM_MODEL
     status = await check_llm_status()
     detail = status.get("detail")
     if detail is not None and not isinstance(detail, str):
