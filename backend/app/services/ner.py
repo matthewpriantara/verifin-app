@@ -14,7 +14,6 @@ Desain:
 - FREE_EMAIL_DOMAINS di constants.py — tambah domain baru di sana, bukan di sini.
 """
 
-from __future__ import annotations
 
 import re
 

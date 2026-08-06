@@ -2,7 +2,6 @@
 Verifin Caching, SHA-256 Poster Deduplication, & Syndicate Identity Change Detector.
 """
 
-from __future__ import annotations
 
 import hashlib
 import time
