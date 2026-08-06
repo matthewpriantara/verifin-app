@@ -1,6 +1,13 @@
 """
-Router verifikasi Verifin — endpoint handler saja.
-Pipeline logic → pipeline.py | DB cache → db_cache.py | Web scraper → web_fetcher.py
+Router verifikasi Verifin — Job Trust Infrastructure.
+
+Tiga kanal input: teks, gambar (OCR), URL postingan.
+Pipeline 5 layer: NLP → NER → OSINT → LLM → Fraud Network → SHAP response.
+
+Modular:
+  pipeline.py   — entity extraction, OSINT runner, fraud network, response builder
+  db_cache.py   — simpan & ambil JobCase dari PostgreSQL
+  web_fetcher.py — Scrapling + Instagram/Threads scraper
 """
 
 import os
@@ -30,7 +37,7 @@ from app.services.osint.whois_handler import (
     scan_username_osint,
 )
 
-# Helpers pipeline, DB cache, web fetcher
+# Import helpers dari modul terpisah
 from app.api.v1.verify.pipeline import (
     _check_fraud_network,
     _extract_entities_hybrid,
@@ -57,13 +64,13 @@ async def verify_from_text(
         return cached_resp
 
     try:
-        # Layer 1: NLP Classifier — TF-IDF behavioral features (paper22 Springer)
+        # Layer 1: NLP — TF-IDF behavioral features (paper22 Springer)
         nlp_result = classify_text(request.text)
 
         entities = await _extract_entities_hybrid(request.text)
         osint_results = await _run_osint_on_entities(entities)
 
-        # Layer 5: Fraud Network Check via case memory (GAR-HGNN inspired)
+        # Layer 5: Fraud Network — case memory (GAR-HGNN inspired)
         network_context = _check_fraud_network(db, entities)
 
         raw_text = request.text if request.include_raw_text else None
@@ -122,15 +129,14 @@ async def verify_from_image(
                 detail="Tidak ada teks yang berhasil dibaca dari gambar. Coba unggah gambar yang lebih jelas.",
             )
 
-        # Cache-check berbasis hash teks OCR (idempoten pada gambar identik),
-        # agar kanal image konsisten ter-cache seperti kanal text.
+        # Cache-check dari hash teks OCR — gambar identik = hasil identik
         cached_resp = _get_cached_case_from_db(db, raw_text)
         if cached_resp:
             return cached_resp
 
         entities = await _extract_entities_hybrid(raw_text)
 
-        # Layer 1: NLP Classifier — sama seperti text endpoint, jalan sebelum OSINT
+        # Layer 1: NLP — jalan sebelum OSINT, konsisten dengan text endpoint
         nlp_result = classify_text(raw_text)
 
         osint_results = await _run_osint_on_entities(entities)
@@ -233,7 +239,7 @@ async def verify_from_url(
 
         combined_ocr_text = "\n".join(ocr_texts).strip()
 
-        # FOKUS UTAMA: Jika ada teks dari poster/gambar hasil OCR, letakkan DI POSISI PALING ATAS!
+        # Prioritaskan teks OCR poster di posisi paling atas
         text_blocks = [f"URL Target: {request.url}"]
         if combined_ocr_text:
             text_blocks.append(f"[TEKS UTAMA POSTER/GAMBAR LOWONGAN (OCR)]:\n{combined_ocr_text}")
