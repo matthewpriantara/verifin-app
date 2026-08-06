@@ -188,3 +188,40 @@ def _sync_scrapling_fetch(url: str) -> tuple[str, list[str]]:
 
     return combined_caption_text, dedup_images[:3]
 
+
+
+
+async def _fetch_url_content_and_image(url: str) -> tuple[str, list[str]]:
+    """
+    Scrape teks (caption/description) & daftar image URL poster (termasuk carousel slides) dari URL.
+    Returns: (extracted_text, temp_image_paths_list)
+    """
+    import httpx
+
+    loop = asyncio.get_event_loop()
+    combined_caption_text, image_urls = await loop.run_in_executor(None, _sync_scrapling_fetch, url)
+
+    tmp_img_paths = []
+    headers = {
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36",
+        "Referer": "https://www.instagram.com/",
+        "Accept": "image/avif,image/webp,image/apng,image/svg+xml,image/*,*/*;q=0.8",
+    }
+
+    for img_url in image_urls:
+        try:
+            async with httpx.AsyncClient(timeout=15.0, headers=headers, follow_redirects=True, verify=False) as client:
+                img_res = await client.get(img_url)
+                if img_res.status_code == 200 and len(img_res.content) > 1000:
+                    ext = ".jpg"
+                    if ".png" in img_url.lower():
+                        ext = ".png"
+                    elif ".webp" in img_url.lower():
+                        ext = ".webp"
+                    with tempfile.NamedTemporaryFile(delete=False, suffix=ext) as tmp:
+                        tmp.write(img_res.content)
+                        tmp_img_paths.append(tmp.name)
+        except Exception as exc:
+            print(f"[URL Fetch] Gagal mengunduh gambar poster dari {img_url}: {exc}")
+
+    return combined_caption_text, tmp_img_paths
