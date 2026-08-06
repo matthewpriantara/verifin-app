@@ -68,7 +68,68 @@ TEKS
 Kembalikan HANYA JSON sesuai skema."""
 
 
-def _clean_str_list(value: Any, *, max_items: int = 10, max_len: int = 300) -> list[str]:
+_JOB_PORTAL_BLACKLIST = {
+    "yocya", "lokeryogya", "lokerjogja", "loker", "lowker",
+    "infoloker", "lokerbdg", "lokersby", "lokerjkt", "jobstreet",
+    "indeed", "glints"
+}
+
+
+def _infer_company_from_email(email: str) -> str | None:
+    """Ekstrak nama perusahaan dari username email jika valid (misal: huniandesign@gmail.com -> Hunian Design)."""
+    if not email or "@" not in email:
+        return None
+    username = email.split("@")[0].strip().lower()
+    if not username or len(username) < 3:
+        return None
+    # Hapus suffix umum misal 'admin', 'hrd', 'recruitment', 'contact', 'info', 'official'
+    clean_username = re.sub(
+        r"^(?:admin|hrd|recruitment|contact|info|official|cs|career|job|jobs)[._-]*|[._-]*(?:admin|hrd|recruitment|contact|info|official|cs|career|job|jobs)$",
+        "",
+        username,
+        flags=re.IGNORECASE,
+    )
+    if not clean_username:
+        clean_username = username
+
+    # Hapus digit/nomor di akhir misal huniandesign88 -> huniandesign
+    clean_username = re.sub(r"\d+$", "", clean_username)
+    if len(clean_username) < 3 or clean_username in _JOB_PORTAL_BLACKLIST:
+        return None
+
+    # Ubah format misal 'hunian_design' atau 'huniandesign' -> 'Hunian Design' jika bisa dipisah atau bertipe title
+    words = re.split(r"[._-]+", clean_username)
+    res = " ".join(w.capitalize() for w in words if w)
+    return res if len(res) >= 3 else None
+
+
+def _is_blacklisted_company(name: str) -> bool:
+    """Cek apakah nama perusahaan matching atau mayoritas mengandung kata blacklist job portal."""
+    name_lower = name.lower()
+    words = re.findall(r"\w+", name_lower)
+    if not words:
+        return False
+    
+    # Check exact match string or single word
+    if name_lower in _JOB_PORTAL_BLACKLIST:
+        return True
+    
+    # Check if any single word directly matches blacklist
+    blacklisted_words_count = sum(1 for w in words if w in _JOB_PORTAL_BLACKLIST)
+    if blacklisted_words_count / len(words) >= 0.5:
+        return True
+        
+    # Check substring match if name consists mostly of portal keyword
+    for bl in _JOB_PORTAL_BLACKLIST:
+        if bl in name_lower and len(name_lower) <= len(bl) + 4:
+            return True
+
+    return False
+
+
+def _clean_str_list(
+    value: Any, *, max_items: int = 10, max_len: int = 300, is_company: bool = False
+) -> list[str]:
     """Normalisasi output LLM → list[str] unik, bersih, terbatas."""
     if not isinstance(value, list):
         return []
@@ -79,6 +140,8 @@ def _clean_str_list(value: Any, *, max_items: int = 10, max_len: int = 300) -> l
             continue
         s = re.sub(r"\s+", " ", item).strip(" \t\n.,;:-")
         if not s or len(s) < 2 or len(s) > max_len:
+            continue
+        if is_company and _is_blacklisted_company(s):
             continue
         key = s.lower()
         if key in seen:
@@ -185,7 +248,7 @@ async def extract_entities_llm(text: str) -> dict[str, Any] | None:
         return None
 
     return {
-        "companies": _clean_str_list(data.get("companies")),
+        "companies": _clean_str_list(data.get("companies"), is_company=True),
         "addresses": [
             a for a in _clean_str_list(data.get("addresses"), max_len=300)
             if _is_valid_address_string(a)
@@ -225,11 +288,24 @@ async def hybrid_merge_entities(
     any_added = False
     for key in ("companies", "addresses", "salaries"):
         regex_vals = list(regex_entities.get(key) or [])
+        if key == "companies":
+            regex_vals = [c for c in regex_vals if not _is_blacklisted_company(c)]
         llm_vals = llm_result.get(key) or []
         combined, llm_added = _merge(regex_vals, llm_vals)
         merged[key] = combined
         meta["added"][key] = llm_added
         any_added = any_added or llm_added
+
+    # Fallback to inferred company from email if companies list is empty
+    if not merged.get("companies"):
+        emails = regex_entities.get("emails") or []
+        for email in emails:
+            inferred = _infer_company_from_email(email)
+            if inferred:
+                merged["companies"] = [inferred]
+                meta["added"]["companies"] = True
+                any_added = True
+                break
 
     meta["used"] = True
     meta["source"] = "hybrid_llm_regex" if any_added else "llm_no_new"
