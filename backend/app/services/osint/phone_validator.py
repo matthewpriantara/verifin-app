@@ -27,7 +27,8 @@ USER_AGENT = (
 
 
 def normalize_phone_id(phone: str) -> dict[str, str]:
-    digits = re.sub(r"\D", "", phone or "")
+    raw_digits = re.sub(r"[^\d]", "", (phone or "").strip())
+    digits = raw_digits
     if digits.startswith("0"):
         digits = "62" + digits[1:]
     if digits.startswith("8") and not digits.startswith("62"):
