@@ -12,27 +12,27 @@ Sumber yang dipakai:
 3) Scrapling — data mentah disimpan di results (URL + title + snippet)
 """
 
-from __future__ import annotations
-
 import re
 from typing import Any
-from urllib.parse import quote_plus
-
-from scrapling.fetchers import Fetcher
-
-from app.services.osint.web_evidence import (
-    fetch_company_website,
-    search_web_evidence,
-    _domain_from_email,
-)
-
-
-def _normalize_company_name(name: str) -> str:
-    n = re.sub(r"\s+", " ", (name or "").strip())
-    return n
-
 
 from app.services.constants import FREE_EMAIL_DOMAINS as _FREE_EMAIL_DOMAINS
+from app.services.osint.web_evidence import (
+    _domain_from_email,
+    fetch_company_website,
+    search_web_evidence,
+)
+
+# Token umum yang tidak bermakna untuk deteksi nama perusahaan di blob search
+_COMP_GENERIC_TOKENS = frozenset({
+    "center", "management", "group", "utama", "persada", "pt", "cv",
+    "badan", "nasional", "gizi", "sppg", "indonesia", "instansi", "dinas",
+})
+
+# Keyword yang menandakan artikel umum (bukan laporan penipuan spesifik)
+_GENERAL_NEWS_KEYWORDS = frozenset({
+    "aparat memburu", "satgas pasti", "cek fakta", "deretan hoaks",
+    "siaran pers", "cara cek", "tips", "mengenali penipuan",
+})
 
 
 def _search_company_traces(company: str) -> list[dict[str, Any]]:
@@ -123,15 +123,10 @@ def validate_company_public(company: str, entities: dict | None = None) -> dict[
             }
         )
         comp_tokens = [
-            t
-            for t in re.split(r"\s+", name.lower())
-            if len(t) > 3 and t not in ("center", "management", "group", "utama", "persada", "pt", "cv")
+            t for t in re.split(r"\s+", name.lower())
+            if len(t) > 3 and t not in _COMP_GENERIC_TOKENS
         ]
-        unique_tokens = [
-            t
-            for t in comp_tokens
-            if t not in ("badan", "nasional", "gizi", "sppg", "indonesia", "instansi", "dinas")
-        ]
+        unique_tokens = [t for t in comp_tokens if t not in _COMP_GENERIC_TOKENS]
 
         for r in s.get("results") or []:
             mention_count += 1
@@ -156,19 +151,7 @@ def validate_company_public(company: str, entities: dict | None = None) -> dict[
                     "terbukti menipu",
                 )
             )
-            is_general_news_or_advice = any(
-                n in blob
-                for n in (
-                    "aparat memburu",
-                    "satgas pasti",
-                    "cek fakta",
-                    "deretan hoaks",
-                    "siaran pers",
-                    "cara cek",
-                    "tips",
-                    "mengenali penipuan",
-                )
-            )
+            is_general_news_or_advice = any(kw in blob for kw in _GENERAL_NEWS_KEYWORDS)
 
             if has_comp and has_scam_report and not is_general_news_or_advice:
                 fraud_mentions += 1
@@ -192,16 +175,9 @@ def validate_company_public(company: str, entities: dict | None = None) -> dict[
         "skipped": True,
     }
 
-    # Dedup flags
+    # Dedup flags — dict.fromkeys preserves order
     def uniq(xs: list[str]) -> list[str]:
-        seen = set()
-        out = []
-        for x in xs:
-            if not x or x in seen:
-                continue
-            seen.add(x)
-            out.append(x)
-        return out
+        return list(dict.fromkeys(x for x in xs if x))
 
     return {
         "name": name,
@@ -234,7 +210,7 @@ async def validate_companies(entities: dict, limit: int = 1) -> list[dict[str, A
     if not companies:
         return []
 
-    loop = asyncio.get_event_loop()
+    loop = asyncio.get_running_loop()
     out = []
     for name in companies:
         result = await loop.run_in_executor(
