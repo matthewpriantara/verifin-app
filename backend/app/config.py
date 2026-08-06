@@ -32,19 +32,3 @@ if not DATABASE_URL:
 
 # Redis (opsional — cache/queue nanti; core verify tidak wajib)
 REDIS_URL = os.getenv("REDIS_URL", "redis://localhost:6379/0")
-
-
-class Settings:
-    PROJECT_NAME: str = "Verifin API"
-    VERSION: str = "0.1.0"
-
-    DB_USER = DB_USER
-    DB_PASSWORD = DB_PASSWORD
-    DB_HOST = DB_HOST
-    DB_PORT = DB_PORT
-    DB_NAME = DB_NAME
-    DATABASE_URL = DATABASE_URL
-    REDIS_URL = REDIS_URL
-
-
-settings = Settings()
