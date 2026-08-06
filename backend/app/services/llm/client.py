@@ -57,12 +57,19 @@ def _repair_truncated_json(text: str) -> str:
     t = re.sub(r",\s*$", "", t)
     t = re.sub(r":\s*$", ': ""', t)
 
-    # Hitung petik ganda yang tidak di-escape
-    quotes = re.findall(r'(?<!\\)"', t)
-    if len(quotes) % 2 != 0:
-        t += '"'
+    # Potong di akhir array/object valid sebelum tutup string
+    for i in range(len(t) - 1, -1, -1):
+        if t[i] in ('}', ']'):
+            t = t[:i + 1]
+            break
+        if t[i] == ',':
+            t = t[:i]
+            break
 
-    # Hapus koma gantung setelah penutupan petik
+    # Tutup string terbuka
+    quotes = len(re.findall(r'(?<!\\)"', t))
+    if quotes % 2 != 0:
+        t += '"'
     t = re.sub(r",\s*$", "", t)
 
     # Seimbangkan kurung siku dan kurawal
