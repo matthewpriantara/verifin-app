@@ -59,13 +59,14 @@ def _slug_candidates(company: str) -> list[str]:
     return out[:4]
 
 
-def _search_threads_public_serp(query: str) -> list[dict[str, str]]:
-    """Cari postingan Threads.net publik via search_web_evidence (DDG/Yahoo/Bing)."""
-    result = search_web_evidence(f'"{query}" site:threads.net', max_results=4)
+def _search_platform_serp(query: str, platform: str = "") -> list[dict[str, str]]:
+    """Cari postingan sosmed via search_web_evidence (DDG/Yahoo/Bing)."""
+    site_hint = f" site:{platform}" if platform else ""
+    result = search_web_evidence(f'"{query}"{site_hint}', max_results=4)
     return [
         {
-            "platform": "threads",
-            "source": "threads_serp",
+            "platform": _classify_platform(r.get("url", ""), default="social_media"),
+            "source": "serp",
             "title": r.get("title", "")[:120],
             "snippet": r.get("snippet", "")[:280],
             "url": r.get("url", ""),
@@ -73,43 +74,6 @@ def _search_threads_public_serp(query: str) -> list[dict[str, str]]:
         for r in result.get("results", [])
         if r.get("title") or r.get("snippet")
     ]
-
-
-async def search_threads_for_company(
-    company: str,
-    *,
-    extra_queries: list[str] | None = None,
-) -> dict[str, Any]:
-    """Cari jejak perusahaan di Threads.net via DuckDuckGo SERP."""
-    queries = list(dict.fromkeys(
-        [company] + _slug_candidates(company) + (extra_queries or [])
-    ))
-
-    posts: list[dict[str, str]] = []
-    for q in queries[:2]:
-        posts.extend(_search_threads_public_serp(q))
-
-    # Dedup snippets
-    seen_snip: set[str] = set()
-    unique_posts = []
-    for p in posts:
-        key = p.get("snippet", "")[:80].lower()
-        if key not in seen_snip:
-            seen_snip.add(key)
-            unique_posts.append(p)
-
-    return {
-        "enabled": True,
-        "platform": "threads",
-        "query": company,
-        "queries_tried": queries[:4],
-        "found": bool(unique_posts),
-        "authenticated": False,
-        "posts": unique_posts[:6],
-        "profiles": [],
-        "risk_flags": [],
-        "errors": [],
-    }
 
 
 async def run_social_osint(entities: dict) -> dict[str, Any]:
@@ -135,8 +99,19 @@ async def run_social_osint(entities: dict) -> dict[str, Any]:
     clean_company = re.sub(r"\([^)]*\)", "", raw_company)
     clean_company = re.sub(r"^(pt|cv|ud)\.?\s+", "", clean_company, flags=re.I).strip()
 
-    # 1. Threads utama (cookie-based jika ada)
-    threads_result = await search_threads_for_company(raw_company, extra_queries=[])
+    # 1. SERP via slug candidates (all platform via search_web_evidence)
+    serp_queries = list(dict.fromkeys([raw_company] + _slug_candidates(raw_company)))
+    serp_posts: list[dict] = []
+    for q in serp_queries[:2]:
+        serp_posts.extend(_search_platform_serp(q))
+    # Dedup snippet
+    _seen_snip: set[str] = set()
+    initial_posts = []
+    for p in serp_posts:
+        key = p.get("snippet", "")[:80].lower()
+        if key not in _seen_snip:
+            _seen_snip.add(key)
+            initial_posts.append(p)
 
     # 2. Multi-platform via Natural DuckDuckGo SERP
     platforms = [
@@ -206,7 +181,7 @@ async def run_social_osint(entities: dict) -> dict[str, Any]:
         if len(t) > 3 and t not in {"yang", "untuk", "dari", "dengan", "adalah"}
     } - {"pt", "cv", "ud", "tb"}
 
-    raw_posts = extra_posts + list(threads_result.get("posts") or [])
+    raw_posts = extra_posts + initial_posts
     for p in raw_posts:
         link = (p.get("url") or "").lower()
         if not link or link in seen_urls:
@@ -238,11 +213,11 @@ async def run_social_osint(entities: dict) -> dict[str, Any]:
     _SOCIAL_PRIORITY = {"instagram", "threads", "tiktok", "facebook", "x_twitter", "linktree"}
     all_posts.sort(key=lambda p: 0 if (p.get("platform") or "").lower() in _SOCIAL_PRIORITY else 1)
 
-    valid_profiles = list(threads_result.get("profiles") or [])
+    valid_profiles: list = []
     found = bool(all_posts or valid_profiles)
 
     # Risk flag analysis — gabungan semua platform
-    risk_flags = list(threads_result.get("risk_flags") or [])
+    risk_flags: list[str] = []
     blob = " ".join(
         (p.get("snippet", "") + " " + p.get("title", "")) for p in all_posts
     ).lower()
@@ -255,12 +230,12 @@ async def run_social_osint(entities: dict) -> dict[str, Any]:
         "platform": "social_media",
         "query": raw_company,
         "found": found,
-        "authenticated": threads_result.get("authenticated", False),
+        "authenticated": False,
         "posts": all_posts[:8],
         "profiles": valid_profiles,
         "platform_hits": platform_hits,
         "risk_flags": risk_flags,
-        "errors": threads_result.get("errors") or [],
+        "errors": [],
     }
 
 
