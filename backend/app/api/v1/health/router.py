@@ -1,6 +1,5 @@
 """
-Health Check Router untuk Verifin Backend.
-Menyediakan status kesehatan API, konektivitas PostgreSQL, konektivitas LLM (OpenAgentic), dan status layanan OSINT.
+Health check — status API, PostgreSQL, dan LLM (OpenAgentic).
 """
 
 from fastapi import APIRouter, Depends
@@ -18,13 +17,12 @@ async def health_check(db: Session = Depends(get_db)):
     postgres_details = "connected"
     
     try:
-        # Execute a lightweight query to test the PostgreSQL connection
         db.execute(text("SELECT 1"))
     except Exception as e:
         postgres_status = "unhealthy"
         postgres_details = f"error: {str(e)}"
         
-    # Get LLM Connection Status
+    # Cek status koneksi LLM
     try:
         ai_status = await check_ai_status()
     except Exception as e:
