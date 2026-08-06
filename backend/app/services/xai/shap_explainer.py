@@ -435,7 +435,8 @@ def _build_forensic_metadata(
     address_found = any(a.get("found") or a.get("address_found") for a in addr if isinstance(a, dict))
     phone_checked = len(phones) > 0
     phone_clean = phone_checked and any(
-        (p.get("reported_fraud") is False) or (p.get("found") and not p.get("reported_fraud"))
+        # checked=true + tidak ada laporan fraud = CLEAN (Kaspersky berhasil, tidak ada temuan)
+        p.get("checked") and not p.get("reported_fraud")
         for p in phones if isinstance(p, dict)
     )
     phone_flagged = any(p.get("reported_fraud") for p in phones if isinstance(p, dict))
