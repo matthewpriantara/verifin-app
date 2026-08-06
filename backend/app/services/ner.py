@@ -1,11 +1,17 @@
 """
-Ekstraksi entitas dari teks lowongan — full regex struktural.
+Ekstraksi entitas dari teks lowongan — full regex struktural (Layer 0 hybrid NER).
+
+Keluaran fungsi ini digabung dengan hasil LLM extraction di pipeline.py
+via hybrid_merge_entities — regex untuk entitas struktural (HP, email, PT/CV),
+LLM untuk entitas semantik/ambigu (nama brand, alamat tidak terstruktur).
 
 Desain:
-- Tanpa model ML (IndoBERT dihapus: lambat, sering tidak akurat di poster OCR).
-- Alamat berbasis POLA Indonesia (Jl/Dusun/RT-RW/Kel/Kec/Kab + kode pos),
-  bukan whitelist kota — layout poster sangat beragam.
-- Company berbasis legal form + label + narasi brand.
+- Tanpa model ML — regex ~1ms vs IndoBERT ~500ms, lebih akurat di teks OCR noisy.
+- Alamat berbasis POLA Indonesia (Jl/RT-RW/Kel/Kec/Kab + kode pos),
+  bukan whitelist kota eksklusif — layout poster sangat beragam.
+  # ponytail: daftar kota 75 entri hardcode — upgrade ke shapefile/API BPS kalau coverage perlu 100%
+- Company berbasis legal form + label + narasi brand (7 strategi).
+- FREE_EMAIL_DOMAINS di constants.py — tambah domain baru di sana, bukan di sini.
 """
 
 from __future__ import annotations
