@@ -191,7 +191,7 @@ def _build_web_osint_section(web: dict) -> str:
     return "\n".join(lines)
 
 
-def _build_threads_osint_section(threads: dict) -> str:
+def _build_social_osint_section(threads: dict) -> str:
     """Format hasil OSINT Social Media untuk prompt reasoner — ringkas."""
     if not threads:
         return "- Tidak ada data media sosial."
@@ -344,7 +344,7 @@ Analisis secara mendalam, formal, dan berbasis evidence. Berikan keputusan apaka
 {_build_web_osint_section(osint_results.get("web", {}))}
 
 **Jejak Threads saja (medsos; cookie session):**
-{_build_threads_osint_section(osint_results.get("threads", {}))}
+{_build_social_osint_section(osint_results.get("threads", {}))}
 
 **Kebijakan evidence:**
 {(osint_results.get("evidence_policy") or {}).get("note", "Hanya fakta dari sumber OSINT.")}
