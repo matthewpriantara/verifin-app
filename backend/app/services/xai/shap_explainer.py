@@ -54,7 +54,7 @@ _FEATURE_WEIGHTS: dict[str, float] = {
     "no_spf_corporate":      12.0,
     "gform_phishing":        30.0,
     "fee_in_gform":          35.0,
-    "address_not_found_osm": 10.0,
+    "address_not_found_osm": 8.0,  # was 10.0 — uncertainty only, not fraud indicator
     "company_not_found_web": 12.0,
     "scam_serp_result":      25.0,
     "social_risk_flag":      10.0,
@@ -259,6 +259,27 @@ def explain_verification_shap(
             "Alamat fisik ditemukan dan valid di OpenStreetMap — mengurangi risiko loker fiktif",
         ))
 
+    # Address not found in OSM — small uncertainty signal (NOT a fraud indicator)
+    if address_validations and not any(a.get("found") for a in address_validations):
+        contributions.append(_make_contrib(
+            "Alamat Tidak Terverifikasi OSM",
+            "address_not_found_osm",
+            1,
+            _FEATURE_WEIGHTS["address_not_found_osm"],  # 8.0 — uncertainty only
+            "risk",
+            "Alamat fisik tidak ditemukan di OpenStreetMap Indonesia — bisa karena typo, data OSM belum lengkap, atau alamat fiktif",
+        ))
+    elif not address_validations:
+        # No address at all extracted — slightly higher uncertainty
+        contributions.append(_make_contrib(
+            "Tidak Ada Alamat Fisik Tercantum",
+            "address_not_found_osm",
+            1,
+            8.0,
+            "risk",
+            "Lowongan tidak mencantumkan alamat fisik yang dapat diverifikasi",
+        ))
+
     companies = osint_results.get("companies") or []
     if any(c.get("found") for c in companies):
         contributions.append(_make_contrib(
@@ -271,25 +292,24 @@ def explain_verification_shap(
         ))
 
     # ── 3. Fraud network context ────────────────────────────────────────────
-    if network_context:
-        if network_context.get("entity_in_fraud_network"):
-            contributions.append(_make_contrib(
-                "Entitas Terhubung ke Jaringan Penipuan",
-                "entity_in_fraud_network",
-                1,
-                _FEATURE_WEIGHTS["entity_in_fraud_network"],
-                "risk",
-                f"HP/email/PT ini sebelumnya muncul di {network_context.get('fraud_case_count', '?')} kasus BAHAYA",
-            ))
-        elif network_context.get("entity_seen_multiple_cases"):
-            contributions.append(_make_contrib(
-                "Entitas Muncul di Beberapa Kasus",
-                "entity_seen_multiple_cases",
-                1,
-                _FEATURE_WEIGHTS["entity_seen_multiple_cases"],
-                "risk",
-                f"Entitas ini sebelumnya terdeteksi di {network_context.get('total_case_count', '?')} verifikasi lain",
-            ))
+    if network_context and network_context.get("entity_in_fraud_network"):
+        contributions.append(_make_contrib(
+            "Entitas Terhubung ke Jaringan Penipuan",
+            "entity_in_fraud_network",
+            1,
+            _FEATURE_WEIGHTS["entity_in_fraud_network"],
+            "risk",
+            f"HP/email/PT ini sebelumnya muncul di {network_context.get('fraud_case_count', '?')} kasus BAHAYA",
+        ))
+    elif network_context and network_context.get("entity_seen_multiple_cases"):
+        contributions.append(_make_contrib(
+            "Entitas Muncul di Beberapa Kasus",
+            "entity_seen_multiple_cases",
+            1,
+            _FEATURE_WEIGHTS["entity_seen_multiple_cases"],
+            "risk",
+            f"Entitas ini sebelumnya terdeteksi di {network_context.get('total_case_count', '?')} verifikasi lain",
+        ))
 
     # ── Normalize kontribusi agar total sesuai risk_score ──────────────────
     risk_contribs = [c for c in contributions if c["impact"] == "risk"]
@@ -300,16 +320,49 @@ def explain_verification_shap(
 
     # Scale ke actual risk_score
     effective_score = risk_score - base_value
-    if effective_score > 0 and raw_risk_sum > 0:
-        scale = effective_score / raw_risk_sum
-        for c in risk_contribs:
-            c["contribution"] = round(c["contribution"] * scale, 2)
-            c["delta"] = c["contribution"]
+    if effective_score > 0:
+        if raw_risk_sum > 0:
+            scale = effective_score / raw_risk_sum
+            for c in risk_contribs:
+                c["contribution"] = round(c["contribution"] * scale, 2)
+                c["delta"] = c["contribution"]
+        else:
+            # risk_score > base_value tetapi tidak ada risk_contribs yang terkumpul
+            # alokasikan ke fitur ketidakpastian netral (bukan false positive fraud network atau kontradiksi alamat valid!)
+            has_found_address = any(a.get("found") for a in (osint_results.get("address_validations") or []))
+            if has_found_address:
+                fallback_label = "Baseline Ketidakpastian Informasi Publik"
+            elif osint_results.get("address_validations") and not has_found_address:
+                fallback_label = "Alamat/Profil Tidak Terverifikasi GIS"
+            else:
+                fallback_label = "Minimalitas Jejak Digital / Informasi Publik"
+
+            fallback_contrib = _make_contrib(
+                fallback_label,
+                "address_not_found_osm",
+                1,
+                round(effective_score, 2),
+                "risk",
+                "Ketidakpastian umum dari verifikasi jejak publik entitas",
+            )
+            risk_contribs.append(fallback_contrib)
+
     if effective_score < 0 and raw_safe_sum > 0:
         scale = abs(effective_score) / raw_safe_sum
         for c in safe_contribs:
             c["contribution"] = round(c["contribution"] * scale, 2)
             c["delta"] = -c["contribution"]
+
+    # Post-check: Pastikan TIDAK ada label "Entitas Terhubung ke Jaringan Penipuan" jika entity_in_fraud_network False/absent
+    has_fraud_net = bool(network_context and network_context.get("entity_in_fraud_network"))
+    for c in risk_contribs:
+        if c.get("feature_key") == "entity_in_fraud_network" and not has_fraud_net:
+            fallback_label = "Minimalitas Jejak Digital / Ketidakpastian Alamat"
+            if osint_results.get("address_validations") and not any(a.get("found") for a in osint_results.get("address_validations") or []):
+                fallback_label = "Alamat/Profil Tidak Terverifikasi GIS"
+            c["feature"] = fallback_label
+            c["feature_key"] = "address_not_found_osm"
+            c["description"] = "Ketidakpastian verifikasi alamat fisik atau jejak publik entitas"
 
     # Sort by absolute contribution
     all_contributions = sorted(

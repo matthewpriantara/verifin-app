@@ -125,7 +125,17 @@ async def verify_from_image(
         tmp_path = tmp.name
 
     try:
-        raw_text = extract_text_from_image(tmp_path)
+        try:
+            raw_text = await asyncio.wait_for(
+                asyncio.to_thread(extract_text_from_image, tmp_path),
+                timeout=12.0
+            )
+        except asyncio.TimeoutError:
+            raise HTTPException(
+                status_code=504,
+                detail="Proses pembacaan gambar (OCR) membutuhkan waktu terlalu lama. Silakan coba unggah gambar yang lebih jelas.",
+            )
+
         if not raw_text or not raw_text.strip():
             raise HTTPException(
                 status_code=422,
@@ -196,9 +206,14 @@ async def verify_from_url(
         for p in tmp_paths:
             if p and os.path.exists(p):
                 try:
-                    t = extract_text_from_image(p)
+                    t = await asyncio.wait_for(
+                        asyncio.to_thread(extract_text_from_image, p),
+                        timeout=6.0
+                    )
                     if t and t.strip():
                         ocr_texts.append(t.strip())
+                except asyncio.TimeoutError:
+                    print(f"[URL OCR Timeout] Mengabaikan OCR untuk gambar {p} karena melebihi batas 6 detik.")
                 except Exception as exc:
                     logger.warning("URL OCR Error: %s", exc)
 
