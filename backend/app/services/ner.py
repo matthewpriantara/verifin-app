@@ -13,6 +13,7 @@ from __future__ import annotations
 import re
 
 from app.services.constants import FREE_EMAIL_DOMAINS
+from app.services.hasher import compute_content_sha256
 
 # Pemisah konten non-alamat (label seksi lowongan)
 _ADDR_STOP = (
@@ -32,8 +33,8 @@ _STREET_PREFIX = (
 )
 
 
-# B2 fix: daftar kota/kabupaten besar Indonesia sebagai fallback deteksi alamat
-# tanpa prefix jalan. Bukan whitelist eksklusif — hanya confidence booster.
+# Daftar kota/kabupaten besar Indonesia sebagai fallback deteksi alamat
+# tanpa prefix jalan — bukan whitelist eksklusif, hanya confidence booster.
 _INDONESIAN_CITIES = (
     "Ambon|Balikpapan|Banda Aceh|Bandar Lampung|Bandung|Banjar|Banjarbaru|"
     "Banjarmasin|Batam|Batu|Bau-Bau|Bekasi|Bengkulu|Binjai|Bogor|Bontang|"
@@ -244,13 +245,11 @@ def clean_indonesian_phone(ph: str) -> str:
     elif clean_ph.startswith("8"):
         clean_ph = "62" + clean_ph
 
-    # Indonesia landline trimming (+62 2xx, 3xx, 7xx, 9xx)
-    if clean_ph.startswith("622") or clean_ph.startswith("623") or clean_ph.startswith("627") or clean_ph.startswith("629"):
-        if clean_ph.startswith("62274") and len(clean_ph) > 12:
-            clean_ph = clean_ph[:12]
-        elif len(clean_ph) > 13:
-            clean_ph = clean_ph[:13]
-    elif clean_ph.startswith("628") and len(clean_ph) > 14:
+    # Trim landline (+62 2xx, 3xx, 7xx, 9xx) dan HP (+628xx)
+    if re.match(r"^62[2379]", clean_ph):
+        max_len = 12 if clean_ph.startswith("62274") else 13
+        clean_ph = clean_ph[:max_len]
+    elif clean_ph.startswith("628") and len(clean_ph) > 13:
         clean_ph = clean_ph[:13]
 
     if len(clean_ph) >= 9:
@@ -314,7 +313,7 @@ def _address_confidence(s: str) -> float:
         score += 0.8
     if "," in s:
         score += 0.4
-    # B2 fix: pasangan "Kec/Kota, Kota/Kab" Indonesia (Godean, Yogyakarta)
+    # Pasangan "Kec/Kota, Kota/Kab" Indonesia (Godean, Yogyakarta)
     if re.search(rf"\b(?:{_INDONESIAN_CITIES})\s*,\s*(?:{_INDONESIAN_CITIES})\b", s, re.I):
         score += 1.8
     tokens = [t for t in re.split(r"\s+", s) if t]
@@ -377,7 +376,7 @@ def _is_plausible_address(s: str) -> bool:
     ):
         return False
 
-    # B2 fix: pasangan 2-4 kota/kecamatan "X, Y, Z" Indonesia (misal: Pakem, Sleman, Yogyakarta) lolos langsung
+    # Pasangan 2-4 kota/kecamatan "X, Y, Z" Indonesia (misal: Pakem, Sleman, Yogyakarta) lolos langsung
     if re.fullmatch(
         rf"(?:{_INDONESIAN_CITIES})(?:\s*,\s*(?:{_INDONESIAN_CITIES})){{1,3}}",
         c,
@@ -674,7 +673,7 @@ def _extract_addresses(text: str) -> list[str]:
         if _is_plausible_address(ln):
             candidates.append(ln)
 
-    # C2) B2 fix — lokasi kota/kecamatan tanpa prefix jalan:
+    # C2) Lokasi kota/kecamatan tanpa prefix jalan:
     #     "Godean, Yogyakarta", "Seturan, Yogyakarta"
     #     Match per baris supaya koma batas antar baris tidak ikut.
     for ln in spaced_lines:
@@ -917,13 +916,16 @@ def extract_entities_from_text(text: str) -> dict:
     ]
 
 
-    # Detect conflicts between poster claims & extracted entities
+    # Deteksi inkonsistensi kota antara alamat yang diekstrak vs teks asli poster
     conflicts = []
-    if uniq_addresses and any("jakarta" in a.lower() for a in uniq_addresses) and any("sleman" in raw_text_input.lower() for a in [raw_text_input]):
+    addr_cities = {c for a in uniq_addresses for c in re.findall(rf"\b(?:{_INDONESIAN_CITIES})\b", a, re.I)}
+    text_cities = set(re.findall(rf"\b(?:{_INDONESIAN_CITIES})\b", raw_text_input, re.I))
+    conflict_cities = addr_cities - text_cities
+    if conflict_cities and text_cities:
         conflicts.append({
             "type": "LOCATION_MISMATCH",
             "severity": "HIGH",
-            "detail": "Alamat di poster menyebutkan Sleman, namun rujukan eksternal terhubung ke lokasi lain."
+            "detail": f"Alamat menyebut {', '.join(sorted(conflict_cities))}, tapi teks utama menyebut {', '.join(sorted(text_cities))}."
         })
 
     return {
@@ -939,10 +941,11 @@ def extract_entities_from_text(text: str) -> dict:
             "emails": 0.99 if uniq_emails else 0.0,
             "addresses": 0.88 if uniq_addresses else 0.0,
         },
+        # ponytail: template_similarity belum diimplementasi — upgrade ke MinHash/SimHash saat ada dataset template fraud
         "fraud_fingerprint": {
-            "template_similarity": "0% (Bebas dari Template Penipuan Terdaftar)",
-            "layout_fingerprint_match": False,
-            "signature_hash": "fp_clean_e3b0c442"
+            "template_similarity": None,
+            "layout_fingerprint_match": None,
+            "signature_hash": compute_content_sha256(raw_text_input)[:16]
         },
         "evidence_conflicts": conflicts
     }
