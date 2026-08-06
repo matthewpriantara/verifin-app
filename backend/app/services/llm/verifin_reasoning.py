@@ -47,15 +47,14 @@ async def analyze_with_verifin(
                         "Hanya gunakan fakta dari data OSINT/teks yang diberikan. "
                         "Dilarang mengarang sumber, status AHU/OSS, atau temuan medsos. "
                         "Gunakan bahasa Indonesia formal dan profesional. "
-                        "Jawab HANYA JSON valid sesuai skema yang diminta. "
-                        "PENTING: Setiap field string HARUS diselesaikan — jangan potong di tengah kalimat."
+                        "Jawab HANYA JSON valid sesuai skema yang diminta."
                     ),
                 },
                 {"role": "user", "content": prompt},
             ],
             model=LLM_MODEL,
             temperature=0.0,
-            max_tokens=6144,
+            max_tokens=4096,
             seed=42,
         )
         parsed = extract_json_from_response(raw)

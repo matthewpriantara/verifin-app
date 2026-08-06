@@ -41,21 +41,16 @@ Tugasmu HANYA mengekstrak entitas, BUKAN menilai penipuan. Jawab HANYA dengan sa
 Skema JSON:
 {
   "companies": ["nama perusahaan/PT/organisasi pemberi kerja, persis seperti tertulis"],
-  "addresses": ["HANYA bagian string alamat fisik — lihat aturan ketat di bawah"],
+  "addresses": ["alamat fisik lengkap (jalan, gedung, kelurahan, kecamatan, kota, kode pos) persis seperti tertulis"],
   "salaries": ["nominal gaji/upah persis seperti tertulis, contoh: Rp 3.500.000, 5-7 juta, UMR"]
 }
 
 Aturan ketat:
 1. companies: HANYA entitas perusahaan/instansi/organisasi pemberi kerja nyata. JANGAN masukkan frasa deskriptif (mis. "dan cekatan", "bersedia training"), nama posisi, atau kata umum. Pertahankan legal form (PT/CV/UD) bila ada.
-2. addresses: Ekstrak HANYA bagian alamat yang terdiri dari: nama jalan (Jl./Jalan), nomor, RT/RW, kelurahan, kecamatan, kabupaten/kota, dan/atau provinsi/kode pos.
-   BATAS KERAS: String alamat WAJIB berhenti tepat di nama kota, provinsi, atau kode pos terakhir.
-   JANGAN ikutkan teks sesudahnya meskipun dipisah koma — apapun yang datang setelah kota/provinsi/kode pos yang bukan bagian alamat (persyaratan, kata kerja, kata benda umum, instruksi pengiriman CV, nama posisi, dll.) HARUS dipotong.
-   Contoh BENAR: "Jl. Rawa Terate 3 Kav.1 No.1, Kawasan Industri Pulogadung, Jatinegara, Cakung, Jakarta Timur"
-   Contoh SALAH (jangan ikutkan ini): "...Jakarta Timur, KIRIMKAN, dari industri bakery/pengolahan daging, Paham analisa sensori, GMP, HACCP"
-   Jika tidak yakin di mana batas kota/provinsi, potong di nama wilayah administratif terakhir yang dikenali.
+2. addresses: HANYA alamat fisik lokasi kerja/kantor, bukan nama kota yang berdiri sendiri tanpa konteks alamat. Boleh lebih dari satu jika ada beberapa cabang.
 3. salaries: setiap nominal rentang gaji yang disebut. Simpan format aslinya.
 4. Jika suatu kategori tidak ada, kembalikan array kosong [].
-5. Jangan mengarang entitas yang tidak tertulis di teks. Ekstrak PERSIS substring dari teks sumber (sampai batas kota/provinsi untuk addresses)."""
+5. Jangan mengarang entitas yang tidak tertulis di teks. Ekstrak PERSIS substring dari teks sumber."""
 
 _USER_TEMPLATE = """Ekstrak entitas dari teks lowongan berikut (mungkin hasil OCR, bisa mengandung salah ketik/spasi aneh):
 
@@ -66,68 +61,7 @@ TEKS
 Kembalikan HANYA JSON sesuai skema."""
 
 
-_JOB_PORTAL_BLACKLIST = {
-    "yocya", "lokeryogya", "lokerjogja", "loker", "lowker",
-    "infoloker", "lokerbdg", "lokersby", "lokerjkt", "jobstreet",
-    "indeed", "glints"
-}
-
-
-def _infer_company_from_email(email: str) -> str | None:
-    """Ekstrak nama perusahaan dari username email jika valid (misal: huniandesign@gmail.com -> Hunian Design)."""
-    if not email or "@" not in email:
-        return None
-    username = email.split("@")[0].strip().lower()
-    if not username or len(username) < 3:
-        return None
-    # Hapus suffix umum misal 'admin', 'hrd', 'recruitment', 'contact', 'info', 'official'
-    clean_username = re.sub(
-        r"^(?:admin|hrd|recruitment|contact|info|official|cs|career|job|jobs)[._-]*|[._-]*(?:admin|hrd|recruitment|contact|info|official|cs|career|job|jobs)$",
-        "",
-        username,
-        flags=re.IGNORECASE,
-    )
-    if not clean_username:
-        clean_username = username
-
-    # Hapus digit/nomor di akhir misal huniandesign88 -> huniandesign
-    clean_username = re.sub(r"\d+$", "", clean_username)
-    if len(clean_username) < 3 or clean_username in _JOB_PORTAL_BLACKLIST:
-        return None
-
-    # Ubah format misal 'hunian_design' atau 'huniandesign' -> 'Hunian Design' jika bisa dipisah atau bertipe title
-    words = re.split(r"[._-]+", clean_username)
-    res = " ".join(w.capitalize() for w in words if w)
-    return res if len(res) >= 3 else None
-
-
-def _is_blacklisted_company(name: str) -> bool:
-    """Cek apakah nama perusahaan matching atau mayoritas mengandung kata blacklist job portal."""
-    name_lower = name.lower()
-    words = re.findall(r"\w+", name_lower)
-    if not words:
-        return False
-    
-    # Check exact match string or single word
-    if name_lower in _JOB_PORTAL_BLACKLIST:
-        return True
-    
-    # Check if any single word directly matches blacklist
-    blacklisted_words_count = sum(1 for w in words if w in _JOB_PORTAL_BLACKLIST)
-    if blacklisted_words_count / len(words) >= 0.5:
-        return True
-        
-    # Check substring match if name consists mostly of portal keyword
-    for bl in _JOB_PORTAL_BLACKLIST:
-        if bl in name_lower and len(name_lower) <= len(bl) + 4:
-            return True
-
-    return False
-
-
-def _clean_str_list(
-    value: Any, *, max_items: int = 10, max_len: int = 300, is_company: bool = False
-) -> list[str]:
+def _clean_str_list(value: Any, *, max_items: int = 10, max_len: int = 200) -> list[str]:
     """Normalisasi output LLM → list[str] unik, bersih, terbatas."""
     if not isinstance(value, list):
         return []
@@ -139,8 +73,6 @@ def _clean_str_list(
         s = re.sub(r"\s+", " ", item).strip(" \t\n.,;:-")
         if not s or len(s) < 2 or len(s) > max_len:
             continue
-        if is_company and _is_blacklisted_company(s):
-            continue
         key = s.lower()
         if key in seen:
             continue
@@ -149,30 +81,6 @@ def _clean_str_list(
         if len(out) >= max_items:
             break
     return out
-
-
-# Token yang WAJIB ada minimal salah satu agar string dianggap alamat
-_ADDR_STRUCTURAL_TOKENS = re.compile(
-    r"\b(?:"
-    r"Jl\.?|Jalan|Jln\.?|Gang|Gg\.?|Ruko|Komplek|Blok"
-    r"|No\.?\s*\d|RT\s*\d|RW\s*\d"
-    r"|Kec(?:amatan)?\.?|Kel(?:urahan)?\.?|Kab(?:upaten)?\.?"
-    r"|Kota\s+[A-Z]|Kota\s+[a-z]"
-    r"|Jakarta|Surabaya|Bandung|Medan|Semarang|Yogyakarta|Makassar"
-    r"|Bekasi|Depok|Tangerang|Bogor|Malang|Palembang"
-    r"|Indonesia|DKI|DIY|Jawa|Bali|Sumatra|Kalimantan"
-    r")",
-    flags=re.IGNORECASE,
-)
-
-
-def _is_valid_address_string(s: str) -> bool:
-    """Cek apakah string terlihat seperti alamat fisik (bukan persyaratan kerja/OCR garbage)."""
-    if len(s) < 8:
-        return False
-    # Harus mengandung minimal 1 token khas alamat
-    return bool(_ADDR_STRUCTURAL_TOKENS.search(s))
-
 
 
 def _merge(regex_list: list[str], llm_list: list[str]) -> tuple[list[str], bool]:
@@ -246,11 +154,8 @@ async def extract_entities_llm(text: str) -> dict[str, Any] | None:
         return None
 
     return {
-        "companies": _clean_str_list(data.get("companies"), is_company=True),
-        "addresses": [
-            a for a in _clean_str_list(data.get("addresses"), max_len=300)
-            if _is_valid_address_string(a)
-        ],
+        "companies": _clean_str_list(data.get("companies")),
+        "addresses": _clean_str_list(data.get("addresses")),
         "salaries": _clean_str_list(data.get("salaries")),
     }
 
@@ -286,24 +191,11 @@ async def hybrid_merge_entities(
     any_added = False
     for key in ("companies", "addresses", "salaries"):
         regex_vals = list(regex_entities.get(key) or [])
-        if key == "companies":
-            regex_vals = [c for c in regex_vals if not _is_blacklisted_company(c)]
         llm_vals = llm_result.get(key) or []
         combined, llm_added = _merge(regex_vals, llm_vals)
         merged[key] = combined
         meta["added"][key] = llm_added
         any_added = any_added or llm_added
-
-    # Fallback to inferred company from email if companies list is empty
-    if not merged.get("companies"):
-        emails = regex_entities.get("emails") or []
-        for email in emails:
-            inferred = _infer_company_from_email(email)
-            if inferred:
-                merged["companies"] = [inferred]
-                meta["added"]["companies"] = True
-                any_added = True
-                break
 
     meta["used"] = True
     meta["source"] = "hybrid_llm_regex" if any_added else "llm_no_new"
