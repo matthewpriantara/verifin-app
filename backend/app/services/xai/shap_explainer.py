@@ -322,17 +322,22 @@ def explain_verification_shap(
                 c["delta"] = c["contribution"]
         else:
             # risk_score > base_value tetapi tidak ada risk_contribs yang terkumpul
-            # alokasikan ke fitur ketidakpastian alamat/profil (bukan false positive fraud network!)
-            fallback_label = "Minimalitas Jejak Digital / Ketidakpastian Alamat"
-            if osint_results.get("address_validations") and not any(a.get("found") for a in osint_results.get("address_validations") or []):
+            # alokasikan ke fitur ketidakpastian netral (bukan false positive fraud network atau kontradiksi alamat valid!)
+            has_found_address = any(a.get("found") for a in (osint_results.get("address_validations") or []))
+            if has_found_address:
+                fallback_label = "Baseline Ketidakpastian Informasi Publik"
+            elif osint_results.get("address_validations") and not has_found_address:
                 fallback_label = "Alamat/Profil Tidak Terverifikasi GIS"
+            else:
+                fallback_label = "Minimalitas Jejak Digital / Informasi Publik"
+
             fallback_contrib = _make_contrib(
                 fallback_label,
                 "address_not_found_osm",
                 1,
                 round(effective_score, 2),
                 "risk",
-                "Ketidakpastian verifikasi alamat fisik atau jejak publik entitas",
+                "Ketidakpastian umum dari verifikasi jejak publik entitas",
             )
             risk_contribs.append(fallback_contrib)
 
