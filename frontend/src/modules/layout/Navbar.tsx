@@ -7,7 +7,6 @@ import { ShieldCheck, ArrowLeft, Gauge } from "@phosphor-icons/react";
 export function Navbar() {
   const pathname = usePathname();
   const onReport = pathname.startsWith("/report");
-  const onAdmin  = pathname.startsWith("/admin");
 
   return (
     <header className="sticky top-0 z-50 border-b border-border bg-bg/90 backdrop-blur-md">
@@ -22,16 +21,6 @@ export function Navbar() {
         </Link>
 
         <div className="flex items-center gap-2">
-          {!onAdmin && (
-            <Link
-              href="/admin"
-              className="flex items-center gap-1.5 rounded-lg border border-border bg-bg-subtle px-3 py-1.5 text-[13px] text-text-secondary transition-colors hover:border-border-focus hover:text-text-primary"
-            >
-              <Gauge size={13} />
-              Admin
-            </Link>
-          )}
-
           {onReport && (
             <Link
               href="/"

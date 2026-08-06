@@ -77,6 +77,13 @@ function LoadingModal({
   const currentStep = STEPS[stepIndex];
   const StepIcon = currentStep?.icon ?? Scan;
 
+  useEffect(() => {
+    document.body.style.overflow = "hidden";
+    return () => {
+      document.body.style.overflow = "";
+    };
+  }, []);
+
   return (
     <motion.div
       initial={{ opacity: 0 }}
