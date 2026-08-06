@@ -8,6 +8,7 @@ from sqlalchemy.orm import Session
 from app.api.v1.verify.schema import VerifyResponse
 from app.database.models import JobCase
 from app.services.hasher import compute_content_sha256
+from app.api.v1.verify.pipeline import _build_osint_summary, _to_response
 
 logger = logging.getLogger(__name__)
 
