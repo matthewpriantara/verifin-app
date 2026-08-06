@@ -124,6 +124,8 @@ async def analyze_with_verifin(
                 ),
             })
         parsed["model_used"] = f"{LLM_MODEL} (Forensic Reasoning)"
+        if not _is_valid_llm_output(parsed):
+            logger.warning("Semua 3 attempt LLM gagal validasi semantik — menggunakan output terakhir.")
         parsed["entities_analyzed"] = entities
         return parsed
 

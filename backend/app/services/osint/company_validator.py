@@ -50,7 +50,7 @@ def _search_company_traces(company: str) -> list[dict[str, Any]]:
             {
                 "query": q,
                 "ok": res.get("ok"),
-                "source": "duckduckgo_html",
+                "source": res.get("engine", "searxng"),
                 "search_url": res.get("url"),
                 "results": res.get("results") or [],
                 "error": res.get("error"),
@@ -121,7 +121,7 @@ def validate_company_public(company: str, entities: dict | None = None) -> dict[
         evidence.append(
             {
                 "type": "web_search",
-                "source": "duckduckgo_html",
+                "source": s.get("source", "searxng"),
                 "query": s.get("query"),
                 "search_url": s.get("search_url"),
                 "ok": s.get("ok"),
