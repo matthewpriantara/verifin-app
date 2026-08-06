@@ -7,7 +7,7 @@ Web evidence via Scrapling:
 import base64
 import re
 from typing import Any
-from urllib.parse import parse_qs, quote_plus, unquote, urlparse
+from urllib.parse import quote_plus, urlparse
 
 from scrapling.fetchers import Fetcher
 from app.services.osint.gform_inspector import inspect_gform, is_gform_url
@@ -15,7 +15,6 @@ from app.services.constants import FREE_EMAIL_DOMAINS
 from app.config import SEARXNG_URL
 
 try:
-    from bs4 import BeautifulSoup
     from curl_cffi import requests as cffi_req
     _SEARCH_AVAILABLE = True
 except ImportError:
@@ -44,33 +43,6 @@ def _normalize_url(url: str) -> str | None:
             return None
     return u
 
-
-def _unwrap_ddg_href(href: str) -> str:
-    if not href:
-        return ""
-    if "/RU=" in href:
-        try:
-            ru = href.split("/RU=")[1].split("/")[0]
-            return unquote(ru)
-        except Exception:
-            pass
-    if "uddg=" in href:
-        try:
-            return unquote(href.split("uddg=")[1].split("&")[0])
-        except Exception:
-            pass
-    if "u=a1" in href:
-        try:
-            import base64
-
-            b64 = href.split("u=a1")[1].split("&")[0]
-            b64 += "=" * ((4 - len(b64) % 4) % 4)
-            return base64.b64decode(b64).decode("utf-8", errors="ignore")
-        except Exception:
-            pass
-    if href.startswith("//"):
-        href = "https:" + href
-    return href
 
 
 def _snippet_from_page(page, max_len: int = 500) -> str:
@@ -182,13 +154,7 @@ def fetch_company_website(url_or_domain: str) -> dict[str, Any]:
 
 
 def search_web_evidence(query: str, max_results: int = 5) -> dict[str, Any]:
-    """
-    Search web evidence multi-engine:
-    1) SearXNG self-hosted (primary)
-    2) DuckDuckGo HTML (fallback)
-    3) Yahoo Search ID (fallback)
-    4) Bing Search (fallback)
-    """
+    """Search web evidence via SearXNG self-hosted (aggregates DDG, Google, Bing, dll)."""
     q = (query or "").strip()
     if not q:
         return {"type": "search", "query": q, "results": [], "ok": False, "risk_flags": []}
@@ -196,7 +162,6 @@ def search_web_evidence(query: str, max_results: int = 5) -> dict[str, Any]:
     results: list[dict[str, str]] = []
     engine_used = "none"
 
-    # 1. SearXNG self-hosted (primary) — JSON API, language=id, region=id-id
     if SEARXNG_URL:
         try:
             s = cffi_req.Session(impersonate="chrome120")
@@ -222,85 +187,6 @@ def search_web_evidence(query: str, max_results: int = 5) -> dict[str, Any]:
                         })
                 if results:
                     engine_used = "searxng"
-        except Exception:
-            pass
-
-    # 2. Fallback: DuckDuckGo HTML
-    if not results:
-        try:
-            s = cffi_req.Session(impersonate="chrome120")
-            url = f"https://html.duckduckgo.com/html/?q={quote_plus(q)}"
-            r = s.get(url, timeout=2.0)
-            if r.status_code == 200:
-                soup = BeautifulSoup(r.text, "html.parser")
-                for a in soup.select("a.result__a")[:max_results]:
-                    href = _unwrap_ddg_href(a.get("href", ""))
-                    title = a.text.strip()
-                    if href and title:
-                        results.append({"title": title[:160], "url": href, "snippet": ""})
-                snips = soup.select(".result__snippet")
-                for i, sn in enumerate(snips[: len(results)]):
-                    results[i]["snippet"] = sn.text.strip()[:240]
-                if results:
-                    engine_used = "duckduckgo_html"
-        except Exception:
-            pass
-
-    # 3. Fallback: Yahoo Search Indonesia
-    if not results:
-        try:
-            s = cffi_req.Session(impersonate="chrome120")
-            y_url = f"https://id.search.yahoo.com/search?p={quote_plus(q)}"
-            r = s.get(y_url, timeout=4.0)
-            if r.status_code == 200:
-                soup = BeautifulSoup(r.text, "html.parser")
-                for div in soup.find_all("div", class_="algo"):
-                    h3 = div.find("h3")
-                    a = h3.find("a") if h3 else None
-                    p = div.find("p") or div.find("div", class_="compText")
-                    if a:
-                        title = a.text.strip()
-                        raw_href = a.get("href", "")
-                        clean_url = _unwrap_ddg_href(raw_href)
-                        snip = p.text.strip() if p else ""
-                        if clean_url:
-                            results.append(
-                                {
-                                    "title": title[:160],
-                                    "url": clean_url,
-                                    "snippet": snip[:240],
-                                }
-                            )
-                if results:
-                    engine_used = "yahoo_id"
-        except Exception:
-            pass
-
-    # 4. Fallback: Bing Search
-    if not results:
-        try:
-            s = cffi_req.Session(impersonate="chrome120")
-            b_url = f"https://www.bing.com/search?q={quote_plus(q)}&mkt=id-ID"
-            r = s.get(b_url, timeout=4.0)
-            if r.status_code == 200:
-                soup = BeautifulSoup(r.text, "html.parser")
-                for li in soup.select("li.b_algo"):
-                    a = li.select_one("h2 a")
-                    p = li.select_one("div.b_caption p, p")
-                    if a:
-                        title = a.text.strip()
-                        clean_url = _unwrap_ddg_href(a.get("href", ""))
-                        snip = p.text.strip() if p else ""
-                        if clean_url:
-                            results.append(
-                                {
-                                    "title": title[:160],
-                                    "url": clean_url,
-                                    "snippet": snip[:240],
-                                }
-                            )
-                if results:
-                    engine_used = "bing"
         except Exception:
             pass
 
@@ -347,7 +233,7 @@ def search_web_evidence(query: str, max_results: int = 5) -> dict[str, Any]:
     }
 
 
-_FREE_WEB_DOMAINS = FREE_EMAIL_DOMAINS  # alias — set sama persis
+_FREE_WEB_DOMAINS = FREE_EMAIL_DOMAINS  
 
 
 def _entity_tokens(companies: list, domains: list) -> list[str]:
