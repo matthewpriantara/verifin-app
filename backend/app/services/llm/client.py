@@ -50,33 +50,56 @@ def _parse_json_value(text: str) -> Any:
 
 def _repair_truncated_json(text: str) -> str:
     t = text.strip()
-    # Hapus trailing code fence jika ada
-    t = re.sub(r"```(?:json)?\s*$", "", t).strip()
+    # Hapus trailing code fence
+    t = re.sub(r"```(?:json)?\s*", "", t).strip()
 
-    # Hapus koma atau titik dua gantung di paling akhir
-    t = re.sub(r",\s*$", "", t)
+    # Temukan posisi aman terakhir dengan mini JSON state machine
+    # safe_end = posisi setelah field lengkap (key+value) atau setelah ] / }
+    safe_end = -1
+    in_str = False
+    escape = False
+    after_colon = False  # sudah lewat ":" — berarti sedang di posisi value
+    depth = 0
+
+    for i, ch in enumerate(t):
+        if escape:
+            escape = False
+            continue
+        if ch == '\\' and in_str:
+            escape = True
+            continue
+        if ch == '"':
+            if in_str:
+                in_str = False
+                # Baru tutup string — aman hanya kalau ini value (setelah colon)
+                if after_colon:
+                    safe_end = i
+                    after_colon = False
+            else:
+                in_str = True
+        elif not in_str:
+            if ch == ':':
+                after_colon = True
+            elif ch in ('{', '['):
+                depth += 1
+            elif ch in ('}', ']'):
+                depth -= 1
+                safe_end = i
+                after_colon = False
+            elif ch == ',' :
+                after_colon = False
+
+    # Kalau masih di dalam string (terpotong) → potong di safe_end terakhir
+    if in_str and safe_end >= 0:
+        t = t[:safe_end + 1]
+
+    # Hapus trailing koma atau titik dua gantung
+    t = re.sub(r",\s*$", "", t.rstrip())
     t = re.sub(r":\s*$", ': ""', t)
 
-    # Potong di akhir array/object valid sebelum tutup string
-    for i in range(len(t) - 1, -1, -1):
-        if t[i] in ('}', ']'):
-            t = t[:i + 1]
-            break
-        if t[i] == ',':
-            t = t[:i]
-            break
-
-    # Tutup string terbuka
-    quotes = len(re.findall(r'(?<!\\)"', t))
-    if quotes % 2 != 0:
-        t += '"'
-    t = re.sub(r",\s*$", "", t)
-
-    # Seimbangkan kurung siku dan kurawal
-    open_brackets = t.count("[") - t.count("]")
-    open_braces = t.count("{") - t.count("}")
-    t += "]" * max(0, open_brackets)
-    t += "}" * max(0, open_braces)
+    # Seimbangkan kurung
+    t += "]" * max(0, t.count("[") - t.count("]"))
+    t += "}" * max(0, t.count("{") - t.count("}"))
     return t
 
 
