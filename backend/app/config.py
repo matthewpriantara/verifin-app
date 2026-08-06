@@ -19,3 +19,6 @@ DATABASE_URL = os.getenv("DATABASE_URL", "")
 
 # Redis (opsional)
 REDIS_URL = os.getenv("REDIS_URL", "redis://localhost:6379/0")
+
+# SearXNG self-hosted — primary web search engine
+SEARXNG_URL = os.getenv("SEARXNG_URL", "").rstrip("/")
