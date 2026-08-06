@@ -40,23 +40,6 @@ class JobCase(Base):
         return f"<JobCase(id={self.id}, verdict={self.verdict}, risk_score={self.risk_score})>"
 
 
-class AhuWhitelist(Base):
-    __tablename__ = "ahu_whitelist"
-
-    id = Column(Integer, primary_key=True, autoincrement=True)
-    company_name = Column(String(255), nullable=False, index=True)
-    legal_type = Column(String(10), nullable=False)
-    synced_at = Column(
-        DateTime(timezone=True),
-        server_default=func.now(),
-        onupdate=func.now(),
-        nullable=False,
-    )
-
-    def __repr__(self):
-        return f"<AhuWhitelist(id={self.id}, company_name={self.company_name}, legal_type={self.legal_type})>"
-
-
 class CommunityReport(Base):
     """
     Laporan komunitas — pengguna melaporkan lowongan yang terbukti menipu.
