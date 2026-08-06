@@ -2,51 +2,13 @@
 Social Media OSINT — Scraping jejak rekrutmen/scam di berbagai platform media sosial.
 Platform: Threads, Instagram, X (Twitter), TikTok, Facebook.
 Menggunakan DuckDuckGo HTML SERP (site: query) untuk setiap platform.
-Mendukung cookie session (secrets/threads_cookies.json) untuk Threads langsung.
 """
 
-import json
 import re
-from pathlib import Path
 from typing import Any
 from urllib.parse import quote, unquote
 
-import httpx
 from scrapling.fetchers import Fetcher
-
-COOKIES_PATH = (
-    Path(__file__).resolve().parents[3] / "secrets" / "threads_cookies.json"
-)
-
-USER_AGENT = (
-    "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) "
-    "AppleWebKit/537.36 (KHTML, like Gecko) "
-    "Chrome/122.0.0.0 Safari/537.36"
-)
-
-
-def _load_cookie_jar() -> dict[str, str]:
-    if not COOKIES_PATH.exists():
-        return {}
-    try:
-        data = json.loads(COOKIES_PATH.read_text(encoding="utf-8"))
-    except Exception:
-        return {}
-
-    jar: dict[str, str] = {}
-    if isinstance(data, list):
-        for item in data:
-            name = item.get("name")
-            value = item.get("value")
-            if name and value is not None:
-                jar[str(name)] = str(value)
-    elif isinstance(data, dict):
-        jar = {str(k): str(v) for k, v in data.items()}
-    return jar
-
-
-def _cookie_header(jar: dict[str, str]) -> str:
-    return "; ".join(f"{k}={v}" for k, v in jar.items())
 
 
 def _classify_platform(url: str, default: str = "social_media") -> str:
@@ -131,119 +93,35 @@ async def search_threads_for_company(
     *,
     extra_queries: list[str] | None = None,
 ) -> dict[str, Any]:
-    """
-    Cari jejak perusahaan di Threads.net via session cookie atau public SERP fallback.
-    """
-    jar = _load_cookie_jar()
-    has_cookie = bool(jar.get("sessionid"))
-
-    queries = [company]
-    queries.extend(_slug_candidates(company))
-    if extra_queries:
-        queries.extend(extra_queries)
-
-    seen_q = set()
-    uniq_queries = []
-    for q in queries:
-        qn = q.strip()
-        if qn and qn.lower() not in seen_q:
-            seen_q.add(qn.lower())
-            uniq_queries.append(qn)
+    """Cari jejak perusahaan di Threads.net via DuckDuckGo SERP."""
+    queries = list(dict.fromkeys(
+        [company] + _slug_candidates(company) + (extra_queries or [])
+    ))
 
     posts: list[dict[str, str]] = []
-    profile_hits: list[dict[str, str]] = []
-    errors: list[str] = []
-
-    if has_cookie:
-        headers_base = {
-            "User-Agent": USER_AGENT,
-            "Accept": "*/*",
-            "Accept-Language": "id-ID,id;q=0.9,en;q=0.8",
-            "Cookie": _cookie_header(jar),
-            "X-CSRFToken": jar.get("csrftoken", ""),
-            "X-IG-App-ID": "238260118697367",
-            "Referer": "https://www.threads.net/",
-            "Origin": "https://www.threads.net",
-        }
-
-        async with httpx.AsyncClient(timeout=10.0, follow_redirects=True) as client:
-            for q in uniq_queries[:2]:
-                # 1) Direct Search Threads
-                try:
-                    url = f"https://www.threads.net/search?q={quote(q)}&serp_type=default"
-                    res = await client.get(url, headers=headers_base)
-                    if res.status_code == 200 and len(res.text) > 500:
-                        texts = re.findall(
-                            r'"text"\s*:\s*"((?:\\.|[^"\\]){10,300})"', res.text
-                        )
-                        for t in texts[:4]:
-                            decoded = (
-                                t.encode("utf-8")
-                                .decode("unicode_escape", errors="ignore")
-                                .replace("\\n", " ")
-                                .strip()
-                            )
-                            if decoded and len(decoded) > 15:
-                                posts.append({
-                                    "platform": "threads",
-                                    "source": "threads_direct",
-                                    "query": q,
-                                    "snippet": decoded[:280],
-                                })
-                except Exception as exc:
-                    errors.append(f"direct search error: {exc}")
-
-                # 2) Profile Slug Check — VALIDASI KETAT
-                for slug in _slug_candidates(q)[:2]:
-                    try:
-                        purl = f"https://www.threads.net/@{slug}"
-                        pres = await client.get(purl, headers=headers_base)
-                        if pres.status_code == 200:
-                            title_m = re.search(r"<title>(.*?)</title>", pres.text, re.I)
-                            title_txt = title_m.group(1).strip() if title_m else ""
-                            # HANYA terima jika title memuat username real (misal: 'Mark Zuckerberg (@zuck) • Threads')
-                            # Abaikan halaman login / generic 'Threads • Log in' / 'Page Not Found'
-                            is_generic_login = "Threads • Log in" in title_txt or "Page Not Found" in pres.text or "isn't available" in pres.text
-                            if title_txt and not is_generic_login and ("&#064;" in title_txt or "@" in title_txt):
-                                profile_hits.append({
-                                    "platform": "threads",
-                                    "username": slug,
-                                    "url": purl,
-                                    "title": title_txt[:120],
-                                })
-                    except Exception as exc:
-                        errors.append(f"profile @{slug}: {exc}")
-
-    # Fallback pencarian SERP jika direct post kurang
-    if len(posts) < 2:
-        for q in uniq_queries[:2]:
-            serp_posts = _search_threads_public_serp(q)
-            posts.extend(serp_posts)
+    for q in queries[:2]:
+        posts.extend(_search_threads_public_serp(q))
 
     # Dedup snippets
-    seen_snip = set()
+    seen_snip: set[str] = set()
     unique_posts = []
     for p in posts:
         key = p.get("snippet", "")[:80].lower()
-        if key in seen_snip:
-            continue
-        seen_snip.add(key)
-        unique_posts.append(p)
-
-    found = bool(unique_posts or profile_hits)
-    risk_flags = []
+        if key not in seen_snip:
+            seen_snip.add(key)
+            unique_posts.append(p)
 
     return {
         "enabled": True,
         "platform": "threads",
         "query": company,
-        "queries_tried": uniq_queries[:4],
-        "found": found,
-        "authenticated": has_cookie,
+        "queries_tried": queries[:4],
+        "found": bool(unique_posts),
+        "authenticated": False,
         "posts": unique_posts[:6],
-        "profiles": profile_hits[:4],
-        "risk_flags": risk_flags,
-        "errors": errors[:4],
+        "profiles": [],
+        "risk_flags": [],
+        "errors": [],
     }
 
 
