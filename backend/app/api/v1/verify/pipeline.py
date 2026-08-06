@@ -239,7 +239,7 @@ async def _run_llm_ner(text: str) -> dict | None:
 
 async def _run_osint_on_entities(entities: dict) -> dict:
     """
-    OSINT live paralel: WHOIS/DNS + OSM + Kredibel + Scrapling web + Threads.
+    OSINT live paralel: WHOIS/DNS + OSM + Kaspersky Who Calls + Scrapling web + Threads.
     Optimasi latency: asyncio.gather (bukan serial await).
     """
     from app.services.constants import FREE_EMAIL_DOMAINS
@@ -272,7 +272,7 @@ async def _run_osint_on_entities(entities: dict) -> dict:
             "mode": "factual_sources_only",
             "note": (
                 "Semua temuan OSINT berasal dari fetch/scrape/API nyata "
-                "(WHOIS, DNS, OSM, Kredibel, Scrapling, Threads). "
+                "(WHOIS, DNS, OSM, Kaspersky Who Calls, Scrapling, Threads). "
                 "LLM reasoner dilarang mengarang fakta di luar evidence."
             ),
             "social": "all_platforms",
