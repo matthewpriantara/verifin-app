@@ -418,8 +418,8 @@ def collect_web_evidence(entities: dict) -> dict[str, Any]:
     return {
         "enabled": True,
         # Jujur: web search memakai multi-engine (DuckDuckGo/Yahoo/Bing via
-        # curl_cffi+BeautifulSoup); Scrapling dipakai untuk fetch halaman web.
-        "engine": "multi-engine (DDG/Yahoo/Bing) + Scrapling fetch",
+        # curl_cffi dipakai untuk SearXNG; Scrapling dipakai untuk fetch halaman web.
+        "engine": "searxng + Scrapling fetch",
         "websites": website_checks,
         "gform_inspections": gform_inspections,
         "searches": searches,
