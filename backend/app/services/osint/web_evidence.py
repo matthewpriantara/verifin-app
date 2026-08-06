@@ -1,7 +1,7 @@
 """
 Web evidence via Scrapling:
 1) Fetch website dari domain email / URL di loker
-2) Search evidence lewat DuckDuckGo HTML → Yahoo ID → Bing fallback
+2) Search evidence lewat SearXNG self-hosted
 """
 
 import base64
