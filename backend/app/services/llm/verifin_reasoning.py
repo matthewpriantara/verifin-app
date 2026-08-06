@@ -58,7 +58,7 @@ async def analyze_with_verifin(
             seed=42,
         )
         parsed = extract_json_from_response(raw)
-        parsed["model_used"] = "Forensic Reasoning Engine v4.5 (Factual-Only Inference)"
+        parsed["model_used"] = f"{LLM_MODEL} (Forensic Reasoning)"
         parsed["entities_analyzed"] = entities
         return parsed
 
@@ -110,7 +110,7 @@ async def analyze_with_verifin(
                 "Pastikan wawancara diadakan di lokasi resmi perusahaan.",
                 "TIDAK AKAN membayar biaya registrasi, seragam, atau pelatihan."
             ],
-            "model_used": "Forensic Reasoning Engine v4.5 (Factual-Only Inference)",
+            "model_used": f"{LLM_MODEL} (Forensic Reasoning)",
             "entities_analyzed": entities,
         }
 

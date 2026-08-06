@@ -178,7 +178,7 @@ async def run_social_osint(entities: dict) -> dict[str, Any]:
     # Token unik nama perusahaan untuk scoring relevansi
     _comp_tokens = {
         t for t in re.sub(r"[^\w]", " ", raw_company.lower()).split()
-        if len(t) > 3 and t not in {"yang", "untuk", "dari", "dengan", "adalah"}
+        if len(t) >= 3 and t not in {"yang", "untuk", "dari", "dengan", "adalah", "dan", "atau"}
     } - {"pt", "cv", "ud", "tb"}
 
     raw_posts = extra_posts + initial_posts
