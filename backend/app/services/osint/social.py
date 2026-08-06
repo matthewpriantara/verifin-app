@@ -113,7 +113,7 @@ async def run_social_osint(entities: dict) -> dict[str, Any]:
             _seen_snip.add(key)
             initial_posts.append(p)
 
-    # 2. Multi-platform via Natural DuckDuckGo SERP
+    # 2. Multi-platform via SearXNG (reuse _search_platform_serp)
     platforms = [
         ("instagram", f"{clean_company} instagram"),
         ("threads",   f"{clean_company} threads"),
@@ -125,51 +125,9 @@ async def run_social_osint(entities: dict) -> dict[str, Any]:
     platform_hits: dict[str, bool] = {}
 
     for platform_key, search_q in platforms:
-        try:
-            url = f"https://html.duckduckgo.com/html/?q={quote(search_q)}"
-            page = Fetcher().get(url, stealthy_headers=True, network_idle=False)
-            results_sel = page.css(".result__body")[:3]
-            found_platform = False
-
-            for r in results_sel:
-                title_el = r.css(".result__title")
-                snippet_el = r.css(".result__snippet")
-                url_el = r.css(".result__url")
-                title = title_el[0].text.strip() if title_el else ""
-                snippet = snippet_el[0].text.strip() if snippet_el else ""
-                link = url_el[0].text.strip() if url_el else ""
-
-                if "uddg=" in link:
-                    try:
-                        link = unquote(link.split("uddg=")[1].split("&")[0])
-                    except Exception:
-                        pass
-
-                if link and not link.startswith("http"):
-                    link = f"https://{link}"
-
-                # Tentukan platform nyata berdasarkan domain URL
-                real_platform = _classify_platform(link, default=platform_key)
-
-                # Extract handle username dari URL jika ada
-                username = ""
-                u_match = re.search(r"(?:instagram\.com|threads\.net|tiktok\.com|facebook\.com|x\.com|twitter\.com)/@?([A-Za-z0-9._]{3,30})", link, re.I)
-                if u_match:
-                    username = u_match.group(1).rstrip("/")
-
-                if title or snippet:
-                    extra_posts.append({
-                        "platform": real_platform,
-                        "title": title,
-                        "snippet": snippet,
-                        "url": link,
-                        "username": username,
-                    })
-                    found_platform = True
-
-            platform_hits[platform_key] = found_platform
-        except Exception:
-            platform_hits[platform_key] = False
+        hits = _search_platform_serp(search_q, platform_key)
+        extra_posts.extend(hits)
+        platform_hits[platform_key] = bool(hits)
 
     # Gabungkan semua posts & dedup berdasarkan URL, set platform dinamis
     seen_urls: set[str] = set()
