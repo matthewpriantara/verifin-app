@@ -5,13 +5,11 @@ Menggunakan DuckDuckGo HTML SERP (site: query) untuk setiap platform.
 Mendukung cookie session (secrets/threads_cookies.json) untuk Threads langsung.
 """
 
-from __future__ import annotations
-
 import json
 import re
 from pathlib import Path
-from typing import Any, Optional
-from urllib.parse import quote
+from typing import Any
+from urllib.parse import quote, unquote
 
 import httpx
 from scrapling.fetchers import Fetcher
@@ -49,6 +47,18 @@ def _load_cookie_jar() -> dict[str, str]:
 
 def _cookie_header(jar: dict[str, str]) -> str:
     return "; ".join(f"{k}={v}" for k, v in jar.items())
+
+
+def _classify_platform(url: str, default: str = "social_media") -> str:
+    """Klasifikasi platform dari URL domain."""
+    u = url.lower()
+    if "instagram.com" in u: return "instagram"
+    if "threads.net" in u or "threads.com" in u: return "threads"
+    if "tiktok.com" in u: return "tiktok"
+    if "facebook.com" in u: return "facebook"
+    if "twitter.com" in u or "x.com" in u: return "x_twitter"
+    if "linktr.ee" in u: return "linktree"
+    return default
 
 
 def _slug_candidates(company: str) -> list[str]:
@@ -100,7 +110,6 @@ def _search_threads_public_serp(query: str) -> list[dict[str, str]]:
             link = (r.css(".result__url::text").get() or "").strip()
             if "uddg=" in link:
                 try:
-                    from urllib.parse import unquote
                     link = unquote(link.split("uddg=")[1].split("&")[0])
                 except Exception:
                     pass
@@ -120,7 +129,7 @@ def _search_threads_public_serp(query: str) -> list[dict[str, str]]:
 async def search_threads_for_company(
     company: str,
     *,
-    extra_queries: Optional[list[str]] = None,
+    extra_queries: list[str] | None = None,
 ) -> dict[str, Any]:
     """
     Cari jejak perusahaan di Threads.net via session cookie atau public SERP fallback.
@@ -292,7 +301,6 @@ async def run_social_osint(entities: dict) -> dict[str, Any]:
 
                 if "uddg=" in link:
                     try:
-                        from urllib.parse import unquote
                         link = unquote(link.split("uddg=")[1].split("&")[0])
                     except Exception:
                         pass
@@ -301,20 +309,7 @@ async def run_social_osint(entities: dict) -> dict[str, Any]:
                     link = f"https://{link}"
 
                 # Tentukan platform nyata berdasarkan domain URL
-                l_lower = link.lower()
-                real_platform = platform_key
-                if "instagram.com" in l_lower:
-                    real_platform = "instagram"
-                elif "threads.net" in l_lower or "threads.com" in l_lower:
-                    real_platform = "threads"
-                elif "tiktok.com" in l_lower:
-                    real_platform = "tiktok"
-                elif "facebook.com" in l_lower:
-                    real_platform = "facebook"
-                elif "twitter.com" in l_lower or "x.com" in l_lower:
-                    real_platform = "x_twitter"
-                elif "linktr.ee" in l_lower:
-                    real_platform = "linktree"
+                real_platform = _classify_platform(link, default=platform_key)
 
                 # Extract handle username dari URL jika ada
                 username = ""
@@ -348,33 +343,16 @@ async def run_social_osint(entities: dict) -> dict[str, Any]:
         seen_urls.add(link)
 
         # Klasifikasi platform presisi berdasarkan URL domain
-        real_plat = p.get("platform") or "social_media"
-        if "instagram.com" in link:
-            real_plat = "instagram"
-        elif "threads.net" in link or "threads.com" in link:
-            real_plat = "threads"
-        elif "tiktok.com" in link:
-            real_plat = "tiktok"
-        elif "facebook.com" in link:
-            real_plat = "facebook"
-        elif "twitter.com" in link or "x.com" in link:
-            real_plat = "x_twitter"
-        elif "linktr.ee" in link:
-            real_plat = "linktree"
-        elif any(domain in link for domain in ("lokerjogja", "glints", "jobstreet", "kalibrr", "kitagrad", "karir")):
+        real_plat = _classify_platform(link, default=p.get("platform") or "social_media")
+        if any(domain in link for domain in ("lokerjogja", "glints", "jobstreet", "kalibrr", "kitagrad", "karir")):
             real_plat = "portal_loker"
 
         p["platform"] = real_plat
         all_posts.append(p)
 
-    # Prioritaskan media sosial resmi (Instagram, Threads, TikTok, FB, Linktree) di posisi teratas
-    def _post_priority(p: dict) -> int:
-        plat = (p.get("platform") or "").lower()
-        if plat in ("instagram", "threads", "tiktok", "facebook", "x_twitter", "linktree"):
-            return 0
-        return 1
-
-    all_posts.sort(key=_post_priority)
+    # Prioritaskan media sosial resmi di posisi teratas
+    _SOCIAL_PRIORITY = {"instagram", "threads", "tiktok", "facebook", "x_twitter", "linktree"}
+    all_posts.sort(key=lambda p: 0 if (p.get("platform") or "").lower() in _SOCIAL_PRIORITY else 1)
 
     valid_profiles = list(threads_result.get("profiles") or [])
     found = bool(all_posts or valid_profiles)
