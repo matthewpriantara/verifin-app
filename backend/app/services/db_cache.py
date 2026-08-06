@@ -95,8 +95,7 @@ def _save_case_to_db(
 
 
 def _get_cached_case_from_db(db: Session, raw_input_str: str) -> VerifyResponse | None:
-    """Cek apakah lowongan/URL/gambar ini sudah pernah diuji coba sebelumnya (exact DB cache hit)."""
-    from app.services.cache_service import compute_content_sha256
+    """Cek apakah lowongan/URL/gambar ini sudah pernah dianalisa (exact DB cache hit)."""
     if not raw_input_str or not raw_input_str.strip():
         return None
     try:
