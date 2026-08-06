@@ -21,13 +21,12 @@ def check_domain_age(domain: str) -> dict:
         if not creation_date:
             return {"age_days": -1, "age_years": None, "is_new": True, "created_at": "Unknown"}
 
-        # Samakan timezone-aware vs naive
-        if getattr(creation_date, "tzinfo", None) is not None:
-            now = datetime.now(timezone.utc)
-            creation_date = creation_date.replace(tzinfo=timezone.utc) if creation_date.tzinfo is None \
-                else creation_date.astimezone(timezone.utc)
+        # Normalize ke UTC — handle aware dan naive datetime
+        now = datetime.now(timezone.utc)
+        if getattr(creation_date, "tzinfo", None) is None:
+            creation_date = creation_date.replace(tzinfo=timezone.utc)
         else:
-            now = datetime.now()
+            creation_date = creation_date.astimezone(timezone.utc)
 
         age_days = (now - creation_date).days
         return {

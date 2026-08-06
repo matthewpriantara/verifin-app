@@ -127,7 +127,7 @@ async def run_social_osint(entities: dict) -> dict[str, Any]:
     for platform_key, search_q in platforms:
         try:
             url = f"https://html.duckduckgo.com/html/?q={quote(search_q)}"
-            page = Fetcher.get(url, stealthy_headers=True, network_idle=False)
+            page = Fetcher().get(url, stealthy_headers=True, network_idle=False)
             results_sel = page.css(".result__body")[:3]
             found_platform = False
 
