@@ -1,8 +1,9 @@
-"""Pipeline helpers — entity extraction, OSINT, fraud network, response builder."""
+"""Pipeline helpers — fraud network, NER hybrid, OSINT paralel, response builder."""
 from __future__ import annotations
 
 import asyncio
 import copy
+import logging
 import re
 from sqlalchemy.orm import Session
 
@@ -29,10 +30,7 @@ from app.services.graph.fraud_network import (
 )
 
 def _check_fraud_network(db: Session, entities: dict) -> dict:
-    """
-    Cek apakah entitas dari lowongan baru terhubung ke jaringan penipuan.
-    Menggunakan NetworkX in-memory graph dari riwayat job_cases (GAR-HGNN inspired).
-    """
+    """Cek entitas lowongan ke fraud graph NetworkX (GAR-HGNN inspired, 500 kasus terakhir)."""
     try:
         # Ambil kasus terbaru dari DB untuk membangun graf
         cases = db.query(JobCase).order_by(
@@ -63,7 +61,7 @@ def _check_fraud_network(db: Session, entities: dict) -> dict:
         # Cek entitas baru terhadap graf
         network_ctx = check_entity_in_network(G, entities)
 
-        # ── Syndicate identity reuse — dihitung dari cases_data nyata ───────
+        # Syndicate: deteksi reuse no HP/email lintas perusahaan berbeda
         try:
             from app.services.cache_service import detect_identity_syndicate
             # siapkan company_name per kasus agar reuse lintas perusahaan terdeteksi
@@ -87,8 +85,7 @@ def _check_fraud_network(db: Session, entities: dict) -> dict:
                 "note": f"analisis sindikat dilewati: {_syn_exc}",
             }
 
-        # ── Suplemen: agregasi Community Reports untuk entitas ini ─────────
-        # Laporan komunitas yang berulang pada entitas yang sama = sinyal risiko kuat.
+        # Community reports — laporan berulang pada entitas = sinyal risiko
         community = _community_report_signal(db, entities)
         network_ctx["community_reports"] = community
         if community.get("report_count", 0) > 0:
@@ -101,7 +98,6 @@ def _check_fraud_network(db: Session, entities: dict) -> dict:
         return network_ctx
 
     except Exception as exc:
-        import logging
         logging.getLogger(__name__).warning(f"Fraud network check failed: {exc}")
         return {"entity_in_fraud_network": False, "error": str(exc)}
 
@@ -461,7 +457,7 @@ def _merge_entities(primary: dict, secondary: dict) -> dict:
         elif key == "emails":
             out[key] = _uniq([fix_email_ocr_typos(e) for e in combined if e])
         elif key == "urls":
-            # Filter out single letter domain artifacts like L.com / gmai.com
+            # Filter artifact domain satu huruf seperti L.com / gmai.com
             clean_urls = [
                 u for u in combined
                 if u and not re.search(r"^(?:[a-zA-Z]\.com|gmail|yahoo|gmai|gamil)\.", u, re.I)
@@ -480,9 +476,6 @@ def _merge_entities(primary: dict, secondary: dict) -> dict:
     return out
 
 
-
-
-
 def _to_response(
     analysis: dict,
     entities: dict,
@@ -492,7 +485,7 @@ def _to_response(
     if corrected and corrected not in (None, "null", ""):
         entities = {**entities, "companies": [str(corrected)]}
 
-    # sanitize entities keys for schema
+    # Normalisasi kunci entities sesuai schema
     safe_entities = {
         "companies": entities.get("companies") or [],
         "contacts": entities.get("contacts") or [],
@@ -521,15 +514,13 @@ def _to_response(
     except Exception:
         shap_explanation = None
 
-    # Tulis network_context (case memory + community reports) ke response agar
-    # FE/pengguna dapat melihat sinyal Fraud Network — bukan hanya internal SHAP.
+    # Ekspos network_context ke response agar FE bisa tampilkan sinyal Fraud Network
     network_ctx = analysis.get("network_context")
     if network_ctx and osint_results is not None:
         existing_fn = osint_results.get("fraud_network") or {}
         existing_fn.update(network_ctx)
         osint_results["fraud_network"] = existing_fn
-        # Syndicate analysis: gunakan hasil yang dihitung dari DB nyata di
-        # _check_fraud_network (bukan mock tanpa data).
+        # Pakai syndicate dari _check_fraud_network (dihitung dari DB nyata)
         if network_ctx.get("syndicate_analysis"):
             osint_results["syndicate_analysis"] = network_ctx["syndicate_analysis"]
         elif "syndicate_analysis" not in osint_results:
