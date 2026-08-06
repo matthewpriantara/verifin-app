@@ -48,7 +48,7 @@ _FEATURE_WEIGHTS: dict[str, float] = {
     "no_spf_corporate":      12.0,
     "gform_phishing":        30.0,
     "fee_in_gform":          35.0,
-    "address_not_found_osm": 10.0,
+    "address_not_found_osm": 8.0,  # was 10.0 — uncertainty only, not fraud indicator
     "company_not_found_web": 12.0,
     "scam_serp_result":      25.0,
     "threads_risk_flag":     10.0,
@@ -251,6 +251,27 @@ def explain_verification_shap(
             12.0,
             "safe",
             "Alamat fisik ditemukan dan valid di OpenStreetMap — mengurangi risiko loker fiktif",
+        ))
+
+    # Address not found in OSM — small uncertainty signal (NOT a fraud indicator)
+    if address_validations and not any(a.get("found") for a in address_validations):
+        contributions.append(_make_contrib(
+            "Alamat Tidak Terverifikasi OSM",
+            "address_not_found_osm",
+            1,
+            _FEATURE_WEIGHTS["address_not_found_osm"],  # 8.0 — uncertainty only
+            "risk",
+            "Alamat fisik tidak ditemukan di OpenStreetMap Indonesia — bisa karena typo, data OSM belum lengkap, atau alamat fiktif",
+        ))
+    elif not address_validations:
+        # No address at all extracted — slightly higher uncertainty
+        contributions.append(_make_contrib(
+            "Tidak Ada Alamat Fisik Tercantum",
+            "address_not_found_osm",
+            1,
+            8.0,
+            "risk",
+            "Lowongan tidak mencantumkan alamat fisik yang dapat diverifikasi",
         ))
 
     companies = osint_results.get("companies") or []
