@@ -203,8 +203,11 @@ async def run_social_osint(entities: dict) -> dict[str, Any]:
         else:
             p["match_confidence"] = 0.0
 
-        # Buang post yang tidak mengandung satupun token nama perusahaan
-        if p["match_confidence"] == 0.0 and real_plat not in ("instagram", "threads"):
+        # Buang post yang tidak mengandung token nama perusahaan yang cukup
+        # instagram/threads: threshold 0.25 (bukan 0.0) — partial match generic seperti
+        # "solution", "internasional" di domain lain harus dibuang
+        min_conf = 0.26 if real_plat in ("instagram", "threads") else 0.01
+        if p["match_confidence"] < min_conf:
             continue
 
         # Filter post luar negeri yang tidak relevan (bukan Indonesia)
