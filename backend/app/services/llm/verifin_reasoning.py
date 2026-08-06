@@ -36,9 +36,6 @@ def _is_valid_llm_output(parsed: dict) -> bool:
             # String panjang tanpa spasi = terpotong
             if len(words) == 1 and len(t) > 15:
                 return False
-            # camelCase = concatenation artifact
-            if _re.search(r'(?<=[a-z])(?=[A-Z])', t):
-                return False
             # Dua kata Indonesia disambung tanpa spasi di awal token
             # contoh: "Nomorterdeteksi", "Tidakintaan", "Feebutkan"
             t_lower = t.lower()
