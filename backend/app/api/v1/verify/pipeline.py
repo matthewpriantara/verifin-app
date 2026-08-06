@@ -1,15 +1,13 @@
 """Pipeline helpers — fraud network, NER hybrid, OSINT paralel, response builder."""
-from __future__ import annotations
-
 import asyncio
 import copy
 import logging
 import re
 from sqlalchemy.orm import Session
 
-from app.api.v1.verify.schema import VerifyResponse
+from app.api.v1.verify.schema import VerifyResponse, ExtractedEntities
 from app.database.models import JobCase
-from app.services.llm.entity_extraction import extract_entities_llm, hybrid_merge_entities
+from app.services.llm.entity_extraction import extract_entities_llm
 from app.services.ner import (
     extract_entities_from_text,
     _uniq,
@@ -26,7 +24,6 @@ from app.services.xai.shap_explainer import explain_verification_shap
 from app.services.graph.fraud_network import (
     build_fraud_network,
     check_entity_in_network,
-    get_network_graph_data,
 )
 
 def _check_fraud_network(db: Session, entities: dict) -> dict:
@@ -74,7 +71,7 @@ def _check_fraud_network(db: Session, entities: dict) -> dict:
                 for cd in cases_data
             ]
             network_ctx["syndicate_analysis"] = detect_identity_syndicate(
-                contacts=entities.get("contacts") or [],
+                contacts=entities.get("phones") or [],
                 emails=entities.get("emails") or [],
                 current_company=(entities.get("companies") or ["Unknown"])[0],
                 historical_cases=hist,
@@ -114,7 +111,7 @@ def _community_report_signal(db: Session, entities: dict) -> dict:
         conditions.append(func.lower(CommunityReport.email) == str(em).strip().lower())
     for url in (entities.get("urls") or []):
         conditions.append(CommunityReport.url == str(url).strip())
-    for ph in (entities.get("contacts") or []):
+    for ph in (entities.get("phones") or []):
         digits = "".join(c for c in str(ph) if c.isdigit())
         if digits.startswith("0"):
             digits = "62" + digits[1:]
@@ -216,7 +213,7 @@ async def _extract_entities_hybrid(text: str) -> dict:
         merged["emails"] = _uniq([fix_email_ocr_typos(e) for e in merged["emails"] if e])
     if merged.get("urls"):
         merged["urls"] = [u for u in _uniq(merged["urls"]) if not re.search(r"^(?:[a-zA-Z]\.com|gmail|yahoo|gmai|gamil)\.", u, re.I)]
-    for key in ("companies", "addresses", "salaries", "contacts"):
+    for key in ("companies", "addresses", "salaries", "phones"):
         if merged.get(key):
             merged[key] = _uniq(merged[key])
 
@@ -278,26 +275,26 @@ async def _run_osint_on_entities(entities: dict) -> dict:
                 "(WHOIS, DNS, OSM, Kredibel, Scrapling, Threads). "
                 "LLM reasoner dilarang mengarang fakta di luar evidence."
             ),
-            "social": "threads_only",
+            "social": "all_platforms",
         },
         "fraud_network": {
             "nodes": [
                 {"id": comp, "type": "company", "risk_score": 0, "status": "CLEAN"} for comp in (entities.get("companies") or [])
             ] + [
-                {"id": phone, "type": "phone", "risk_score": 0, "status": "CLEAN"} for phone in (entities.get("contacts") or [])
+                {"id": phone, "type": "phone", "risk_score": 0, "status": "CLEAN"} for phone in (entities.get("phones") or [])
             ] + [
                 {"id": email, "type": "email", "risk_score": 0, "status": "FREE_PROVIDER"} for email in (entities.get("emails") or [])
             ] + [
                 {"id": addr, "type": "address", "risk_score": 0, "status": "VALID_GIS"} for addr in (entities.get("addresses") or [])
             ],
             "edges": [
-                {"source": phone, "target": comp, "relation": "contact_of"} for comp in (entities.get("companies") or []) for phone in (entities.get("contacts") or [])
+                {"source": phone, "target": comp, "relation": "contact_of"} for comp in (entities.get("companies") or []) for phone in (entities.get("phones") or [])
             ] + [
                 {"source": email, "target": comp, "relation": "email_of"} for comp in (entities.get("companies") or []) for email in (entities.get("emails") or [])
             ] + [
                 {"source": addr, "target": comp, "relation": "location_of"} for comp in (entities.get("companies") or []) for addr in (entities.get("addresses") or [])
             ],
-            "cluster_id": "Threat Cluster #14 (Verified Clean Entity Network)",
+            "cluster_id": None,
             "entity_in_fraud_network": False,
             "total_case_count": 0,
             "threat_level": "LOW",
@@ -363,7 +360,7 @@ async def _run_osint_on_entities(entities: dict) -> dict:
 
     async def _phones_job() -> list:
         try:
-            return await check_phones_kredibel(entities.get("contacts") or [], limit=1)
+            return await check_phones_kredibel(entities.get("phones") or [], limit=1)
         except Exception as exc:
             return [
                 {"source": "kredibel", "found": False, "error": str(exc), "risk_flags": []}
@@ -410,7 +407,7 @@ async def _run_osint_on_entities(entities: dict) -> dict:
                 "error": str(exc),
             }
 
-    loop = asyncio.get_event_loop()
+    loop = asyncio.get_running_loop()
     t0 = loop.time()
     (
         domain_pair,
@@ -440,11 +437,11 @@ async def _run_osint_on_entities(entities: dict) -> dict:
 
 def _merge_entities(primary: dict, secondary: dict) -> dict:
 
-    keys = ["companies", "contacts", "emails", "urls", "addresses", "salaries"]
+    keys = ["companies", "phones", "emails", "urls", "addresses", "salaries"]
     out = {}
     for key in keys:
         combined = list(primary.get(key) or []) + list(secondary.get(key) or [])
-        if key == "contacts":
+        if key == "phones":
             std = []
             for ph in combined:
                 c_ph = clean_indonesian_phone(ph)
@@ -485,7 +482,7 @@ def _to_response(
     # Normalisasi kunci entities sesuai schema
     safe_entities = {
         "companies": entities.get("companies") or [],
-        "contacts": entities.get("contacts") or [],
+        "contacts": entities.get("phones") or [],
         "emails": entities.get("emails") or [],
         "urls": entities.get("urls") or [],
         "addresses": entities.get("addresses") or [],
@@ -523,7 +520,7 @@ def _to_response(
         elif "syndicate_analysis" not in osint_results:
             from app.services.hasher import detect_identity_syndicate
             osint_results["syndicate_analysis"] = detect_identity_syndicate(
-                contacts=safe_entities["contacts"],
+                contacts=safe_entities["phones"],
                 emails=safe_entities["emails"],
                 current_company=safe_entities["companies"][0] if safe_entities["companies"] else "Unknown"
             )

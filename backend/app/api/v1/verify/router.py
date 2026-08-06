@@ -10,9 +10,10 @@ Modular:
   web_fetcher.py — Scrapling + Instagram/Threads scraper
 """
 
+import logging
 import os
 import tempfile
-from typing import List, Optional
+from typing import List
 from uuid import UUID
 from sqlalchemy.orm import Session
 
@@ -46,7 +47,9 @@ from app.api.v1.verify.pipeline import (
     _build_osint_summary,
 )
 from app.services.db_cache import _save_case_to_db, _get_cached_case_from_db
-from app.services.web_fetcher import _sync_scrapling_fetch, _fetch_url_content_and_image
+from app.services.web_fetcher import _fetch_url_content_and_image
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter()
 
@@ -197,7 +200,7 @@ async def verify_from_url(
                     if t and t.strip():
                         ocr_texts.append(t.strip())
                 except Exception as exc:
-                    print(f"[URL OCR Error] {exc}")
+                    logger.warning("URL OCR Error: %s", exc)
 
         combined_ocr_text = "\n".join(ocr_texts).strip()
 
@@ -367,9 +370,9 @@ def list_cases(limit: int = 100, skip: int = 0, db: Session = Depends(get_db)):
     description="Fondasi case-memory: lookup exact phone/email/company dari riwayat job_cases.",
 )
 def lookup_cases_by_entity(
-    phone: Optional[str] = Query(None, description="Nomor E.164 mis. +62812..."),
-    email: Optional[str] = Query(None),
-    company: Optional[str] = Query(None),
+    phone: str | None = Query(None, description="Nomor E.164 mis. +62812..."),
+    email: str | None = Query(None),
+    company: str | None = Query(None),
     limit: int = Query(20, ge=1, le=100),
     db: Session = Depends(get_db),
 ):
