@@ -12,6 +12,8 @@ from __future__ import annotations
 
 import re
 
+from app.services.constants import FREE_EMAIL_DOMAINS
+
 # Pemisah konten non-alamat (label seksi lowongan)
 _ADDR_STOP = (
     r"(?:\bGaji\b|\bSalary\b|\bUpah\b|\bKontak\b|\bContact\b|\bEmail\b|\bWA\b|\bWhatsApp\b|\bHubungi\b|"
@@ -891,7 +893,6 @@ def extract_entities_from_text(text: str) -> dict:
     ) + _extract_companies(normalized_text)
 
     # Fallback Perusahaan dari domain email khusus (misal lamaran@deliciabakery.com -> Delicia Bakery)
-    from app.services.constants import FREE_EMAIL_DOMAINS
     for email in emails:
         if "@" in email:
             dom = email.split("@")[1].lower()

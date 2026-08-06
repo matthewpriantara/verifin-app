@@ -1,3 +1,6 @@
+"""
+OCR engine wrapper — gambar → teks via PaddleOCR + OpenCV preprocessing.
+"""
 import os
 import cv2
 import logging
