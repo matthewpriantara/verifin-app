@@ -181,7 +181,7 @@ def explain_verification_shap(
             1,
             _FEATURE_WEIGHTS["kredibel_fraud_flag"],
             "risk",
-            "Nomor WhatsApp/HP terdaftar dalam laporan penipuan di Kredibel.id",
+            "Nomor HP terdeteksi berbahaya/spam di Kaspersky Who Calls",
         ))
 
     web_data = osint_results.get("web") or {}
@@ -436,7 +436,7 @@ def _build_forensic_metadata(
     risk_label = {"LOW": "Risiko Rendah", "MEDIUM": "Risiko Sedang", "HIGH": "Risiko Tinggi"}[risk_level]
     first_phone = phones[0] if phones and isinstance(phones[0], dict) else {}
     phone_status = (
-        f"{first_phone.get('fraud_reports_count', 0) if first_phone else 0} laporan fraud di Kredibel"
+        f"{first_phone.get('fraud_reports_count', 0) if first_phone else 0} laporan fraud via Kaspersky Who Calls"
         if phone_checked else "Tidak ada nomor HP untuk dicek"
     )
     cluster = fraud_net.get("cluster_id") or ("terhubung ke jaringan fraud" if in_fraud_network else "tidak ada asosiasi fraud publik")
@@ -445,7 +445,7 @@ def _build_forensic_metadata(
          "detail": f"Entitas terdeteksi: {company_name}; {len(phones)} no HP, {len(companies)} perusahaan, {len(addr)} alamat."},
         {"step": "2. Address OSM Geocoding", "status": "PASS" if address_found else "UNKNOWN",
          "detail": ("Alamat tervalidasi di OpenStreetMap." if address_found else "Alamat tidak ditemukan/tidak dicantumkan.")},
-        {"step": "3. Phone Kredibel Reputation Check", "status": "PASS" if phone_clean else ("FLAG" if phone_flagged else "SKIP"),
+        {"step": "3. Phone Kaspersky Who Calls Check", "status": "PASS" if phone_clean else ("FLAG" if phone_flagged else "SKIP"),
          "detail": phone_status},
         {"step": "4. Email Domain Infrastructure Check", "status": "PASS",
          "detail": (f"Free provider ({domain.get('domain', 'email gratis')}); SPF/DMARC tidak relevan." if is_free_email
@@ -470,7 +470,7 @@ def _build_forensic_metadata(
     probe_weights = [
         {"probe": "Address Geocoding (OSM GIS)", "weight": 0.25, "execution_time_ms": per_probe_ms,
          "status": "VALID" if address_found else "NOT_FOUND"},
-        {"probe": "Phone Reputation (Kredibel)", "weight": 0.20, "execution_time_ms": per_probe_ms,
+        {"probe": "Phone Reputation (Kaspersky Who Calls)", "weight": 0.20, "execution_time_ms": per_probe_ms,
          "status": "CLEAN" if phone_clean else ("FLAGGED" if phone_flagged else "SKIPPED"),
          "url": first_phone.get("url")},
         {"probe": "Web Evidence (SERP)", "weight": 0.20, "execution_time_ms": per_probe_ms,

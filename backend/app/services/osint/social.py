@@ -132,12 +132,12 @@ async def run_social_osint(entities: dict) -> dict[str, Any]:
             found_platform = False
 
             for r in results_sel:
-                title_el = r.css_first(".result__title")
-                snippet_el = r.css_first(".result__snippet")
-                url_el = r.css_first(".result__url")
-                title = title_el.text.strip() if title_el else ""
-                snippet = snippet_el.text.strip() if snippet_el else ""
-                link = url_el.text.strip() if url_el else ""
+                title_el = r.css(".result__title")
+                snippet_el = r.css(".result__snippet")
+                url_el = r.css(".result__url")
+                title = title_el[0].text.strip() if title_el else ""
+                snippet = snippet_el[0].text.strip() if snippet_el else ""
+                link = url_el[0].text.strip() if url_el else ""
 
                 if "uddg=" in link:
                     try:
