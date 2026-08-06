@@ -394,6 +394,14 @@ Jika SEMUA ini terpenuhi:
 ➔ verdict **AMAN**, risk_score **5–15** (boleh under 10).
 Jangan naikkan ke 25+ hanya karena Gmail / tanpa website / gaji kosong.
 
+Jika TIDAK ADA alamat OSM tapi SEMUA ini terpenuhi:
+- tidak ada nama PT/CV formal (hanya UMKM/perorangan/hiring pribadi), DAN
+- HP tidak reported_fraud di Kaspersky Who Calls, DAN
+- tidak ada permintaan biaya/uang di teks, DAN
+- deskripsi pekerjaan wajar dan terperinci (jobdesk, syarat, sistem kerja jelas):
+➔ verdict **AMAN**, risk_score **20–35** (aman dengan catatan — zero footprint UMKM normal).
+Jangan naikkan ke WASPADA hanya karena tidak ada alamat/PT/website — itu normal untuk UMKM kecil.
+
 ## INSTRUKSI ANALISIS
 1. Red flag keras dulu: biaya, fraud HP, phishing form, scam SERP.
 2. Alamat OSM valid?

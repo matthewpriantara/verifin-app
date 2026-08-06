@@ -216,6 +216,10 @@ async def chat_completion(
 
             try:
                 content = data["choices"][0]["message"]["content"]
+                # Deteksi truncation dari provider — log warning agar visible di server log
+                finish_reason = data["choices"][0].get("finish_reason", "")
+                if finish_reason == "length":
+                    logger.warning("LLM response terpotong (finish_reason=length) — repair akan dicoba")
                 return content if isinstance(content, str) else json.dumps(content)
             except (KeyError, IndexError, TypeError) as exc:
                 raise RuntimeError(f"Format respons LLM tidak dikenali: {data}") from exc
