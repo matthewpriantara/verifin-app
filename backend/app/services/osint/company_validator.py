@@ -1,15 +1,17 @@
 """
-Validasi nama PT/perusahaan — HANYA dari sumber publik yang benar-benar di-fetch.
+Validator reputasi perusahaan berbasis sumber publik — bukan cek registrasi AHU/OSS.
 
-PENTING (metodologi Verifin):
-- Kita TIDAK mengklaim "terdaftar di AHU/OSS" kecuali ada bukti fetch nyata.
-- AHU/OSS resmi sering butuh captcha/login; tanpa API resmi, status = unverified.
-- Yang kita lakukan: jejak publik (website, hasil search, sebutan NIB/AHU di web).
+Fungsi utama: deteksi jejak penipuan di web untuk nama perusahaan dari poster lowongan.
+Dipanggil dari pipeline.py setelah NER mengekstrak nama perusahaan.
 
-Sumber yang dipakai:
-1) Fetch website domain (jika ada di entities/email)
-2) DuckDuckGo search fakta: nama PT + (AHU|OSS|NIB|lowongan penipuan)
-3) Scrapling — data mentah disimpan di results (URL + title + snippet)
+Metodologi:
+- TIDAK mengklaim "terdaftar di AHU/OSS" — API resmi butuh captcha/login, tidak tersedia.
+- Yang dilakukan: cari jejak publik (website, hasil search, laporan penipuan di web).
+- Output berupa risk_flags/safe_flags yang digabung di pipeline, bukan verdict final.
+
+Sumber data:
+1. Website domain perusahaan (dari email di entities) — cek konten nyata
+2. Web search: nama PT + kata kunci penipuan (DuckDuckGo → Yahoo → Bing fallback)
 """
 
 import re
