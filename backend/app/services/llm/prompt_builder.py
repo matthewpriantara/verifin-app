@@ -412,16 +412,22 @@ Jangan naikkan ke WASPADA hanya karena tidak ada alamat/PT/website — itu norma
 
 ---
 
-## FORMAT OUTPUT (WAJIB JSON saja)
+## FORMAT OUTPUT (WAJIB JSON saja — ringkas, padat, tidak bertele-tele)
+
+Batas per field:
+- `summary`: 1 kalimat saja (max 25 kata)
+- `risk_factors`: max 3 item, max 10 kata per item
+- `safe_factors`: max 3 item, max 10 kata per item
+- `recommendations`: max 3 item, max 12 kata per item
 
 {{
   "verdict": "AMAN" | "WASPADA" | "BAHAYA",
   "risk_score": <angka 0-100>,
-  "corrected_company_name": "<nama lengkap bisnis dari teks asli, atau null jika tidak ada>",
-  "summary": "<1-2 kalimat alasan verdict>",
-  "risk_factors": ["<faktor risiko nyata; [] jika tidak ada>"],
-  "safe_factors": ["<faktor aman>"],
-  "recommendations": ["<saran untuk pelamar>"]
+  "corrected_company_name": "<nama bisnis dari teks asli, atau null>",
+  "summary": "<1 kalimat ringkas alasan verdict>",
+  "risk_factors": ["<max 10 kata>"],
+  "safe_factors": ["<max 10 kata>"],
+  "recommendations": ["<max 12 kata>"]
 }}
 
 Skor vs verdict:
