@@ -2,11 +2,17 @@
 from __future__ import annotations
 
 import asyncio
+import logging
+import re
+import tempfile
+
+import httpx
+from bs4 import BeautifulSoup
+
+logger = logging.getLogger(__name__)
 
 def _sync_scrapling_fetch(url: str) -> tuple[str, list[str]]:
-    import re
-    import httpx
-    from bs4 import BeautifulSoup
+    """Scrape teks + image URLs dari URL (IG embed, oEmbed, proxy, Scrapling, HTTPX fallback)."""
 
     combined_caption_text = ""
     image_urls = []
@@ -43,7 +49,7 @@ def _sync_scrapling_fetch(url: str) -> tuple[str, list[str]]:
                     clean = s_url.replace("\\u0026", "&").replace("\\/", "/")
                     image_urls.append(clean)
         except Exception as exc:
-            print(f"[Instagram Embed Fetch Warning] {exc}")
+            logger.warning("[Instagram Embed] %s", exc)
 
         # 2. Jika belum dapat gambar, coba oEmbed API
         if not image_urls:
@@ -57,7 +63,7 @@ def _sync_scrapling_fetch(url: str) -> tuple[str, list[str]]:
                     if data.get("thumbnail_url"):
                         image_urls.append(data.get("thumbnail_url"))
             except Exception as exc:
-                print(f"[Instagram oEmbed Warning] {exc}")
+                logger.warning("[Instagram oEmbed] %s", exc)
 
         # 3. Jika gambar belum dapat, coba proxy fixer (vxinstagram / ddinstagram)
         if not image_urls:
@@ -147,7 +153,6 @@ def _sync_scrapling_fetch(url: str) -> tuple[str, list[str]]:
             lines_clean.append(line)
         combined_caption_text = "\n".join(lines_clean).strip()
 
-
         og_img = (
             page.css("meta[property='og:image']::attr(content)").get()
             or page.css("meta[name='twitter:image']::attr(content)").get()
@@ -156,7 +161,7 @@ def _sync_scrapling_fetch(url: str) -> tuple[str, list[str]]:
             image_urls.append(og_img.strip())
 
     except Exception as exc:
-        print(f"[Scrapling Fetch Warning] {exc}")
+        logger.warning("[Scrapling Fetch] %s", exc)
 
     if not combined_caption_text:
         try:
@@ -176,7 +181,7 @@ def _sync_scrapling_fetch(url: str) -> tuple[str, list[str]]:
                     if og_img and og_img.get("content"):
                         image_urls.append(og_img["content"].strip())
         except Exception as exc:
-            print(f"[HTTPX Scrape Fallback Error] {exc}")
+            logger.warning("[HTTPX Scrape Fallback] %s", exc)
 
     # Deduplicate preserving order
     seen_urls = set()
@@ -188,16 +193,11 @@ def _sync_scrapling_fetch(url: str) -> tuple[str, list[str]]:
 
     return combined_caption_text, dedup_images[:3]
 
-
-
-
 async def _fetch_url_content_and_image(url: str) -> tuple[str, list[str]]:
     """
     Scrape teks (caption/description) & daftar image URL poster (termasuk carousel slides) dari URL.
     Returns: (extracted_text, temp_image_paths_list)
     """
-    import httpx
-
     loop = asyncio.get_event_loop()
     combined_caption_text, image_urls = await loop.run_in_executor(None, _sync_scrapling_fetch, url)
 
@@ -222,6 +222,6 @@ async def _fetch_url_content_and_image(url: str) -> tuple[str, list[str]]:
                         tmp.write(img_res.content)
                         tmp_img_paths.append(tmp.name)
         except Exception as exc:
-            print(f"[URL Fetch] Gagal mengunduh gambar poster dari {img_url}: {exc}")
+            logger.warning("[URL Fetch] gagal unduh gambar %s: %s", img_url, exc)
 
     return combined_caption_text, tmp_img_paths
