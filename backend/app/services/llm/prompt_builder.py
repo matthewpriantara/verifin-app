@@ -416,9 +416,9 @@ Jangan naikkan ke WASPADA hanya karena tidak ada alamat/PT/website — itu norma
 
 Batas per field:
 - `summary`: 1 kalimat saja (max 25 kata)
-- `risk_factors`: max 3 item, max 10 kata per item
-- `safe_factors`: max 3 item, max 10 kata per item
-- `recommendations`: max 3 item, max 12 kata per item
+- `risk_factors`: max 3 item, max 8 kata per item, kalimat pendek
+- `safe_factors`: max 3 item, max 8 kata per item, kalimat pendek
+- `recommendations`: max 3 item, max 8 kata per item, kalimat imperatif pendek tanpa anak kalimat
 
 {{
   "verdict": "AMAN" | "WASPADA" | "BAHAYA",
