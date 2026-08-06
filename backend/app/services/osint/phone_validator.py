@@ -3,7 +3,6 @@ Cek reputasi nomor HP via Kredibel (https://www.kredibel.com/).
 Pakai Scrapling + cookies login (secrets/kredibel_cookies.json) bila akses publik dibatasi.
 """
 
-from __future__ import annotations
 
 import json
 import re
@@ -450,7 +449,7 @@ async def check_phones_kredibel(contacts: list[str], limit: int = 2) -> list[dic
     if not phones:
         return []
 
-    loop = asyncio.get_event_loop()
+    loop = asyncio.get_running_loop()
     results = []
     for ph in phones:
         result = await loop.run_in_executor(None, check_phone_kredibel, ph)
