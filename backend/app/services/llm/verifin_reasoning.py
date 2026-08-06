@@ -10,6 +10,49 @@ from app.services.llm.client import chat_completion, check_llm_status, extract_j
 from app.services.llm.prompt_builder import build_text_verify_prompt, build_verify_prompt
 from app.config import LLM_MODEL
 from app.services.constants import FREE_EMAIL_DOMAINS
+import re as _re
+import logging
+
+logger = logging.getLogger(__name__)
+
+
+def _is_valid_llm_output(parsed: dict) -> bool:
+    """Validasi semantik output LLM — deteksi truncation dan field rusak."""
+    if parsed.get("verdict") not in ("AMAN", "WASPADA", "BAHAYA"):
+        return False
+    if not isinstance(parsed.get("risk_score"), (int, float)):
+        return False
+
+    # Token awalan/akhiran umum Indonesia yang sering terkonkatenasi saat truncation
+    _CONCAT_PREFIXES = ("tidak", "nomor", "ada", "fee", "di", "dan", "dari", "ke", "yang", "untuk")
+
+    for field in ("summary", "risk_factors", "safe_factors", "recommendations"):
+        val = parsed.get(field, "")
+        texts = val if isinstance(val, list) else [val]
+        for t in texts:
+            if not isinstance(t, str):
+                continue
+            words = t.split()
+            # String panjang tanpa spasi = terpotong
+            if len(words) == 1 and len(t) > 15:
+                return False
+            # camelCase = concatenation artifact
+            if _re.search(r'(?<=[a-z])(?=[A-Z])', t):
+                return False
+            # Dua kata Indonesia disambung tanpa spasi di awal token
+            # contoh: "Nomorterdeteksi", "Tidakintaan", "Feebutkan"
+            t_lower = t.lower()
+            for prefix in _CONCAT_PREFIXES:
+                if not t_lower.startswith(prefix):
+                    continue
+                # Setelah prefix, ada huruf lagi langsung (bukan spasi)
+                rest = t_lower[len(prefix):]
+                if rest and rest[0].isalpha() and not rest[0] == ' ':
+                    # Pastikan prefix adalah kata utuh (bukan substring valid seperti "tidak ada")
+                    # Cek apakah ada spasi setelah prefix di string asli
+                    if len(t) > len(prefix) and t[len(prefix)] != ' ':
+                        return False
+    return True
 
 
 async def analyze_with_verifin(
@@ -34,35 +77,52 @@ async def analyze_with_verifin(
     else:
         prompt = build_verify_prompt(entities, osint_results)
 
+    messages = [
+        {
+            "role": "system",
+            "content": (
+                "Kamu adalah Verifin Trust Analyst — bagian dari Job Trust Infrastructure yang membantu "
+                "pencari kerja menilai tingkat kepercayaan suatu lowongan sebelum melamar. "
+                "Tugasmu adalah menganalisis bukti OSINT yang tersedia dan memberikan penilaian kepercayaan "
+                "yang jujur, terukur, dan bisa dipertanggungjawabkan. "
+                "Hanya gunakan fakta dari data OSINT/teks yang diberikan. "
+                "Dilarang mengarang sumber, status AHU/OSS, atau temuan medsos. "
+                "Gunakan bahasa Indonesia formal dan profesional. "
+                "Jawab HANYA JSON valid sesuai skema yang diminta."
+            ),
+        },
+        {"role": "user", "content": prompt},
+    ]
+
     try:
-        raw = await chat_completion(
-            messages=[
-                {
-                    "role": "system",
-                    "content": (
-                        "Kamu adalah Verifin Trust Analyst — bagian dari Job Trust Infrastructure yang membantu "
-                        "pencari kerja menilai tingkat kepercayaan suatu lowongan sebelum melamar. "
-                        "Tugasmu adalah menganalisis bukti OSINT yang tersedia dan memberikan penilaian kepercayaan "
-                        "yang jujur, terukur, dan bisa dipertanggungjawabkan. "
-                        "Hanya gunakan fakta dari data OSINT/teks yang diberikan. "
-                        "Dilarang mengarang sumber, status AHU/OSS, atau temuan medsos. "
-                        "Gunakan bahasa Indonesia formal dan profesional. "
-                        "Jawab HANYA JSON valid sesuai skema yang diminta."
-                    ),
-                },
-                {"role": "user", "content": prompt},
-            ],
-            model=LLM_MODEL,
-            temperature=0.0,
-            max_tokens=8192,
-            seed=42,
-        )
-        parsed = extract_json_from_response(raw)
-        # Sanitize field list dari LLM — buang item yang kata-katanya
-        # terkonkatenasi (tanda truncation dari provider)
-        for field in ("risk_factors", "safe_factors", "recommendations"):
-            items = parsed.get(field) or []
-            parsed[field] = [s for s in items if isinstance(s, str) and len(s) > 3]
+        parsed = None
+        # ponytail: max 3 retry — cukup untuk truncation, tidak waste token budget provider
+        for attempt in range(3):
+            raw = await chat_completion(
+                messages=messages,
+                model=LLM_MODEL,
+                temperature=0.0,
+                max_tokens=8192,
+                seed=42,
+            )
+            parsed = extract_json_from_response(raw)
+            # Sanitize field list — buang item <= 3 karakter (artifact truncation)
+            for field in ("risk_factors", "safe_factors", "recommendations"):
+                items = parsed.get(field) or []
+                parsed[field] = [s for s in items if isinstance(s, str) and len(s) > 3]
+            if _is_valid_llm_output(parsed):
+                break
+            logger.warning("LLM output attempt %d gagal validasi semantik, retry...", attempt + 1)
+            messages.append({"role": "assistant", "content": raw})
+            messages.append({
+                "role": "user",
+                "content": (
+                    "Output sebelumnya tampaknya terpotong atau tidak valid. "
+                    "Regenerate seluruh JSON dari awal. "
+                    "Jangan melanjutkan output sebelumnya. "
+                    "Pastikan semua field terisi lengkap dan setiap kalimat tidak terpotong di tengah."
+                ),
+            })
         parsed["model_used"] = f"{LLM_MODEL} (Forensic Reasoning)"
         parsed["entities_analyzed"] = entities
         return parsed
