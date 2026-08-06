@@ -12,6 +12,7 @@ from urllib.parse import parse_qs, quote_plus, unquote, urlparse
 from scrapling.fetchers import Fetcher
 from app.services.osint.gform_inspector import inspect_gform, is_gform_url
 from app.services.constants import FREE_EMAIL_DOMAINS
+from app.config import SEARXNG_URL
 
 try:
     from bs4 import BeautifulSoup
@@ -183,9 +184,10 @@ def fetch_company_website(url_or_domain: str) -> dict[str, Any]:
 def search_web_evidence(query: str, max_results: int = 5) -> dict[str, Any]:
     """
     Search web evidence multi-engine:
-    1) DuckDuckGo HTML (timeout 2s via curl_cffi, no retry delay)
-    2) Yahoo Search ID (id.search.yahoo.com)
-    3) Bing Search (bing.com)
+    1) SearXNG self-hosted (primary)
+    2) DuckDuckGo HTML (fallback)
+    3) Yahoo Search ID (fallback)
+    4) Bing Search (fallback)
     """
     q = (query or "").strip()
     if not q:
@@ -194,27 +196,57 @@ def search_web_evidence(query: str, max_results: int = 5) -> dict[str, Any]:
     results: list[dict[str, str]] = []
     engine_used = "none"
 
-    # 1. Try DuckDuckGo via direct curl_cffi (timeout 2.0s, no retry lag)
-    try:
-        s = cffi_req.Session(impersonate="chrome120")
-        url = f"https://html.duckduckgo.com/html/?q={quote_plus(q)}"
-        r = s.get(url, timeout=2.0)
-        if r.status_code == 200:
-            soup = BeautifulSoup(r.text, "html.parser")
-            for a in soup.select("a.result__a")[:max_results]:
-                href = _unwrap_ddg_href(a.get("href", ""))
-                title = a.text.strip()
-                if href and title:
-                    results.append({"title": title[:160], "url": href, "snippet": ""})
-            snips = soup.select(".result__snippet")
-            for i, sn in enumerate(snips[: len(results)]):
-                results[i]["snippet"] = sn.text.strip()[:240]
-            if results:
-                engine_used = "duckduckgo"
-    except Exception:
-        pass
+    # 1. SearXNG self-hosted (primary) — JSON API, language=id, region=id-id
+    if SEARXNG_URL:
+        try:
+            s = cffi_req.Session(impersonate="chrome120")
+            sx_url = (
+                f"{SEARXNG_URL}/search"
+                f"?q={quote_plus(q)}"
+                f"&format=json"
+                f"&language=id"
+                f"&categories=general"
+            )
+            r = s.get(sx_url, timeout=4.0)
+            if r.status_code == 200:
+                data = r.json()
+                for item in data.get("results", [])[:max_results]:
+                    url = item.get("url", "")
+                    title = item.get("title", "").strip()
+                    snippet = (item.get("content") or "").strip()
+                    if url and title:
+                        results.append({
+                            "title": title[:160],
+                            "url": url,
+                            "snippet": snippet[:240],
+                        })
+                if results:
+                    engine_used = "searxng"
+        except Exception:
+            pass
 
-    # 2. Fallback: Yahoo Search Indonesia
+    # 2. Fallback: DuckDuckGo HTML
+    if not results:
+        try:
+            s = cffi_req.Session(impersonate="chrome120")
+            url = f"https://html.duckduckgo.com/html/?q={quote_plus(q)}"
+            r = s.get(url, timeout=2.0)
+            if r.status_code == 200:
+                soup = BeautifulSoup(r.text, "html.parser")
+                for a in soup.select("a.result__a")[:max_results]:
+                    href = _unwrap_ddg_href(a.get("href", ""))
+                    title = a.text.strip()
+                    if href and title:
+                        results.append({"title": title[:160], "url": href, "snippet": ""})
+                snips = soup.select(".result__snippet")
+                for i, sn in enumerate(snips[: len(results)]):
+                    results[i]["snippet"] = sn.text.strip()[:240]
+                if results:
+                    engine_used = "duckduckgo_html"
+        except Exception:
+            pass
+
+    # 3. Fallback: Yahoo Search Indonesia
     if not results:
         try:
             s = cffi_req.Session(impersonate="chrome120")
@@ -244,7 +276,7 @@ def search_web_evidence(query: str, max_results: int = 5) -> dict[str, Any]:
         except Exception:
             pass
 
-    # 3. Fallback: Bing Search
+    # 4. Fallback: Bing Search
     if not results:
         try:
             s = cffi_req.Session(impersonate="chrome120")
