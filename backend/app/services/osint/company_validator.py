@@ -38,8 +38,11 @@ _GENERAL_NEWS_KEYWORDS = frozenset({
 
 
 def _search_company_traces(company: str) -> list[dict[str, Any]]:
-    """1 query scam check saja (web_evidence sudah cover presence search)."""
-    queries = [f'"{company}" lowongan penipuan OR penipu OR scam']
+    """Dua query: scam check + jejak legalitas (NIB/AHU/akta via web publik)."""
+    queries = [
+        f'"{company}" lowongan penipuan OR penipu OR scam',
+        f'"{company}" NIB OR "akta pendirian" OR "terdaftar" OR AHU OR OSS',
+    ]
     out = []
     for q in queries:
         res = search_web_evidence(q, max_results=3)
@@ -108,11 +111,13 @@ def validate_company_public(company: str, entities: dict | None = None) -> dict[
         risk_flags.extend(w.get("risk_flags") or [])
         safe_flags.extend(w.get("safe_flags") or [])
 
-    # 2) 1 search scam (presence search sudah di web_evidence)
+    # 2) search scam + jejak legalitas
     searches = _search_company_traces(name)
     mention_count = 0
     fraud_mentions = 0
+    legality_mentions = 0
     for s in searches:
+        is_legality_query = "NIB" in s.get("query", "") or "akta pendirian" in s.get("query", "")
         evidence.append(
             {
                 "type": "web_search",
@@ -157,6 +162,13 @@ def validate_company_public(company: str, entities: dict | None = None) -> dict[
 
             if has_comp and has_scam_report and not is_general_news_or_advice:
                 fraud_mentions += 1
+
+            # Deteksi jejak legalitas dari query kedua
+            if is_legality_query and has_comp and any(
+                kw in blob for kw in ("nib", "akta", "terdaftar", "ahu", "oss", "nomor induk")
+            ):
+                legality_mentions += 1
+
         risk_flags.extend(s.get("risk_flags") or [])
 
     if fraud_mentions >= 1:
@@ -166,6 +178,15 @@ def validate_company_public(company: str, entities: dict | None = None) -> dict[
     elif mention_count >= 1:
         safe_flags.append(
             f"Ditemukan {mention_count} jejak publik di search (bukan klaim legalitas AHU)."
+        )
+
+    if legality_mentions >= 1:
+        safe_flags.append(
+            f"Ditemukan {legality_mentions} jejak legalitas (NIB/AHU/akta) di web publik untuk {name}."
+        )
+    elif mention_count == 0:
+        risk_flags.append(
+            f"Tidak ditemukan jejak publik maupun legalitas untuk '{name}' — perusahaan baru atau fiktif."
         )
 
     # AHU probe di-skip (selalu unverified + lambat); legalitas tetap jujur
@@ -199,6 +220,7 @@ def validate_company_public(company: str, entities: dict | None = None) -> dict[
         "stats": {
             "public_mentions": mention_count,
             "fraud_related_mentions": fraud_mentions,
+            "legality_mentions": legality_mentions,
         },
         "risk_flags": uniq(risk_flags),
         "safe_flags": uniq(safe_flags),
