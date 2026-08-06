@@ -1,5 +1,7 @@
 """
-Cek reputasi nomor HP via Kredibel (https://www.kredibel.com/).
+Cek reputasi nomor HP via:
+1. Kaspersky Who Calls (https://who.calls.kaspersky.com/) -- dicek PERTAMA
+2. Kredibel (https://www.kredibel.com/) -- dicek kedua
 Pakai Scrapling + cookies login (secrets/kredibel_cookies.json) bila akses publik dibatasi.
 """
 
@@ -24,7 +26,8 @@ USER_AGENT = (
 
 
 def normalize_phone_id(phone: str) -> dict[str, str]:
-    digits = re.sub(r"\D", "", phone or "")
+    raw_digits = re.sub(r"[^\d]", "", (phone or "").strip())
+    digits = raw_digits
     if digits.startswith("0"):
         digits = "62" + digits[1:]
     if digits.startswith("8") and not digits.startswith("62"):
@@ -262,6 +265,60 @@ def _fetch_page(url: str, jar: dict[str, str]):
             return Fetcher.get(url, stealthy_headers=True)
 
 
+def _check_kaspersky(phone_meta: dict[str, str]) -> dict[str, Any]:
+    """
+    Cek reputasi nomor HP via Kaspersky Who Calls Indonesia (scrape web, tanpa login).
+    URL: https://whocalls.id.kaspersky.com/info/{e164_digits}
+    """
+    digits = phone_meta["e164"].lstrip("+")  # e.g. "6281325081046"
+    url = f"https://whocalls.id.kaspersky.com/info/{digits}"
+    risk_flags: list[str] = []
+    result_base = {
+        "source": "kaspersky",
+        "phone": phone_meta["display"],
+        "url": url,
+        "checked": False,
+        "danger_level": None,
+        "category": None,
+        "scam_confirmed": False,
+        "risk_flags": risk_flags,
+    }
+
+    try:
+        page = Fetcher().get(url, stealthy_headers=True, follow_redirects=True)
+        if page is None or page.status != 200:
+            result_base["error"] = f"Kaspersky HTTP {getattr(page, 'status', 'N/A')}"
+            return result_base
+
+        result_base["checked"] = True
+
+        # Verdict: NETRAL / BERBAHAYA / SPAM / dll
+        verdict_el = page.css_first('[class*="NumberInfoWrapper_title"]')
+        verdict = verdict_el.text.strip().upper() if verdict_el else "NETRAL"
+        result_base["category"] = verdict
+
+        # Komentar — ambil semua teks
+        comments = [el.text.strip() for el in page.css('[class*="Comments_comment"]') if el.text.strip()]
+        result_base["comments"] = comments
+
+        # Mapping verdict → danger_level
+        _danger = {"BERBAHAYA": 2, "SPAM": 2, "MENCURIGAKAN": 1, "NETRAL": 0, "AMAN": 0}
+        danger_level = _danger.get(verdict, 1 if verdict not in ("NETRAL", "AMAN") else 0)
+        result_base["danger_level"] = danger_level
+
+        if danger_level >= 2:
+            result_base["scam_confirmed"] = True
+            risk_flags.append(f"Kaspersky Who Calls: nomor terdeteksi '{verdict}'.")
+        elif danger_level == 1:
+            risk_flags.append(f"Kaspersky Who Calls: nomor mencurigakan — '{verdict}'.")
+
+        return result_base
+
+    except Exception as exc:
+        result_base["error"] = f"Kaspersky check gagal: {exc}"
+        return result_base
+
+
 def _search_phone_public_serp(phone_meta: dict[str, str]) -> dict[str, Any]:
     phone_digits = phone_meta["local"]
     query = f'"{phone_meta["display"]}" OR "0{phone_digits}" penipu OR scam OR penipuan'
@@ -309,6 +366,7 @@ def _search_phone_public_serp(phone_meta: dict[str, str]) -> dict[str, Any]:
 
 
 def check_phone_kredibel(phone: str) -> dict[str, Any]:
+    """Cek reputasi nomor HP. Urutan: Kaspersky -> Kredibel -> SERP Fallback."""
     meta = normalize_phone_id(phone)
     if not meta["local"] or len(meta["local"]) < 8:
         return {
@@ -324,6 +382,9 @@ def check_phone_kredibel(phone: str) -> dict[str, Any]:
     used_cookies = bool(jar.get("kredibel_session") or jar.get("remember_web_59ba36addc2b2f9401580f014c7f58ea4e30989d") or any(
         k.startswith("remember_web") for k in jar
     ))
+
+    # ── Step 1: Kaspersky Who Calls (Prioritas Pertama) ──────────────────────
+    kaspersky_result = _check_kaspersky(meta)
 
     try:
         page = _fetch_page(url, jar if used_cookies else {})
@@ -427,17 +488,25 @@ def check_phone_kredibel(phone: str) -> dict[str, Any]:
                 parsed["found"] = True
             parsed["serp_fallback"] = serp
 
+        # ── Gabungkan hasil Kaspersky ke dalam parsed Kredibel ────────────────
+        parsed["kaspersky"] = kaspersky_result
+        if kaspersky_result.get("risk_flags"):
+            parsed["risk_flags"] = kaspersky_result["risk_flags"] + parsed.get("risk_flags", [])
+            parsed["found"] = True
+
         return parsed
     except Exception as exc:
         serp = _search_phone_public_serp(meta)
+        all_risk_flags = kaspersky_result.get("risk_flags", []) + serp.get("risk_flags", [])
         return {
             "source": "kredibel",
             "phone": meta["display"],
             "url": url,
-            "found": serp.get("found_scam", False),
+            "found": kaspersky_result.get("scam_confirmed", False) or serp.get("found_scam", False),
             "authenticated": used_cookies,
             "error": str(exc),
-            "risk_flags": serp.get("risk_flags", []),
+            "risk_flags": all_risk_flags,
+            "kaspersky": kaspersky_result,
             "serp_fallback": serp,
         }
 
