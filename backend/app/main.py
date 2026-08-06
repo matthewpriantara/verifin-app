@@ -29,7 +29,20 @@ async def lifespan(app: FastAPI):
     yield
 
 
-app = FastAPI(title="Verifin OSINT API", version="0.1.0", lifespan=lifespan)
+app = FastAPI(
+    title="Verifin API",
+    version="1.0.0",
+    description=(
+        "API verifikasi lowongan kerja berbasis OSINT multi-layer.\n\n"
+        "**Pipeline:** OCR → NER → LLM Entity Extraction → OSINT Paralel "
+        "(Kaspersky, SERP, Address, Company, WHOIS, Social Media, Web Evidence) "
+        "→ Fraud Network → SHAP XAI → Response\n\n"
+        "**Sumber data:** Kaspersky Who Calls ID, Kredibel SERP, DDG/Yahoo/Bing, "
+        "Nominatim/Overpass GIS, AHU/OSS SERP, WHOIS, Community Reports (DB)\n\n"
+        "**LLM:** Kimi K3 via OpenAgentic"
+    ),
+    lifespan=lifespan,
+)
 
 app.add_middleware(
     CORSMiddleware,
