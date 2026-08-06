@@ -61,7 +61,7 @@ def validate_company_public(company: str, entities: dict | None = None) -> dict[
     Semua field evidence berasal dari fetch/search nyata.
     """
     entities = entities or {}
-    name = _normalize_company_name(company)
+    name = re.sub(r"\s+", " ", (company or "").strip())
     if not name or len(name) < 3:
         return {
             "name": company,
