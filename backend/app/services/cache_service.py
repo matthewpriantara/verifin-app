@@ -1,16 +1,11 @@
 """
-Verifin Caching, SHA-256 Poster Deduplication, & Syndicate Identity Change Detector.
+SHA-256 deduplication poster + deteksi sindikat identitas lintas perusahaan.
 """
 
 from __future__ import annotations
 
 import hashlib
-import time
 from typing import Any
-
-# Memory cache fallback if Redis is offline
-_MEMORY_CACHE: dict[str, tuple[float, Any]] = {}
-CACHE_TTL_SECONDS = 3600 * 24  # 24 Hours Cache
 
 
 def compute_content_sha256(text_or_bytes: str | bytes) -> str:

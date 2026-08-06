@@ -33,6 +33,7 @@ Edge types:
 from __future__ import annotations
 
 import logging
+import re
 from typing import Any
 
 import networkx as nx
@@ -260,7 +261,6 @@ def get_network_graph_data(
 
 def _extract_domain(url: str) -> str | None:
     """Extract domain dari URL."""
-    import re
     if not url:
         return None
     # Hapus protocol

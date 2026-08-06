@@ -1,11 +1,15 @@
 """DB cache — simpan dan ambil JobCase berdasarkan hash teks (exact-match memory)."""
 from __future__ import annotations
 
+import logging
+
 from sqlalchemy.orm import Session
 
 from app.api.v1.verify.schema import VerifyResponse
 from app.database.models import JobCase
 from app.services.cache_service import compute_content_sha256
+
+logger = logging.getLogger(__name__)
 
 def _save_case_to_db(
     db: Session,
@@ -17,7 +21,6 @@ def _save_case_to_db(
 ) -> None:
     """Simpan case + entities lengkap (fondasi exact-match memory)."""
     from sqlalchemy.exc import IntegrityError
-    from app.services.cache_service import compute_content_sha256
 
     try:
         text_hash = compute_content_sha256(raw_text)
@@ -88,7 +91,7 @@ def _save_case_to_db(
         db.commit()
     except Exception as e:
         db.rollback()
-        print(f"Error saving job case to database: {e}")
+        logger.warning("Error saving job case to database: %s", e)
 
 
 def _get_cached_case_from_db(db: Session, raw_input_str: str) -> VerifyResponse | None:
@@ -120,10 +123,10 @@ def _get_cached_case_from_db(db: Session, raw_input_str: str) -> VerifyResponse 
                 "corrected_company_name": llm_payload.get("corrected_company_name"),
             }
             osint = cached.osint_summary or {}
-            print(f"[DB Cache Hit] Mengembalikan hasil dari database untuk hash: {text_hash[:10]}")
+            logger.debug("[DB Cache Hit] hash: %s", text_hash[:10])
             return _to_response(analysis, ent, osint)
     except Exception as e:
-        print(f"[DB Cache Lookup Warning] {e}")
+        logger.warning("[DB Cache Lookup] %s", e)
     return None
 
 
