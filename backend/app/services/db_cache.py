@@ -11,6 +11,7 @@ from app.services.hasher import compute_content_sha256
 from app.api.v1.verify.pipeline import _build_osint_summary, _to_response
 
 logger = logging.getLogger(__name__)
+CACHE_SCHEMA_VERSION = 3
 
 def _save_case_to_db(
     db: Session,
@@ -67,7 +68,7 @@ def _save_case_to_db(
             existing.verdict = analysis.get("verdict", "ERROR")
             existing.risk_score = int(analysis.get("risk_score") or 0)
             existing.llm_output = llm_payload
-            existing.osint_summary = _build_osint_summary(osint_results)
+            existing.osint_summary = _cache_osint_payload(osint_results)
             existing.osint_failed = osint_failed
         else:
             db_case = JobCase(
@@ -85,7 +86,7 @@ def _save_case_to_db(
                 verdict=analysis.get("verdict", "ERROR"),
                 risk_score=int(analysis.get("risk_score") or 0),
                 llm_output=llm_payload,
-                osint_summary=_build_osint_summary(osint_results),
+                osint_summary=_cache_osint_payload(osint_results),
                 osint_failed=osint_failed,
             )
             db.add(db_case)
@@ -110,6 +111,7 @@ def _get_cached_case_from_db(db: Session, raw_input_str: str) -> VerifyResponse 
                 "emails": cached.emails or [],
                 "urls": cached.urls or [],
                 "addresses": cached.addresses or [],
+                "location_candidates": (cached.entities or {}).get("location_candidates", []),
                 "salaries": cached.salaries or [],
             }
             analysis = {
@@ -122,7 +124,14 @@ def _get_cached_case_from_db(db: Session, raw_input_str: str) -> VerifyResponse 
                 "model_used": f"{llm_payload.get('model_used', 'unknown')} (DB Cache Hit)",
                 "corrected_company_name": llm_payload.get("corrected_company_name"),
             }
-            osint = cached.osint_summary or {}
+            cached_osint = cached.osint_summary or {}
+            if cached_osint.get("cache_schema_version") != CACHE_SCHEMA_VERSION:
+                logger.info("[DB Cache Skip] stale cache schema: %s", text_hash[:10])
+                return None
+            osint = cached_osint.get("response_osint")
+            if not isinstance(osint, dict):
+                logger.info("[DB Cache Skip] legacy/incomplete OSINT payload: %s", text_hash[:10])
+                return None
             logger.debug("[DB Cache Hit] hash: %s", text_hash[:10])
             return _to_response(analysis, ent, osint)
     except Exception as e:
@@ -130,3 +139,13 @@ def _get_cached_case_from_db(db: Session, raw_input_str: str) -> VerifyResponse 
     return None
 
 
+def _cache_osint_payload(osint_results: dict | None) -> dict | None:
+    """Simpan evidence response lengkap agar cache tidak menghasilkan SHAP palsu."""
+    if not isinstance(osint_results, dict):
+        return None
+    summary = _build_osint_summary(osint_results) or {}
+    return {
+        **summary,
+        "cache_schema_version": CACHE_SCHEMA_VERSION,
+        "response_osint": osint_results,
+    }

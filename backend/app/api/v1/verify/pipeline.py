@@ -11,6 +11,7 @@ from app.database.models import JobCase
 from app.services.llm.entity_extraction import extract_entities_llm
 from app.services.ner import (
     extract_entities_from_text,
+    _is_plausible_address,
     _uniq,
     clean_indonesian_phone,
     fix_email_ocr_typos,
@@ -196,10 +197,13 @@ async def _extract_entities_hybrid(text: str) -> dict:
         merged["companies"] = new_companies
 
     # ── addresses & salaries: merge-additive + smart deduplication ────────
+    # LLM tidak boleh mengubah area/cabang atau kalimat benefit menjadi alamat.
     for key in ("addresses", "salaries"):
         llm_vals = merged_entities.get(key) or []
         if not llm_vals:
             continue
+        if key == "addresses":
+            llm_vals = [value for value in llm_vals if _is_plausible_address(value)]
         existing = {_norm(v) for v in (merged.get(key) or [])}
         for v in llm_vals:
             nv = _norm(v)
@@ -216,6 +220,10 @@ async def _extract_entities_hybrid(text: str) -> dict:
     for key in ("companies", "addresses", "salaries", "phones"):
         if merged.get(key):
             merged[key] = _uniq(merged[key])
+    merged["addresses"] = [
+        value for value in (merged.get("addresses") or [])
+        if _is_plausible_address(value)
+    ]
 
 
 
@@ -253,6 +261,11 @@ async def _run_osint_on_entities(entities: dict) -> dict:
         "email_security": {"spf_active": False, "dmarc_active": False},
         "address_validations": [],
         "phones": [],
+        "phone_probe": {
+            "status": "NOT_PROVIDED" if not (entities.get("phones") or []) else "PENDING",
+            "note": "Nomor HP tidak tercantum pada input; pemeriksaan Kaspersky dilewati."
+            if not (entities.get("phones") or []) else None,
+        },
         "companies": [],
         "web": {
             "enabled": False,
@@ -430,15 +443,80 @@ async def _run_osint_on_entities(entities: dict) -> dict:
     osint_results["domain"], osint_results["email_security"] = domain_pair
     osint_results["address_validations"] = addr_list
     osint_results["phones"] = phones
+    if entities.get("phones"):
+        osint_results["phone_probe"] = {
+            "status": "COMPLETED" if phones else "UNAVAILABLE",
+            "note": "Nomor HP ditemukan dan dikirim ke validator reputasi."
+            if phones else "Nomor HP ditemukan, tetapi validator reputasi tidak mengembalikan hasil.",
+        }
     osint_results["web"] = web
     osint_results["companies"] = companies_osint
     osint_results["threads"] = threads
+    _merge_company_web_evidence(osint_results["companies"], web)
+    _merge_company_social_evidence(osint_results["companies"], threads)
     return osint_results
+
+
+def _merge_company_web_evidence(company_records: list, web: dict) -> None:
+    if not company_records or not isinstance(web, dict):
+        return
+    for record in company_records:
+        if not isinstance(record, dict):
+            continue
+        company_name = str(record.get("name") or "")
+        tokens = {
+            token for token in re.sub(r"[^a-z0-9 ]", " ", company_name.lower()).split()
+            if len(token) >= 4 and token not in {"badan", "group", "indonesia"}
+        }
+        matches = []
+        for search in web.get("searches") or []:
+            for result in search.get("results") or []:
+                blob = f"{result.get('title', '')} {result.get('snippet', '')}".lower()
+                matched = sum(token in blob for token in tokens)
+                if matched >= min(2, len(tokens)):
+                    matches.append({
+                        "title": result.get("title"),
+                        "url": result.get("url"),
+                        "source_type": result.get("source_type"),
+                    })
+        if not matches:
+            continue
+        stats = record.setdefault("stats", {})
+        stats["public_mentions"] = max(stats.get("public_mentions", 0), len(matches))
+        stats["cross_service_public_mentions"] = len(matches)
+        record["cross_service_evidence"] = matches[:8]
+        if not record.get("safe_flags"):
+            record["safe_flags"] = [
+                f"Ditemukan {len(matches)} jejak publik yang cocok dari web evidence."
+            ]
+
+
+def _merge_company_social_evidence(company_records: list, social: dict) -> None:
+    if not company_records or not isinstance(social, dict):
+        return
+    posts = [post for post in social.get("posts") or [] if isinstance(post, dict)]
+    if not posts:
+        return
+    evidence = [
+        {
+            "title": post.get("title"),
+            "url": post.get("url"),
+            "platform": post.get("platform"),
+            "source_type": post.get("source_type"),
+            "is_official": bool(post.get("is_official")),
+        }
+        for post in posts[:12]
+    ]
+    for record in company_records:
+        stats = record.setdefault("stats", {})
+        stats["social_public_mentions"] = len(evidence)
+        stats["official_social_mentions"] = sum(item["is_official"] for item in evidence)
+        record["social_evidence"] = evidence
 
 
 def _merge_entities(primary: dict, secondary: dict) -> dict:
 
-    keys = ["companies", "phones", "emails", "urls", "addresses", "salaries"]
+    keys = ["companies", "phones", "emails", "urls", "addresses", "location_candidates", "salaries"]
     out = {}
     for key in keys:
         combined = list(primary.get(key) or []) + list(secondary.get(key) or [])
@@ -466,6 +544,8 @@ def _merge_entities(primary: dict, secondary: dict) -> dict:
                 and not any(a.strip().lower() in c or c in a.strip().lower() for c in comp_lows if len(c) >= 6)
             ]
             out[key] = _uniq(clean_addrs)
+        elif key == "location_candidates":
+            out[key] = _uniq(combined)
         else:
             out[key] = _uniq(combined)
     return out
@@ -476,8 +556,11 @@ def _to_response(
     entities: dict,
     osint_results: dict | None = None,
 ) -> VerifyResponse:
+    # Nama dari NER adalah canonical evidence. LLM boleh mengusulkan koreksi
+    # hanya saat NER tidak menemukan nama sama sekali; typo LLM tidak boleh
+    # menimpa entitas yang sudah dipakai OSINT dan fraud graph.
     corrected = analysis.get("corrected_company_name")
-    if corrected and corrected not in (None, "null", ""):
+    if not entities.get("companies") and corrected and corrected not in (None, "null", ""):
         entities = {**entities, "companies": [str(corrected)]}
 
     # Normalisasi kunci entities sesuai schema
@@ -487,6 +570,7 @@ def _to_response(
         "emails": entities.get("emails") or [],
         "urls": entities.get("urls") or [],
         "addresses": entities.get("addresses") or [],
+        "location_candidates": entities.get("location_candidates") or [],
         "salaries": entities.get("salaries") or [],
     }
 
@@ -577,5 +661,3 @@ def _build_osint_summary(osint_results: dict | None) -> dict | None:
             "is_new": (osint_results.get("domain") or {}).get("is_new"),
         },
     }
-
-

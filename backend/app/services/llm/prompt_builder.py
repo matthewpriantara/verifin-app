@@ -48,7 +48,7 @@ def _build_domain_osint_section(emails: list, domain_info: dict, email_security:
 
 def _build_phone_osint_section(phones: list) -> str:
     if not phones:
-        return "- Tidak ada nomor HP yang dicek."
+        return "- Nomor HP tidak tercantum pada input; pemeriksaan Kaspersky dilewati. Ini bukan bukti nomor bersih atau bukti penipuan."
     lines = []
     for p in phones:
         phone = p.get("phone") or p.get("phone_local") or "?"
@@ -133,6 +133,8 @@ def _build_company_osint_section(companies: list) -> str:
             lines.append(f"  → ⚠️ {f}")
         for f in c.get("safe_flags") or []:
             lines.append(f"  → ✅ {f}")
+        for note in c.get("neutral_notes") or []:
+            lines.append(f"  → ℹ️ {note}")
         if c.get("error"):
             lines.append(f"  → error: {c.get('error')}")
     return "\n".join(lines)
@@ -173,10 +175,19 @@ def _build_web_osint_section(web: dict) -> str:
                 lines.append("  · 🚨 PERINGATAN: Formulir memuat pertanyaan sensitif/keuangan mencurigakan!")
 
     for s in (web.get("searches") or [])[:2]:
-        lines.append(f"- Search: `{s.get('query')}` (ok={s.get('ok')})")
+        lines.append(f"- Search: `{s.get('query')}` (status={s.get('status', 'UNKNOWN')}, engine={s.get('engine', 'unknown')})")
         for r in (s.get("results") or [])[:3]:
+            url = r.get("url") or ""
+            if any(domain in url.lower() for domain in ("tokopedia.com", "shopee.co.id")):
+                source_note = "public marketplace listing; bukan bukti akun resmi perusahaan"
+            elif any(domain in url.lower() for domain in ("lokerjogja", "jobstreet", "glints", "kalibrr", "linkedin.com/jobs")):
+                source_note = "public job portal listing; bukan kanal resmi perusahaan"
+            elif any(domain in url.lower() for domain in ("instagram.com", "facebook.com", "tiktok.com", "threads.net")):
+                source_note = "public social result; status resmi tidak terverifikasi"
+            else:
+                source_note = "public web result; status resmi tidak terverifikasi"
             lines.append(
-                f"  · {(r.get('title') or '-')[:100]} — {r.get('url')}"
+                f"  · {(r.get('title') or '-')[:100]} — {url} ({source_note})"
             )
             if r.get("snippet"):
                 lines.append(f"    {r.get('snippet')[:140]}")
@@ -187,6 +198,21 @@ def _build_web_osint_section(web: dict) -> str:
         lines.append(f"- ⚠️ {f}")
     for f in web.get("safe_flags") or []:
         lines.append(f"- ✅ {f}")
+
+    counts = web.get("evidence_counts") or {}
+    if counts:
+        lines.append(
+            "- COUNTS DETERMINISTIK: "
+            f"{counts.get('relevant_results', 0)} hasil relevan; "
+            f"sumber={counts.get('by_source_type', {})}; "
+            f"REQUESTS_OK={counts.get('successful_requests', 0)}; "
+            f"NO_RESULTS={counts.get('empty_searches', 0)}; "
+            f"NO_RELEVANT_RESULTS={counts.get('no_relevant_searches', 0)}; "
+            f"UNAVAILABLE={counts.get('unavailable_searches', 0)}."
+        )
+        lines.append(
+            "- `NO_RESULTS`/`NO_RELEVANT_RESULTS` bukan bukti tidak ada penipuan; hasil harus relevan dan spesifik untuk menjadi evidence."
+        )
 
     if len(lines) == 1:
         lines.append("- Tidak ada website/search yang berhasil dikumpulkan.")
@@ -202,8 +228,9 @@ def _build_social_osint_section(threads: dict) -> str:
     if threads.get("error") and not threads.get("found"):
         return f"- Social Media OSINT error: {threads.get('error')}"
 
-    found = threads.get("found", False)
-    platform_hits = threads.get("platform_hits") or {}
+    found = threads.get("social_found", threads.get("found", False))
+    public_footprint_found = threads.get("public_footprint_found", found)
+    platform_hits = threads.get("official_platform_hits") or threads.get("platform_hits") or {}
     active_platforms = [p for p, v in platform_hits.items() if v]
     risk_flags = threads.get("risk_flags") or []
     profiles = threads.get("profiles") or []
@@ -211,6 +238,7 @@ def _build_social_osint_section(threads: dict) -> str:
 
     lines = [
         f"- Jejak ditemukan: {'Ya' if found else 'Tidak'}",
+        f"- Footprint publik non-sosial: {'Ya' if public_footprint_found and not found else 'Tidak'}",
         f"- Platform aktif: {', '.join(active_platforms) if active_platforms else 'tidak ada'}",
         f"- Jumlah postingan ditemukan: {len(posts)}",
         f"- Jumlah profil ditemukan: {len(profiles)}",
@@ -218,6 +246,14 @@ def _build_social_osint_section(threads: dict) -> str:
     if risk_flags:
         for f in risk_flags:
             lines.append(f"- Risiko: {f}")
+    counts = threads.get("evidence_counts") or {}
+    if counts:
+        lines.append(
+            "- COUNTS DETERMINISTIK SOCIAL: "
+            f"{counts.get('public_posts', 0)} posting publik, "
+            f"{counts.get('public_profiles', 0)} profil publik, "
+            f"{counts.get('official_posts', 0)} posting berstatus official."
+        )
     if profiles:
         for p in profiles[:2]:
             lines.append(f"- Profil: @{p.get('username', '?')} ({p.get('url', '')})")
@@ -248,16 +284,22 @@ def _build_address_osint_section(address_validations: list) -> str:
             lines.append(f"- `{addr}`: ❌ TIDAK DITEMUKAN di peta Indonesia (kemungkinan alamat fiktif).")
             continue
 
-        # Alamat ditemukan di peta
-        display = av.get("address_details", {}).get("display_name", "")[:80]
-        lines.append(f"- `{addr}`: ✅ Alamat valid di peta ({display}...).")
+        details = av.get("address_details", {}) or {}
+        display = details.get("display_name", "")[:120]
+        match_level = details.get("match_level", "area")
+        if match_level == "exact":
+            lines.append(f"- `{addr}`: ✅ Jalan dan nomor cocok dengan hasil peta ({display}...).")
+        elif match_level == "street":
+            lines.append(f"- `{addr}`: ℹ️ Nama jalan ditemukan, tetapi nomor bangunan belum cocok ({display}...).")
+        else:
+            lines.append(f"- `{addr}`: ℹ️ Hanya wilayah sekitar yang ditemukan di peta ({display}...). BUKAN bukti titik outlet exact.")
 
         # Catatan netral dari pencarian bisnis
         neutral_notes = av.get("neutral_notes", [])
         for note in neutral_notes:
             lines.append(f"  → ℹ️ {note}")
 
-        if biz_found is True:
+        if biz_found is True and match_level == "exact":
             matched = biz_details.get("matched_name", "?")
             sim = biz_details.get("similarity", 0) * 100
             lines.append(f"  → ✅ Nama perusahaan ditemukan di OSM dekat lokasi: '{matched}' (kemiripan {sim:.0f}%).")
@@ -282,7 +324,7 @@ def build_verify_prompt(entities: dict, osint_results: dict) -> str:
     """
     
     companies = entities.get("companies", [])
-    contacts = entities.get("contacts", [])
+    contacts = entities.get("contacts") or entities.get("phones") or []
     emails = entities.get("emails", [])
     urls = entities.get("urls", [])
     addresses = entities.get("addresses", [])
@@ -362,24 +404,26 @@ Analisis secara mendalam, formal, dan berbasis evidence. Berikan keputusan apaka
 4. PENCATUTAN INSTANSI PEMERINTAH: Jika lowongan mengatasnamakan instansi/badan resmi pemerintah (misal Badan Gizi Nasional/BGN, SPPG, Kementerian, Dinas) namun menggunakan email Gmail/Yahoo tanpa domain .go.id, ini adalah indikasi tidak resmi/pencatutan.
    ➔ PANDUAN SKOR: Kategori WASPADA (skor 45–60). DILARANG meloncat ke BAHAYA (75+) HANYA karena email Gmail, KECUALI ada bukti pemerasan biaya/transfer uang/KTP/rekening.
 5. Gaji tidak disebut = NETRAL (banyak loker legitimate tanpa gaji di poster).
-6. Tidak ada website resmi = NETRAL jika ada medsos/toko publik ATAU alamat OSM valid.
+6. Tidak ada website resmi = NETRAL jika ada jejak publik ATAU alamat `match_level=exact`.
 7. shortlink bit.ly / Google Forms = praktik umum rekrutmen UMKM, BUKAN penipuan sendirian.
-8. PORTAL LOKER RESMI (JobStreet, LinkedIn, Glints, KitaLulus): Ketiadaan nomor HP atau email kontak langsung di dalam teks ADALAH HAL WARJAR karena lamaran dikirim langsung via tombol portal. DILARANG menjadikan "tidak ada email/telepon" sebagai faktor risiko untuk portal loker resmi.
+8. PORTAL LOKER PUBLIK (JobStreet, LinkedIn, Glints, KitaLulus): Ketiadaan nomor HP atau email kontak langsung di dalam teks ADALAH HAL WARJAR karena lamaran dikirim langsung via tombol portal. DILARANG menjadikan "tidak ada email/telepon" sebagai faktor risiko untuk portal loker publik.
 9. DILARANG MENGHALUSINASI BERITA UMUM KEPOLISIAN/OJK: Berita portal umum mengenai penipuan umum (misal berita 'Aparat Memburu Penipu Pendirian SPPG', 'Satgas PASTI', atau 'Deretan Hoaks Lowongan Kerja') BUKAN bukti bahwa lowongan ini adalah penipuan tersebut. HANYA klaim berita penipuan jika judul/snippet secara spesifik menyebutkan nama lengkap entitas atau nomor telepon ini.
 10. KREDIBEL GAGAL DIAKSES: Jika nomor HP tercatat "Kaspersky Who Calls tidak dapat diakses" DAN "Pencarian SERP publik tidak menemukan laporan penipuan", artinya TIDAK ADA BUKTI PENIPUAN terkait nomor tersebut. DILARANG memasukkan ini sebagai risk_factor. Ini harus masuk sebagai safe_factor atau diabaikan sama sekali.
 
 ## PANDUAN SKOR (WAJIB DIIKUTI — JANGAN PARKIR DI 25-35 TANPA ALASAN)
 
 **AMAN (0–39)** — pecah band:
-- **0–10 (sangat aman):** alamat OSM valid + HP bersih Kaspersky Who Calls + tidak minta biaya +
+- **0–10 (sangat aman):** alamat `match_level=exact` + HP bersih Kaspersky Who Calls + tidak minta biaya +
   (medsos/toko aktif ATAU website hidup) + tidak ada indikasi scam di SERP.
   Gmail diperbolehkan di band ini untuk UMKM.
 - **11–22 (aman):** mayoritas sinyal aman; sisa keraguan ringan (gaji kosong, jejak web tipis).
 - **23–39 (aman dengan catatan):** masih AMAN tapi ada 1–2 kelemahan non-kritis.
 
 **WASPADA (40–74):**
-- kombinasi red flag nyata: alamat gagal OSM + zero footprint, atau klaim instansi pemerintah (BGN/SPPG/Kementerian) + Gmail (skor 45-60),
+- kombinasi red flag nyata: alamat gagal OSM + zero footprint yang benar-benar terukur,
+  atau klaim instansi pemerintah (BGN/SPPG/Kementerian) + Gmail (skor 45-60),
   atau sinyal scam lemah di SERP tanpa konfirmasi kuat.
+- `NO_RESULTS` atau `UNAVAILABLE` pada search bukan zero footprint dan tidak boleh menaikkan verdict.
 
 **BAHAYA (75–100):**
 - WAJIB ada bukti keras: permintaan biaya/transfer/KTP/rekening, ATAU HP reported_fraud Kaspersky Who Calls,
@@ -387,7 +431,7 @@ Analisis secara mendalam, formal, dan berbasis evidence. Berikan keputusan apaka
 
 ## VALUASI UMKM VALID (PRIORITAS)
 Jika SEMUA ini terpenuhi:
-- alamat fisik terverifikasi OSM, DAN
+- alamat fisik `match_level=exact`, DAN
 - HP tidak reported_fraud di Kaspersky Who Calls, DAN
 - tidak ada permintaan biaya/uang di teks, DAN
 - (medsos/toko publik aktif ATAU deskripsi syarat kerja wajar terperinci):
@@ -404,11 +448,15 @@ Jangan naikkan ke WASPADA hanya karena tidak ada alamat/PT/website — itu norma
 
 ## INSTRUKSI ANALISIS
 1. Red flag keras dulu: biaya, fraud HP, phishing form, scam SERP.
-2. Alamat OSM valid?
+2. Bedakan alamat exact dari area-only; hanya `match_level=exact` yang boleh disebut titik alamat terverifikasi.
 3. Medsos/toko/web evidence?
 4. Gmail hanya faktor ringan jika digabung red flag lain.
-5. corrected_company_name dari teks asli.
-6. risk_score HARUS selaras verdict dan band di atas.
+5. Jangan mengganti nama perusahaan hasil ekstraksi. `corrected_company_name` harus null kecuali ada koreksi eksplisit di teks asli.
+6. Marketplace, portal lowongan, dan hasil SERP bukan otomatis kanal resmi perusahaan.
+7. Hanya sebut akun/kanal "resmi" jika evidence secara eksplisit membuktikan hubungan resmi; jika tidak, gunakan "jejak publik".
+8. risk_score HARUS selaras verdict dan band di atas.
+9. Jika semua query web berstatus `NO_RESULTS`/`UNAVAILABLE`, gunakan istilah `bukti publik tidak tersedia pada run ini`, bukan `zero footprint` atau `nihil jejak`.
+10. Jika `evidence_counts.relevant_results > 0` atau `threads.evidence_counts.public_posts > 0`, DILARANG menulis `bukti publik tidak tersedia` atau `zero footprint`.
 
 ---
 
@@ -423,7 +471,7 @@ Batas per field:
 {{
   "verdict": "AMAN" | "WASPADA" | "BAHAYA",
   "risk_score": <angka 0-100>,
-  "corrected_company_name": "<nama bisnis dari teks asli, atau null>",
+  "corrected_company_name": null,
   "summary": "<1 kalimat ringkas alasan verdict>",
   "risk_factors": ["<max 10 kata>"],
   "safe_factors": ["<max 10 kata>"],

@@ -217,6 +217,17 @@ def _extract_salaries(text: str) -> list[str]:
             found = [x for x in found if not (x.lower() in s_low and len(x) < len(s))]
             if s_low not in {x.lower() for x in found}:
                 found.append(s)
+
+    # Simpan label gaji non-nominal agar informasi dari lowongan tidak hilang.
+    # Contoh: "Besaran Gaji: Kompetitif" atau "Gaji: Negotiable".
+    label_pattern = (
+        r"(?:Besaran\s+Gaji|Rentang\s+Gaji|Gaji|Salary|Upah|THP)\s*[:.]\s*"
+        r"([A-Za-z][A-Za-z /-]{2,32})(?=\s*(?:\n|$|,|\.))"
+    )
+    for match in re.finditer(label_pattern, text, flags=re.I):
+        value = re.sub(r"\s+", " ", match.group(1)).strip(" -")
+        if value and value.lower() not in {item.lower() for item in found}:
+            found.append(value)
     return found
 
 
@@ -382,37 +393,46 @@ def _is_plausible_address(s: str) -> bool:
     ):
         return False
 
-    # Pasangan 2-4 kota/kecamatan "X, Y, Z" Indonesia (misal: Pakem, Sleman, Yogyakarta) lolos langsung
-    if re.fullmatch(
-        rf"(?:{_INDONESIAN_CITIES})(?:\s*,\s*(?:{_INDONESIAN_CITIES})){{1,3}}",
-        c,
-        flags=re.I,
-    ):
-        return True
-    # Fallback Universal: Pasangan 2-4 nama wilayah Title-Case berpemisah koma (misal: "Panyabungan, Mandailing Natal, Sumatera Utara")
-    if re.fullmatch(
-        r"[A-Z][a-z0-9.]+(?:\s+[A-Z][a-z0-9.]+)*(?:\s*,\s*[A-Z][a-z0-9.]+(?:\s+[A-Z][a-z0-9.]+)*){1,3}",
-        c,
-    ):
-        return True
-
-
-    # wajib sinyal lokasi konkret (bukan cuma "Kota X" / "Kab. Y")
+    # Area administratif dan daftar cabang bukan alamat fisik.
     if not re.search(
-        rf"(?:{_STREET_PREFIX}|\bRT\.?\s*\d+|\b\d{{5}}\b|\bBlok\s*[A-Z0-9]|"
-        rf"\bNo\.?\s*\d+|\bKel\.?|\bKelurahan|\bKec\.?|\bKecamatan)",
+        rf"(?:\b(?:{_STREET_PREFIX})\b|\bRT\.?\s*\d+|\bRW\.?\s*\d+|\b\d{{5}}\b|"
+        rf"\bBlok\s*[A-Z0-9]|\bNo\.?\s*\d+)",
         c,
         re.I,
     ):
         return False
-    # tolak admin-only pendek: "Kota Surabaya", "Kab. Karawang"
-    if re.fullmatch(
-        r"(?:Kota|Kab\.?|Kabupaten|Prov\.?|Provinsi)\s+[A-Za-z.]+",
-        c,
-        flags=re.I,
-    ):
-        return False
     return _address_confidence(c) >= 2.5
+
+
+def _extract_location_candidates(text: str) -> list[str]:
+    """Extract areas/branches without treating them as physical addresses."""
+    lines = [line.strip() for line in _normalize_ocr_spacing(text or "").splitlines() if line.strip()]
+    label_pattern = re.compile(
+        r"^(?:Lokasi(?:\s+Kerja)?|Penempatan(?:\s+Kerja)?|Wilayah|Area|"
+        r"Domisili|Cabang|Outlet|Alamat)\s*[:.\-]?\s*(.*)$", re.I
+    )
+    values: list[str] = []
+    for index, line in enumerate(lines):
+        match = label_pattern.match(line)
+        if not match:
+            continue
+        value = match.group(1).strip()
+        values.append(value or (lines[index + 1] if index + 1 < len(lines) else ""))
+
+    candidates: list[str] = []
+    for value in values:
+        value = re.sub(r"^Cabang\s*[:.\-]?\s*", "", value, flags=re.I)
+        value = re.sub(r"\([^)]*\)", "", value)
+        for item in re.split(r"\s*(?:,|;|/|\||\s+dan\s+|\s*&\s*)\s*", value, flags=re.I):
+            item = item.strip(" .:-")
+            if not item or _is_plausible_address(item) or len(item) < 2 or len(item) > 80:
+                continue
+            if re.search(r"@|https?://|(?:\+?62|0)\d[\d\s-]{7,}", item, re.I):
+                continue
+            if re.search(r"\b(?:pendidikan|pengalaman|gender|umur|gaji|bonus|benefit|reward|libur|syarat|deskripsi|pekerjaan|shift|kirim|lamaran|email|telepon|juta|tahun|maks|wanita|pria|kompetitif)\b", item, re.I):
+                continue
+            candidates.append(item)
+    return _uniq(candidates)
 
 
 def _split_stuck_company_tokens(core: str) -> str:
@@ -584,6 +604,7 @@ def _extract_companies(text: str) -> list[str]:
         r"hiring|lowongan|posisi|syarat|kualifikasi|gaji|email|wa|whatsapp|"
         r"hubungi|loker|info|join|team|crew|outlet|dibutuhkan|segera|"
         r"ringkasan|deskripsi|benefit|fasilitas|pendidikan|pengalaman|umur|gender|"
+        r"jam\s+kerja|shift|libur|bonus|reward|gaji|"
         r"jl|jln|jalan|gg|gang|alamat|lokasi|no|rt|rw|profesional|pelamar|karyawan|pegawai|staff|admin"
     )
     for line in lines:
@@ -624,6 +645,20 @@ def _extract_companies(text: str) -> list[str]:
         if c and not re.search(r"^(?:TEKS UTAMA|POSTER/GAMBAR|DESKRIPSI POSTINGAN|URL Target)", c, re.I):
             clean_companies.append(c)
 
+    # Simpan alias eksplisit dalam kurung sebagai entitas terpisah agar layer
+    # pencarian dapat membuat probe brand tanpa hardcode nama usaha tertentu.
+    for line in lines:
+        if not re.search(r"\b(?:PT|CV|UD|Yayasan|Koperasi)\b|\bmembuka\b|\blowongan\b", line, re.I):
+            continue
+        for alias in re.findall(r"\(([^()]{3,80})\)", line):
+            alias = re.sub(r"\s+", " ", alias).strip(" .,:;-!")
+            if (
+                len(alias) >= 3
+                and len(alias.split()) <= 8
+                and not re.search(r"\b(?:lowongan|posisi|syarat|gaji|alamat|email|lokasi)\b", alias, re.I)
+            ):
+                clean_companies.append(alias)
+
     return clean_companies
 
 
@@ -655,11 +690,11 @@ def _extract_addresses(text: str) -> list[str]:
 
     # A) Label eksplisit — paling andal lintas layout
     for m in re.finditer(
-        rf"(?:Alamat(?:\s*(?:Kantor|Lengkap|Perusahaan|Toko))?|Lokasi(?:\s*Kerja)?|"
-        rf"Bertempat\s*di|Tempat(?:\s*Kerja)?|Office|Basecamp)\s*[:.\-]?\s*"
-        rf"(.{{8,200}}?)(?=\s*(?:{_ADDR_STOP}|\n\n|$))",
+        rf"(?:Alamat(?:\s*(?:Kantor|Lengkap|Perusahaan|Toko))?|"
+        rf"Bertempat\s*di|Office|Basecamp)\s*[:.\-]?\s*"
+        rf"([^\n]{{8,200}}?)(?=\s*(?:{_ADDR_STOP}|$))",
         spaced,
-        flags=re.I | re.S,
+        flags=re.I | re.M,
     ):
         candidates.append(m.group(1))
 
@@ -706,34 +741,28 @@ def _extract_addresses(text: str) -> list[str]:
         ):
             candidates.append(ln.strip())
 
-    # D) Gabung 2 s/d 5 baris beruntun yang semuanya mirip elemen alamat
-    # Filter dulu baris non-alamat (seperti label email/pendaftaran/syarat) agar 2-column OCR tidak menyela alamat
-    addr_only_lines = [
-        ln for ln in spaced_lines
-        if not re.search(
-            r"\b(?:syarat|kualifikasi|gaji|email|lamar|account\s*officer|"
-            r"lowongan|pekerjaan|informasi|hubungi|wa\b|phone|telp|cv|subjek|subject|pendaftaran|pelamar|send|"
-            r"kuliah|server|steward|pria|wanita|berpengalaman|shift|weekend|bekerjasama|jujur|disiplin|cekatan|komunikatif|posisi|penempatan)\b",
-            ln,
-            re.I,
-        )
-        and not re.match(rf"^(?:{_COMPANY_LEGAL})\.?\s", ln, re.I)
-        and not re.search(r"(?:\+?62|0)\d[\d\s\-]{7,}", ln)
-    ]
-
-
-    n_lines = len(addr_only_lines)
+    # D) Gabung baris yang benar-benar bersebelahan. Jangan menghapus baris
+    # noise dulu, karena itu membuat section berbeda tampak berurutan.
+    hard_noise = re.compile(
+        r"\b(?:syarat|kualifikasi|gaji|email|lamar|account\s*officer|lowongan|"
+        r"pekerjaan|informasi|hubungi|wa\b|phone|telp|cv|subjek|subject|"
+        r"pendaftaran|pelamar|send|kuliah|server|steward|pria|wanita|"
+        r"berpengalaman|shift|weekend|bekerjasama|jujur|disiplin|cekatan|"
+        r"komunikatif|posisi|penempatan|benefit|bonus|reward|libur|umur|"
+        r"pendidikan|pengalaman|gender|deskripsi)\b", re.I
+    )
+    n_lines = len(spaced_lines)
     for length in range(min(5, n_lines), 1, -1):
         for i in range(n_lines - length + 1):
-            block = addr_only_lines[i : i + length]
+            block = spaced_lines[i : i + length]
+            if any(hard_noise.search(line) for line in block):
+                continue
             combined_text = ", ".join(block)
             if (
                 re.search(rf"\b(?:{_STREET_PREFIX}|RT\.?\s*\d+)\b", combined_text, re.I)
                 or re.search(rf"(?:{_ADMIN_MARKER})", combined_text, re.I)
-            ):
-                if _is_plausible_address(combined_text):
-                    candidates.append(combined_text)
-
+            ) and _is_plausible_address(combined_text):
+                candidates.append(combined_text)
 
     cleaned: list[str] = []
     for a in candidates:
@@ -892,6 +921,7 @@ def extract_entities_from_text(text: str) -> dict:
     extracted_addresses = _extract_addresses(raw_text_input) + _extract_addresses(
         _normalize_ocr_spacing(normalized_text)
     ) + _extract_addresses(normalized_text)
+    location_candidates = _extract_location_candidates(raw_text_input)
 
     companies = _extract_companies(raw_text_input) + _extract_companies(
         _normalize_ocr_spacing(normalized_text)
@@ -940,6 +970,7 @@ def extract_entities_from_text(text: str) -> dict:
         "emails": uniq_emails,
         "urls": _uniq(urls),
         "addresses": uniq_addresses,
+        "location_candidates": location_candidates,
         "salaries": _uniq(salaries),
         # Metadata ekstraksi — jujur tentang apa yang berhasil diekstrak, bukan pseudo-confidence
         "extraction_meta": {
@@ -947,6 +978,7 @@ def extract_entities_from_text(text: str) -> dict:
             "has_phone": bool(uniq_contacts),
             "has_email": bool(uniq_emails),
             "has_address": bool(uniq_addresses),
+            "has_location_candidate": bool(location_candidates),
             "has_salary": bool(_uniq(salaries)),
             "text_too_short": len(raw_text_input) < 50,
         },

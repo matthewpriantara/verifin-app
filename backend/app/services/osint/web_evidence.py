@@ -13,7 +13,63 @@ from urllib.parse import quote_plus, urlparse
 from scrapling.fetchers import Fetcher
 from app.services.osint.gform_inspector import inspect_gform, is_gform_url
 from app.services.constants import FREE_EMAIL_DOMAINS
+from app.services.osint.query_builder import build_search_queries
 from app.config import SEARXNG_URL
+
+_SOCIAL_AGGREGATOR_TOKENS = (
+    "lokerjogja", "loker jogja", "lokerterbaru", "loker terbaru",
+    "loker indonesia", "lowongan kerja", "pusat loker", "info loker",
+)
+
+_ENTITY_QUERY_STOPWORDS = {
+    "pt", "cv", "ud", "tbk", "firma", "yayasan", "lowongan", "penipuan",
+    "penipu", "scam", "instagram", "website", "toko", "or", "dan",
+}
+
+
+def _public_source_type(url: str, title: str = "", snippet: str = "") -> str:
+    url_title = f"{url} {title}".lower()
+    if any(domain in url.lower() for domain in ("tokopedia.com", "shopee.co.id")):
+        return "marketplace"
+    if any(domain in url.lower() for domain in ("loker", "jobstreet", "glints", "kalibrr", "linkedin.com/jobs", "karir")):
+        return "job_portal"
+    if any(token in url_title for token in _SOCIAL_AGGREGATOR_TOKENS):
+        return "social_aggregator"
+    if any(domain in url.lower() for domain in ("instagram.com", "facebook.com", "tiktok.com", "threads.net", "x.com", "twitter.com")):
+        return "social_platform"
+    return "web"
+
+
+def _result_matches_query(query: str, url: str, title: str, snippet: str) -> bool:
+    """Require an identity phrase or multiple identity tokens, not one generic word."""
+    hay = re.sub(r"[^a-z0-9]+", " ", f"{url} {title} {snippet}".lower()).strip()
+    hay_compact = hay.replace(" ", "")
+    emails = re.findall(r"[\w.+-]+@[\w.-]+\.[a-z]{2,}", query.lower())
+    if emails:
+        return any(email in f"{url} {title} {snippet}".lower() for email in emails)
+    quoted = re.findall(r'"([^"]+)"', query or "")
+    if not quoted:
+        return True
+
+    for phrase in quoted:
+        phrase_clean = re.sub(r"[^a-z0-9]+", " ", phrase.lower()).strip()
+        tokens = [
+            token for token in phrase_clean.split()
+            if len(token) >= 3 and token not in _ENTITY_QUERY_STOPWORDS
+        ]
+        if not tokens:
+            continue
+        phrase_compact = phrase_clean.replace(" ", "")
+        if len(tokens) >= 2 and phrase_compact in hay_compact:
+            return True
+        matched = {token for token in set(tokens) if token in hay.split()}
+        if len(tokens) == 1 and len(matched) == 1:
+            return True
+        if len(tokens) >= 2 and len(matched) >= 2:
+            # Two identity tokens are sufficient; one token such as "Bangor"
+            # is intentionally insufficient for ambiguous global names.
+            return True
+    return False
 
 try:
     from curl_cffi import requests as cffi_req
@@ -158,12 +214,22 @@ def search_web_evidence(query: str, max_results: int = 5) -> dict[str, Any]:
     """Search web evidence via SearXNG self-hosted (aggregates DDG, Google, Bing, dll)."""
     q = (query or "").strip()
     if not q:
-        return {"type": "search", "query": q, "results": [], "ok": False, "risk_flags": []}
+        return {
+            "type": "search", "query": q, "results": [], "ok": False,
+            "engine": "none", "status": "INVALID_QUERY", "error": "Query kosong.",
+            "risk_flags": [],
+        }
 
     results: list[dict[str, str]] = []
     engine_used = "none"
+    search_status = "UNAVAILABLE"
+    search_error = None
 
-    if SEARXNG_URL:
+    if not SEARXNG_URL:
+        search_error = "SEARXNG_URL belum dikonfigurasi."
+    elif not _SEARCH_AVAILABLE:
+        search_error = "curl_cffi tidak tersedia di environment backend."
+    else:
         try:
             s = cffi_req.Session(impersonate="chrome120")
             sx_url = (
@@ -175,6 +241,8 @@ def search_web_evidence(query: str, max_results: int = 5) -> dict[str, Any]:
             )
             r = s.get(sx_url, timeout=4.0)
             if r.status_code == 200:
+                engine_used = "searxng"
+                search_status = "NO_RESULTS"
                 data = r.json()
                 for item in data.get("results", [])[:max_results]:
                     url = item.get("url", "")
@@ -185,11 +253,14 @@ def search_web_evidence(query: str, max_results: int = 5) -> dict[str, Any]:
                             "title": title[:160],
                             "url": url,
                             "snippet": snippet[:240],
+                            "source_type": _public_source_type(url, title, snippet),
                         })
                 if results:
-                    engine_used = "searxng"
-        except Exception:
-            pass
+                    search_status = "FOUND"
+            else:
+                search_error = f"SearXNG HTTP {r.status_code}."
+        except Exception as exc:
+            search_error = f"SearXNG request gagal: {type(exc).__name__}: {exc}"
 
     risk_flags = []
     # Extract target entity keywords from query (e.g. '"Kedai Nonggo"' -> ['kedai', 'nonggo'])
@@ -200,14 +271,13 @@ def search_web_evidence(query: str, max_results: int = 5) -> dict[str, Any]:
     else:
         target_words = [w.lower() for w in q.split()[:2] if len(w) >= 3 and w.lower() not in ("pt", "cv", "ud", "pd", "tbk", "lowongan", "penipuan", "penipu", "scam")]
 
+    relevant_results = []
     for r in results:
         t_s = f"{r.get('title', '')} {r.get('snippet', '')}".lower()
         # Jika hasil pencarian tidak menyebutkan kata kunci entitas sama sekali (artikel umum), abaikan
-        matched_target_words = [tw for tw in target_words if tw in t_s]
-        # Butuh minimal 2 kata entitas match — cegah false positive dari kata umum (e.g. "gula", "waxing")
-        min_match = min(2, len(target_words))
-        if target_words and len(matched_target_words) < min_match:
+        if not _result_matches_query(q, r.get("url", ""), r.get("title", ""), r.get("snippet", "")):
             continue
+        relevant_results.append(r)
 
         if any(
             w in t_s
@@ -240,9 +310,38 @@ def search_web_evidence(query: str, max_results: int = 5) -> dict[str, Any]:
         "query": q,
         "ok": bool(results),
         "engine": engine_used,
-        "results": results[:max_results],
+        "status": (
+            "FOUND" if relevant_results else
+            ("NO_RELEVANT_RESULTS" if results else search_status)
+        ),
+        "results": relevant_results[:max_results],
+        "raw_result_count": len(results),
+        "relevant_result_count": len(relevant_results),
+        "error": search_error,
         "risk_flags": risk_flags,
     }
+
+
+def _search_with_fallbacks(
+    entities: dict,
+    suffix: str,
+    *,
+    include_email: bool = True,
+    max_results: int = 5,
+) -> list[dict[str, Any]]:
+    attempts = []
+    candidates = build_search_queries(entities, include_email=include_email)
+    for index, candidate in enumerate(candidates):
+        result = search_web_evidence(
+            f"{candidate['query']} {suffix}".strip(),
+            max_results=max_results,
+        )
+        result["fallback_kind"] = candidate["kind"]
+        result["fallback_index"] = index
+        attempts.append(result)
+        if result.get("status") == "FOUND" and result.get("relevant_result_count", 0) > 0:
+            break
+    return attempts
 
 
 _FREE_WEB_DOMAINS = FREE_EMAIL_DOMAINS  
@@ -331,14 +430,10 @@ def collect_web_evidence(entities: dict) -> dict[str, Any]:
             continue
         website_checks.append(fetch_company_website(d))
 
-    # Search minimal berprioritas. Nama perusahaan diapit tanda kutip agar search
-    # engine mencari frasa persis (mengurangi hasil generik/tak relevan).
     searches: list[dict[str, Any]] = []
-    if companies:
-        company = companies[0]
-        clean_comp = re.sub(r"\s+cab(?:ang)?\s+.*$", "", company, flags=re.I).strip()
-        searches.append(search_web_evidence(f'"{clean_comp}" instagram OR website OR toko'))
-        searches.append(search_web_evidence(f'"{clean_comp}" penipu OR scam'))
+    if companies or emails:
+        searches.extend(_search_with_fallbacks(entities, "instagram OR website OR toko"))
+        searches.extend(_search_with_fallbacks(entities, "penipu OR scam", include_email=False))
     elif domains:
         searches.append(search_web_evidence(f'"{domains[0]}" penipuan OR scam'))
 
@@ -347,9 +442,7 @@ def collect_web_evidence(entities: dict) -> dict[str, Any]:
         em_clean = (em or "").strip().lower()
         if not em_clean or "@" not in em_clean:
             continue
-        searches.append(
-            search_web_evidence(f'"{em_clean}" penipu OR scam OR penipuan OR loker')
-        )
+        searches.append(search_web_evidence(f'"{em_clean}" penipu OR scam OR penipuan OR loker'))
 
     gform_inspections: list[dict[str, Any]] = []
     for u in urls[:2]:
@@ -376,6 +469,7 @@ def collect_web_evidence(entities: dict) -> dict[str, Any]:
     # Deteksi akun medsos & cross-reference lokasi dari hasil pencarian web
     found_social: list[str] = []
     total_public_results = 0
+    source_counts: dict[str, int] = {}
     addresses = entities.get("addresses") or []
     companies = entities.get("companies") or []
 
@@ -394,35 +488,47 @@ def collect_web_evidence(entities: dict) -> dict[str, Any]:
             if not _is_relevant(u, combined_text, _ENT_TOKENS):
                 continue
             total_public_results += 1
+            source_type = r.get("source_type") or _public_source_type(u, title, snippet)
+            source_counts[source_type] = source_counts.get(source_type, 0) + 1
 
             # Cross-reference alamat: Cek apakah nama kota/jalan dari loker muncul di snippet pencarian bisnis
             for addr in addresses:
                 # Ambil keyword lokasi kunci (misal: Kaliurang, Sleman, Umbulharjo, Yogyakarta)
-                loc_words = [w for w in re.split(r"[^\w]+", addr.lower()) if len(w) > 3 and w not in ("jalan", "gang", "nomor", "penempatan")]
+                loc_words = [
+                    w for w in re.split(r"[^\w]+", addr.lower())
+                    if len(w) > 3 and w not in ("jalan", "gang", "nomor", "penempatan", "burger", "bangor")
+                ]
                 matched_words = [w for w in loc_words if w in combined_text]
-                if len(matched_words) >= 2 and companies:
+                if len(set(matched_words)) >= 2 and companies:
                     safe_flags.append(
-                        f"✅ Location Match: Pencarian web publik untuk '{companies[0]}' mengonfirmasi lokasi '{', '.join(matched_words)}'."
+                        f"Location candidate match: hasil web memuat token lokasi '{', '.join(sorted(set(matched_words)))}'; belum membuktikan alamat exact."
                     )
 
-            if "instagram.com" in u and u not in found_social and _is_relevant(u, combined_text, _ENT_TOKENS) and not _is_generic_social_url(u):
+            is_aggregator = any(token in combined_text or token in u.lower() for token in _SOCIAL_AGGREGATOR_TOKENS)
+            if "instagram.com" in u and u not in found_social and not is_aggregator and _is_relevant(u, combined_text, _ENT_TOKENS) and not _is_generic_social_url(u):
                 found_social.append(u)
                 safe_flags.append(
-                    f"Terdeteksi profil/post Instagram publik aktif: {title} ({u})"
+                    f"Terdeteksi hasil Instagram publik (status resmi belum terverifikasi): {title} ({u})"
                 )
             elif (
                 any(soc in u for soc in ("facebook.com", "linkedin.com", "tiktok.com"))
                 and u not in found_social
+                and not is_aggregator
                 and _is_relevant(u, combined_text, _ENT_TOKENS)
                 and not _is_generic_social_url(u)
             ):
                 found_social.append(u)
-                safe_flags.append(f"Terdeteksi akun media sosial publik: {u}")
+                safe_flags.append(f"Terdeteksi hasil media sosial publik (status resmi belum terverifikasi): {u}")
 
-    if total_public_results >= 1:
-        safe_flags.append(
-            f"Ditemukan {total_public_results} jejak digital publik di web (portal lowongan/direktori)."
-        )
+    source_labels = {
+        "marketplace": "listing marketplace publik",
+        "social_platform": "hasil platform sosial publik",
+        "social_aggregator": "posting aggregator publik",
+        "job_portal": "listing portal lowongan publik",
+        "web": "hasil web publik",
+    }
+    for source_type, count in source_counts.items():
+        safe_flags.append(f"Ditemukan {count} {source_labels.get(source_type, 'jejak publik')}.")
 
     def uniq(xs: list[str]) -> list[str]:
         return list(dict.fromkeys(xs))
@@ -435,6 +541,14 @@ def collect_web_evidence(entities: dict) -> dict[str, Any]:
         "websites": website_checks,
         "gform_inspections": gform_inspections,
         "searches": searches,
+        "evidence_counts": {
+            "relevant_results": total_public_results,
+            "by_source_type": source_counts,
+            "successful_requests": sum(1 for s in searches if s.get("ok")),
+            "empty_searches": sum(1 for s in searches if s.get("status") == "NO_RESULTS"),
+            "no_relevant_searches": sum(1 for s in searches if s.get("status") == "NO_RELEVANT_RESULTS"),
+            "unavailable_searches": sum(1 for s in searches if s.get("status") == "UNAVAILABLE"),
+        },
         "risk_flags": uniq(risk_flags),
         "safe_flags": uniq(safe_flags),
     }

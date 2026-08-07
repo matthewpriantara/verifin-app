@@ -222,8 +222,11 @@ def explain_verification_shap(
 
     email_sec = osint_results.get("email_security") or {}
     # Hanya flag jika domain korporat (bukan gmail/yahoo)
-    if (not email_sec.get("spf_active") and
-            not email_sec.get("is_free_email", True)):
+    if (
+        not email_sec.get("spf_active")
+        and domain_info_pre.get("skipped") != "free_email"
+        and email_sec.get("skipped") != "free_email"
+    ):
         contributions.append(_make_contrib(
             "Tidak Ada SPF/DMARC pada Domain Korporat",
             "no_spf_corporate",
@@ -261,7 +264,19 @@ def explain_verification_shap(
 
     # Safe OSINT signals
     address_validations = osint_results.get("address_validations") or []
-    if any(a.get("found") for a in address_validations):
+    exact_address = any(
+        (a.get("found") or a.get("address_found"))
+        and (a.get("match_level") or (a.get("address_details") or {}).get("match_level")) == "exact"
+        for a in address_validations
+        if isinstance(a, dict)
+    )
+    has_area_address = any(
+        (a.get("found") or a.get("address_found"))
+        and (a.get("match_level") or (a.get("address_details") or {}).get("match_level")) in {"area", "street"}
+        for a in address_validations
+        if isinstance(a, dict)
+    )
+    if exact_address:
         contributions.append(_make_contrib(
             "Alamat Terverifikasi di OpenStreetMap",
             "address_osm_valid",
@@ -439,19 +454,52 @@ def _build_forensic_metadata(
         or bool(c.get("safe_flags"))
         for c in companies if isinstance(c, dict)
     )
-    address_found = any(a.get("found") or a.get("address_found") for a in addr if isinstance(a, dict))
+    exact_address = any(
+        (a.get("found") or a.get("address_found"))
+        and (a.get("match_level") or (a.get("address_details") or {}).get("match_level")) == "exact"
+        for a in addr
+        if isinstance(a, dict)
+    )
+    has_area_address = any(
+        (a.get("found") or a.get("address_found"))
+        and (a.get("match_level") or (a.get("address_details") or {}).get("match_level")) in {"area", "street"}
+        for a in addr
+        if isinstance(a, dict)
+    )
+    address_found = any(
+        (a.get("found") or a.get("address_found"))
+        and (a.get("match_level") or (a.get("address_details") or {}).get("match_level")) == "exact"
+        for a in addr
+        if isinstance(a, dict)
+    )
     phone_checked = len(phones) > 0
+    phone_probe_status = (o.get("phone_probe") or {}).get("status")
     phone_clean = phone_checked and any(
         # checked=true + tidak ada laporan fraud = CLEAN (Kaspersky berhasil, tidak ada temuan)
         p.get("checked") and not p.get("reported_fraud")
         for p in phones if isinstance(p, dict)
     )
     phone_flagged = any(p.get("reported_fraud") for p in phones if isinstance(p, dict))
-    web_hit = bool((web.get("websites") or []) or (web.get("searches") or []) or (web.get("safe_flags") or []))
-    social_hit = bool((threads.get("posts") or []) or (threads.get("profiles") or []))
-    is_free_email = any(
-        "@" in e and e.split("@")[-1].lower() in FREE_EMAIL_DOMAINS
-        for e in (osint_results.get("emails") or [])
+    web_counts = web.get("evidence_counts") or {}
+    web_hit = bool(
+        any(w.get("ok") for w in (web.get("websites") or []))
+        or web_counts.get("relevant_results", 0) > 0
+        or any(s.get("relevant_result_count", 0) > 0 for s in (web.get("searches") or []))
+    )
+    search_unknown = bool(
+        web_counts.get("unavailable_searches", 0)
+    ) and not web_hit
+    official_platforms = {"instagram", "threads", "tiktok", "facebook", "x_twitter", "linktree"}
+    social_hit = bool(
+        any(threads.get("platform_hits", {}).get(platform) for platform in official_platforms)
+        or any(p.get("is_official") and p.get("platform") in official_platforms for p in (threads.get("posts") or []))
+        or threads.get("profiles")
+    )
+    public_footprint = web_hit or bool(threads.get("posts") or threads.get("profiles"))
+    is_free_email = (
+        domain.get("skipped") == "free_email"
+        or email_sec.get("skipped") == "free_email"
+        or domain.get("domain", "").lower() in FREE_EMAIL_DOMAINS
     )
     in_fraud_network = bool((network_context or {}).get("entity_in_fraud_network"))
 
@@ -475,10 +523,10 @@ def _build_forensic_metadata(
     decision_path = [
         {"step": "1. OCR & Entity Extraction", "status": "PASS",
          "detail": f"Entitas terdeteksi: {company_name}; {len(phones)} no HP, {len(companies)} perusahaan, {len(addr)} alamat."},
-        {"step": "2. Address OSM Geocoding", "status": "PASS" if address_found else "UNKNOWN",
-         "detail": ("Alamat tervalidasi di OpenStreetMap." if address_found else "Alamat tidak ditemukan/tidak dicantumkan.")},
-        {"step": "3. Phone Kaspersky Who Calls Check", "status": "PASS" if (phone_checked and not phone_flagged) else ("FLAG" if phone_flagged else "SKIP"),
-         "detail": phone_status},
+        {"step": "2. Address OSM Geocoding", "status": "EXACT" if exact_address else ("AREA_ONLY" if has_area_address else "UNKNOWN"),
+         "detail": ("Jalan dan nomor alamat cocok dengan hasil peta." if address_found else ("Wilayah/jalan ditemukan, tetapi titik exact belum terkonfirmasi." if has_area_address else "Alamat tidak ditemukan/tidak dicantumkan."))},
+        {"step": "3. Phone Kaspersky Who Calls Check", "status": "PASS" if (phone_checked and not phone_flagged) else ("FLAG" if phone_flagged else ("NOT_PROVIDED" if phone_probe_status == "NOT_PROVIDED" else "SKIP")),
+         "detail": ("Nomor HP tidak tercantum pada input; pemeriksaan dilewati." if phone_probe_status == "NOT_PROVIDED" else phone_status)},
         {"step": "4. Email Domain Infrastructure Check", "status": "PASS",
          "detail": (f"Free provider ({domain.get('domain', 'email gratis')}); SPF/DMARC tidak relevan." if is_free_email
                     else f"Domain korporat {domain.get('domain', '?')}; SPF aktif={email_sec.get('spf_active')}, DMARC aktif={email_sec.get('dmarc_active')}.")},
@@ -494,7 +542,7 @@ def _build_forensic_metadata(
         {"factor": "address_gis_match", **_cs(100.0 if address_found else 30.0, 0.20)},
         {"factor": "phone_reputation", **_cs(0.0 if phone_flagged else (100.0 if phone_clean else 50.0), 0.20)},
         {"factor": "domain_security", **_cs(70.0 if is_free_email else 95.0, 0.15)},
-        {"factor": "social_footprint", **_cs(90.0 if social_hit else (70.0 if web_hit else 40.0), 0.20)},
+        {"factor": "social_footprint", **_cs(90.0 if social_hit else (60.0 if public_footprint else 40.0), 0.20)},
     ]
 
     # Probe weights — bobot statis, timing dari actual osint_timing kalau ada
@@ -502,14 +550,14 @@ def _build_forensic_metadata(
     probe_weights = [
         {"probe": "Address Geocoding (OSM GIS)", "weight": 0.25,
          "execution_time_ms": _timing.get("addr_ms"),  # None = tidak diukur, jujur
-         "status": "VALID" if address_found else "NOT_FOUND"},
+         "status": "EXACT" if address_found else ("AREA_ONLY" if has_area_address else "NOT_FOUND")},
         {"probe": "Phone Reputation (Kaspersky Who Calls)", "weight": 0.20,
          "execution_time_ms": _timing.get("phone_ms"),
-         "status": "CLEAN" if phone_clean else ("FLAGGED" if phone_flagged else "SKIPPED"),
+         "status": "CLEAN" if phone_clean else ("FLAGGED" if phone_flagged else ("NOT_PROVIDED" if phone_probe_status == "NOT_PROVIDED" else "SKIPPED")),
          "url": first_phone.get("url")},
         {"probe": "Web Evidence (SERP)", "weight": 0.20,
          "execution_time_ms": _timing.get("web_ms"),
-         "status": "VALID" if web_hit else "NO_HIT"},
+         "status": "VALID" if web_hit else ("NO_RELEVANT_RESULTS" if web_counts.get("no_relevant_searches", 0) else ("UNKNOWN" if search_unknown else "NO_HIT"))},
         {"probe": "Email Security (DNS MX/SPF)", "weight": 0.20,
          "execution_time_ms": _timing.get("email_ms"),
          "status": "FREE_PROVIDER" if is_free_email else "CORPORATE"},

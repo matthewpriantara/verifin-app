@@ -42,6 +42,9 @@ class ExtractedEntities(BaseModel):
     emails: List[str] = Field(default=[], description="Alamat email.")
     urls: List[str] = Field(default=[], description="URL/website yang ditemukan.")
     addresses: List[str] = Field(default=[], description="Alamat fisik.")
+    location_candidates: List[str] = Field(
+        default=[], description="Wilayah atau cabang yang disebutkan tanpa alamat fisik exact."
+    )
     salaries: List[str] = Field(default=[], description="Informasi gaji jika ada.")
 
 

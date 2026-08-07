@@ -12,19 +12,142 @@ from app.config import LLM_MODEL
 from app.services.constants import FREE_EMAIL_DOMAINS
 import re as _re
 import logging
+from difflib import SequenceMatcher
 
 logger = logging.getLogger(__name__)
 
+def _has_hard_risk_evidence(entities: dict, osint_results: dict) -> bool:
+    phones = osint_results.get("phones") or []
+    web = osint_results.get("web") or {}
+    network = osint_results.get("fraud_network") or {}
+    gforms = web.get("gform_inspections") or []
+    return bool(
+        any(p.get("reported_fraud") for p in phones if isinstance(p, dict))
+        or any(f.get("risk_flags") for f in gforms if isinstance(f, dict))
+        or any(web_search.get("risk_flags") for web_search in web.get("searches") or [])
+        or network.get("entity_in_fraud_network")
+    )
 
-def _is_valid_llm_output(parsed: dict) -> bool:
+
+def _search_has_only_unknown(osint_results: dict) -> bool:
+    web = osint_results.get("web") or {}
+    searches = web.get("searches") or []
+    return bool(searches) and all(
+        search.get("status") in {"NO_RESULTS", "NO_RELEVANT_RESULTS", "UNAVAILABLE"}
+        for search in searches
+    )
+
+
+def _has_public_evidence(osint_results: dict) -> bool:
+    web = osint_results.get("web") or {}
+    social = osint_results.get("threads") or {}
+    web_counts = web.get("evidence_counts") or {}
+    social_counts = social.get("evidence_counts") or {}
+    return bool(
+        web_counts.get("relevant_results", 0) > 0
+        or social_counts.get("public_posts", 0) > 0
+        or social_counts.get("public_profiles", 0) > 0
+        or web.get("websites")
+    )
+
+
+def _calibrate_unknown_search_output(parsed: dict, entities: dict, osint_results: dict) -> dict:
+    """Prevent unavailable/empty search from becoming a fabricated risk signal."""
+    if not _search_has_only_unknown(osint_results) or _has_public_evidence(osint_results) or _has_hard_risk_evidence(entities, osint_results):
+        return parsed
+    if parsed.get("verdict") == "BAHAYA" or float(parsed.get("risk_score") or 0) >= 40:
+        parsed["verdict"] = "AMAN"
+        parsed["risk_score"] = 28
+    for field in ("risk_factors", "safe_factors", "recommendations"):
+        values = parsed.get(field) or []
+        if not isinstance(values, list):
+            values = [values]
+        parsed[field] = [
+            item for item in values
+            if isinstance(item, str) and "zero footprint" not in item.lower() and "nihil" not in item.lower()
+        ]
+    parsed["summary"] = parsed.get("summary") or "Bukti publik tidak tersedia pada run ini; tidak ditemukan red flag keras."
+    if "Bukti publik tidak tersedia pada run ini" not in parsed["summary"] and _search_has_only_unknown(osint_results):
+        parsed["summary"] = "Bukti publik tidak tersedia pada run ini; tidak ditemukan red flag keras."
+    return parsed
+
+
+def _has_corrupt_text(
+    text: str,
+    entities: dict | None = None,
+    allowed_tokens: set[str] | None = None,
+) -> bool:
+    """Detect malformed token joins without guessing a replacement word."""
+    if not isinstance(text, str) or not text.strip():
+        return True
+    if "�" in text or _re.search(r"[\x00-\x08\x0b\x0c\x0e-\x1f]", text):
+        return True
+    if _re.search(r"(?<!\s)[,:;.!?](?=[A-Za-z])", text):
+        return True
+    evidence_tokens = {
+        token.lower()
+        for company in (entities or {}).get("companies") or []
+        for token in _re.findall(r"[A-Za-zÀ-ÿ0-9]+", str(company))
+        if len(token) >= 5
+    }
+    for token in _re.findall(r"[A-Za-zÀ-ÿ]+", text):
+        lower = token.lower()
+        if any(
+            abs(len(lower) - len(reference)) <= 1
+            and lower != reference
+            and SequenceMatcher(None, lower, reference).ratio() >= 0.80
+            for reference in evidence_tokens
+        ):
+            return True
+    words = text.split()
+    return len(words) == 1 and len(text) > 15
+
+
+def _fallback_analysis(entities: dict, osint_results: dict) -> dict:
+    """Evidence-only fallback; no language repair or inferred facts."""
+    company = (entities.get("companies") or ["Perusahaan"])[0]
+    phones = osint_results.get("phones") or []
+    hard_risk = _has_hard_risk_evidence(entities, osint_results)
+    address_exact = any(
+        (item.get("address_found") or item.get("found"))
+        and (item.get("match_level") or (item.get("address_details") or {}).get("match_level")) == "exact"
+        for item in (osint_results.get("address_validations") or [])
+        if isinstance(item, dict)
+    )
+    if hard_risk:
+        verdict, score = "BAHAYA", 80
+    else:
+        verdict, score = "AMAN", 28
+    risks = []
+    if not address_exact:
+        risks.append("Alamat exact belum terverifikasi")
+    if any("@" in e and e.rsplit("@", 1)[-1].lower() in FREE_EMAIL_DOMAINS for e in entities.get("emails") or []):
+        risks.append("Email memakai domain gratisan")
+    if not phones:
+        risks.append("Nomor HP tidak tercantum")
+    return {
+        "verdict": verdict,
+        "risk_score": score,
+        "corrected_company_name": None,
+        "summary": f"Analisis evidence-only untuk {company}; hasil bahasa model tidak digunakan.",
+        "risk_factors": risks[:3],
+        "safe_factors": ["Tidak ada hard evidence fraud" ] if not hard_risk else [],
+        "recommendations": ["Verifikasi kanal dan alamat sebelum melamar"],
+        "model_used": f"{LLM_MODEL} (Evidence Fallback)",
+        "entities_analyzed": entities,
+    }
+
+
+def _is_valid_llm_output(
+    parsed: dict,
+    entities: dict | None = None,
+    allowed_tokens: set[str] | None = None,
+) -> bool:
     """Validasi semantik output LLM — deteksi truncation dan field rusak."""
     if parsed.get("verdict") not in ("AMAN", "WASPADA", "BAHAYA"):
         return False
     if not isinstance(parsed.get("risk_score"), (int, float)):
         return False
-
-    # Token awalan/akhiran umum Indonesia yang sering terkonkatenasi saat truncation
-    _CONCAT_PREFIXES = ("tidak", "nomor", "ada", "fee", "di", "dan", "dari", "ke", "yang", "untuk")
 
     for field in ("summary", "risk_factors", "safe_factors", "recommendations"):
         val = parsed.get(field, "")
@@ -36,20 +159,65 @@ def _is_valid_llm_output(parsed: dict) -> bool:
             # String panjang tanpa spasi = terpotong
             if len(words) == 1 and len(t) > 15:
                 return False
-            # Dua kata Indonesia disambung tanpa spasi di awal token
-            # contoh: "Nomorterdeteksi", "Tidakintaan", "Feebutkan"
-            t_lower = t.lower()
-            for prefix in _CONCAT_PREFIXES:
-                if not t_lower.startswith(prefix):
-                    continue
-                # Setelah prefix, ada huruf lagi langsung (bukan spasi)
-                rest = t_lower[len(prefix):]
-                if rest and rest[0].isalpha() and not rest[0] == ' ':
-                    # Pastikan prefix adalah kata utuh (bukan substring valid seperti "tidak ada")
-                    # Cek apakah ada spasi setelah prefix di string asli
-                    if len(t) > len(prefix) and t[len(prefix)] != ' ':
-                        return False
+            if _has_corrupt_text(t, entities, allowed_tokens):
+                return False
     return True
+
+
+def _sanitize_llm_output(
+    parsed: dict,
+    entities: dict,
+    osint_results: dict,
+    allowed_tokens: set[str] | None = None,
+) -> dict:
+    """Jaga klaim output tetap selaras dengan fakta service layer."""
+    canonical_company = (entities.get("companies") or [None])[0]
+    corrected = parsed.get("corrected_company_name")
+    if canonical_company:
+        parsed["corrected_company_name"] = None
+
+    replacements = {
+        "Toko resmi": "Listing toko publik",
+        "toko resmi": "listing toko publik",
+        "Akun resmi": "Akun publik",
+        "akun resmi": "akun publik",
+        "Website resmi": "Website publik",
+        "website resmi": "website publik",
+        "Email resmi": "Email yang tercantum",
+        "email resmi": "email yang tercantum",
+        "Kanal resmi": "Kanal publik",
+        "kanal resmi": "kanal publik",
+        "Profil resmi": "Profil publik",
+        "profil resmi": "profil publik",
+        "Portal resmi": "Portal publik",
+        "portal resmi": "portal publik",
+        "Nol laporan penipuan di seluruh hasil pencarian SERP": "Belum ditemukan laporan penipuan spesifik pada query publik yang dijalankan",
+        "Tidak ada laporan penipuan di seluruh hasil pencarian SERP": "Belum ditemukan laporan penipuan spesifik pada query publik yang dijalankan",
+        "tidak ada laporan penipuan di SERP": "belum ditemukan laporan penipuan spesifik pada query publik",
+        "Tidak ada laporan penipuan di SERP": "Belum ditemukan laporan penipuan spesifik pada query publik",
+        "Nol indikasi penipuan di seluruh hasil pencarian SERP": "Belum ditemukan indikasi penipuan spesifik pada hasil yang relevan",
+        "Nol indikasi penipuan di seluruh hasil pencarian": "Belum ditemukan indikasi penipuan spesifik pada hasil yang relevan",
+    }
+    for field in ("summary", "risk_factors", "safe_factors", "recommendations"):
+        value = parsed.get(field)
+        values = value if isinstance(value, list) else [value]
+        cleaned = []
+        for item in values:
+            if not isinstance(item, str):
+                continue
+            text = item
+            if corrected and canonical_company and corrected != canonical_company:
+                text = text.replace(str(corrected), str(canonical_company))
+            for old, new in replacements.items():
+                text = text.replace(old, new)
+            if not _has_corrupt_text(text, entities, allowed_tokens):
+                cleaned.append(text)
+        parsed[field] = cleaned if isinstance(value, list) else (cleaned[0] if cleaned else "")
+
+    # Gmail/free email is never an official corporate channel by itself.
+    if canonical_company:
+        parsed["corrected_company_name"] = None
+    return parsed
 
 
 async def analyze_with_verifin(
@@ -73,6 +241,11 @@ async def analyze_with_verifin(
         prompt = build_text_verify_prompt(raw_text, entities, osint_results)
     else:
         prompt = build_verify_prompt(entities, osint_results)
+    allowed_tokens = {
+        token.lower()
+        for token in _re.findall(r"[A-Za-zÀ-ÿ]+", prompt)
+        if len(token) >= 3
+    }
 
     messages = [
         {
@@ -103,11 +276,13 @@ async def analyze_with_verifin(
                 seed=42,
             )
             parsed = extract_json_from_response(raw)
+            parsed = _sanitize_llm_output(parsed, entities, osint_results, allowed_tokens)
+            parsed = _calibrate_unknown_search_output(parsed, entities, osint_results)
             # Sanitize field list — buang item <= 3 karakter (artifact truncation)
             for field in ("risk_factors", "safe_factors", "recommendations"):
                 items = parsed.get(field) or []
                 parsed[field] = [s for s in items if isinstance(s, str) and len(s) > 3]
-            if _is_valid_llm_output(parsed):
+            if _is_valid_llm_output(parsed, entities, allowed_tokens):
                 break
             logger.warning("LLM output attempt %d gagal validasi semantik, retry...", attempt + 1)
             messages.append({"role": "assistant", "content": raw})
@@ -121,8 +296,9 @@ async def analyze_with_verifin(
                 ),
             })
         parsed["model_used"] = f"{LLM_MODEL} (Forensic Reasoning)"
-        if not _is_valid_llm_output(parsed):
-            logger.warning("Semua 3 attempt LLM gagal validasi semantik — menggunakan output terakhir.")
+        if not _is_valid_llm_output(parsed, entities, allowed_tokens):
+            logger.warning("Semua 3 attempt LLM gagal validasi semantik — memakai fallback evidence-only.")
+            parsed = _fallback_analysis(entities, osint_results)
         parsed["entities_analyzed"] = entities
         return parsed
 
@@ -134,7 +310,12 @@ async def analyze_with_verifin(
             "@" in e and e.split("@")[-1].lower() in FREE_EMAIL_DOMAINS
             for e in (entities.get("emails") or [])
         )
-        has_address = len(osint_results.get("address_validations") or []) > 0
+        has_address = any(
+            (item.get("address_found") or item.get("found"))
+            and (item.get("match_level") or (item.get("address_details") or {}).get("match_level")) == "exact"
+            for item in (osint_results.get("address_validations") or [])
+            if isinstance(item, dict)
+        )
 
         risk_score = 12
         risk_factors = []
@@ -151,7 +332,7 @@ async def analyze_with_verifin(
             risk_factors.append(f"Email kontak ({entities.get('emails', [''])[0]}) menggunakan domain publik gratisan.")
 
         if has_address:
-            safe_factors.append("Alamat fisik berhasil dipetakan di OpenStreetMap (GIS spatial verified).")
+            safe_factors.append("Jalan dan nomor alamat cocok dengan hasil peta.")
 
         verdict = "AMAN" if risk_score < 30 else "WASPADA" if risk_score < 60 else "BAHAYA"
         verdict_label = {"AMAN": "berisiko rendah", "WASPADA": "perlu diperiksa lebih lanjut", "BAHAYA": "berisiko tinggi"}[verdict]
