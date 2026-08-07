@@ -206,7 +206,7 @@ def explain_verification_shap(
     web_data = osint_results.get("web") or {}
     websites = web_data.get("websites") or []
 
-    if any(not w.get("ok") for w in websites):
+    if any(w.get("website_status") != "AVAILABLE" for w in websites):
         contributions.append(_make_contrib(
             "Situs Web Tidak Dapat Diakses",
             "domain_unreachable",
@@ -519,7 +519,7 @@ def _build_forensic_metadata(
     )
     web_counts = web.get("evidence_counts") or {}
     web_hit = bool(
-        any(w.get("ok") for w in (web.get("websites") or []))
+        any(w.get("website_status") == "AVAILABLE" for w in (web.get("websites") or []))
         or web_counts.get("relevant_results", 0) > 0
         or any(s.get("relevant_result_count", 0) > 0 for s in (web.get("searches") or []))
     )

@@ -473,7 +473,7 @@ def collect_web_evidence(entities: dict) -> dict[str, Any]:
         safe_flags.extend(gf.get("safe_flags") or [])
 
     has_any_working_web_or_social = any(
-        w.get("ok") and w.get("website_status", "AVAILABLE") == "AVAILABLE"
+        w.get("website_status") == "AVAILABLE"
         for w in website_checks
     ) or any(
         gf.get("is_gform") for gf in gform_inspections
@@ -565,7 +565,7 @@ def collect_web_evidence(entities: dict) -> dict[str, Any]:
         "evidence_counts": {
             "relevant_results": total_public_results,
             "by_source_type": source_counts,
-            "successful_requests": sum(1 for s in searches if s.get("ok")),
+            "successful_requests": sum(1 for s in searches if s.get("request_status") == COMPLETED),
             "empty_searches": sum(1 for s in searches if s.get("status") == "NO_RESULTS"),
             "no_relevant_searches": sum(1 for s in searches if s.get("status") == "NO_RELEVANT_RESULTS"),
             "unavailable_searches": sum(1 for s in searches if s.get("status") == "UNAVAILABLE"),

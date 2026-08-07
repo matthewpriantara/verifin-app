@@ -83,29 +83,6 @@ def _clean_str_list(value: Any, *, max_items: int = 10, max_len: int = 200) -> l
     return out
 
 
-def _merge(regex_list: list[str], llm_list: list[str]) -> tuple[list[str], bool]:
-    """
-    Gabungkan hasil LLM (prioritas) dengan regex (fallback/suplemen).
-    Dedup case-insensitive. Return (merged, llm_added_something).
-    """
-    merged: list[str] = []
-    seen: set[str] = set()
-
-    def _push(items: list[str]) -> bool:
-        added = False
-        for it in items:
-            key = it.lower()
-            if key not in seen:
-                seen.add(key)
-                merged.append(it)
-                added = True
-        return added
-
-    _push(regex_list)
-    llm_added = _push(llm_list)
-    return merged, llm_added
-
-
 async def extract_entities_llm(text: str) -> dict[str, Any] | None:
     """
     Panggil LLM untuk mengekstrak companies/addresses/salaries.
@@ -159,44 +136,3 @@ async def extract_entities_llm(text: str) -> dict[str, Any] | None:
         "salaries": _clean_str_list(data.get("salaries")),
     }
 
-
-async def hybrid_merge_entities(
-    text: str,
-    regex_entities: dict[str, Any],
-) -> tuple[dict[str, Any], dict[str, Any]]:
-    """
-    Gabungkan hasil regex dengan LLM extraction untuk entitas semantik.
-
-    Args:
-        text: teks sumber (raw).
-        regex_entities: output extract_entities_from_text (regex).
-
-    Returns:
-        (merged_entities, llm_meta)
-        merged_entities: salinan regex_entities dengan companies/addresses/
-                         salaries di-merge hasil LLM (jika ada).
-        llm_meta: {"used": bool, "added": {kategori: bool}, "source": str}
-    """
-    meta: dict[str, Any] = {
-        "used": False,
-        "added": {"companies": False, "addresses": False, "salaries": False},
-        "source": "regex",
-    }
-
-    llm_result = await extract_entities_llm(text)
-    if not llm_result:
-        return regex_entities, meta
-
-    merged = dict(regex_entities)
-    any_added = False
-    for key in ("companies", "addresses", "salaries"):
-        regex_vals = list(regex_entities.get(key) or [])
-        llm_vals = llm_result.get(key) or []
-        combined, llm_added = _merge(regex_vals, llm_vals)
-        merged[key] = combined
-        meta["added"][key] = llm_added
-        any_added = any_added or llm_added
-
-    meta["used"] = True
-    meta["source"] = "hybrid_llm_regex" if any_added else "llm_no_new"
-    return merged, meta

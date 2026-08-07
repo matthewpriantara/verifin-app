@@ -24,7 +24,7 @@ export function Footer() {
             </Link>
             <p className="text-[13px] leading-relaxed text-bg/60 max-w-sm">
               Platform verifikasi lowongan kerja terintegrasi. Memanfaatkan OSINT, 
-              graf hubungan (Heterogeneous Graph), dan Explainable AI (SHAP) untuk menciptakan ekosistem pencarian kerja yang aman.
+              graf hubungan (Heterogeneous Graph), dan Explainable AI (Evidence Attribution) untuk menciptakan ekosistem pencarian kerja yang aman.
             </p>
           </div>
 
@@ -58,7 +58,7 @@ export function Footer() {
               Teknologi & Engine
             </h4>
             <div className="flex flex-wrap gap-1.5">
-              {["PaddleOCR", "OSINT", "NetworkX", "SHAP XAI", "LLM Reasoning"].map((tech) => (
+              {["PaddleOCR", "OSINT", "NetworkX", "Evidence Attribution", "LLM Reasoning"].map((tech) => (
                 <span
                   key={tech}
                   className="rounded bg-bg/5 border border-bg/10 px-2.5 py-1 font-mono text-[10px] text-bg/70 hover:bg-bg/10 transition-colors"

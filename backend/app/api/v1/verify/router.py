@@ -82,11 +82,14 @@ async def verify_from_text(
         analysis["nlp_result"] = nlp_result
         analysis["network_context"] = network_context
 
-        await asyncio.to_thread(
+        save_status = await asyncio.to_thread(
             _save_case_to_db,
             db, request.text, analysis, osint_results, entities=entities, source="text"
         )
-        return _to_response(analysis, entities, osint_results)
+        response = _to_response(analysis, entities, osint_results)
+        if response.osint is not None:
+            response.osint["persistence_status"] = save_status
+        return response
     except Exception as e:
         raise HTTPException(
             status_code=500, detail=f"Gagal memproses verifikasi teks: {e}"
@@ -158,13 +161,14 @@ async def verify_from_image(
         analysis["nlp_result"] = nlp_result
         analysis["network_context"] = network_context
 
-        await asyncio.to_thread(
+        save_status = await asyncio.to_thread(
             _save_case_to_db,
             db, raw_text, analysis, osint_results, entities=entities, source="image"
         )
         response = _to_response(analysis, entities, osint_results)
         if response.osint is not None:
             response.osint.setdefault("timing", {})["ocr"] = ocr_metrics
+            response.osint["persistence_status"] = save_status
         return response
 
     except HTTPException:
@@ -244,11 +248,14 @@ async def verify_from_url(
             entities, osint_results, raw_text=full_raw_text
         )
         analysis["network_context"] = network_context
-        await asyncio.to_thread(
+        save_status = await asyncio.to_thread(
             _save_case_to_db,
             db, full_raw_text, analysis, osint_results, entities=entities, source="url"
         )
-        return _to_response(analysis, entities, osint_results)
+        response = _to_response(analysis, entities, osint_results)
+        if response.osint is not None:
+            response.osint["persistence_status"] = save_status
+        return response
 
     except HTTPException:
         raise

@@ -63,7 +63,7 @@ export function ShapChart({ shap }: ShapChartProps) {
 
       {/* Formula */}
       <p className="border-t border-border pt-3 text-[11px] text-text-muted">
-        Formulasi SHAP: f(x) = {shap.base_value} + &Sigma;(&phi;<sub>i</sub>) = {shap.final_risk_score}
+        Formulasi: f(x) = {shap.base_value} + &Sigma;(&phi;<sub>i</sub>) = {shap.final_risk_score}
       </p>
     </div>
   );
