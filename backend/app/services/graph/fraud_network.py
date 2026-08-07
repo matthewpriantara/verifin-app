@@ -39,6 +39,15 @@ import networkx as nx
 logger = logging.getLogger(__name__)
 
 
+def _canonical_phone(value: Any) -> str:
+    digits = re.sub(r"\D", "", str(value or ""))
+    if digits.startswith("0"):
+        digits = "62" + digits[1:]
+    elif digits.startswith("8"):
+        digits = "62" + digits
+    return digits
+
+
 def build_fraud_network(job_cases: list[dict[str, Any]]) -> nx.MultiDiGraph:
     """
     Bangun heterogeneous graph dari riwayat job_cases.
@@ -67,6 +76,9 @@ def build_fraud_network(job_cases: list[dict[str, Any]]) -> nx.MultiDiGraph:
 
         # Edges: USES_PHONE
         for phone in (case.get("phones") or []):
+            phone = _canonical_phone(phone)
+            if not phone:
+                continue
             phone_node = f"phone:{phone}"
             if not G.has_node(phone_node):
                 G.add_node(phone_node, node_type="Phone", value=phone)
@@ -78,6 +90,9 @@ def build_fraud_network(job_cases: list[dict[str, Any]]) -> nx.MultiDiGraph:
 
         # Edges: USES_EMAIL
         for email in (case.get("emails") or []):
+            email = str(email).strip().lower()
+            if not email:
+                continue
             email_node = f"email:{email.lower()}"
             if not G.has_node(email_node):
                 G.add_node(email_node, node_type="Email", value=email)
@@ -145,8 +160,8 @@ def check_entity_in_network(
 
     # Cek tiap tipe entitas
     checks = [
-        ("phones",    "phone",   entities.get("phones") or []),
-        ("emails",    "email",   [e.lower() for e in (entities.get("emails") or [])]),
+        ("phones",    "phone",   [_canonical_phone(p) for p in (entities.get("phones") or []) if _canonical_phone(p)]),
+        ("emails",    "email",   [str(e).strip().lower() for e in (entities.get("emails") or []) if str(e).strip()]),
         ("companies", "company", [(c.upper().strip()) for c in (entities.get("companies") or [])]),
         ("urls",      "url",     [_extract_domain(u) for u in (entities.get("urls") or []) if _extract_domain(u)]),
     ]

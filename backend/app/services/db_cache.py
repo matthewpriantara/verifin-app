@@ -11,7 +11,7 @@ from app.services.hasher import compute_content_sha256
 from app.api.v1.verify.pipeline import _build_osint_summary, _to_response
 
 logger = logging.getLogger(__name__)
-CACHE_SCHEMA_VERSION = 3
+CACHE_SCHEMA_VERSION = 6
 
 def _save_case_to_db(
     db: Session,

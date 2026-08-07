@@ -156,6 +156,12 @@ def _clean_address(addr: str) -> str:
         )
 
     # 5. Buang suffix kontak/email/gaji/company stop words
+    a = re.split(
+        r"\s+(?=(?:Alamat|Lokasi|Office|Basecamp)\b(?:\s+[^,:]{0,30})?\s*[:.\-])",
+        a,
+        maxsplit=1,
+        flags=re.I,
+    )[0]
     a = re.split(rf"\s*[.,;]?\s*{_ADDR_STOP}", a, maxsplit=1, flags=re.I)[0]
     a = re.sub(r"\s+(?:Phone|Telp|Tel\.?|HP|WA|WhatsApp)\s*[:.]?\s*[\d+\-\s]+$", "", a, flags=re.I)
     a = re.sub(r"^(?:\+?62|0)\d[\d\s\-]{7,16}[,\s]*", "", a)
@@ -859,6 +865,24 @@ def _uniq(items: list[str]) -> list[str]:
     return out
 
 
+def _uniq_addresses(items: list[str]) -> list[str]:
+    """Deduplicate addresses without collapsing distinct house numbers."""
+    out: list[str] = []
+    seen: set[tuple[str, tuple[str, ...]]] = set()
+    for item in items:
+        value = re.sub(r"\s+", " ", (item or "").strip())
+        if not value:
+            continue
+        normalized = re.sub(r"[^a-z0-9 ]", " ", value.lower())
+        normalized = re.sub(r"\s+", " ", normalized).strip()
+        numbers = tuple(re.findall(r"\b\d+[a-z]?\b", value.lower()))
+        key = (normalized, numbers)
+        if key not in seen:
+            seen.add(key)
+            out.append(value)
+    return out
+
+
 
 def extract_entities_from_text(text: str) -> dict:
     """Ekstrak companies, contacts, emails, urls, addresses, salaries (regex only)."""
@@ -942,7 +966,7 @@ def extract_entities_from_text(text: str) -> dict:
     uniq_companies = _uniq(companies)
     uniq_contacts = _uniq(standardized_phones)
     uniq_emails = _uniq(emails)
-    uniq_addresses_raw = _uniq(extracted_addresses)
+    uniq_addresses_raw = _uniq_addresses(extracted_addresses)
     # Buang kandidat alamat yang sama atau bagian dari nama perusahaan
     comp_lows = {c.strip().lower() for c in uniq_companies}
     uniq_addresses = [

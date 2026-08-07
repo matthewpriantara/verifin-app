@@ -8,6 +8,7 @@ import re
 from typing import Any
 
 from scrapling.fetchers import Fetcher
+from app.services.status_contract import COMPLETED, INVALID_INPUT, UNAVAILABLE
 
 
 def normalize_phone_id(phone: str) -> dict[str, str]:
@@ -35,9 +36,12 @@ def _check_kaspersky(phone_meta: dict[str, str]) -> dict[str, Any]:
         "phone": phone_meta["display"],
         "url": url,
         "checked": False,
+        "probe_status": UNAVAILABLE,
+        "reputation_status": "UNAVAILABLE",
         "danger_level": None,
         "category": None,
         "scam_confirmed": False,
+        "reported_fraud": False,
         "risk_flags": risk_flags,
     }
 
@@ -48,6 +52,7 @@ def _check_kaspersky(phone_meta: dict[str, str]) -> dict[str, Any]:
             return result
 
         result["checked"] = True
+        result["probe_status"] = COMPLETED
 
         verdict_el = page.css('[class*="NumberInfoWrapper_title"]')
         verdict = verdict_el[0].text.strip().upper() if verdict_el else "NETRAL"
@@ -62,9 +67,14 @@ def _check_kaspersky(phone_meta: dict[str, str]) -> dict[str, Any]:
 
         if danger_level >= 2:
             result["scam_confirmed"] = True
+            result["reported_fraud"] = True
+            result["reputation_status"] = "FLAGGED"
             risk_flags.append(f"Kaspersky Who Calls: nomor terdeteksi '{verdict}'.")
         elif danger_level == 1:
+            result["reputation_status"] = "SUSPICIOUS"
             risk_flags.append(f"Kaspersky Who Calls: nomor mencurigakan — '{verdict}'.")
+        else:
+            result["reputation_status"] = "CLEAN"
 
         return result
 
@@ -175,6 +185,12 @@ def check_phone_reputation(phone: str, company: str = "") -> dict[str, Any]:
             "source": "kaspersky",
             "phone": phone,
             "found": False,
+            "checked": False,
+            "probe_status": INVALID_INPUT,
+            "reputation_status": "UNAVAILABLE",
+            "danger_level": None,
+            "scam_confirmed": False,
+            "reported_fraud": False,
             "error": "Format nomor tidak valid.",
             "risk_flags": [],
         }
@@ -187,7 +203,16 @@ def check_phone_reputation(phone: str, company: str = "") -> dict[str, Any]:
     all_risk_flags = kaspersky.get("risk_flags", []) + serp.get("risk_flags", [])
     return {
         **kaspersky,
+        # `found` dipertahankan untuk backward compatibility, tetapi maknanya
+        # khusus: ditemukan bukti scam, bukan probe berhasil atau nomor ada.
         "found": kaspersky.get("scam_confirmed", False) or serp.get("found_scam", False),
+        "reported_fraud": bool(
+            kaspersky.get("reported_fraud") or serp.get("found_scam")
+        ),
+        "reputation_status": (
+            "FLAGGED" if kaspersky.get("scam_confirmed") or serp.get("found_scam")
+            else kaspersky.get("reputation_status", "UNAVAILABLE")
+        ),
         "risk_flags": all_risk_flags,
         "serp_fallback": serp,
     }

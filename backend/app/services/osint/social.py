@@ -137,6 +137,8 @@ async def run_social_osint(entities: dict) -> dict[str, Any]:
     if not companies:
         return {
             "enabled": True,
+            "probe_status": "COMPLETED",
+            "evidence_status": "NO_RESULTS",
             "platform": "social_media",
             "found": False,
             "posts": [],
@@ -315,6 +317,8 @@ async def run_social_osint(entities: dict) -> dict[str, Any]:
 
     return {
         "enabled": True,
+        "probe_status": "COMPLETED",
+        "evidence_status": "FOUND" if public_footprint_found else "NO_RELEVANT_RESULTS",
         "platform": "social_media",
         "query": raw_company,
         "found": found,

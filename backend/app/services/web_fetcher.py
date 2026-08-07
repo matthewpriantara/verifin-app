@@ -8,6 +8,7 @@ import tempfile
 
 import httpx
 from bs4 import BeautifulSoup
+from app.services.url_guard import validate_public_http_url
 
 logger = logging.getLogger(__name__)
 
@@ -29,6 +30,7 @@ _IG_NOISE_PATTERNS = [
 
 def _sync_scrapling_fetch(url: str) -> tuple[str, list[str]]:
     """Scrape teks + image URLs dari URL (IG embed, oEmbed, proxy, Scrapling, HTTPX fallback)."""
+    validate_public_http_url(url)
 
     combined_caption_text = ""
     image_urls = []
@@ -167,7 +169,7 @@ def _sync_scrapling_fetch(url: str) -> tuple[str, list[str]]:
 
     if not combined_caption_text:
         try:
-            res = httpx.get(url, headers=headers, follow_redirects=True, verify=False, timeout=15.0)
+            res = httpx.get(url, headers=headers, follow_redirects=True, timeout=15.0)
             if res.status_code == 200:
                 soup = BeautifulSoup(res.text, "html.parser")
                 text_parts = []
@@ -200,6 +202,7 @@ async def _fetch_url_content_and_image(url: str) -> tuple[str, list[str]]:
     Scrape teks (caption/description) & daftar image URL poster (termasuk carousel slides) dari URL.
     Returns: (extracted_text, temp_image_paths_list)
     """
+    validate_public_http_url(url)
     loop = asyncio.get_running_loop()
     combined_caption_text, image_urls = await loop.run_in_executor(None, _sync_scrapling_fetch, url)
 
@@ -210,9 +213,10 @@ async def _fetch_url_content_and_image(url: str) -> tuple[str, list[str]]:
         "Accept": "image/avif,image/webp,image/apng,image/svg+xml,image/*,*/*;q=0.8",
     }
 
-    async with httpx.AsyncClient(timeout=15.0, headers=headers, follow_redirects=True, verify=False) as client:
+    async with httpx.AsyncClient(timeout=15.0, headers=headers, follow_redirects=True) as client:
         for img_url in image_urls:
             try:
+                validate_public_http_url(img_url)
                 img_res = await client.get(img_url)
                 if img_res.status_code == 200 and len(img_res.content) > 1000:
                     ext = ".png" if ".png" in img_url.lower() else ".webp" if ".webp" in img_url.lower() else ".jpg"

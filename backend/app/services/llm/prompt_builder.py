@@ -52,7 +52,9 @@ def _build_phone_osint_section(phones: list) -> str:
     lines = []
     for p in phones:
         phone = p.get("phone") or p.get("phone_local") or "?"
-        has_error = bool(p.get("error") and not p.get("found"))
+        has_error = p.get("probe_status") == "UNAVAILABLE" or bool(
+            p.get("error") and not p.get("checked")
+        )
         serp = p.get("serp_fallback") or {}
         serp_risk = serp.get("risk_flags") or []
         if has_error:
@@ -70,13 +72,19 @@ def _build_phone_osint_section(phones: list) -> str:
                     f"Pencarian SERP publik tidak menemukan laporan penipuan spesifik terkait nomor ini."
                 )
             continue
-        parts = [f"- `{phone}` via Kaspersky Who Calls"]
+        parts = [
+            f"- `{phone}` via Kaspersky Who Calls",
+            f"status pemeriksaan: {p.get('probe_status', 'UNKNOWN')}",
+            f"status reputasi: {p.get('reputation_status', 'UNKNOWN')}",
+        ]
         if p.get("rating") is not None:
             parts.append(f"rating {p.get('rating')}")
         if p.get("review_count") is not None:
             parts.append(f"{p.get('review_count')} review")
         if p.get("reported_fraud"):
             parts.append("⚠️ PERNAH DILAPORKAN PENIPUAN")
+        elif p.get("reputation_status") == "CLEAN":
+            parts.append("✅ tidak ada laporan fraud/spam yang ditemukan")
         if p.get("url"):
             parts.append(f"sumber: {p.get('url')}")
         lines.append(" | ".join(parts))
@@ -340,6 +348,11 @@ def build_verify_prompt(entities: dict, osint_results: dict) -> str:
     url_str = ", ".join(urls) if urls else "Tidak ada"
     address_str = "\n  - ".join(addresses) if addresses else "Tidak disebutkan"
     salary_str = ", ".join(salaries) if salaries else "Tidak disebutkan"
+    address_input_note = (
+        "Alamat fisik tidak tercantum pada input; jangan menyebut alamat gagal, fiktif, atau belum tervalidasi."
+        if not addresses
+        else "Alamat fisik tercantum pada input; bedakan alamat exact, street, dan area dari hasil OSM."
+    )
     
     prompt = f"""Kamu adalah sistem AI bernama Verifin yang bertugas menganalisis kecurigaan penipuan lowongan kerja di Indonesia.
 
@@ -364,6 +377,7 @@ Analisis secara mendalam, formal, dan berbasis evidence. Berikan keputusan apaka
 
 **Alamat Fisik:**
   - {address_str}
+  - STATUS INPUT: {address_input_note}
 
 **Gaji yang Ditawarkan:**
 {salary_str}
@@ -408,7 +422,8 @@ Analisis secara mendalam, formal, dan berbasis evidence. Berikan keputusan apaka
 7. shortlink bit.ly / Google Forms = praktik umum rekrutmen UMKM, BUKAN penipuan sendirian.
 8. PORTAL LOKER PUBLIK (JobStreet, LinkedIn, Glints, KitaLulus): Ketiadaan nomor HP atau email kontak langsung di dalam teks ADALAH HAL WARJAR karena lamaran dikirim langsung via tombol portal. DILARANG menjadikan "tidak ada email/telepon" sebagai faktor risiko untuk portal loker publik.
 9. DILARANG MENGHALUSINASI BERITA UMUM KEPOLISIAN/OJK: Berita portal umum mengenai penipuan umum (misal berita 'Aparat Memburu Penipu Pendirian SPPG', 'Satgas PASTI', atau 'Deretan Hoaks Lowongan Kerja') BUKAN bukti bahwa lowongan ini adalah penipuan tersebut. HANYA klaim berita penipuan jika judul/snippet secara spesifik menyebutkan nama lengkap entitas atau nomor telepon ini.
-10. KREDIBEL GAGAL DIAKSES: Jika nomor HP tercatat "Kaspersky Who Calls tidak dapat diakses" DAN "Pencarian SERP publik tidak menemukan laporan penipuan", artinya TIDAK ADA BUKTI PENIPUAN terkait nomor tersebut. DILARANG memasukkan ini sebagai risk_factor. Ini harus masuk sebagai safe_factor atau diabaikan sama sekali.
+10. STATUS NOMOR: Bedakan `probe_status` dari `found`. `probe_status=COMPLETED` berarti pemeriksaan berhasil; `reputation_status=CLEAN` dan `reported_fraud=false` berarti tidak ada laporan fraud/spam yang ditemukan. `found=false` hanya berarti bukti scam tidak ditemukan, BUKAN pemeriksaan gagal atau reputasi belum terkonfirmasi.
+11. KREDIBEL GAGAL DIAKSES: Jika nomor HP tercatat "Kaspersky Who Calls tidak dapat diakses" DAN "Pencarian SERP publik tidak menemukan laporan penipuan", artinya TIDAK ADA BUKTI PENIPUAN terkait nomor tersebut. DILARANG memasukkan ini sebagai risk_factor. Ini harus masuk sebagai safe_factor atau diabaikan sama sekali.
 
 ## PANDUAN SKOR (WAJIB DIIKUTI — JANGAN PARKIR DI 25-35 TANPA ALASAN)
 

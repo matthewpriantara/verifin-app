@@ -6,6 +6,7 @@ Memverifikasi alamat fisik dari lowongan kerja menggunakan Nominatim (OpenStreet
 import re
 import httpx
 from urllib.parse import quote_plus
+from app.services.status_contract import COMPLETED, FOUND, NO_RESULTS, UNAVAILABLE
 
 # ─────────────────────────────────────────────────────────────────────────────
 # Konfigurasi
@@ -57,12 +58,20 @@ def _classify_geocode_match(address: str, result: dict) -> dict:
     result_tokens = _address_tokens(result_text)
     matched_tokens = input_tokens & result_tokens
     house_numbers = set(re.findall(r"\b\d+[a-z]?\b", (address or "").lower()))
-    result_house_numbers = set(re.findall(r"\b\d+[a-z]?\b", result_text.lower()))
-    house_number_match = bool(house_numbers & result_house_numbers)
+    result_house_number = str(address_details.get("house_number") or "").lower()
+    result_house_numbers = set(re.findall(r"\b\d+[a-z]?\b", result_house_number))
+    house_number_match = bool(house_numbers and house_numbers & result_house_numbers)
     street_name = str(address_details.get("road") or "").lower()
-    street_match = bool(street_name) and any(
-        token in street_name for token in input_tokens if len(token) >= 4
+    street_match = False
+    street_input = re.search(
+        r"\b(?:Jl\.?|Jln\.?|Jalan|Gg\.?|Gang|Ruko|Komp\.?|Komplek|Perum\.?|Perumahan)\s+(.+?)(?=\s+No\.?\s*\d|,|$)",
+        (address or ""),
+        re.I,
     )
+    if street_name and street_input:
+        street_tokens = [token for token in re.findall(r"[a-z0-9]+", street_input.group(1).lower()) if len(token) >= 3]
+        result_tokens = set(re.findall(r"[a-z0-9]+", street_name))
+        street_match = bool(street_tokens) and all(token in result_tokens for token in street_tokens)
     token_score = len(matched_tokens) / len(input_tokens) if input_tokens else 0.0
 
     if house_number_match and street_match:
@@ -256,6 +265,8 @@ async def geocode_address(address: str, company_name: str | None = None) -> dict
                 )
                 return {
                     "found": True,
+                    "probe_status": COMPLETED,
+                    "evidence_status": FOUND,
                     "lat": float(result["lat"]),
                     "lon": float(result["lon"]),
                     "display_name": result.get("display_name", ""),
@@ -269,6 +280,8 @@ async def geocode_address(address: str, company_name: str | None = None) -> dict
 
         return {
             "found": False,
+            "probe_status": COMPLETED,
+            "evidence_status": NO_RESULTS,
             "lat": None,
             "lon": None,
             "display_name": None,
@@ -277,9 +290,9 @@ async def geocode_address(address: str, company_name: str | None = None) -> dict
         }
 
     except httpx.TimeoutException:
-        return {"found": False, "error": "Timeout saat menghubungi Nominatim.", "lat": None, "lon": None}
+        return {"found": False, "probe_status": UNAVAILABLE, "evidence_status": UNAVAILABLE, "error": "Timeout saat menghubungi Nominatim.", "lat": None, "lon": None}
     except Exception as e:
-        return {"found": False, "error": str(e), "lat": None, "lon": None}
+        return {"found": False, "probe_status": UNAVAILABLE, "evidence_status": UNAVAILABLE, "error": str(e), "lat": None, "lon": None}
 
 
 # ─────────────────────────────────────────────────────────────────────────────

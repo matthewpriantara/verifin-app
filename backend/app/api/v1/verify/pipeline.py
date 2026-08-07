@@ -27,6 +27,7 @@ from app.services.graph.fraud_network import (
     build_fraud_network,
     check_entity_in_network,
 )
+from app.services.status_contract import COMPLETED, NOT_PROVIDED, UNAVAILABLE
 
 def _check_fraud_network(db: Session, entities: dict) -> dict:
     """Cek entitas lowongan ke fraud graph NetworkX (GAR-HGNN inspired, 500 kasus terakhir)."""
@@ -37,7 +38,7 @@ def _check_fraud_network(db: Session, entities: dict) -> dict:
         ).limit(500).all()
 
         if not cases:
-            return {"entity_in_fraud_network": False, "total_case_count": 0}
+            return {"status": "NO_DATA", "entity_in_fraud_network": False, "total_case_count": 0}
 
         # Konversi SQLAlchemy objects ke dict
         cases_data = [
@@ -86,18 +87,19 @@ def _check_fraud_network(db: Session, entities: dict) -> dict:
         # Community reports — laporan berulang pada entitas = sinyal risiko
         community = _community_report_signal(db, entities)
         network_ctx["community_reports"] = community
-        if community.get("report_count", 0) > 0:
+        if community.get("status") == COMPLETED and community.get("report_count", 0) > 0:
             network_ctx["entity_in_fraud_network"] = True
             # Eskalasi threat_level bila belum tinggi
             if community["report_count"] >= 3:
                 network_ctx["threat_level"] = "HIGH"
             elif network_ctx.get("threat_level") not in ("HIGH",):
                 network_ctx["threat_level"] = "MEDIUM"
+        network_ctx["status"] = COMPLETED
         return network_ctx
 
     except Exception as exc:
         logging.getLogger(__name__).warning(f"Fraud network check failed: {exc}")
-        return {"entity_in_fraud_network": False, "error": str(exc)}
+        return {"status": UNAVAILABLE, "entity_in_fraud_network": None, "error": str(exc)}
 
 
 def _community_report_signal(db: Session, entities: dict) -> dict:
@@ -120,14 +122,15 @@ def _community_report_signal(db: Session, entities: dict) -> dict:
             conditions.append(CommunityReport.phone == digits)
 
     if not conditions:
-        return {"report_count": 0, "reported_by_community": False}
+        return {"status": "NO_DATA", "report_count": 0, "reported_by_community": False}
 
     try:
         count = db.query(func.count(CommunityReport.id)).filter(or_(*conditions)).scalar() or 0
     except Exception:  # noqa: BLE001
-        return {"report_count": 0, "reported_by_community": False}
+        return {"status": UNAVAILABLE, "report_count": None, "reported_by_community": None}
 
     return {
+        "status": COMPLETED,
         "report_count": int(count),
         "reported_by_community": count > 0,
         "risk_signal": "HIGH" if count >= 3 else ("MEDIUM" if count == 2 else ("LOW" if count == 1 else "NONE")),
@@ -262,7 +265,7 @@ async def _run_osint_on_entities(entities: dict) -> dict:
         "address_validations": [],
         "phones": [],
         "phone_probe": {
-            "status": "NOT_PROVIDED" if not (entities.get("phones") or []) else "PENDING",
+            "status": NOT_PROVIDED if not (entities.get("phones") or []) else "PENDING",
             "note": "Nomor HP tidak tercantum pada input; pemeriksaan Kaspersky dilewati."
             if not (entities.get("phones") or []) else None,
         },
@@ -366,6 +369,8 @@ async def _run_osint_on_entities(entities: dict) -> dict:
                 return {
                     "address_input": addr,
                     "address_found": False,
+                    "probe_status": UNAVAILABLE,
+                    "evidence_status": UNAVAILABLE,
                     "error": "Gagal memvalidasi alamat.",
                 }
 
@@ -377,7 +382,8 @@ async def _run_osint_on_entities(entities: dict) -> dict:
             return await check_phones_reputation(entities.get("phones") or [], limit=1, company=company)
         except Exception as exc:
             return [
-                {"source": "kredibel", "found": False, "error": str(exc), "risk_flags": []}
+                {"source": "kredibel", "found": False, "probe_status": UNAVAILABLE,
+                 "reputation_status": UNAVAILABLE, "error": str(exc), "risk_flags": []}
             ]
 
     async def _web_job() -> dict:
@@ -386,6 +392,7 @@ async def _run_osint_on_entities(entities: dict) -> dict:
         except Exception as exc:
             return {
                 "enabled": True,
+                "probe_status": UNAVAILABLE,
                 "websites": [],
                 "searches": [],
                 "risk_flags": [],
@@ -400,6 +407,7 @@ async def _run_osint_on_entities(entities: dict) -> dict:
             return [
                 {
                     "checked": False,
+                    "probe_status": UNAVAILABLE,
                     "error": str(exc),
                     "registry": {"pt_registry_verified": False},
                     "risk_flags": [],
@@ -414,6 +422,7 @@ async def _run_osint_on_entities(entities: dict) -> dict:
         except Exception as exc:
             return {
                 "enabled": True,
+                "probe_status": UNAVAILABLE,
                 "found": False,
                 "posts": [],
                 "profiles": [],
@@ -444,10 +453,19 @@ async def _run_osint_on_entities(entities: dict) -> dict:
     osint_results["address_validations"] = addr_list
     osint_results["phones"] = phones
     if entities.get("phones"):
+        phone_statuses = [p.get("probe_status") for p in phones if isinstance(p, dict)]
+        phone_probe_status = (
+            COMPLETED if phone_statuses and all(status == COMPLETED for status in phone_statuses)
+            else "PARTIAL" if phone_statuses and any(status == COMPLETED for status in phone_statuses)
+            else UNAVAILABLE
+        )
         osint_results["phone_probe"] = {
-            "status": "COMPLETED" if phones else "UNAVAILABLE",
+            "status": phone_probe_status,
             "note": "Nomor HP ditemukan dan dikirim ke validator reputasi."
-            if phones else "Nomor HP ditemukan, tetapi validator reputasi tidak mengembalikan hasil.",
+            if phone_probe_status == "COMPLETED"
+            else "Nomor HP ditemukan, tetapi sebagian pemeriksaan reputasi tidak tersedia."
+            if phone_probe_status == "PARTIAL"
+            else "Nomor HP ditemukan, tetapi validator reputasi tidak tersedia.",
         }
     osint_results["web"] = web
     osint_results["companies"] = companies_osint
@@ -589,6 +607,7 @@ def _to_response(
             safe_factors=safe_factors,
             nlp_result=analysis.get("nlp_result"),
             network_context=analysis.get("network_context"),
+            entities=entities,
         )
     except Exception:
         shap_explanation = None
@@ -636,7 +655,9 @@ def _build_osint_summary(osint_results: dict | None) -> dict | None:
             {
                 "phone": p.get("phone") or p.get("phone_local"),
                 "rating": p.get("rating"),
-                "reported_fraud": p.get("reported_fraud"),
+                "reported_fraud": p.get("reported_fraud") or p.get("scam_confirmed"),
+                "reputation_status": p.get("reputation_status"),
+                "probe_status": p.get("probe_status"),
                 "review_count": p.get("review_count"),
             }
             for p in phones[:5]
