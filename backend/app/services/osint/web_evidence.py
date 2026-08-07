@@ -65,10 +65,14 @@ def _result_matches_query(query: str, url: str, title: str, snippet: str) -> boo
             return True
         matched = {token for token in set(tokens) if token in hay.split()}
         if len(tokens) == 1 and len(matched) == 1:
-            return True
+            # Single token hanya valid bila eksplisit di URL/handle (domain,
+            # subdomain, atau segmen path) — bukan sekadar muncul di snippet
+            # global yang ambigu ("Bangor", nama brand umum).
+            if re.search(rf"(?:^|[./@_-]){re.escape(tokens[0])}(?:$|[./@_-])", url.lower()):
+                return True
+            continue
         if len(tokens) >= 2 and len(matched) >= 2:
-            # Two identity tokens are sufficient; one token such as "Bangor"
-            # is intentionally insufficient for ambiguous global names.
+            # Dua token identitas cukup; satu token ("Bangor") tidak.
             return True
     return False
 
@@ -120,14 +124,16 @@ def _check_social_profile_fallback(domain_or_handle: str) -> dict[str, Any]:
     results = res.get("results") or []
     if results:
         top = results[0]
-        title = top.get("title", "")
-        profile_url = top.get("url", "")
-        return {
-            "social_found": True,
-            "title": title,
-            "url": profile_url,
-            "safe_flags": [f"Terdeteksi profil sosial media / toko online publik aktif: {title} ({profile_url})"],
-        }
+        # Hasil pertama aggregator/artikel global bukan bukti profil terkait.
+        if _result_matches_query(q, top.get("url", ""), top.get("title", ""), top.get("snippet", "")):
+            title = top.get("title", "")
+            profile_url = top.get("url", "")
+            return {
+                "social_found": True,
+                "title": title,
+                "url": profile_url,
+                "safe_flags": [f"Terdeteksi profil sosial media / toko online publik aktif: {title} ({profile_url})"],
+            }
     return {"social_found": False}
 
 
