@@ -62,6 +62,10 @@ class CommunityReport(Base):
     report_type = Column(String(24), nullable=False, default="penipuan")  # penipuan | biaya_ilegal | tppo | lainnya
     description = Column(Text, nullable=True)
     reporter_contact = Column(String(255), nullable=True)  # opsional, untuk follow-up
+    reporter_ip = Column(String(45), nullable=True)
+    status = Column(String(12), nullable=False, default="pending", server_default="pending", index=True)
+    reviewed_at = Column(DateTime(timezone=True), nullable=True)
+    reviewer_note = Column(Text, nullable=True)
 
     # Agregasi sederhana: berapa kali entitas serupa dilaporkan
     created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)

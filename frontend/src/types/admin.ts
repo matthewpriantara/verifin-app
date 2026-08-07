@@ -17,30 +17,26 @@ export interface AdminStats {
   bahaya: number;
 }
 
-export interface WhitelistEntry {
-  id: number;
-  company_name: string;
-  legal_type: string;
-  synced_at: string;
-}
-
 export type ReportStatus = "pending" | "approved" | "rejected";
 
 export type ReportType =
   | "biaya_travel"
   | "perusahaan_fiktif"
   | "tppo_eksploitasi"
-  | "pencurian_data_scam";
+  | "pencurian_data_scam"
+  | string;
 
 export interface CommunityReport {
   id: string;
-  reporter_ip: string;
-  company_name: string;
+  company_name: string | null;
+  phone: string | null;
+  email: string | null;
+  url: string | null;
   report_type: ReportType;
-  description: string;
-  evidence_url: string | null;
+  description: string | null;
+  reporter_ip: string | null;
   status: ReportStatus;
-  submitted_at: string;
-  reviewed_at: string | null;
   reviewer_note: string | null;
+  reviewed_at: string | null;
+  created_at: string;
 }

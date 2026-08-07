@@ -4,6 +4,7 @@ import type {
   TextVerifyRequest,
   VerifyResponse,
 } from "@/types/verify";
+import type { CommunityReport } from "@/types/admin";
 
 const API_BASE =
   process.env.NEXT_PUBLIC_API_URL?.replace(/\/$/, "") || "http://localhost:8000";
@@ -89,6 +90,51 @@ export async function getAiStatus(): Promise<LlmStatusResponse> {
   }
 
   return res.json() as Promise<LlmStatusResponse>;
+}
+
+export async function submitCommunityReport(payload: {
+  company_name?: string;
+  phone?: string;
+  email?: string;
+  url?: string;
+  report_type: string;
+  description?: string;
+  reporter_contact?: string;
+}): Promise<{ status: string; message: string; id: string }> {
+  const res = await fetch(`${API_BASE}/api/v1/community/report`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(payload),
+  });
+  if (!res.ok) throw new Error(await parseError(res));
+  return res.json();
+}
+
+export async function fetchCommunityReports(
+  status?: "pending" | "approved" | "rejected",
+  limit = 50,
+): Promise<CommunityReport[]> {
+  const qs = new URLSearchParams({ limit: String(limit) });
+  if (status) qs.set("status", status);
+  const res = await fetch(`${API_BASE}/api/v1/community/reports?${qs}`, {
+    cache: "no-store",
+  });
+  if (!res.ok) throw new Error(await parseError(res));
+  const data = (await res.json()) as { reports?: CommunityReport[] };
+  return data.reports ?? [];
+}
+
+export async function reviewCommunityReport(
+  id: string,
+  status: "pending" | "approved" | "rejected",
+  reviewer_note?: string,
+): Promise<void> {
+  const res = await fetch(`${API_BASE}/api/v1/community/reports/${id}`, {
+    method: "PATCH",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ status, reviewer_note: reviewer_note ?? null }),
+  });
+  if (!res.ok) throw new Error(await parseError(res));
 }
 
 export { API_BASE };
