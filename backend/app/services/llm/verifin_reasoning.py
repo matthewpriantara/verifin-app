@@ -456,5 +456,3 @@ async def check_ai_status() -> dict:
         "detail": detail,
     }
 
-
-analyze_with_hermes = analyze_with_verifin

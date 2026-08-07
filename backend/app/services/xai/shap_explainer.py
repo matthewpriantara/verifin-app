@@ -579,9 +579,9 @@ def _build_forensic_metadata(
          "detail": ("Jalan dan nomor alamat cocok dengan hasil peta." if address_found else ("Wilayah/jalan ditemukan, tetapi titik exact belum terkonfirmasi." if has_area_address else ("Alamat fisik tidak tercantum pada input." if entities_known and not input_addresses else "Alamat tidak tersedia untuk penilaian.")))},
         {"step": "3. Phone Kaspersky Who Calls Check", "status": "PASS" if (phone_checked and not phone_flagged) else ("FLAG" if phone_flagged else ("NOT_PROVIDED" if phone_probe_status == "NOT_PROVIDED" else "SKIP")),
          "detail": ("Nomor HP tidak tercantum pada input; pemeriksaan dilewati." if phone_probe_status == "NOT_PROVIDED" else phone_status)},
-        {"step": "4. Email Domain Infrastructure Check", "status": "PASS",
-         "detail": (f"Free provider ({domain.get('domain', 'email gratis')}); SPF/DMARC tidak relevan." if is_free_email
-                    else f"Domain korporat {domain.get('domain', '?')}; SPF aktif={email_sec.get('spf_active')}, DMARC aktif={email_sec.get('dmarc_active')}.")},
+        {"step": "4. Email Domain Infrastructure Check", "status": "NOT_PROVIDED" if entities_known and not ((entities or {}).get("emails") or []) else "PASS",
+         "detail": ("Email tidak tercantum pada input; pemeriksaan domain dilewati." if entities_known and not ((entities or {}).get("emails") or []) else (f"Free provider ({domain.get('domain', 'email gratis')}); SPF/DMARC tidak relevan." if is_free_email
+                    else f"Domain korporat {domain.get('domain', '?')}; SPF aktif={email_sec.get('spf_active')}, DMARC aktif={email_sec.get('dmarc_active')}."))},
         {"step": "5. Threat Intelligence Graph Network", "status": "FLAG" if in_fraud_network else ("UNKNOWN" if network_status == "UNAVAILABLE" else "PASS"),
          "detail": f"Status jaringan: {cluster}."},
         {"step": "6. Final Risk Level Evaluation", "status": risk_level,
@@ -610,23 +610,36 @@ def _build_forensic_metadata(
 
     # Probe weights — bobot statis, timing dari actual osint_timing kalau ada
     _timing = osint_results.get("timing") or {}
+    email_applicable = not (entities_known and not ((entities or {}).get("emails") or []))
+    address_applicable = not (entities_known and not input_addresses)
+
+    def _eff(applicable: bool, configured: float) -> float:
+        return configured if applicable else 0.0
+
     probe_weights = [
-        {"probe": "Address Geocoding (OSM GIS)", "weight": 0.25,
+        {"probe": "Address Geocoding (OSM GIS)", "weight": 0.25, "configured_weight": 0.25,
+         "effective_weight": _eff(address_applicable, 0.25),
          "execution_time_ms": _timing.get("addr_ms"),  # None = tidak diukur, jujur
          "status": "EXACT" if address_found else ("AREA_ONLY" if has_area_address else ("NOT_PROVIDED" if entities_known and not input_addresses else "NOT_FOUND")),
-         "applicable": not (entities_known and not input_addresses)},
-        {"probe": "Phone Reputation (Kaspersky Who Calls)", "weight": 0.20,
+         "applicable": address_applicable},
+        {"probe": "Phone Reputation (Kaspersky Who Calls)", "weight": 0.20, "configured_weight": 0.20,
+         "effective_weight": _eff(bool(phones), 0.20),
          "execution_time_ms": _timing.get("phone_ms"),
          "status": "CLEAN" if phone_clean else ("FLAGGED" if phone_flagged else ("NOT_PROVIDED" if phone_probe_status == "NOT_PROVIDED" else "UNAVAILABLE" if phone_probe_status in {"UNAVAILABLE", "PARTIAL"} else "SKIPPED")),
-         "url": first_phone.get("url")},
-        {"probe": "Web Evidence (SERP)", "weight": 0.20,
+         "applicable": bool(phones), "url": first_phone.get("url")},
+        {"probe": "Web Evidence (SERP)", "weight": 0.20, "configured_weight": 0.20,
+         "effective_weight": 0.20,
          "execution_time_ms": _timing.get("web_ms"),
-         "status": "VALID" if web_hit else ("NO_RELEVANT_RESULTS" if web_counts.get("no_relevant_searches", 0) else ("UNKNOWN" if search_unknown else "NO_HIT"))},
-        {"probe": "Email Security (DNS MX/SPF)", "weight": 0.20,
+         "status": "VALID" if web_hit else ("NO_RELEVANT_RESULTS" if web_counts.get("no_relevant_searches", 0) else ("UNKNOWN" if search_unknown else "NO_HIT")),
+         "applicable": True},
+        {"probe": "Email Security (DNS MX/SPF)", "weight": 0.20, "configured_weight": 0.20,
+         "effective_weight": _eff(email_applicable, 0.20),
          "execution_time_ms": _timing.get("email_ms"),
-         "status": "FREE_PROVIDER" if is_free_email else "CORPORATE"},
-        {"probe": "Legal Entity (AHU/OSS)", "weight": 0.15, "execution_time_ms": 0,
-         "status": "UNKNOWN", "note": "Tidak ada API publik otomatis"},
+         "status": "NOT_PROVIDED" if entities_known and not ((entities or {}).get("emails") or []) else "FREE_PROVIDER" if is_free_email else "CORPORATE",
+         "applicable": email_applicable},
+        {"probe": "Legal Entity (AHU/OSS)", "weight": 0.15, "configured_weight": 0.15,
+         "effective_weight": 0.15, "execution_time_ms": 0,
+         "status": "UNKNOWN", "applicable": True, "note": "Tidak ada API publik otomatis"},
     ]
 
     # Deduplication — jujur: tidak hitung pHash tanpa imagehash lib ----------

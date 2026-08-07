@@ -36,6 +36,27 @@ _PLATFORM_DOMAINS = {
 }
 
 
+# Token generik yang tidak membuktikan identitas brand — match token ini
+# tidak boleh menaikkan match_confidence (false positive: "Group", "Store",
+# "Solution", nama kota). Token identitas tersisa tetap dipakai sebagai sinyal.
+_COMPANY_GENERIC_TOKENS = {
+    "group", "store", "official", "solution", "solutions", "service", "services",
+    "center", "network", "indonesia", "internasional", "international",
+    "aksesoris", "accessories", "collection", "collections", "jaya", "sejahtera",
+    "makmur", "abadi", "sentosa", "mandiri", "global", "media", "studio",
+    "design", "digital", "karya", "maju", "bersama", "sukses", "utama",
+    "online", "shop", "multi", "prima", "indah", "sari", "agung", "mulia",
+    "berkah", "karunia", "persada", "nusantara", "jakarta", "yogyakarta",
+    "bandung", "surabaya", "medan", "semarang", "solo", "depok", "bekasi",
+    "tangerang", "bogor", "malang", "makassar", "palembang",
+}
+
+
+def _token_in_blob(token: str, blob: str) -> bool:
+    """Token boundary match — 'art' tidak boleh match 'partner'/'article'."""
+    return re.search(rf"(?<![a-z0-9]){re.escape(token)}(?![a-z0-9])", blob) is not None
+
+
 def _classify_platform(url: str, default: str = "social_media") -> str:
     """Klasifikasi platform dari URL domain."""
     u = url.lower()
@@ -197,10 +218,12 @@ def run_social_osint(entities: dict) -> dict[str, Any]:
     seen_urls: set[str] = set()
     all_posts = []
 
-    # Token unik nama perusahaan untuk scoring relevansi
+    # Token identitas nama perusahaan (buang token generik yang false-positive)
     _comp_tokens = {
         t for t in re.sub(r"[^\w]", " ", raw_company.lower()).split()
-        if len(t) >= 3 and t not in {"yang", "untuk", "dari", "dengan", "adalah", "dan", "atau"}
+        if len(t) >= 3
+        and t not in _COMPANY_GENERIC_TOKENS
+        and t not in {"yang", "untuk", "dari", "dengan", "adalah", "dan", "atau"}
     } - {"pt", "cv", "ud", "tb"}
 
     raw_posts = extra_posts + initial_posts
@@ -223,13 +246,22 @@ def run_social_osint(entities: dict) -> dict[str, Any]:
         p["is_official"] = False
         p["source_type"] = "social_aggregator" if _is_aggregator_post(p) else "public_search_result"
 
-        # Skor relevansi — berapa token nama perusahaan match di snippet/title
+        # Skor relevansi — token identitas (boundary match, bukan substring)
         if _comp_tokens:
             blob = f"{p.get('title', '')} {p.get('snippet', '')}".lower()
-            matched = {t for t in _comp_tokens if t in blob}
+            matched = {t for t in _comp_tokens if _token_in_blob(t, blob)}
             p["match_confidence"] = round(len(matched) / len(_comp_tokens), 2)
+            p["matched_tokens"] = sorted(matched)
+            p["matched_email"] = bool(re.search(r"[\w.+-]+@[\w.-]+\.[a-z]{2,}", blob))
+            p["matched_reason"] = (
+                "email" if p["matched_email"] and not matched
+                else "exact_tokens" if matched else "none"
+            )
         else:
             p["match_confidence"] = 0.0
+            p["matched_tokens"] = []
+            p["matched_email"] = False
+            p["matched_reason"] = "generic_only"
 
         # Buang post yang tidak mengandung token nama perusahaan yang cukup
         # instagram/threads: threshold 0.25 (bukan 0.0) — partial match generic seperti
@@ -349,6 +381,3 @@ def run_social_osint(entities: dict) -> dict[str, Any]:
         "errors": [],
     }
 
-
-# Backwards compatibility alias
-run_threads_osint = run_social_osint
