@@ -203,7 +203,10 @@ def search_web_evidence(query: str, max_results: int = 5) -> dict[str, Any]:
     for r in results:
         t_s = f"{r.get('title', '')} {r.get('snippet', '')}".lower()
         # Jika hasil pencarian tidak menyebutkan kata kunci entitas sama sekali (artikel umum), abaikan
-        if target_words and not any(tw in t_s for tw in target_words):
+        matched_target_words = [tw for tw in target_words if tw in t_s]
+        # Butuh minimal 2 kata entitas match — cegah false positive dari kata umum (e.g. "gula", "waxing")
+        min_match = min(2, len(target_words))
+        if target_words and len(matched_target_words) < min_match:
             continue
 
         if any(
@@ -217,7 +220,15 @@ def search_web_evidence(query: str, max_results: int = 5) -> dict[str, Any]:
                 "terbukti menipu",
             )
         ) and not any(
-            adv in t_s for adv in ("cara cek", "tips", "mengenali penipuan", "menghindari", "ciri-ciri", "10 ciri", "8 tips", "seputar")
+            adv in t_s for adv in (
+                "cara cek", "tips", "mengenali penipuan", "menghindari",
+                "ciri-ciri", "10 ciri", "8 tips", "seputar",
+                # boilerplate disclaimer portal loker — bukan laporan nyata
+                "waspada terhadap segala penipuan",
+                "hati hati juga apabila ada penawaran",
+                "jangan memberikan jaminan uang berapapun",
+                "pelamar tidak dipungut biaya",
+            )
         ):
             risk_flags.append(
                 "Hasil pencarian memuat indikasi laporan penipuan/loker palsu terkait query."
