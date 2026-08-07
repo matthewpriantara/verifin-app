@@ -218,6 +218,10 @@ export default function ReportPage() {
   const domain = (osint?.domain as Record<string, unknown> | undefined) || {};
   const addrs = (osint?.address_validations as Record<string, unknown>[] | undefined) || [];
   const phones = osint?.phones || [];
+  const timing = (osint?.timing as Record<string, unknown> | undefined) || {};
+  const ocrTiming = (timing.ocr as Record<string, unknown> | undefined) || {};
+  const ocrSec = typeof ocrTiming.inference_sec === "number" ? ocrTiming.inference_sec : null;
+  const osintSec = typeof timing.osint_parallel_sec === "number" ? timing.osint_parallel_sec : null;
 
   const osintBadges = [
     {
@@ -600,9 +604,9 @@ export default function ReportPage() {
               <BentoCard title="Pipeline Analisis" icon={Fingerprint}>
                 <div className="space-y-2">
                   {[
-                    { k: "OCR",   v: "PaddleOCR + OpenCV CLAHE" },
+                    { k: "OCR",   v: ocrSec != null ? `PaddleOCR · ${ocrSec}s` : "PaddleOCR + OpenCV CLAHE" },
                     { k: "NER",   v: "Hybrid Regex + LLM Extraction" },
-                    { k: "OSINT", v: `${osintBadges.length} probe paralel` },
+                    { k: "OSINT", v: osintSec != null ? `${osintBadges.length} probe · ${osintSec}s` : `${osintBadges.length} probe paralel` },
                     { k: "Graf",  v: "Case-memory entity graph" },
                     { k: "AI",    v: report.model_used || "Verifin AI (LLM)" },
                     { k: "XAI",   v: "SHAP Additive Explainer" },
@@ -647,24 +651,31 @@ function MapSection({ osint, entities }: { osint: VerifyResponse["osint"]; entit
   const bizDetails = (primaryAddr.business_details as Record<string, unknown>) || {};
   const lat = primaryAddr.lat ?? details.lat;
   const lon = primaryAddr.lon ?? details.lon;
-  const display = String(primaryAddr.display_name ?? details.display_name ?? primaryAddr.address_input ?? entityAddrs[0] ?? "Alamat Terverifikasi");
+  const addressInput = String(primaryAddr.address_input ?? entityAddrs[0] ?? "");
+  const geocodedDisplay = String(details.display_name ?? primaryAddr.display_name ?? "");
+  const display = addressInput || geocodedDisplay || "Alamat dari lowongan tidak tersedia";
   const matchedBizName = (bizDetails.matched_name as string | undefined) || String(entities?.companies?.[0] || "");
   const placeTitle = matchedBizName || display.split(",")[0] || "Lokasi Usaha";
+  const matchLevel = String(details.match_level ?? primaryAddr.match_level ?? "area");
+  const hasExactCoordinates = matchLevel === "exact" && lat != null && lon != null;
 
   const mapSearchQuery = matchedBizName
-    ? `${matchedBizName}, ${primaryAddr.address_input || display}`
-    : String(primaryAddr.address_input || display);
+    ? `${matchedBizName}, ${addressInput || geocodedDisplay}`
+    : addressInput || geocodedDisplay;
 
-  const gmapsUrl = `https://maps.google.com/?q=${encodeURIComponent(mapSearchQuery)}`;
+  const gmapsUrl = String(
+    details.google_maps_url ?? primaryAddr.google_maps_url ??
+    `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(mapSearchQuery)}`,
+  );
 
   const osmUrl = (primaryAddr.osm_url ?? details.osm_url) as string | undefined;
 
   const confidence = (details.confidence_score as number | undefined) ?? 0.8;
-  const accuracyLabel = primaryAddr.business_found
-    ? "Outlet fisik terdaftar di peta"
-    : confidence >= 0.25
-    ? "Alamat jalan & kecamatan valid"
-    : "Wilayah kabupaten/kota terverifikasi";
+  const accuracyLabel = matchLevel === "exact"
+    ? "Jalan & nomor cocok dengan hasil peta"
+    : matchLevel === "street"
+    ? "Jalan cocok; nomor belum terkonfirmasi"
+    : "Maps exact search; OSM baru menemukan area";
 
   return (
     <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.26 }}
@@ -675,8 +686,12 @@ function MapSection({ osint, entities }: { osint: VerifyResponse["osint"]; entit
         </p>
         <div className="overflow-hidden rounded-2xl border border-border bg-bg-elevated p-4">
           <div className="flex flex-wrap items-center gap-1.5">
-            <span className="inline-flex items-center gap-1 rounded-md bg-aman-bg px-2 py-0.5 font-mono text-[10px] font-bold text-aman-fg">
-              <CheckCircle size={11} weight="fill" /> OSM Verified
+            <span className={cn(
+              "inline-flex items-center gap-1 rounded-md px-2 py-0.5 font-mono text-[10px] font-bold",
+              matchLevel === "exact" ? "bg-aman-bg text-aman-fg" : "bg-bg-subtle text-text-secondary",
+            )}>
+              {matchLevel === "exact" ? <CheckCircle size={11} weight="fill" /> : <MapPin size={11} weight="fill" />}
+              {matchLevel === "exact" ? "OSM Exact Match" : "Alamat Lowongan"}
             </span>
             <span className="rounded-md bg-amber-500/20 px-2 py-0.5 font-mono text-[10px] font-bold text-amber-500">
               {accuracyLabel}
@@ -684,7 +699,12 @@ function MapSection({ osint, entities }: { osint: VerifyResponse["osint"]; entit
           </div>
           <h4 className="mt-2.5 text-[17px] font-extrabold tracking-tight text-text-primary">{placeTitle}</h4>
           <p className="mt-1 text-[12px] leading-relaxed text-text-secondary">{display}</p>
-          {lat != null && lon != null && (
+          {geocodedDisplay && geocodedDisplay !== display && (
+            <p className="mt-1 text-[11px] leading-relaxed text-text-muted">
+              Hasil geocode: {geocodedDisplay}
+            </p>
+          )}
+          {hasExactCoordinates && (
             <p className="mt-2 font-mono text-[11px] text-text-muted">
               Koordinat GPS: {Number(lat).toFixed(6)}, {Number(lon).toFixed(6)}
             </p>
@@ -732,7 +752,7 @@ function MapSection({ osint, entities }: { osint: VerifyResponse["osint"]; entit
               className="inline-flex flex-1 items-center justify-center gap-1.5 rounded-xl border border-aman-border bg-aman-bg px-3 py-2 text-[12px] font-semibold text-aman-fg transition-all hover:bg-aman-bg/80">
               <MapPin size={14} weight="bold" /> Buka Google Maps <ArrowSquareOut size={12} />
             </a>
-            {typeof osmUrl === "string" && (
+            {typeof osmUrl === "string" && matchLevel === "exact" && (
               <a href={osmUrl} target="_blank" rel="noreferrer"
                 className="inline-flex items-center justify-center gap-1.5 rounded-xl border border-border bg-bg-subtle px-3 py-2 text-[12px] font-medium text-text-secondary transition-colors hover:border-border-focus">
                 <Globe size={13} weight="bold" /> OpenStreetMap <ArrowSquareOut size={11} />
