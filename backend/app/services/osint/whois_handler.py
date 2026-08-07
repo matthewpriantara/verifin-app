@@ -43,7 +43,7 @@ def check_domain_age(domain: str) -> dict:
         if cd:
             creation_date = cd
     except Exception as e:
-        logger.warning("WHOIS lookup gagal untuk %s: %s", domain, e)
+        logger.debug("WHOIS lookup gagal untuk %s: %s", domain, e)
 
     if not creation_date:
         creation_date = _wayback_first_seen(domain)
