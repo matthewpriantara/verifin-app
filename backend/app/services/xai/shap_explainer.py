@@ -272,8 +272,7 @@ def explain_verification_shap(
         ))
 
     # Tidak ada alamat fisik = sinyal risiko medium
-    address_validations_check = osint_results.get("address_validations") or []
-    if not address_validations_check:
+    if not address_validations:
         contributions.append(_make_contrib(
             "Tidak Ada Alamat Fisik Tercantum",
             "no_address",

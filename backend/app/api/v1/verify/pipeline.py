@@ -4,6 +4,7 @@ import copy
 import logging
 import re
 from sqlalchemy.orm import Session
+from app.services.hasher import detect_identity_syndicate
 
 from app.api.v1.verify.schema import VerifyResponse, ExtractedEntities
 from app.database.models import JobCase
@@ -60,7 +61,6 @@ def _check_fraud_network(db: Session, entities: dict) -> dict:
 
         # Syndicate: deteksi reuse no HP/email lintas perusahaan berbeda
         try:
-            from app.services.hasher import detect_identity_syndicate
             # siapkan company_name per kasus agar reuse lintas perusahaan terdeteksi
             hist = [
                 {
@@ -518,7 +518,6 @@ def _to_response(
         if network_ctx.get("syndicate_analysis"):
             osint_results["syndicate_analysis"] = network_ctx["syndicate_analysis"]
         elif "syndicate_analysis" not in osint_results:
-            from app.services.hasher import detect_identity_syndicate
             osint_results["syndicate_analysis"] = detect_identity_syndicate(
                 contacts=safe_entities.get("phones") or [],
                 emails=safe_entities.get("emails") or [],

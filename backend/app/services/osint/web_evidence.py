@@ -6,6 +6,7 @@ Web evidence via Scrapling:
 
 import base64
 import re
+import asyncio
 from typing import Any
 from urllib.parse import quote_plus, urlparse
 
@@ -429,7 +430,5 @@ def collect_web_evidence(entities: dict) -> dict[str, Any]:
 
 
 async def run_web_evidence(entities: dict) -> dict[str, Any]:
-    import asyncio
-
     loop = asyncio.get_running_loop()
     return await loop.run_in_executor(None, collect_web_evidence, entities)
