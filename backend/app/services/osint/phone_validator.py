@@ -132,6 +132,27 @@ def _search_phone_public_serp(phone_meta: dict[str, str]) -> dict[str, Any]:
                 f"SERP publik: laporan penipuan terkait nomor {phone_meta['display']}"
             )
             break
+
+    # Deteksi nomor shared: nomor dipakai oleh >2 entitas/perusahaan berbeda
+    # = kemungkinan nomor aggregator loker atau nomor penipu serial
+    _PORTAL_DOMAINS = ("lokerjogja", "lokerjogja", "jobstreet", "glints", "kalibrr",
+                       "karir.com", "indeed", "linkedin", "loker.id", "toploker",
+                       "depokloker", "lokerbandung", "lokerjatim", "lokerindonesia")
+    non_portal_titles = [
+        r.get("title", "")
+        for r in filtered
+        if not any(p in (r.get("url") or "").lower() for p in _PORTAL_DOMAINS)
+        and (
+            phone_digits in re.sub(r"\D", "", (r.get("title","") + r.get("snippet","")))
+            or f"0{phone_digits}" in (r.get("snippet","") + r.get("title",""))
+        )
+    ]
+    if len(non_portal_titles) > 2:
+        risk_flags.append(
+            f"Nomor {phone_meta['display']} dipakai di {len(non_portal_titles)} entitas/loker berbeda "
+            f"— kemungkinan nomor aggregator atau dipakai ulang lintas perusahaan."
+        )
+
     return {"serp_checked": True, "serp_results": filtered, "risk_flags": risk_flags, "found_scam": found_scam}
 
 
