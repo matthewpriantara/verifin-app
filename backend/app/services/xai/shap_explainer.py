@@ -283,7 +283,10 @@ def explain_verification_shap(
         ))
 
     companies = osint_results.get("companies") or []
-    if any(c.get("found") for c in companies):
+    if any(
+        (c.get("stats") or {}).get("public_mentions", 0) > 0 or bool(c.get("safe_flags"))
+        for c in companies if isinstance(c, dict)
+    ):
         contributions.append(_make_contrib(
             "Jejak Digital Perusahaan Ditemukan",
             "company_found_web",
@@ -430,7 +433,12 @@ def _build_forensic_metadata(
 
     # Sinyal boolean nyata --------------------------------------------------
     company_name = (companies[0].get("name") if companies and isinstance(companies[0], dict) else None) or "Tidak terdeteksi"
-    company_found = any(c.get("found") for c in companies if isinstance(c, dict))
+    # "found" tidak ada di company object — pakai public_mentions atau safe_flags sebagai proxy
+    company_found = any(
+        (c.get("stats") or {}).get("public_mentions", 0) > 0
+        or bool(c.get("safe_flags"))
+        for c in companies if isinstance(c, dict)
+    )
     address_found = any(a.get("found") or a.get("address_found") for a in addr if isinstance(a, dict))
     phone_checked = len(phones) > 0
     phone_clean = phone_checked and any(
@@ -489,22 +497,21 @@ def _build_forensic_metadata(
         {"factor": "social_footprint", **_cs(90.0 if social_hit else (70.0 if web_hit else 40.0), 0.20)},
     ]
 
-    # Probe weights — bobot statis (boleh), timing & status DINAMIS -----------
-    # Distribusi waktu per-probe berdasarkan bobot relatif empiris
-    _ms = osint_ms or 0
-    _t_addr  = int(_ms * 0.30)
-    _t_phone = int(_ms * 0.20)
-    _t_web   = int(_ms * 0.35)
-    _t_email = int(_ms * 0.15)
+    # Probe weights — bobot statis, timing dari actual osint_timing kalau ada
+    _timing = osint_results.get("timing") or {}
     probe_weights = [
-        {"probe": "Address Geocoding (OSM GIS)", "weight": 0.25, "execution_time_ms": _t_addr,
+        {"probe": "Address Geocoding (OSM GIS)", "weight": 0.25,
+         "execution_time_ms": _timing.get("addr_ms"),  # None = tidak diukur, jujur
          "status": "VALID" if address_found else "NOT_FOUND"},
-        {"probe": "Phone Reputation (Kaspersky Who Calls)", "weight": 0.20, "execution_time_ms": _t_phone,
+        {"probe": "Phone Reputation (Kaspersky Who Calls)", "weight": 0.20,
+         "execution_time_ms": _timing.get("phone_ms"),
          "status": "CLEAN" if phone_clean else ("FLAGGED" if phone_flagged else "SKIPPED"),
          "url": first_phone.get("url")},
-        {"probe": "Web Evidence (SERP)", "weight": 0.20, "execution_time_ms": _t_web,
+        {"probe": "Web Evidence (SERP)", "weight": 0.20,
+         "execution_time_ms": _timing.get("web_ms"),
          "status": "VALID" if web_hit else "NO_HIT"},
-        {"probe": "Email Security (DNS MX/SPF)", "weight": 0.20, "execution_time_ms": _t_email,
+        {"probe": "Email Security (DNS MX/SPF)", "weight": 0.20,
+         "execution_time_ms": _timing.get("email_ms"),
          "status": "FREE_PROVIDER" if is_free_email else "CORPORATE"},
         {"probe": "Legal Entity (AHU/OSS)", "weight": 0.15, "execution_time_ms": 0,
          "status": "UNKNOWN", "note": "Tidak ada API publik otomatis"},
