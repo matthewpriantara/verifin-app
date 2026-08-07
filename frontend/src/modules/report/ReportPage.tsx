@@ -494,7 +494,7 @@ export default function ReportPage() {
           {shap && shap.feature_contributions.length > 0 && (
             <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.14 }}
               className="col-span-4 lg:col-span-3">
-              <BentoCard title="Evidence Attribution (SHAP)" icon={ChartBar} className="h-full">
+              <BentoCard title="Evidence Attribution" icon={ChartBar} className="h-full">
                 <p className="mb-4 text-[14px] text-text-secondary">
                   Kontribusi tiap sinyal bukti terhadap skor risiko.{" "}
                   <span className="font-medium text-text-primary">Transparan — bukan black box.</span>
@@ -609,7 +609,7 @@ export default function ReportPage() {
                     { k: "OSINT", v: osintSec != null ? `${osintBadges.length} probe · ${osintSec}s` : `${osintBadges.length} probe paralel` },
                     { k: "Graf",  v: "Case-memory entity graph" },
                     { k: "AI",    v: report.model_used || "Verifin AI (LLM)" },
-                    { k: "XAI",   v: "SHAP Additive Explainer" },
+                    { k: "XAI",   v: "Evidence Attribution Explainer" },
                   ].map(({ k, v }) => (
                     <div key={k} className="flex items-center justify-between gap-2">
                       <span className="text-[13px] font-medium text-text-secondary">{k}</span>

@@ -57,8 +57,8 @@ const STEPS = [
   },
   {
     id: "ai",
-    label: "LLM Reasoning + SHAP XAI",
-    detail: "Verifin AI menganalisis fakta OSINT, SHAP menghitung kontribusi tiap sinyal risiko",
+    label: "LLM Reasoning + Evidence Attribution",
+    detail: "Verifin AI menganalisis fakta OSINT, Evidence Attribution menghitung kontribusi tiap sinyal risiko",
     icon: Cpu,
     duration: 2500,
   },

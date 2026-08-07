@@ -19,6 +19,7 @@ from typing import Any
 import asyncio
 
 from app.services.constants import FREE_EMAIL_DOMAINS as _FREE_EMAIL_DOMAINS
+from app.services.status_contract import COMPLETED
 from app.services.osint.web_evidence import (
     _domain_from_email,
     fetch_company_website,
@@ -59,6 +60,7 @@ def _search_company_traces(company: str, entities: dict | None = None) -> list[d
             {
                 "query": q,
                 "ok": res.get("ok"),
+                "request_status": res.get("request_status"),
                 "source": res.get("engine", "searxng"),
                 "search_url": res.get("url"),
                 "results": res.get("results") or [],
@@ -129,7 +131,7 @@ def validate_company_public(company: str, entities: dict | None = None) -> dict[
     legality_mentions = 0
     successful_requests = 0
     for s in searches:
-        if s.get("ok"):
+        if s.get("request_status") == COMPLETED:
             successful_requests += 1
         is_legality_query = "NIB" in s.get("query", "") or "akta pendirian" in s.get("query", "")
         evidence.append(

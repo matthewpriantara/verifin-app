@@ -99,8 +99,8 @@ def _sync_scrapling_fetch(url: str) -> tuple[str, list[str]]:
                             combined_caption_text = og_d["content"]
                         if image_urls:
                             break
-                except Exception:
-                    pass
+                except Exception as exc:
+                    logger.warning("[IG Proxy %s] %s", domain, exc)
 
     # Generic Scrapling/HTTPX fetcher (untuk website non-IG atau fallback)
     try:

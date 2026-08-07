@@ -26,9 +26,12 @@ def _save_case_to_db(
     osint_results: dict | None,
     entities: dict | None = None,
     source: str = "text",
-) -> None:
-    """Simpan case + entities lengkap (fondasi exact-match memory)."""
+) -> str:
+    """Simpan case + entities lengkap. Return persistence_status: SAVED | FAILED."""
     from sqlalchemy.exc import IntegrityError
+
+    if db is None:
+        return "SKIPPED"
 
     try:
         text_hash = _case_hash(raw_text)
@@ -97,9 +100,11 @@ def _save_case_to_db(
             )
             db.add(db_case)
         db.commit()
+        return "SAVED"
     except Exception as e:
         db.rollback()
         logger.warning("Error saving job case to database: %s", e)
+        return "FAILED"
 
 
 def _get_cached_case_from_db(db: Session, raw_input_str: str) -> VerifyResponse | None:

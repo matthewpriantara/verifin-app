@@ -156,7 +156,7 @@ def _build_web_osint_section(web: dict) -> str:
 
     lines = [f"- Engine: {web.get('engine', 'scrapling')}"]
     for w in (web.get("websites") or [])[:3]:
-        if w.get("ok"):
+        if w.get("website_status") == "AVAILABLE":
             lines.append(
                 f"- Website OK: {w.get('url')} | title: {(w.get('title') or '-')[:80]}"
             )

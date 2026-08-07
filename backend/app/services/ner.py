@@ -2,7 +2,7 @@
 Ekstraksi entitas dari teks lowongan — full regex struktural (Layer 0 hybrid NER).
 
 Keluaran fungsi ini digabung dengan hasil LLM extraction di pipeline.py
-via hybrid_merge_entities — regex untuk entitas struktural (HP, email, PT/CV),
+(merge strategi per-kategori) — regex untuk entitas struktural (HP, email, PT/CV),
 LLM untuk entitas semantik/ambigu (nama brand, alamat tidak terstruktur).
 
 Desain:

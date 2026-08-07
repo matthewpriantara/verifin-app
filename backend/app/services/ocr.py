@@ -20,9 +20,12 @@ def get_ocr_model():
     if ocr_model is None:
         # Latency-first: angle cls OFF (mahal di CPU), det threshold tetap longgar
         # agar teks kecil di logo/footer tetap kebaca.
+        # lang="id" → PaddleOCR 2.8.1 memetakan ke model latin PP-OCRv3 rec
+        # (diuji: ~11s vs ~20s lang="en" di poster 1000px, hasil ekstraksi
+        # phone/email/URL identik) — lebih cocok untuk teks Indonesia.
         ocr_model = PaddleOCR(
             use_angle_cls=False,
-            lang="en",
+            lang="id",
             enable_mkldnn=False,
             show_log=False,
             det_db_thresh=0.2,
