@@ -426,34 +426,19 @@ async def validate_address_and_business(address: str, company_name: str = None) 
         f"Alamat terverifikasi ada di peta: {geo.get('display_name', '')[:100]}"
     )
 
-    # Step 2: Cari bisnis di sekitar koordinat (hanya jika ada nama perusahaan)
-    lat, lon = geo["lat"], geo["lon"]
-
+    # Step 2: Overpass bisnis lookup — dinonaktifkan, public instance 406/504
+    # address_found dari Nominatim sudah cukup untuk SHAP; business_details
+    # tidak affect verdict/risk_score. Web search location match lebih reliable
+    # untuk konfirmasi keberadaan fisik UMKM Indonesia.
     if company_name:
-        biz = await search_business_near_location(lat, lon, company_name)
-        result["business_details"] = biz
-
-        if biz.get("found"):
-            result["business_found"] = True
-            result["safe_signals"].append(
-                f"Nama bisnis '{biz['matched_name']}' ditemukan di OpenStreetMap "
-                f"dekat alamat tersebut (kemiripan: {biz['similarity']*100:.0f}%)."
-            )
-        else:
-            result["business_found"] = False
-            # Ini bukan risiko penipuan langsung (UMKM sering tidak terdaftar di OSM), masukkan ke catatan netral
-            if biz.get("nearby_businesses"):
-                result["neutral_notes"].append(
-                    f"Nama perusahaan '{company_name}' tidak terdaftar di OpenStreetMap sekitar alamat ini. "
-                    f"Bisnis terdekat yang tercatat di OSM: {', '.join(biz['nearby_businesses'][:3])}."
-                )
-            else:
-                result["neutral_notes"].append(
-                    f"Nama perusahaan '{company_name}' tidak terdaftar di OpenStreetMap sekitar alamat ini. "
-                    f"Ini hal wajar untuk UMKM baru/kecil di Indonesia."
-                )
+        result["business_found"] = False
+        result["business_details"] = {
+            "found": False,
+            "skipped": "overpass_disabled",
+            "nearby_businesses": [],
+        }
     else:
-        result["business_found"] = None  # Tidak bisa dicek karena tidak ada nama perusahaan
+        result["business_found"] = None
 
     # Step 3: Web search fallback — kalau Overpass miss atau Nominatim miss
     if company_name and result["business_found"] is not True:
