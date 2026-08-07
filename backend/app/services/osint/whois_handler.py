@@ -8,36 +8,65 @@ import whois
 logger = logging.getLogger(__name__)
 
 
+def _wayback_first_seen(domain: str) -> datetime | None:
+    """Fallback: tanya Wayback Machine CDX API kapan domain pertama kali di-crawl."""
+    try:
+        from curl_cffi import requests as cffi_req
+        url = (
+            f"https://web.archive.org/cdx/search/cdx"
+            f"?url={domain}&output=json&limit=1&fl=timestamp&from=2000&filter=statuscode:200"
+        )
+        r = cffi_req.get(url, impersonate="chrome120", timeout=6)
+        if r.status_code != 200:
+            return None
+        data = r.json()
+        # data[0] = header row ["timestamp"], data[1] = first result
+        if len(data) >= 2 and data[1]:
+            ts = data[1][0]  # format: "20250317144540"
+            return datetime.strptime(ts, "%Y%m%d%H%M%S").replace(tzinfo=timezone.utc)
+    except Exception as e:
+        logger.debug("Wayback CDX fallback gagal untuk %s: %s", domain, e)
+    return None
+
+
 def check_domain_age(domain: str) -> dict:
-    """Cek umur domain dari data WHOIS."""
+    """Cek umur domain dari WHOIS, fallback ke Wayback Machine CDX kalau WHOIS gagal."""
     logger.debug("Mengecek umur domain: %s", domain)
+    creation_date = None
+    source = "whois"
+
     try:
         w = whois.whois(domain)
-        creation_date = w.creation_date
-
-        if isinstance(creation_date, list):
-            creation_date = creation_date[0]
-
-        if not creation_date:
-            return {"age_days": -1, "age_years": None, "is_new": None, "created_at": "Unknown"}
-
-        # Normalize ke UTC — handle aware dan naive datetime
-        now = datetime.now(timezone.utc)
-        if getattr(creation_date, "tzinfo", None) is None:
-            creation_date = creation_date.replace(tzinfo=timezone.utc)
-        else:
-            creation_date = creation_date.astimezone(timezone.utc)
-
-        age_days = (now - creation_date).days
-        return {
-            "age_days": age_days,
-            "age_years": round(age_days / 365, 2) if age_days >= 0 else None,
-            "is_new": age_days < 90,
-            "created_at": creation_date.strftime("%Y-%m-%d"),
-        }
+        cd = w.creation_date
+        if isinstance(cd, list):
+            cd = cd[0]
+        if cd:
+            creation_date = cd
     except Exception as e:
         logger.warning("WHOIS lookup gagal untuk %s: %s", domain, e)
-        return {"error": str(e), "is_new": None, "age_days": -1, "age_years": None, "created_at": "Unknown"}
+
+    if not creation_date:
+        creation_date = _wayback_first_seen(domain)
+        source = "wayback_cdx"
+
+    if not creation_date:
+        return {"age_days": -1, "age_years": None, "is_new": None, "created_at": "Unknown", "source": source}
+
+    # Normalize ke UTC
+    now = datetime.now(timezone.utc)
+    if getattr(creation_date, "tzinfo", None) is None:
+        creation_date = creation_date.replace(tzinfo=timezone.utc)
+    else:
+        creation_date = creation_date.astimezone(timezone.utc)
+
+    age_days = (now - creation_date).days
+    return {
+        "age_days": age_days,
+        "age_years": round(age_days / 365, 2) if age_days >= 0 else None,
+        "is_new": age_days < 90,
+        "created_at": creation_date.strftime("%Y-%m-%d"),
+        "source": source,
+    }
 
 
 def check_email_security(domain: str) -> dict:
