@@ -127,7 +127,7 @@ def _search_platform_serp(query: str, platform: str = "") -> list[dict[str, str]
     ]
 
 
-async def run_social_osint(entities: dict) -> dict[str, Any]:
+def run_social_osint(entities: dict) -> dict[str, Any]:
     """
     Social Media OSINT — cari jejak perusahaan di berbagai platform.
     Platform: Instagram, Threads, X (Twitter), TikTok, Facebook, Linktree, Portal Loker.

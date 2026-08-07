@@ -418,7 +418,7 @@ async def _run_osint_on_entities(entities: dict) -> dict:
 
     async def _threads_job() -> dict:
         try:
-            return await run_social_osint(entities)
+            return await asyncio.to_thread(run_social_osint, entities)
         except Exception as exc:
             return {
                 "enabled": True,
