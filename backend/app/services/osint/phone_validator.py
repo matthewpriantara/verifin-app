@@ -166,7 +166,7 @@ def _search_phone_public_serp(phone_meta: dict[str, str]) -> dict[str, Any]:
     return {"serp_checked": True, "serp_results": filtered, "risk_flags": risk_flags, "found_scam": found_scam}
 
 
-def check_phone_kredibel(phone: str, company: str = "") -> dict[str, Any]:
+def check_phone_reputation(phone: str, company: str = "") -> dict[str, Any]:
     """Cek reputasi nomor HP via Kaspersky → SERP fallback."""
     meta = normalize_phone_id(phone)
     meta["company"] = company
@@ -193,13 +193,13 @@ def check_phone_kredibel(phone: str, company: str = "") -> dict[str, Any]:
     }
 
 
-async def check_phones_kredibel(contacts: list[str], limit: int = 2, company: str = "") -> list[dict[str, Any]]:
+async def check_phones_reputation(contacts: list[str], limit: int = 2, company: str = "") -> list[dict[str, Any]]:
     phones = [c for c in (contacts or []) if c][:limit]
     if not phones:
         return []
     loop = asyncio.get_running_loop()
     results = []
     for ph in phones:
-        result = await loop.run_in_executor(None, check_phone_kredibel, ph, company)
+        result = await loop.run_in_executor(None, check_phone_reputation, ph, company)
         results.append(result)
     return results
