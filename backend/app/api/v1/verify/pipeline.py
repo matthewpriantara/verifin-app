@@ -360,7 +360,8 @@ async def _run_osint_on_entities(entities: dict) -> dict:
 
     async def _phones_job() -> list:
         try:
-            return await check_phones_kredibel(entities.get("phones") or [], limit=1)
+            company = (entities.get("companies") or [""])[0]
+            return await check_phones_kredibel(entities.get("phones") or [], limit=1, company=company)
         except Exception as exc:
             return [
                 {"source": "kredibel", "found": False, "error": str(exc), "risk_flags": []}
