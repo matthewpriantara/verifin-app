@@ -17,7 +17,7 @@ from app.services.ner import (
 )
 from app.services.osint.address_validator import validate_address_and_business
 from app.services.osint.company_validator import validate_companies
-from app.services.osint.phone_validator import check_phones_kredibel
+from app.services.osint.phone_validator import check_phones_reputation
 from app.services.osint.social import run_social_osint
 from app.services.osint.web_evidence import run_web_evidence
 from app.services.osint.whois_handler import check_domain_age, check_email_security
@@ -361,7 +361,7 @@ async def _run_osint_on_entities(entities: dict) -> dict:
     async def _phones_job() -> list:
         try:
             company = (entities.get("companies") or [""])[0]
-            return await check_phones_kredibel(entities.get("phones") or [], limit=1, company=company)
+            return await check_phones_reputation(entities.get("phones") or [], limit=1, company=company)
         except Exception as exc:
             return [
                 {"source": "kredibel", "found": False, "error": str(exc), "risk_flags": []}
