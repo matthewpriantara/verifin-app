@@ -133,32 +133,43 @@ def _search_phone_public_serp(phone_meta: dict[str, str]) -> dict[str, Any]:
             )
             break
 
-    # Deteksi nomor shared: nomor dipakai oleh >2 entitas/perusahaan berbeda
-    # = kemungkinan nomor aggregator loker atau nomor penipu serial
-    _PORTAL_DOMAINS = ("lokerjogja", "lokerjogja", "jobstreet", "glints", "kalibrr",
-                       "karir.com", "indeed", "linkedin", "loker.id", "toploker",
-                       "depokloker", "lokerbandung", "lokerjatim", "lokerindonesia")
-    non_portal_titles = [
-        r.get("title", "")
-        for r in filtered
-        if not any(p in (r.get("url") or "").lower() for p in _PORTAL_DOMAINS)
-        and (
-            phone_digits in re.sub(r"\D", "", (r.get("title","") + r.get("snippet","")))
-            or f"0{phone_digits}" in (r.get("snippet","") + r.get("title",""))
-        )
-    ]
-    if len(non_portal_titles) > 2:
-        risk_flags.append(
-            f"Nomor {phone_meta['display']} dipakai di {len(non_portal_titles)} entitas/loker berbeda "
-            f"— kemungkinan nomor aggregator atau dipakai ulang lintas perusahaan."
-        )
+    # Deteksi nomor dipakai oleh perusahaan BERBEDA secara eksplisit.
+    # Strategi: kumpulkan semua "employer name" dari title/snippet hasil SERP,
+    # lalu cek apakah ada nama perusahaan LAIN (bukan company yang dicek sekarang)
+    # yang muncul bersama nomor ini. Ini lebih akurat dari sekadar hitung jumlah hasil.
+    # ponytail: simple substring match, upgrade ke fuzzy/NER kalau false positive masih banyak
+    company_hint = phone_meta.get("company", "").lower()
+    if company_hint:
+        conflicting = [
+            r.get("title", "")
+            for r in filtered
+            if (
+                phone_digits in re.sub(r"\D", "", (r.get("title","") + r.get("snippet","")))
+                or f"0{phone_digits}" in (r.get("snippet","") + r.get("title",""))
+            )
+            and company_hint not in (r.get("title","") + r.get("snippet","")).lower()
+            # buang portal loker — mereka listing banyak company di 1 domain
+            and not any(p in (r.get("url") or "").lower() for p in (
+                "lokerjogja", "jobstreet", "glints", "kalibrr", "karir.com",
+                "indeed", "linkedin", "loker.id", "toploker", "depokloker",
+                "instagram.com", "facebook.com", "tiktok.com",
+                # portal aggregator repost lowongan dengan nomor kontak mereka sendiri
+            ))
+        ]
+        if len(conflicting) > 1:
+            risk_flags.append(
+                f"Nomor {phone_meta['display']} ditemukan pada lowongan perusahaan lain "
+                f"({len(conflicting)} hasil tidak terkait '{phone_meta.get('company')}') "
+                f"— kemungkinan nomor dipakai ulang lintas perusahaan."
+            )
 
     return {"serp_checked": True, "serp_results": filtered, "risk_flags": risk_flags, "found_scam": found_scam}
 
 
-def check_phone_kredibel(phone: str) -> dict[str, Any]:
+def check_phone_kredibel(phone: str, company: str = "") -> dict[str, Any]:
     """Cek reputasi nomor HP via Kaspersky → SERP fallback."""
     meta = normalize_phone_id(phone)
+    meta["company"] = company
     if not meta["local"] or len(meta["local"]) < 8:
         return {
             "source": "kaspersky",
@@ -182,13 +193,13 @@ def check_phone_kredibel(phone: str) -> dict[str, Any]:
     }
 
 
-async def check_phones_kredibel(contacts: list[str], limit: int = 2) -> list[dict[str, Any]]:
+async def check_phones_kredibel(contacts: list[str], limit: int = 2, company: str = "") -> list[dict[str, Any]]:
     phones = [c for c in (contacts or []) if c][:limit]
     if not phones:
         return []
     loop = asyncio.get_running_loop()
     results = []
     for ph in phones:
-        result = await loop.run_in_executor(None, check_phone_kredibel, ph)
+        result = await loop.run_in_executor(None, check_phone_kredibel, ph, company)
         results.append(result)
     return results
