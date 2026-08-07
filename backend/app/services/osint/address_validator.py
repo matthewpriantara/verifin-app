@@ -1,12 +1,11 @@
 """
 Address Validator untuk Verifin OSINT Engine.
 Memverifikasi alamat fisik dari lowongan kerja menggunakan Nominatim (OpenStreetMap)
-untuk geocoding — apakah alamat ini nyata dan ada di Indonesia?
 """
 
 import re
-
 import httpx
+from urllib.parse import quote_plus
 
 # ─────────────────────────────────────────────────────────────────────────────
 # Konfigurasi
@@ -38,6 +37,49 @@ async def _geocode_single(address: str, client: httpx.AsyncClient) -> dict | Non
     response.raise_for_status()
     results = response.json()
     return results[0] if results else None
+
+
+def _address_tokens(value: str) -> set[str]:
+    return {
+        token
+        for token in re.sub(r"[^\w\s]", " ", (value or "").lower()).split()
+        if len(token) >= 3 and token not in _ADDR_STOP_WORDS
+    }
+
+
+def _classify_geocode_match(address: str, result: dict) -> dict:
+    address_details = result.get("address") or {}
+    display_name = result.get("display_name") or ""
+    result_text = " ".join(
+        [display_name, *[str(value) for value in address_details.values() if value]]
+    )
+    input_tokens = _address_tokens(address)
+    result_tokens = _address_tokens(result_text)
+    matched_tokens = input_tokens & result_tokens
+    house_numbers = set(re.findall(r"\b\d+[a-z]?\b", (address or "").lower()))
+    result_house_numbers = set(re.findall(r"\b\d+[a-z]?\b", result_text.lower()))
+    house_number_match = bool(house_numbers & result_house_numbers)
+    street_name = str(address_details.get("road") or "").lower()
+    street_match = bool(street_name) and any(
+        token in street_name for token in input_tokens if len(token) >= 4
+    )
+    token_score = len(matched_tokens) / len(input_tokens) if input_tokens else 0.0
+
+    if house_number_match and street_match:
+        match_level = "exact"
+    elif street_match and token_score >= 0.25:
+        match_level = "street"
+    else:
+        match_level = "area"
+
+    return {
+        "match_level": match_level,
+        "coordinates_exact": match_level == "exact",
+        "house_number_match": house_number_match,
+        "street_match": street_match,
+        "token_score": round(token_score, 3),
+        "matched_tokens": sorted(matched_tokens),
+    }
 
 
 # Peta koreksi OCR typo umum pada nama wilayah Indonesia
@@ -169,7 +211,7 @@ def _build_fallback_queries(address: str) -> list[str]:
 
 
 
-async def geocode_address(address: str) -> dict:
+async def geocode_address(address: str, company_name: str | None = None) -> dict:
     """
     Mengkonversi alamat teks menjadi koordinat lat/lon menggunakan Nominatim.
     Mencoba beberapa variasi query (fallback) jika query utama tidak ditemukan.
@@ -179,23 +221,51 @@ async def geocode_address(address: str) -> dict:
     """
     try:
         async with httpx.AsyncClient(timeout=REQUEST_TIMEOUT, headers=NOMINATIM_HEADERS) as client:
-            for query in _build_fallback_queries(address):
+            queries = _build_fallback_queries(address)
+            if company_name:
+                clean_address = _clean_address_input(address)
+                queries = [
+                    f"{company_name}, {clean_address}, Indonesia",
+                    f"{company_name}, {clean_address}",
+                    *queries,
+                ]
+
+            best_result = None
+            best_match = None
+            best_query = None
+            match_rank = {"area": 0, "street": 1, "exact": 2}
+            for query in queries:
                 result = await _geocode_single(query, client)
                 if result:
-                    address_details = result.get("address", {})
-                    country = address_details.get("country", "")
-                    importance = float(result.get("importance", 0))
-                    return {
-                        "found": True,
-                        "lat": float(result["lat"]),
-                        "lon": float(result["lon"]),
-                        "display_name": result.get("display_name", ""),
-                        "country": country,
-                        "confidence_score": round(importance, 3),
-                        "matched_query": query,
-                        "google_maps_url": f"https://maps.google.com/?q={float(result['lat'])},{float(result['lon'])}",
-                        "osm_url": f"https://www.openstreetmap.org/?mlat={float(result['lat'])}&mlon={float(result['lon'])}&zoom=17",
-                    }
+                    match = _classify_geocode_match(address, result)
+                    if best_match is None or match_rank[match["match_level"]] > match_rank[best_match["match_level"]]:
+                        best_result = result
+                        best_match = match
+                        best_query = query
+                    if match["match_level"] == "exact":
+                        break
+
+            if best_result and best_match:
+                result = best_result
+                address_details = result.get("address", {})
+                country = address_details.get("country", "")
+                importance = float(result.get("importance", 0))
+                clean_address = _clean_address_input(address)
+                maps_query = ", ".join(
+                    value for value in (company_name, clean_address) if value
+                )
+                return {
+                    "found": True,
+                    "lat": float(result["lat"]),
+                    "lon": float(result["lon"]),
+                    "display_name": result.get("display_name", ""),
+                    "country": country,
+                    "confidence_score": round(importance, 3),
+                    "matched_query": best_query,
+                    "google_maps_url": f"https://www.google.com/maps/search/?api=1&query={quote_plus(maps_query)}",
+                    "osm_url": f"https://www.openstreetmap.org/?mlat={float(result['lat'])}&mlon={float(result['lon'])}&zoom=17",
+                    **best_match,
+                }
 
         return {
             "found": False,
@@ -284,7 +354,7 @@ async def validate_address_and_business(address: str, company_name: str = None) 
     }
 
     # Step 1: Geocode alamat
-    geo = await geocode_address(address)
+    geo = await geocode_address(address, company_name)
     result["address_details"] = geo
 
     if not geo.get("found"):
@@ -295,9 +365,18 @@ async def validate_address_and_business(address: str, company_name: str = None) 
         return result
 
     result["address_found"] = True
-    result["safe_signals"].append(
-        f"Alamat terverifikasi ada di peta: {geo.get('display_name', '')[:100]}"
-    )
+    if geo.get("match_level") == "exact":
+        result["safe_signals"].append(
+            f"Alamat jalan dan nomor cocok dengan hasil peta: {geo.get('display_name', '')[:120]}"
+        )
+    elif geo.get("match_level") == "street":
+        result["neutral_notes"].append(
+            "Nama jalan ditemukan, tetapi nomor bangunan belum cocok dengan hasil peta."
+        )
+    else:
+        result["neutral_notes"].append(
+            "Peta hanya menemukan wilayah sekitar; titik ini bukan bukti alamat outlet yang exact."
+        )
 
     # Step 2: Web search konfirmasi keberadaan bisnis
     if company_name:

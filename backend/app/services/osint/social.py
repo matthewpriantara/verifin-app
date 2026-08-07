@@ -7,9 +7,33 @@ Menggunakan SearXNG self-hosted untuk semua SERP query.
 import re
 from typing import Any
 from urllib.parse import quote, unquote
+from urllib.parse import urlsplit, urlunsplit
+from collections import Counter
 
 from scrapling.fetchers import Fetcher
 from app.services.osint.web_evidence import search_web_evidence
+from app.services.osint.query_builder import build_search_queries
+
+_SOCIAL_AGGREGATOR_TOKENS = (
+    "lokerjogja", "loker jogja", "lokerterbaru", "loker terbaru",
+    "loker indonesia", "lowongan kerja", "pusat loker", "info loker",
+)
+
+_PLATFORM_SITE_HINTS = {
+    "instagram": "site:instagram.com",
+    "threads": "site:threads.net OR site:threads.com",
+    "tiktok": "site:tiktok.com",
+    "facebook": "site:facebook.com",
+    "x_twitter": "site:x.com OR site:twitter.com",
+}
+
+_PLATFORM_DOMAINS = {
+    "instagram": ("instagram.com",),
+    "threads": ("threads.net", "threads.com"),
+    "tiktok": ("tiktok.com",),
+    "facebook": ("facebook.com",),
+    "x_twitter": ("x.com", "twitter.com"),
+}
 
 
 def _classify_platform(url: str, default: str = "social_media") -> str:
@@ -22,6 +46,27 @@ def _classify_platform(url: str, default: str = "social_media") -> str:
     if "twitter.com" in u or "x.com" in u: return "x_twitter"
     if "linktr.ee" in u: return "linktree"
     return default
+
+
+def _is_aggregator_post(post: dict[str, str]) -> bool:
+    url_title = " ".join((post.get("url") or "", post.get("title") or "")).lower()
+    return any(token in url_title for token in _SOCIAL_AGGREGATOR_TOKENS)
+
+
+def _is_social_platform_post(post: dict[str, str]) -> bool:
+    return post.get("platform") in {"instagram", "threads", "tiktok", "facebook", "x_twitter"}
+
+
+def _canonical_social_url(url: str) -> str | None:
+    parts = urlsplit((url or "").strip())
+    host = parts.netloc.lower().removeprefix("www.")
+    path = parts.path.rstrip("/")
+    if host == "instagram.com":
+        segments = [segment for segment in path.split("/") if segment]
+        if not segments or segments[0].lower() in {"p", "reel", "reels", "popular", "explore", "accounts"}:
+            return None
+        return urlunsplit(("https", host, f"/{segments[0]}", "", ""))
+    return urlunsplit((parts.scheme or "https", host, path, "", ""))
 
 
 def _slug_candidates(company: str) -> list[str]:
@@ -60,9 +105,14 @@ def _slug_candidates(company: str) -> list[str]:
 
 
 def _search_platform_serp(query: str, platform: str = "") -> list[dict[str, str]]:
-    """Cari postingan sosmed via search_web_evidence (DDG/Yahoo/Bing)."""
-    site_hint = f" site:{platform}" if platform else ""
-    result = search_web_evidence(f'"{query}"{site_hint}', max_results=4)
+    """Cari platform via broad SERP, lalu filter domain di aplikasi."""
+    query_text = query.strip()
+    quoted_query = query_text if query_text.startswith('"') else f'"{query_text}"'
+    result = search_web_evidence(
+        quoted_query,
+        max_results=8,
+    )
+    domains = _PLATFORM_DOMAINS.get(platform)
     return [
         {
             "platform": _classify_platform(r.get("url", ""), default="social_media"),
@@ -72,6 +122,7 @@ def _search_platform_serp(query: str, platform: str = "") -> list[dict[str, str]
             "url": r.get("url", ""),
         }
         for r in result.get("results", [])
+        if not domains or any(domain in (r.get("url") or "").lower() for domain in domains)
         if r.get("title") or r.get("snippet")
     ]
 
@@ -99,11 +150,15 @@ async def run_social_osint(entities: dict) -> dict[str, Any]:
     clean_company = re.sub(r"\([^)]*\)", "", raw_company)
     clean_company = re.sub(r"^(pt|cv|ud)\.?\s+", "", clean_company, flags=re.I).strip()
 
-    # 1. SERP via slug candidates (all platform via search_web_evidence)
-    serp_queries = list(dict.fromkeys([raw_company] + _slug_candidates(raw_company)))
     serp_posts: list[dict] = []
-    for q in serp_queries[:2]:
-        serp_posts.extend(_search_platform_serp(q))
+    query_candidates = build_search_queries(entities, include_email=True)
+    for candidate in query_candidates:
+        hits = _search_platform_serp(candidate["query"])
+        for hit in hits:
+            hit["fallback_kind"] = candidate["kind"]
+        serp_posts.extend(hits)
+        if any(_is_social_platform_post(hit) and not _is_aggregator_post(hit) for hit in hits):
+            break
     # Dedup snippet
     _seen_snip: set[str] = set()
     initial_posts = []
@@ -124,8 +179,15 @@ async def run_social_osint(entities: dict) -> dict[str, Any]:
     extra_posts: list[dict[str, str]] = []
     platform_hits: dict[str, bool] = {}
 
+    fallback_candidates = query_candidates or [{"query": raw_company}]
     for platform_key, search_q in platforms:
-        hits = _search_platform_serp(search_q, platform_key)
+        hits = []
+        for candidate in fallback_candidates:
+            hits = _search_platform_serp(f"{candidate['query']} {platform_key}", platform_key)
+            for hit in hits:
+                hit["fallback_kind"] = candidate.get("kind")
+            if hits:
+                break
         extra_posts.extend(hits)
         platform_hits[platform_key] = bool(hits)
 
@@ -141,7 +203,11 @@ async def run_social_osint(entities: dict) -> dict[str, Any]:
 
     raw_posts = extra_posts + initial_posts
     for p in raw_posts:
-        link = (p.get("url") or "").lower()
+        canonical_url = _canonical_social_url(p.get("url") or "")
+        if not canonical_url:
+            continue
+        p["url"] = canonical_url
+        link = canonical_url.lower()
         if not link or link in seen_urls:
             continue
         seen_urls.add(link)
@@ -152,6 +218,8 @@ async def run_social_osint(entities: dict) -> dict[str, Any]:
             real_plat = "portal_loker"
 
         p["platform"] = real_plat
+        p["is_official"] = False
+        p["source_type"] = "social_aggregator" if _is_aggregator_post(p) else "public_search_result"
 
         # Skor relevansi — berapa token nama perusahaan match di snippet/title
         if _comp_tokens:
@@ -193,12 +261,17 @@ async def run_social_osint(entities: dict) -> dict[str, Any]:
 
         all_posts.append(p)
 
-    # Prioritaskan media sosial resmi di posisi teratas
+    # Hasil SERP belum membuktikan kepemilikan akun. Jangan menyebutnya resmi.
     _SOCIAL_PRIORITY = {"instagram", "threads", "tiktok", "facebook", "x_twitter", "linktree"}
     all_posts.sort(key=lambda p: 0 if (p.get("platform") or "").lower() in _SOCIAL_PRIORITY else 1)
 
     valid_profiles: list = []
-    found = bool(all_posts or valid_profiles)
+    social_found = bool(
+        any(_is_social_platform_post(post) and not _is_aggregator_post(post) for post in all_posts)
+        or valid_profiles
+    )
+    public_footprint_found = bool(all_posts or valid_profiles)
+    found = social_found
 
     # Risk flag analysis — gabungan semua platform
     risk_flags: list[str] = []
@@ -206,32 +279,68 @@ async def run_social_osint(entities: dict) -> dict[str, Any]:
         (p.get("snippet", "") + " " + p.get("title", "")) for p in all_posts
     ).lower()
 
-    if any(w in blob for w in ("penipu", "scam", "tipu", "waspada", "bohong", "palsu")):
-        risk_flags.append("Ditemukan postingan medsos yang menyebut indikasi penipuan/scam.")
+    hard_scam_phrases = (
+        "laporan penipuan", "korban penipuan", "loker palsu", "penipu loker",
+        "scam loker", "terbukti menipu", "ditipu", "modus penipuan",
+    )
+    if any(phrase in blob for phrase in hard_scam_phrases):
+        risk_flags.append("Ditemukan postingan publik dengan frasa indikasi penipuan spesifik.")
 
-    # Update platform_hits dari all_posts yang sudah di-merge (SERP posts termasuk)
+    # Hitung ulang hanya dari profil/post yang memang ditandai resmi.
+    platform_hits = {key: False for key in platform_hits}
     for p in all_posts:
         plat = p.get("platform", "")
-        if plat == "instagram":
+        if plat == "instagram" and p.get("is_official"):
             platform_hits["instagram"] = True
-        elif plat == "threads":
+        elif plat == "threads" and p.get("is_official"):
             platform_hits["threads"] = True
-        elif plat == "tiktok":
+        elif plat == "tiktok" and p.get("is_official"):
             platform_hits["tiktok"] = True
-        elif plat == "facebook":
+        elif plat == "facebook" and p.get("is_official"):
             platform_hits["facebook"] = True
-        elif plat in ("x_twitter", "twitter"):
+        elif plat in ("x_twitter", "twitter") and p.get("is_official"):
             platform_hits["x_twitter"] = True
+
+    platform_counts = Counter(p.get("platform") or "other" for p in all_posts)
+    known_platforms = (*platform_hits.keys(), "portal_loker", "linktree", "social_media")
+    by_platform = {
+        platform: platform_counts.get(platform, 0)
+        for platform in known_platforms
+    }
+    by_platform["other"] = sum(
+        count for platform, count in platform_counts.items()
+        if platform not in by_platform
+    )
+    assert sum(by_platform.values()) == len(all_posts)
 
     return {
         "enabled": True,
         "platform": "social_media",
         "query": raw_company,
         "found": found,
+        "social_found": social_found,
+        "official_social_found": bool(valid_profiles or any(p.get("is_official") for p in all_posts)),
+        "public_footprint_found": public_footprint_found,
         "authenticated": False,
         "posts": all_posts[:8],
         "profiles": valid_profiles,
         "platform_hits": platform_hits,
+        "official_platform_hits": platform_hits.copy(),
+        "public_platform_hits": {
+            platform: any(p.get("platform") == platform for p in all_posts)
+            for platform in ("instagram", "threads", "tiktok", "facebook", "x_twitter", "portal_loker")
+        },
+        "evidence_counts": {
+            "public_posts": len(all_posts),
+            "public_profiles": len(valid_profiles),
+            "official_posts": sum(1 for p in all_posts if p.get("is_official")),
+            "by_platform": by_platform,
+        },
+        "search_diagnostics": {
+            "platforms_requested": list(_PLATFORM_SITE_HINTS),
+            "search_engine": "searxng",
+            "note": "Hasil sosial diklasifikasikan terpisah dari portal loker dan aggregator.",
+        },
         "risk_flags": risk_flags,
         "errors": [],
     }

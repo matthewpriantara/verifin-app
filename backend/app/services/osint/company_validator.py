@@ -24,6 +24,8 @@ from app.services.osint.web_evidence import (
     fetch_company_website,
     search_web_evidence,
 )
+from app.services.osint.query_builder import build_search_queries
+from app.services.osint.web_evidence import _result_matches_query
 
 # Token umum yang tidak bermakna untuk deteksi nama perusahaan di blob search
 _COMP_GENERIC_TOKENS = frozenset({
@@ -38,11 +40,17 @@ _GENERAL_NEWS_KEYWORDS = frozenset({
 })
 
 
-def _search_company_traces(company: str) -> list[dict[str, Any]]:
-    """Dua query: scam check + jejak legalitas (NIB/AHU/akta via web publik)."""
+def _search_company_traces(company: str, entities: dict | None = None) -> list[dict[str, Any]]:
+    """Cari jejak perusahaan memakai fallback entitas yang sama dengan web evidence."""
+    search_entities = {"companies": [company], **(entities or {})}
+    candidates = build_search_queries(search_entities, include_email=False)
     queries = [
-        f'"{company}" lowongan penipuan OR penipu OR scam',
-        f'"{company}" NIB OR "akta pendirian" OR "terdaftar" OR AHU OR OSS',
+        f'{candidate["query"]} lowongan penipuan OR penipu OR scam'
+        for candidate in candidates
+    ]
+    queries += [
+        f'{candidate["query"]} NIB OR "akta pendirian" OR "terdaftar" OR AHU OR OSS'
+        for candidate in candidates[:3]
     ]
     out = []
     for q in queries:
@@ -55,6 +63,8 @@ def _search_company_traces(company: str) -> list[dict[str, Any]]:
                 "search_url": res.get("url"),
                 "results": res.get("results") or [],
                 "error": res.get("error"),
+                "status": res.get("status"),
+                "fallback_kind": res.get("fallback_kind"),
                 "risk_flags": res.get("risk_flags") or [],
             }
         )
@@ -113,11 +123,14 @@ def validate_company_public(company: str, entities: dict | None = None) -> dict[
         safe_flags.extend(w.get("safe_flags") or [])
 
     # 2) search scam + jejak legalitas
-    searches = _search_company_traces(name)
+    searches = _search_company_traces(name, entities)
     mention_count = 0
     fraud_mentions = 0
     legality_mentions = 0
+    successful_requests = 0
     for s in searches:
+        if s.get("ok"):
+            successful_requests += 1
         is_legality_query = "NIB" in s.get("query", "") or "akta pendirian" in s.get("query", "")
         evidence.append(
             {
@@ -138,8 +151,10 @@ def validate_company_public(company: str, entities: dict | None = None) -> dict[
         unique_tokens = [t for t in comp_tokens if t not in _COMP_GENERIC_TOKENS]
 
         for r in s.get("results") or []:
-            mention_count += 1
             blob = f"{r.get('title','')} {r.get('snippet','')}".lower()
+
+            if not _result_matches_query(s.get("query", ""), r.get("url", ""), r.get("title", ""), r.get("snippet", "")):
+                continue
 
             if unique_tokens:
                 matched_unique = [tok for tok in unique_tokens if tok in blob]
@@ -148,6 +163,9 @@ def validate_company_public(company: str, entities: dict | None = None) -> dict[
             else:
                 matched_all = [tok for tok in comp_tokens if tok in blob]
                 has_comp = len(matched_all) >= 2 or (name.lower() in blob)
+
+            if has_comp:
+                mention_count += 1
 
             has_scam_report = any(
                 k in blob
@@ -186,11 +204,6 @@ def validate_company_public(company: str, entities: dict | None = None) -> dict[
         safe_flags.append(
             f"Ditemukan {legality_mentions} jejak legalitas (NIB/AHU/akta) di web publik untuk {name}."
         )
-    elif mention_count == 0:
-        risk_flags.append(
-            f"Tidak ditemukan jejak publik maupun legalitas untuk '{name}' — perusahaan baru atau fiktif."
-        )
-
     # AHU probe di-skip (selalu unverified + lambat); legalitas tetap jujur
     registry = {
         "source": "ahu.go.id",
@@ -223,7 +236,16 @@ def validate_company_public(company: str, entities: dict | None = None) -> dict[
             "public_mentions": mention_count,
             "fraud_related_mentions": fraud_mentions,
             "legality_mentions": legality_mentions,
+            "successful_requests": successful_requests,
+            "relevant_results": mention_count,
         },
+        "neutral_notes": (
+            ["Search engine tidak mengembalikan hasil yang dapat diverifikasi."]
+            if successful_requests == 0 else (
+                [f"Tidak ada hasil relevan untuk '{name}' pada request yang berhasil; ini bukan bukti ketiadaan jejak publik. "]
+                if mention_count == 0 else []
+            )
+        ),
         "risk_flags": uniq(risk_flags),
         "safe_flags": uniq(safe_flags),
     }

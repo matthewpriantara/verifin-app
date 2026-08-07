@@ -47,7 +47,7 @@ Skema JSON:
 
 Aturan ketat:
 1. companies: HANYA entitas perusahaan/instansi/organisasi pemberi kerja nyata. JANGAN masukkan frasa deskriptif (mis. "dan cekatan", "bersedia training"), nama posisi, atau kata umum. Pertahankan legal form (PT/CV/UD) bila ada.
-2. addresses: HANYA alamat fisik lokasi kerja/kantor, bukan nama kota yang berdiri sendiri tanpa konteks alamat. Boleh lebih dari satu jika ada beberapa cabang.
+2. addresses: HANYA alamat fisik lokasi kerja/kantor yang memiliki penanda fisik seperti jalan, nomor, RT/RW, gedung, ruko, atau kode pos. Jangan masukkan kota, kecamatan, area kerja, daftar cabang, atau lokasi tanpa penanda fisik.
 3. salaries: setiap nominal rentang gaji yang disebut. Simpan format aslinya.
 4. Jika suatu kategori tidak ada, kembalikan array kosong [].
 5. Jangan mengarang entitas yang tidak tertulis di teks. Ekstrak PERSIS substring dari teks sumber."""
