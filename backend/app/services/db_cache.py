@@ -6,12 +6,18 @@ import logging
 from sqlalchemy.orm import Session
 
 from app.api.v1.verify.schema import VerifyResponse
+from app.config import LLM_MODEL
 from app.database.models import JobCase
 from app.services.hasher import compute_content_sha256
 from app.api.v1.verify.pipeline import _build_osint_summary, _to_response
 
 logger = logging.getLogger(__name__)
 CACHE_SCHEMA_VERSION = 6
+
+
+def _case_hash(raw_input: str) -> str:
+    """Hash input + model aktif — ganti LLM_MODEL otomatis invalidasi cache lama."""
+    return compute_content_sha256(f"{raw_input}\nmodel:{LLM_MODEL}")
 
 def _save_case_to_db(
     db: Session,
@@ -25,7 +31,7 @@ def _save_case_to_db(
     from sqlalchemy.exc import IntegrityError
 
     try:
-        text_hash = compute_content_sha256(raw_text)
+        text_hash = _case_hash(raw_text)
         ent = entities or analysis.get("entities_analyzed") or {}
         companies = list(ent.get("companies") or [])
         phones = list(ent.get("phones") or [])
@@ -101,7 +107,7 @@ def _get_cached_case_from_db(db: Session, raw_input_str: str) -> VerifyResponse 
     if not raw_input_str or not raw_input_str.strip():
         return None
     try:
-        text_hash = compute_content_sha256(raw_input_str)
+        text_hash = _case_hash(raw_input_str)
         cached = db.query(JobCase).filter(JobCase.raw_text_hash == text_hash).first()
         if cached and cached.verdict and cached.verdict != "ERROR":
             llm_payload = cached.llm_output or {}

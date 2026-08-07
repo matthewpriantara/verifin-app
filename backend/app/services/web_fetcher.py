@@ -48,7 +48,7 @@ def _sync_scrapling_fetch(url: str) -> tuple[str, list[str]]:
         # 1. Coba Halaman Embed Instagram (Sangat efektif mengekstrak poster & caption publik tanpa login)
         embed_url = f"https://www.instagram.com/p/{shortcode}/embed/captioned/"
         try:
-            res = httpx.get(embed_url, headers=headers, follow_redirects=True, verify=False, timeout=12.0)
+            res = httpx.get(embed_url, headers=headers, follow_redirects=True, timeout=12.0)
             if res.status_code == 200:
                 soup = BeautifulSoup(res.text, "html.parser")
                 caption_el = soup.find("div", class_="Caption") or soup.find("div", class_="CaptionComments")
@@ -73,7 +73,7 @@ def _sync_scrapling_fetch(url: str) -> tuple[str, list[str]]:
         if not image_urls:
             try:
                 oembed_url = f"https://www.instagram.com/api/v1/oembed/?url={url}"
-                o_res = httpx.get(oembed_url, headers=headers, follow_redirects=True, verify=False, timeout=8.0)
+                o_res = httpx.get(oembed_url, headers=headers, follow_redirects=True, timeout=8.0)
                 if o_res.status_code == 200:
                     data = o_res.json()
                     if data.get("title") and not combined_caption_text:
@@ -88,7 +88,7 @@ def _sync_scrapling_fetch(url: str) -> tuple[str, list[str]]:
             for domain in ["vxinstagram.com", "ddinstagram.com"]:
                 try:
                     fix_url = f"https://{domain}/p/{shortcode}/"
-                    f_res = httpx.get(fix_url, headers={"User-Agent": "facebookexternalhit/1.1"}, follow_redirects=True, verify=False, timeout=8.0)
+                    f_res = httpx.get(fix_url, headers={"User-Agent": "facebookexternalhit/1.1"}, follow_redirects=True, timeout=8.0)
                     if f_res.status_code == 200:
                         f_soup = BeautifulSoup(f_res.text, "html.parser")
                         og_i = f_soup.find("meta", property="og:image") or f_soup.find("meta", attrs={"name": "twitter:image"})
@@ -105,7 +105,7 @@ def _sync_scrapling_fetch(url: str) -> tuple[str, list[str]]:
     # Generic Scrapling/HTTPX fetcher (untuk website non-IG atau fallback)
     try:
         from scrapling.fetchers import Fetcher
-        page = Fetcher.get(url, headers=headers, verify=False)
+        page = Fetcher.get(url, headers=headers)
         text_parts = []
         if combined_caption_text:
             text_parts.append(combined_caption_text)

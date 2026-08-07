@@ -27,7 +27,8 @@ _ADDR_STOP = (
     r"\bKirim\b|\bCV\b|\bCover\s*Letter\b|\bSend(?:\s*your)?\b|\bSubjek\b|\bSubject\b|\bApply\b|\bApply\s*Now\b|\bMore\s*Information\b|"
     r"\bLamaran\b|\bBenefit\b|\bSyarat\b|\bKualifikasi\b|\bPosisi\b|\bLowongan\b|"
     r"\bInfo\b|\bInformasi\b|\bNB\b|\bCatatan\b|\bNote\b|\bTransfer\b|\bBiaya\b|\bDeposit\b|\bDeskripsi\b|"
-    r"\bPekerjaan\b|\bRingkasan\b|\bFormulir\b|\bAccount\b|\bOfficer\b|\bLamar\b)"
+    r"\bPekerjaan\b|\bRingkasan\b|\bFormulir\b|\bAccount\b|\bOfficer\b|\bLamar\b|"
+    r"\b(?:Alamat|Lokasi|Kantor|Cabang|Domisili)\b(?:\s+[^,:]{0,25})?\s*[:.\-])"
 )
 
 
@@ -131,8 +132,10 @@ def _clean_address(addr: str) -> str:
 
     # 3. Buang label alamat di depan
     a = re.sub(
-        r"^(?:Alamat(?:\s*(?:Kantor|Lengkap|Perusahaan|Toko))?|Lokasi(?:\s*Kerja)?|"
-        r"Penempatan(?:\s*(?:Kerja|Kantor))?|Bertempat\s*di|Tempat(?:\s*Kerja)?|Office|Basecamp|Kode\s*Pos)\s*[:.\-]?\s*",
+        r"^(?:Alamat(?:\s+(?:lain|Kantor|Lengkap|Perusahaan|Toko))?|"
+        r"Lokasi(?:\s+(?:kerja|lain))?|Kantor(?:\s+(?:utama|pusat))?|"
+        r"Cabang|Domisili|Penempatan(?:\s*(?:Kerja|Kantor))?|"
+        r"Bertempat\s*di|Tempat(?:\s*Kerja)?|Office|Basecamp|Kode\s*Pos)\s*[:.\-]?\s*",
         "",
         a,
         flags=re.I,
@@ -147,17 +150,22 @@ def _clean_address(addr: str) -> str:
     else:
         # Untuk weak prefix, buang header nama tempat/brand di depan
         a = re.sub(r"^[A-Z0-9\s&'.!?-]{3,60},\s*(?=(?:Gg|Dusun|Ds|Lt|Lantai|Outlet|Toko)\b)", "", a, flags=re.I)
-        # Buang frasa kualifikasi di depan
-        a = re.sub(
-            r"^(?:.*?\b(?:kuliah|server|steward|kualifikasi|syarat|pria|wanita|berpengalaman|shift|weekend|bekerjasama|jujur|disiplin|cekatan|komunikatif|posisi|penempatan|pendidikan|sma|smk|d3|s1|usia|maks|thn|tahun)\b.*?)+?(?=(?:Gg|Dusun|Ds|Lt|Lantai)\b)",
-            "",
+        # Buang frasa kualifikasi di depan tanpa nested greedy regex.
+        weak_marker = re.search(r"\b(?:Gg|Dusun|Ds|Lt|Lantai)\b", a, re.I)
+        qualifier = re.search(
+            r"\b(?:kuliah|server|steward|kualifikasi|syarat|pria|wanita|"
+            r"berpengalaman|shift|weekend|bekerjasama|jujur|disiplin|cekatan|"
+            r"komunikatif|posisi|penempatan|pendidikan|sma|smk|d3|s1|usia|"
+            r"maks|thn|tahun)\b",
             a,
-            flags=re.I,
+            re.I,
         )
+        if qualifier and weak_marker and qualifier.start() < weak_marker.start():
+            a = a[weak_marker.start():]
 
     # 5. Buang suffix kontak/email/gaji/company stop words
     a = re.split(
-        r"\s+(?=(?:Alamat|Lokasi|Office|Basecamp)\b(?:\s+[^,:]{0,30})?\s*[:.\-])",
+        r"\s+(?=(?:(?:Alamat|Lokasi|Kantor|Cabang|Domisili|Office|Basecamp)\b(?:\s+[^,:]{0,30})?)\s*[:.\-])",
         a,
         maxsplit=1,
         flags=re.I,
@@ -238,11 +246,11 @@ def _extract_salaries(text: str) -> list[str]:
 
 
 def fix_email_ocr_typos(email: str) -> str:
-    e = (email or "").strip()
+    e = (email or "").strip().strip(".,;:)")
     if "@" not in e:
         return e
     user, domain = e.split("@", 1)
-    domain_low = domain.lower().strip()
+    domain_low = domain.lower().strip(".,;:)")
     typo_map = {
         "gmai.com": "gmail.com",
         "gamil.com": "gmail.com",
@@ -696,8 +704,9 @@ def _extract_addresses(text: str) -> list[str]:
 
     # A) Label eksplisit — paling andal lintas layout
     for m in re.finditer(
-        rf"(?:Alamat(?:\s*(?:Kantor|Lengkap|Perusahaan|Toko))?|"
-        rf"Bertempat\s*di|Office|Basecamp)\s*[:.\-]?\s*"
+        rf"(?:Alamat(?:\s+(?:lain|Kantor|Lengkap|Perusahaan|Toko))?|"
+        rf"Lokasi(?:\s+(?:kerja|lain))?|Kantor(?:\s+(?:utama|pusat))?|"
+        rf"Cabang|Domisili|Bertempat\s*di|Office|Basecamp)\s*[:.\-]?\s*"
         rf"([^\n]{{8,200}}?)(?=\s*(?:{_ADDR_STOP}|$))",
         spaced,
         flags=re.I | re.M,
@@ -752,6 +761,7 @@ def _extract_addresses(text: str) -> list[str]:
     hard_noise = re.compile(
         r"\b(?:syarat|kualifikasi|gaji|email|lamar|account\s*officer|lowongan|"
         r"pekerjaan|informasi|hubungi|wa\b|phone|telp|cv|subjek|subject|"
+        r"(?:alamat|lokasi|kantor|cabang|domisili)(?:\s+[^,]{0,20})?\s*[:.\-]|"
         r"pendaftaran|pelamar|send|kuliah|server|steward|pria|wanita|"
         r"berpengalaman|shift|weekend|bekerjasama|jujur|disiplin|cekatan|"
         r"komunikatif|posisi|penempatan|benefit|bonus|reward|libur|umur|"
@@ -918,6 +928,7 @@ def extract_entities_from_text(text: str) -> dict:
     emails_raw = list(set(re.findall(email_pattern, search_blob)))
     emails = [fix_email_ocr_typos(e) for e in emails_raw]
     urls = list(set(re.findall(url_pattern, search_blob)))
+    urls = [url.rstrip(".,;:!?)]}") for url in urls]
     email_domains = {email.split("@")[1].lower() for email in emails if "@" in email}
     email_domains.update({"gmai.com", "gmail.com", "yahoo.com", "hotmail.com", "gamil.com", "gmial.com"})
     urls = [
