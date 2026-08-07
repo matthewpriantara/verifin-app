@@ -76,6 +76,7 @@ export interface OsintPayload {
     note?: string;
     social?: string;
   };
+  timing?: Record<string, unknown>;
 }
 
 export interface ShapFeatureContribution {
