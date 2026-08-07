@@ -16,6 +16,7 @@ Sumber data:
 
 import re
 from typing import Any
+import asyncio
 
 from app.services.constants import FREE_EMAIL_DOMAINS as _FREE_EMAIL_DOMAINS
 from app.services.osint.web_evidence import (
@@ -229,8 +230,6 @@ def validate_company_public(company: str, entities: dict | None = None) -> dict[
 
 
 async def validate_companies(entities: dict, limit: int = 1) -> list[dict[str, Any]]:
-    import asyncio
-
     companies = [c for c in (entities.get("companies") or []) if c][:limit]
     if not companies:
         return []

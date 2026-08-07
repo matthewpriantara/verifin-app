@@ -355,43 +355,43 @@ def lookup_cases_by_entity(
             status_code=400, detail="Sertakan minimal satu: phone, email, atau company"
         )
     try:
-        cases = (
-            db.query(JobCase)
-            .order_by(JobCase.created_at.desc())
-            .limit(500)
-            .all()
-        )
-        hits = []
-        phone_n = (phone or "").strip()
-        email_n = (email or "").strip().lower()
-        company_n = (company or "").strip().lower()
-        for c in cases:
-            phones = [str(p).strip() for p in (c.phones or [])]
-            emails = [str(e).strip().lower() for e in (c.emails or [])]
-            companies = [str(x).strip().lower() for x in (c.companies or [])]
-            if c.company_name:
-                companies.append(c.company_name.strip().lower())
-            match = False
-            if phone_n and phone_n in phones:
-                match = True
-            if email_n and email_n in emails:
-                match = True
-            if company_n and any(company_n in x or x in company_n for x in companies if x):
-                match = True
-            if match:
-                hits.append(
-                    {
-                        "id": str(c.id),
-                        "company_name": c.company_name,
-                        "phones": c.phones,
-                        "emails": c.emails,
-                        "verdict": c.verdict,
-                        "risk_score": c.risk_score,
-                        "created_at": c.created_at.isoformat() if c.created_at else None,
-                    }
-                )
-            if len(hits) >= limit:
-                break
+        from sqlalchemy import text as sa_text
+        filters = []
+        params: dict = {"limit": limit}
+
+        if phone:
+            filters.append("phones @> :phone_json::jsonb")
+            params["phone_json"] = f'["{phone.strip()}"]'
+        if email:
+            filters.append("emails @> :email_json::jsonb")
+            params["email_json"] = f'["{email.strip().lower()}"]'
+        if company:
+            # company_name exact-ish: ILIKE (substring ok untuk partial match)
+            filters.append("LOWER(company_name) LIKE :company_pat")
+            params["company_pat"] = f"%{company.strip().lower()}%"
+
+        where = f"WHERE {' OR '.join(filters)}" if filters else ""
+        # ponytail: O(n) scan pada JSONB @> tanpa GIN index; tambah GIN index pada phones/emails kalau > 10k kasus
+        sql = sa_text(f"""
+            SELECT id, company_name, phones, emails, verdict, risk_score, created_at
+            FROM job_cases
+            {where}
+            ORDER BY created_at DESC
+            LIMIT :limit
+        """)
+        rows = db.execute(sql, params).mappings().all()
+        hits = [
+            {
+                "id": str(r["id"]),
+                "company_name": r["company_name"],
+                "phones": r["phones"],
+                "emails": r["emails"],
+                "verdict": r["verdict"],
+                "risk_score": r["risk_score"],
+                "created_at": r["created_at"].isoformat() if r["created_at"] else None,
+            }
+            for r in rows
+        ]
         return {"count": len(hits), "cases": hits}
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Gagal lookup case: {e}")
