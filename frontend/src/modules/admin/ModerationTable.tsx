@@ -17,78 +17,17 @@ import {
 } from "@phosphor-icons/react";
 import { cn } from "@/lib/utils";
 import type { CommunityReport, ReportStatus, ReportType } from "@/types/admin";
-
-/* ── Mock data ────────────────────────────────────────────────────────────── */
-const MOCK_REPORTS: CommunityReport[] = [
-  {
-    id: "r-001",
-    reporter_ip: "182.253.44.112",
-    company_name: "PT Maju Jaya Sejahtera",
-    report_type: "biaya_travel",
-    description: "Perusahaan ini meminta biaya administrasi sebesar Rp 500.000 sebelum mulai bekerja. Setelah dibayar, tidak ada kabar sama sekali.",
-    evidence_url: "https://drive.google.com/example",
-    status: "pending",
-    submitted_at: "2026-08-07T08:23:00Z",
-    reviewed_at: null,
-    reviewer_note: null,
-  },
-  {
-    id: "r-002",
-    reporter_ip: "36.85.12.94",
-    company_name: "CV Digital Kreatif Nusantara",
-    report_type: "perusahaan_fiktif",
-    description: "Nomor telepon yang tertera tidak aktif dan alamat kantor tidak ditemukan saat saya cek langsung ke lokasi.",
-    evidence_url: null,
-    status: "pending",
-    submitted_at: "2026-08-06T14:10:00Z",
-    reviewed_at: null,
-    reviewer_note: null,
-  },
-  {
-    id: "r-003",
-    reporter_ip: "103.155.22.4",
-    company_name: "PT Solusi Teknologi Indonesia",
-    report_type: "pencurian_data_scam",
-    description: "Tugas menyukai postingan (task scam) dengan iming-iming komisi besar, namun di ujung diminta deposit uang.",
-    evidence_url: null,
-    status: "approved",
-    submitted_at: "2026-08-05T10:44:00Z",
-    reviewed_at: "2026-08-05T16:30:00Z",
-    reviewer_note: "Laporan valid. Skor risiko perusahaan telah diperbarui.",
-  },
-  {
-    id: "r-004",
-    reporter_ip: "202.67.40.18",
-    company_name: "PT Karya Abadi Makmur",
-    report_type: "tppo_eksploitasi",
-    description: "Lowongan kerja ke luar negeri tanpa prosedur resmi, dicurigai penyalur ilegal dengan indikasi TPPO.",
-    evidence_url: "https://drive.google.com/example2",
-    status: "rejected",
-    submitted_at: "2026-08-04T09:15:00Z",
-    reviewed_at: "2026-08-04T11:00:00Z",
-    reviewer_note: "Perusahaan ditemukan terdaftar resmi dan memiliki izin P3MI dari Kemenaker.",
-  },
-  {
-    id: "r-005",
-    reporter_ip: "182.253.50.6",
-    company_name: "PT Global Mitra Solusi",
-    report_type: "biaya_travel",
-    description: "Diminta memesan tiket travel melalui agen tertentu untuk interview di luar kota, terindikasi modus penipuan travel bodong.",
-    evidence_url: null,
-    status: "pending",
-    submitted_at: "2026-08-07T11:05:00Z",
-    reviewed_at: null,
-    reviewer_note: null,
-  },
-];
+import { fetchCommunityReports, reviewCommunityReport } from "@/lib/api";
 
 /* ── Helpers ──────────────────────────────────────────────────────────────── */
-const REPORT_TYPE_LABEL: Record<ReportType, string> = {
+const REPORT_TYPE_LABEL: Record<string, string> = {
   biaya_travel:        "Penipuan Biaya & Travel",
   perusahaan_fiktif:   "Perusahaan Fiktif",
   tppo_eksploitasi:    "Indikasi TPPO & Eksploitasi",
   pencurian_data_scam: "Pencurian Data & Task Scam",
 };
+
+const reportTypeLabel = (t: string) => REPORT_TYPE_LABEL[t] ?? t.replace(/_/g, " ");
 
 const FILTER_OPTIONS: { value: ReportStatus | "all"; label: string }[] = [
   { value: "all",      label: "Semua" },
@@ -120,7 +59,7 @@ function StatusBadge({ status }: { status: ReportStatus }) {
 function TypeBadge({ type }: { type: ReportType }) {
   return (
     <span className="inline-flex items-center rounded border border-border bg-bg-subtle px-2 py-0.5 font-mono text-[10px] uppercase text-text-muted">
-      {REPORT_TYPE_LABEL[type]}
+      {reportTypeLabel(type)}
     </span>
   );
 }
@@ -174,7 +113,7 @@ function DetailModal({
             <div>
               <span className="text-[11px] font-medium text-text-muted block uppercase tracking-wider">Tipe Laporan</span>
               <span className="font-semibold text-text-primary block mt-0.5">
-                {REPORT_TYPE_LABEL[report.report_type]}
+                {reportTypeLabel(report.report_type)}
               </span>
             </div>
             <div>
@@ -186,18 +125,18 @@ function DetailModal({
             <div>
               <span className="text-[11px] font-medium text-text-muted block uppercase tracking-wider">Waktu Submit</span>
               <span className="text-text-primary flex items-center gap-1 mt-0.5">
-                <CalendarBlank size={12} /> {new Date(report.submitted_at).toLocaleString("id-ID")}
+                <CalendarBlank size={12} /> {new Date(report.created_at).toLocaleString("id-ID")}
               </span>
             </div>
             <div>
               <span className="text-[11px] font-medium text-text-muted block uppercase tracking-wider">Status</span>
               <span className="block mt-0.5"><StatusBadge status={report.status} /></span>
             </div>
-            {report.evidence_url && (
+            {report.url && (
               <div>
                 <span className="text-[11px] font-medium text-text-muted block uppercase tracking-wider">Tautan Bukti</span>
                 <a
-                  href={report.evidence_url}
+                  href={report.url}
                   target="_blank"
                   rel="noopener noreferrer"
                   className="font-medium text-text-primary flex items-center gap-1 mt-0.5 underline decoration-dotted hover:text-text-secondary"
@@ -212,7 +151,7 @@ function DetailModal({
           <div>
             <span className="text-[11px] font-medium text-text-muted block uppercase tracking-wider mb-1">Kronologi Kejadian</span>
             <div className="rounded-xl border border-border bg-bg-elevated p-3 text-[13px] leading-relaxed text-text-secondary max-h-48 overflow-y-auto">
-              {report.description}
+              {report.description || "—"}
             </div>
           </div>
 
@@ -292,9 +231,9 @@ function NoteModal({
         </div>
 
         <div className="mb-4 rounded-lg border border-border bg-bg-subtle p-3 text-[12px] leading-relaxed text-text-secondary">
-          {report.description.length > 120
-            ? report.description.slice(0, 120) + "…"
-            : report.description}
+          {(report.description || "").length > 120
+            ? (report.description || "").slice(0, 120) + "…"
+            : report.description || "—"}
         </div>
 
         <div className="mb-4">
@@ -390,7 +329,7 @@ function ReportRow({
       <td className="px-4 py-3 align-top">
         <div className="flex flex-col items-start gap-1">
           <p className="max-w-[240px] text-[12px] leading-relaxed text-text-muted line-clamp-2">
-            {report.description}
+            {report.description || "—"}
           </p>
           <button
             onClick={() => onViewDetail(report)}
@@ -400,9 +339,9 @@ function ReportRow({
           </button>
         </div>
         
-        {report.evidence_url && (
+        {report.url && (
           <a
-            href={report.evidence_url}
+            href={report.url}
             target="_blank"
             rel="noopener noreferrer"
             className="mt-1 inline-flex items-center gap-1 text-[11px] text-text-secondary underline-offset-2 hover:underline"
@@ -422,7 +361,7 @@ function ReportRow({
       {/* Waktu */}
       <td className="px-4 py-3 align-top whitespace-nowrap">
         <span className="text-[12px] text-text-muted">
-          {new Date(report.submitted_at).toLocaleString("id-ID", {
+          {new Date(report.created_at).toLocaleString("id-ID", {
             dateStyle: "short",
             timeStyle: "short",
           })}
@@ -462,13 +401,24 @@ function ReportRow({
 
 /* ── Main component ───────────────────────────────────────────────────────── */
 export default function ModerationTable() {
-  const [reports, setReports] = useState<CommunityReport[]>(MOCK_REPORTS);
+  const [reports, setReports] = useState<CommunityReport[]>([]);
   const [filter, setFilter]   = useState<ReportStatus | "all">("all");
+  const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState("");
   const [modal, setModal]     = useState<{
     reportId: string;
     action: "approved" | "rejected";
   } | null>(null);
   const [detailModalReport, setDetailModalReport] = useState<CommunityReport | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    fetchCommunityReports(undefined, 100)
+      .then((rows) => { if (!cancelled) setReports(rows); })
+      .catch((err) => { if (!cancelled) setLoadError(err instanceof Error ? err.message : "Gagal memuat laporan."); })
+      .finally(() => { if (!cancelled) setLoading(false); });
+    return () => { cancelled = true; };
+  }, []);
 
   const pending  = reports.filter((r) => r.status === "pending").length;
   const approved = reports.filter((r) => r.status === "approved").length;
@@ -482,21 +432,21 @@ export default function ModerationTable() {
     setModal({ reportId: id, action });
   }
 
-  function confirmAction(note: string) {
+  async function confirmAction(note: string) {
     if (!modal) return;
-    setReports((prev) =>
-      prev.map((r) =>
-        r.id === modal.reportId
-          ? {
-              ...r,
-              status:       modal.action,
-              reviewed_at:  new Date().toISOString(),
-              reviewer_note: note || null,
-            }
-          : r,
-      ),
-    );
-    setModal(null);
+    try {
+      await reviewCommunityReport(modal.reportId, modal.action, note || undefined);
+      setReports((prev) =>
+        prev.map((r) =>
+          r.id === modal.reportId
+            ? { ...r, status: modal.action, reviewed_at: new Date().toISOString(), reviewer_note: note || null }
+            : r,
+        ),
+      );
+      setModal(null);
+    } catch (err) {
+      setLoadError(err instanceof Error ? err.message : "Gagal menyimpan review.");
+    }
   }
 
   const activeReport = modal ? reports.find((r) => r.id === modal.reportId) : null;
@@ -504,6 +454,11 @@ export default function ModerationTable() {
   return (
     <div className="flex flex-col gap-4">
       {/* summary bar */}
+      {loadError && (
+        <div className="rounded-xl border border-bahaya-border bg-bahaya-bg px-4 py-3 text-[13px] text-bahaya-fg">
+          {loadError}
+        </div>
+      )}
       <div className="grid grid-cols-3 gap-3">
         {[
           { label: "Menunggu Review", value: pending,  color: "text-waspada-fg", bg: "bg-waspada-bg border-waspada-border" },
@@ -548,7 +503,9 @@ export default function ModerationTable() {
 
       {/* table */}
       <div className="overflow-hidden rounded-xl border border-border bg-bg-elevated">
-        {filtered.length === 0 ? (
+        {loading ? (
+          <div className="py-16 text-center text-[13px] text-text-muted">Memuat laporan…</div>
+        ) : filtered.length === 0 ? (
           <div className="py-16 text-center text-[13px] text-text-muted">
             <Warning size={20} className="mx-auto mb-2 opacity-40" />
             Tidak ada laporan dengan status ini

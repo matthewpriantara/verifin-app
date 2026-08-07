@@ -11,15 +11,17 @@ from __future__ import annotations
 
 import logging
 from typing import Optional
+from uuid import UUID
 
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException, Query, Request
+from sqlalchemy import func, or_, text
 from sqlalchemy import func, or_
 from sqlalchemy.orm import Session
 
 from app.database.models import CommunityReport
 from app.database.postgres_client import Base, engine, get_db
 from app.services.ner import clean_indonesian_phone
-from app.api.v1.community.schema import CommunityReportIn, CommunityReportOut
+from app.api.v1.community.schema import CommunityReportIn, CommunityReportOut, ModerationUpdate
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
@@ -30,9 +32,23 @@ try:
 except Exception as exc:  # noqa: BLE001 — jangan gagalkan boot bila DB sesaat down
     logger.warning("[community] create_all skipped: %s", exc)
 
+# Migrasi ringan: tambah kolom moderasi bila tabel sudah ada dari versi lama.
+try:
+    with engine.begin() as conn:
+        for ddl in (
+            'ALTER TABLE community_reports ADD COLUMN IF NOT EXISTS status VARCHAR(12) NOT NULL DEFAULT \'pending\'',
+            'ALTER TABLE community_reports ADD COLUMN IF NOT EXISTS reporter_ip VARCHAR(45)',
+            'ALTER TABLE community_reports ADD COLUMN IF NOT EXISTS reviewed_at TIMESTAMPTZ',
+            'ALTER TABLE community_reports ADD COLUMN IF NOT EXISTS reviewer_note TEXT',
+            'CREATE INDEX IF NOT EXISTS ix_community_reports_status ON community_reports (status)',
+        ):
+            conn.execute(text(ddl))
+except Exception as exc:  # noqa: BLE001
+    logger.warning("[community] migration skipped: %s", exc)
+
 
 @router.post("/community/report", status_code=201, summary="Kirim Laporan Penipuan Komunitas")
-def submit_report(payload: CommunityReportIn, db: Session = Depends(get_db)):
+def submit_report(payload: CommunityReportIn, request: Request, db: Session = Depends(get_db)):
     if not any([payload.company_name, payload.phone, payload.email, payload.url]):
         raise HTTPException(
             status_code=422,
@@ -47,6 +63,8 @@ def submit_report(payload: CommunityReportIn, db: Session = Depends(get_db)):
         report_type=(payload.report_type or "penipuan").strip(),
         description=(payload.description or "").strip() or None,
         reporter_contact=(payload.reporter_contact or "").strip() or None,
+        reporter_ip=request.client.host if request.client else None,
+        status="pending",
     )
     db.add(report)
     try:
@@ -125,8 +143,76 @@ def recent_reports(
                 email=r.email,
                 url=r.url,
                 description=r.description,
+                reporter_ip=r.reporter_ip,
+                status=r.status or "pending",
+                reviewer_note=r.reviewer_note,
+                reviewed_at=r.reviewed_at.isoformat() if r.reviewed_at else None,
                 created_at=r.created_at.isoformat() if r.created_at else "",
             ).model_dump()
             for r in rows
         ],
+    }
+
+
+@router.get("/community/reports", summary="Daftar laporan komunitas (termasuk status moderasi)")
+def list_reports(
+    status: Optional[str] = Query(None, pattern="^(pending|approved|rejected)$"),
+    limit: int = Query(50, ge=1, le=200),
+    db: Session = Depends(get_db),
+):
+    query = db.query(CommunityReport)
+    if status:
+        query = query.filter(CommunityReport.status == status)
+    try:
+        rows = query.order_by(CommunityReport.created_at.desc()).limit(limit).all()
+    except Exception as exc:  # noqa: BLE001
+        raise HTTPException(status_code=500, detail=f"Gagal mengambil laporan: {exc}") from exc
+
+    return {
+        "status": "ok",
+        "count": len(rows),
+        "reports": [
+            CommunityReportOut(
+                id=str(r.id),
+                report_type=r.report_type,
+                company_name=r.company_name,
+                phone=r.phone,
+                email=r.email,
+                url=r.url,
+                description=r.description,
+                reporter_ip=r.reporter_ip,
+                status=r.status or "pending",
+                reviewer_note=r.reviewer_note,
+                reviewed_at=r.reviewed_at.isoformat() if r.reviewed_at else None,
+                created_at=r.created_at.isoformat() if r.created_at else "",
+            ).model_dump()
+            for r in rows
+        ],
+    }
+
+
+@router.patch("/community/reports/{report_id}", summary="Tinjau laporan (approve/reject) oleh moderator")
+def review_report(
+    report_id: UUID,
+    payload: ModerationUpdate,
+    db: Session = Depends(get_db),
+):
+    report = db.query(CommunityReport).filter(CommunityReport.id == report_id).first()
+    if not report:
+        raise HTTPException(status_code=404, detail="Laporan tidak ditemukan.")
+
+    report.status = payload.status
+    report.reviewer_note = (payload.reviewer_note or "").strip() or None
+    if payload.status in ("approved", "rejected"):
+        report.reviewed_at = func.now()
+    try:
+        db.commit()
+    except Exception as exc:  # noqa: BLE001
+        db.rollback()
+        raise HTTPException(status_code=500, detail=f"Gagal menyimpan review: {exc}") from exc
+
+    return {
+        "status": "ok",
+        "id": str(report.id),
+        "report_status": report.status,
     }

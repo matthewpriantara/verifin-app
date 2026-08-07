@@ -7,7 +7,6 @@ import {
   ArrowLeft,
   Buildings,
   LinkSimple,
-  Globe,
   Note,
   CheckCircle,
   Warning,
@@ -16,6 +15,7 @@ import {
 } from "@phosphor-icons/react";
 import { cn } from "@/lib/utils";
 import type { ReportType } from "@/types/admin";
+import { submitCommunityReport } from "@/lib/api";
 
 const REPORT_TYPES: { value: ReportType; label: string; desc: string }[] = [
   {
@@ -49,9 +49,7 @@ export default function ReportJobPage() {
 
   const [loading, setLoading] = useState(false);
   const [success, setSuccess] = useState(false);
-
-  // IP pelapor disimulasikan terdeteksi otomatis dari client side
-  const simulatedIp = "182.253.48.117";
+  const [error, setError] = useState("");
 
   function handleFileChange(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
@@ -65,10 +63,20 @@ export default function ReportJobPage() {
     if (!companyName || !reportType || !description) return;
 
     setLoading(true);
-    // Simulasikan delay network call
-    await new Promise((resolve) => setTimeout(resolve, 1500));
-    setLoading(false);
-    setSuccess(true);
+    setError("");
+    try {
+      await submitCommunityReport({
+        company_name: companyName,
+        report_type: reportType,
+        description,
+        url: evidenceUrl.trim() || undefined,
+      });
+      setSuccess(true);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Terjadi kesalahan saat mengirim laporan.");
+    } finally {
+      setLoading(false);
+    }
   }
 
   if (success) {
@@ -94,14 +102,16 @@ export default function ReportJobPage() {
               <span>Status:</span>
               <span className="font-semibold text-waspada-fg uppercase">Menunggu Review</span>
             </div>
-            <div className="flex justify-between py-1 border-b border-border/40">
-              <span>Pelapor (IP):</span>
-              <span>{simulatedIp}</span>
-            </div>
             <div className="flex justify-between py-1">
               <span>Jenis Laporan:</span>
               <span>{REPORT_TYPES.find(t => t.value === reportType)?.label}</span>
             </div>
+            {evidenceUrl && (
+              <div className="flex justify-between py-1">
+                <span>URL Bukti:</span>
+                <span className="max-w-[220px] truncate">{evidenceUrl}</span>
+              </div>
+            )}
           </div>
 
           <div className="mt-6 flex flex-col gap-2">
@@ -155,19 +165,16 @@ export default function ReportJobPage() {
             </p>
           </div>
 
-          {/* IP Detector Banner */}
-          <div className="flex shrink-0 items-center gap-3 rounded-xl border border-border bg-bg-subtle px-4 py-2.5 text-[13px]">
-            <div className="flex items-center gap-2 text-text-secondary">
-              <Globe size={15} className="text-text-muted" />
-              <span>IP Terdeteksi:</span>
-            </div>
-            <span className="font-mono font-semibold text-text-primary">{simulatedIp}</span>
-          </div>
         </div>
       </div>
 
       {/* ── Form Utama di Bagian Bawah ── */}
       <form onSubmit={handleSubmit} className="flex flex-col gap-6">
+        {error && (
+          <div className="rounded-xl border border-bahaya-border bg-bahaya-bg px-4 py-3 text-[13px] text-bahaya-fg">
+            {error}
+          </div>
+        )}
         
         {/* Section 1: Identitas Perusahaan & Jenis Modus */}
         <div className="rounded-2xl border border-border bg-bg-elevated p-5 sm:p-6">
