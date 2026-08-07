@@ -19,7 +19,7 @@ def check_domain_age(domain: str) -> dict:
             creation_date = creation_date[0]
 
         if not creation_date:
-            return {"age_days": -1, "age_years": None, "is_new": True, "created_at": "Unknown"}
+            return {"age_days": -1, "age_years": None, "is_new": None, "created_at": "Unknown"}
 
         # Normalize ke UTC — handle aware dan naive datetime
         now = datetime.now(timezone.utc)
@@ -37,7 +37,7 @@ def check_domain_age(domain: str) -> dict:
         }
     except Exception as e:
         logger.warning("WHOIS lookup gagal untuk %s: %s", domain, e)
-        return {"error": str(e), "is_new": True, "age_days": -1, "age_years": None, "created_at": "Unknown"}
+        return {"error": str(e), "is_new": None, "age_days": -1, "age_years": None, "created_at": "Unknown"}
 
 
 def check_email_security(domain: str) -> dict:
