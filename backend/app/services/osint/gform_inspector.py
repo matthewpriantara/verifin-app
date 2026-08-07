@@ -11,6 +11,7 @@ from typing import Any
 from urllib.parse import unquote, urlparse
 
 from scrapling.fetchers import Fetcher
+from app.services.status_contract import COMPLETED, PARSE_FAILED, UNAVAILABLE
 
 # Kata kunci berisiko tinggi pada pertanyaan Google Form (Phishing / Keuangan / E-KTP)
 PHISHING_KEYWORDS = {
@@ -95,6 +96,7 @@ def inspect_gform(url: str) -> dict[str, Any]:
 
     try:
         target_url = url
+        final_url = target_url
         # Check 302 location redirect (misal forms.gle -> docs.google.com/forms/...)
         try:
             r_short = httpx.get(url, headers=headers, follow_redirects=False, timeout=5.0)
@@ -105,6 +107,7 @@ def inspect_gform(url: str) -> dict[str, Any]:
             pass
 
         r = httpx.get(target_url, headers=headers, follow_redirects=True, timeout=8.0)
+        final_url = str(r.url)
         html = r.text
         # Check if bitly page html contains forms.gle
         match_gle = re.search(r"forms\.gle/[a-zA-Z0-9_-]+", html)
@@ -153,10 +156,8 @@ def inspect_gform(url: str) -> dict[str, Any]:
 
         # Jika parsing JS state gagal, coba ekstraksi teks kasar
         if not form_title:
-            try:
-                form_title = (page.css("title::text").get() or "").strip()
-            except Exception:
-                pass
+            title_match = re.search(r"<title[^>]*>(.*?)</title>", html, re.I | re.S)
+            form_title = re.sub(r"\s+", " ", title_match.group(1)).strip() if title_match else ""
 
         risk_flags: list[str] = []
         safe_flags: list[str] = []
@@ -190,6 +191,8 @@ def inspect_gform(url: str) -> dict[str, Any]:
 
         return {
             "is_gform": True,
+            "probe_status": COMPLETED,
+            "parse_status": COMPLETED if (form_title or questions or "forms" in final_url.lower()) else PARSE_FAILED,
             "url": url,
             "final_url": final_url,
             "form_title": form_title or "Formulir Pendaftaran Loker",
@@ -202,6 +205,8 @@ def inspect_gform(url: str) -> dict[str, Any]:
     except Exception as exc:
         return {
             "is_gform": True,
+            "probe_status": UNAVAILABLE,
+            "parse_status": PARSE_FAILED,
             "url": url,
             "ok": False,
             "error": str(exc),

@@ -15,6 +15,7 @@ from app.services.osint.gform_inspector import inspect_gform, is_gform_url
 from app.services.constants import FREE_EMAIL_DOMAINS
 from app.services.osint.query_builder import build_search_queries
 from app.config import SEARXNG_URL
+from app.services.status_contract import COMPLETED, FOUND, NO_RESULTS, NO_RELEVANT_RESULTS, UNAVAILABLE
 
 _SOCIAL_AGGREGATOR_TOKENS = (
     "lokerjogja", "loker jogja", "lokerterbaru", "loker terbaru",
@@ -181,6 +182,9 @@ def fetch_company_website(url_or_domain: str) -> dict[str, Any]:
             "type": "website",
             "url": url,
             "ok": ok,
+            "probe_status": "COMPLETED",
+            "website_status": "AVAILABLE" if ok else "UNAVAILABLE",
+            "evidence_status": "FOUND" if ok else "NO_RESULTS",
             "status": status,
             "title": title[:200],
             "snippet": snippet,
@@ -193,7 +197,10 @@ def fetch_company_website(url_or_domain: str) -> dict[str, Any]:
             return {
                 "type": "website",
                 "url": url,
-                "ok": True,
+                "ok": False,
+                "probe_status": "COMPLETED",
+                "website_status": "UNAVAILABLE",
+                "evidence_status": "FOUND",
                 "social_profile_found": True,
                 "title": social.get("title"),
                 "snippet": f"Web korporat tidak aktif, tetapi terdeteksi akun medsos/toko publik: {social.get('url')}",
@@ -204,6 +211,9 @@ def fetch_company_website(url_or_domain: str) -> dict[str, Any]:
             "type": "website",
             "url": url,
             "ok": False,
+            "probe_status": "UNAVAILABLE",
+            "website_status": "UNAVAILABLE",
+            "evidence_status": "NO_RESULTS",
             "error": str(exc),
             "risk_flags": ["Gagal membuka website perusahaan."],
             "safe_flags": [],
@@ -242,7 +252,7 @@ def search_web_evidence(query: str, max_results: int = 5) -> dict[str, Any]:
             r = s.get(sx_url, timeout=4.0)
             if r.status_code == 200:
                 engine_used = "searxng"
-                search_status = "NO_RESULTS"
+                search_status = NO_RESULTS
                 data = r.json()
                 for item in data.get("results", [])[:max_results]:
                     url = item.get("url", "")
@@ -256,7 +266,7 @@ def search_web_evidence(query: str, max_results: int = 5) -> dict[str, Any]:
                             "source_type": _public_source_type(url, title, snippet),
                         })
                 if results:
-                    search_status = "FOUND"
+                    search_status = FOUND
             else:
                 search_error = f"SearXNG HTTP {r.status_code}."
         except Exception as exc:
@@ -309,10 +319,11 @@ def search_web_evidence(query: str, max_results: int = 5) -> dict[str, Any]:
         "type": "search",
         "query": q,
         "ok": bool(results),
+        "request_status": COMPLETED if engine_used == "searxng" else UNAVAILABLE,
         "engine": engine_used,
         "status": (
-            "FOUND" if relevant_results else
-            ("NO_RELEVANT_RESULTS" if results else search_status)
+            FOUND if relevant_results else
+            (NO_RELEVANT_RESULTS if results else search_status)
         ),
         "results": relevant_results[:max_results],
         "raw_result_count": len(results),
@@ -455,7 +466,10 @@ def collect_web_evidence(entities: dict) -> dict[str, Any]:
         risk_flags.extend(gf.get("risk_flags") or [])
         safe_flags.extend(gf.get("safe_flags") or [])
 
-    has_any_working_web_or_social = any(w.get("ok") for w in website_checks) or any(
+    has_any_working_web_or_social = any(
+        w.get("ok") and w.get("website_status", "AVAILABLE") == "AVAILABLE"
+        for w in website_checks
+    ) or any(
         gf.get("is_gform") for gf in gform_inspections
     )
     for w in website_checks:
@@ -539,6 +553,7 @@ def collect_web_evidence(entities: dict) -> dict[str, Any]:
         # curl_cffi dipakai untuk SearXNG; Scrapling dipakai untuk fetch halaman web.
         "engine": "searxng + Scrapling fetch",
         "websites": website_checks,
+        "probe_status": "COMPLETED",
         "gform_inspections": gform_inspections,
         "searches": searches,
         "evidence_counts": {

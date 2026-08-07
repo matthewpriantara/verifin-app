@@ -73,6 +73,7 @@ def explain_verification_shap(
     safe_factors: list[str],
     nlp_result: dict[str, Any] | None = None,
     network_context: dict[str, Any] | None = None,
+    entities: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     """
     Hitung Shapley values untuk setiap fitur yang berkontribusi ke risk_score.
@@ -90,6 +91,7 @@ def explain_verification_shap(
         Dict dengan feature_contributions, waterfall_chart, summary
     """
     base_value = 12.0  # Baseline netral — UMKM valid sering 5-15
+    input_addresses = (entities or {}).get("addresses") or []
 
     contributions: list[dict[str, Any]] = []
 
@@ -174,7 +176,12 @@ def explain_verification_shap(
 
     # ── 2. OSINT features ───────────────────────────────────────────────────
     phones = osint_results.get("phones") or []
-    if any(p.get("reported_fraud") for p in phones):
+    if any(
+        p.get("reported_fraud")
+        or p.get("scam_confirmed")
+        or p.get("reputation_status") == "FLAGGED"
+        for p in phones if isinstance(p, dict)
+    ):
         contributions.append(_make_contrib(
             "Nomor HP Dilaporkan Penipuan",
             "kredibel_fraud_flag",
@@ -287,14 +294,14 @@ def explain_verification_shap(
         ))
 
     # Tidak ada alamat fisik = sinyal risiko medium
-    if not address_validations:
+    if entities is not None and input_addresses and not exact_address:
         contributions.append(_make_contrib(
-            "Tidak Ada Alamat Fisik Tercantum",
-            "no_address",
+            "Alamat Fisik Belum Terverifikasi Exact",
+            "address_not_verified",
             1,
             10.0,
             "risk",
-            "Tidak ada alamat kantor yang dapat diverifikasi — perusahaan tidak memiliki keberadaan fisik yang jelas",
+            "Alamat tercantum, tetapi belum ditemukan kecocokan jalan dan nomor yang exact di peta",
         ))
 
     companies = osint_results.get("companies") or []
@@ -382,6 +389,7 @@ def explain_verification_shap(
         network_context=network_context,
         risk_contribs=risk_contribs,
         safe_contribs=safe_contribs,
+        entities=entities,
     )
 
     return {
@@ -389,7 +397,11 @@ def explain_verification_shap(
         "base_value": base_value,
         "final_risk_score": risk_score,
         "evidence_confidence": forensic["evidence_confidence"],
+        "decision_confidence": forensic["decision_confidence"],
+        "confidence_method": forensic["confidence_method"],
         "evidence_coverage_percent": forensic["evidence_coverage_percent"],
+        "probe_hit_rate_percent": forensic["probe_hit_rate_percent"],
+        "probe_applicability": forensic["probe_applicability"],
         "decision_path": forensic["decision_path"],
         "consistency_breakdown": forensic["consistency_breakdown"],
         "dns_records": forensic["dns_records"],
@@ -425,6 +437,7 @@ def _build_forensic_metadata(
     network_context: dict[str, Any] | None,
     risk_contribs: list[dict[str, Any]],
     safe_contribs: list[dict[str, Any]],
+    entities: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     """
     Bangun metadata forensik (decision_path, probe timing, coverage, graph, hash)
@@ -445,6 +458,8 @@ def _build_forensic_metadata(
     domain = o.get("domain") or {}
     email_sec = o.get("email_security") or {}
     fraud_net = o.get("fraud_network") or {}
+    input_addresses = (entities or {}).get("addresses") or []
+    entities_known = entities is not None
 
     # Sinyal boolean nyata --------------------------------------------------
     company_name = (companies[0].get("name") if companies and isinstance(companies[0], dict) else None) or "Tidak terdeteksi"
@@ -472,14 +487,36 @@ def _build_forensic_metadata(
         for a in addr
         if isinstance(a, dict)
     )
-    phone_checked = len(phones) > 0
-    phone_probe_status = (o.get("phone_probe") or {}).get("status")
-    phone_clean = phone_checked and any(
-        # checked=true + tidak ada laporan fraud = CLEAN (Kaspersky berhasil, tidak ada temuan)
-        p.get("checked") and not p.get("reported_fraud")
+    phone_checked = any(
+        p.get("probe_status") == "COMPLETED" or (
+            p.get("checked") is True and p.get("reputation_status") in {"CLEAN", "SUSPICIOUS", "FLAGGED"}
+        )
         for p in phones if isinstance(p, dict)
     )
-    phone_flagged = any(p.get("reported_fraud") for p in phones if isinstance(p, dict))
+    phone_probe_status = (o.get("phone_probe") or {}).get("status")
+    if not phone_probe_status:
+        phone_probe_statuses = [
+            p.get("probe_status") for p in phones if isinstance(p, dict) and p.get("probe_status")
+        ]
+        if phone_probe_statuses and all(status == "COMPLETED" for status in phone_probe_statuses):
+            phone_probe_status = "COMPLETED"
+        elif phone_probe_statuses and any(status == "COMPLETED" for status in phone_probe_statuses):
+            phone_probe_status = "PARTIAL"
+        elif phone_probe_statuses:
+            phone_probe_status = "UNAVAILABLE"
+    phone_clean = phone_checked and any(
+        # checked=true + tidak ada laporan fraud = CLEAN (Kaspersky berhasil, tidak ada temuan)
+        p.get("probe_status") == "COMPLETED"
+        and p.get("reputation_status") == "CLEAN"
+        and not p.get("reported_fraud")
+        for p in phones if isinstance(p, dict)
+    )
+    phone_flagged = any(
+        p.get("reported_fraud")
+        or p.get("scam_confirmed")
+        or p.get("reputation_status") == "FLAGGED"
+        for p in phones if isinstance(p, dict)
+    )
     web_counts = web.get("evidence_counts") or {}
     web_hit = bool(
         any(w.get("ok") for w in (web.get("websites") or []))
@@ -501,15 +538,30 @@ def _build_forensic_metadata(
         or email_sec.get("skipped") == "free_email"
         or domain.get("domain", "").lower() in FREE_EMAIL_DOMAINS
     )
-    in_fraud_network = bool((network_context or {}).get("entity_in_fraud_network"))
+    network_status = (network_context or {}).get("status")
+    in_fraud_network = network_status != "UNAVAILABLE" and bool(
+        (network_context or {}).get("entity_in_fraud_network")
+    )
 
     # Coverage: proporsi probe yang berhasil mengembalikan sinyal ------------
-    probe_outcomes = [company_found, address_found, phone_checked, web_hit, bool(email_sec), social_hit]
+    probe_outcomes = {
+        "company_public_mention": company_found,
+        "web_relevant_result": web_hit,
+        "social_public_footprint": social_hit,
+        "email_security_applicable": bool(
+            email_sec.get("skipped") == "free_email"
+            or email_sec.get("spf_active")
+            or email_sec.get("dmarc_active")
+        ),
+    }
+    if not entities_known or input_addresses:
+        probe_outcomes["address_exact_match"] = address_found
+    if not entities_known or (entities or {}).get("phones"):
+        probe_outcomes["phone_reputation_checked"] = phone_checked
     ran = len(probe_outcomes)
-    hits = sum(1 for x in probe_outcomes if x)
-    coverage = round((hits / ran) * 100, 1) if ran else 0.0
-    # Confidence: makin banyak bukti & makin ekstrem skor, makin yakin
-    confidence = min(99.0, round(50.0 + coverage * 0.4 + (10.0 if verdict == "AMAN" else 0.0), 1))
+    hits = sum(1 for outcome in probe_outcomes.values() if outcome)
+    probe_hit_rate = round((hits / ran) * 100, 1) if ran else 0.0
+    decision_confidence = min(99.0, round(50.0 + probe_hit_rate * 0.4 + (10.0 if verdict == "AMAN" else 0.0), 1))
 
     # Decision path — langkah nyata berdasarkan entitas & probe aktual -------
     risk_level = "LOW" if risk_score < 35 else ("MEDIUM" if risk_score < 65 else "HIGH")
@@ -523,23 +575,34 @@ def _build_forensic_metadata(
     decision_path = [
         {"step": "1. OCR & Entity Extraction", "status": "PASS",
          "detail": f"Entitas terdeteksi: {company_name}; {len(phones)} no HP, {len(companies)} perusahaan, {len(addr)} alamat."},
-        {"step": "2. Address OSM Geocoding", "status": "EXACT" if exact_address else ("AREA_ONLY" if has_area_address else "UNKNOWN"),
-         "detail": ("Jalan dan nomor alamat cocok dengan hasil peta." if address_found else ("Wilayah/jalan ditemukan, tetapi titik exact belum terkonfirmasi." if has_area_address else "Alamat tidak ditemukan/tidak dicantumkan."))},
+        {"step": "2. Address OSM Geocoding", "status": "EXACT" if exact_address else ("AREA_ONLY" if has_area_address else ("NOT_PROVIDED" if entities_known and not input_addresses else "UNKNOWN")),
+         "detail": ("Jalan dan nomor alamat cocok dengan hasil peta." if address_found else ("Wilayah/jalan ditemukan, tetapi titik exact belum terkonfirmasi." if has_area_address else ("Alamat fisik tidak tercantum pada input." if entities_known and not input_addresses else "Alamat tidak tersedia untuk penilaian.")))},
         {"step": "3. Phone Kaspersky Who Calls Check", "status": "PASS" if (phone_checked and not phone_flagged) else ("FLAG" if phone_flagged else ("NOT_PROVIDED" if phone_probe_status == "NOT_PROVIDED" else "SKIP")),
          "detail": ("Nomor HP tidak tercantum pada input; pemeriksaan dilewati." if phone_probe_status == "NOT_PROVIDED" else phone_status)},
         {"step": "4. Email Domain Infrastructure Check", "status": "PASS",
          "detail": (f"Free provider ({domain.get('domain', 'email gratis')}); SPF/DMARC tidak relevan." if is_free_email
                     else f"Domain korporat {domain.get('domain', '?')}; SPF aktif={email_sec.get('spf_active')}, DMARC aktif={email_sec.get('dmarc_active')}.")},
-        {"step": "5. Threat Intelligence Graph Network", "status": "FLAG" if in_fraud_network else "PASS",
+        {"step": "5. Threat Intelligence Graph Network", "status": "FLAG" if in_fraud_network else ("UNKNOWN" if network_status == "UNAVAILABLE" else "PASS"),
          "detail": f"Status jaringan: {cluster}."},
         {"step": "6. Final Risk Level Evaluation", "status": risk_level,
          "detail": f"Skor risiko terkalibrasi: {risk_score} / 100 ({risk_label})."},
     ]
 
     # Consistency breakdown — diturunkan dari sinyal nyata --------------------
+    address_breakdown = (
+        {
+            "factor": "address_gis_match",
+            "raw_score": None,
+            "weight": 0.20,
+            "weighted_contribution": 0.0,
+            "status": "NOT_PROVIDED",
+        }
+        if entities_known and not input_addresses
+        else {"factor": "address_gis_match", **_cs(100.0 if address_found else 30.0, 0.20)}
+    )
     consistency_breakdown = [
         {"factor": "company_name_match", **_cs(100.0 if company_found else 40.0, 0.25)},
-        {"factor": "address_gis_match", **_cs(100.0 if address_found else 30.0, 0.20)},
+        address_breakdown,
         {"factor": "phone_reputation", **_cs(0.0 if phone_flagged else (100.0 if phone_clean else 50.0), 0.20)},
         {"factor": "domain_security", **_cs(70.0 if is_free_email else 95.0, 0.15)},
         {"factor": "social_footprint", **_cs(90.0 if social_hit else (60.0 if public_footprint else 40.0), 0.20)},
@@ -550,10 +613,11 @@ def _build_forensic_metadata(
     probe_weights = [
         {"probe": "Address Geocoding (OSM GIS)", "weight": 0.25,
          "execution_time_ms": _timing.get("addr_ms"),  # None = tidak diukur, jujur
-         "status": "EXACT" if address_found else ("AREA_ONLY" if has_area_address else "NOT_FOUND")},
+         "status": "EXACT" if address_found else ("AREA_ONLY" if has_area_address else ("NOT_PROVIDED" if entities_known and not input_addresses else "NOT_FOUND")),
+         "applicable": not (entities_known and not input_addresses)},
         {"probe": "Phone Reputation (Kaspersky Who Calls)", "weight": 0.20,
          "execution_time_ms": _timing.get("phone_ms"),
-         "status": "CLEAN" if phone_clean else ("FLAGGED" if phone_flagged else ("NOT_PROVIDED" if phone_probe_status == "NOT_PROVIDED" else "SKIPPED")),
+         "status": "CLEAN" if phone_clean else ("FLAGGED" if phone_flagged else ("NOT_PROVIDED" if phone_probe_status == "NOT_PROVIDED" else "UNAVAILABLE" if phone_probe_status in {"UNAVAILABLE", "PARTIAL"} else "SKIPPED")),
          "url": first_phone.get("url")},
         {"probe": "Web Evidence (SERP)", "weight": 0.20,
          "execution_time_ms": _timing.get("web_ms"),
@@ -584,8 +648,20 @@ def _build_forensic_metadata(
     }
 
     return {
-        "evidence_confidence": confidence,
-        "evidence_coverage_percent": coverage,
+        "evidence_confidence": None,
+        "decision_confidence": decision_confidence,
+        "confidence_method": "heuristic decision confidence; evidence_confidence is null because no calibrated evidence model is available",
+        "evidence_coverage_percent": None,
+        "probe_hit_rate_percent": probe_hit_rate,
+        "probe_applicability": {
+            "applicable": ran,
+            "positive": hits,
+            "outcomes": probe_outcomes,
+            "excluded_not_provided": [
+                name for name in ("address_exact_match", "phone_reputation_checked")
+                if name not in probe_outcomes
+            ],
+        },
         "decision_path": decision_path,
         "consistency_breakdown": consistency_breakdown,
         "dns_records": {

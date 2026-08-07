@@ -22,7 +22,12 @@ def _has_hard_risk_evidence(entities: dict, osint_results: dict) -> bool:
     network = osint_results.get("fraud_network") or {}
     gforms = web.get("gform_inspections") or []
     return bool(
-        any(p.get("reported_fraud") for p in phones if isinstance(p, dict))
+        any(
+            p.get("reported_fraud")
+            or p.get("scam_confirmed")
+            or p.get("reputation_status") == "FLAGGED"
+            for p in phones if isinstance(p, dict)
+        )
         or any(f.get("risk_flags") for f in gforms if isinstance(f, dict))
         or any(web_search.get("risk_flags") for web_search in web.get("searches") or [])
         or network.get("entity_in_fraud_network")
@@ -49,6 +54,35 @@ def _has_public_evidence(osint_results: dict) -> bool:
         or social_counts.get("public_profiles", 0) > 0
         or web.get("websites")
     )
+
+
+def _phone_reputation_state(osint_results: dict) -> str:
+    """Return the canonical phone state without overloading legacy `found`."""
+    phones = osint_results.get("phones") or []
+    if any(
+        p.get("reported_fraud")
+        or p.get("scam_confirmed")
+        or p.get("reputation_status") == "FLAGGED"
+        for p in phones if isinstance(p, dict)
+    ):
+        return "FLAGGED"
+    if any(
+        (
+            p.get("probe_status") == "COMPLETED"
+            and p.get("reputation_status") == "CLEAN"
+        )
+        or (
+            p.get("checked") is True
+            and p.get("danger_level") == 0
+            and not p.get("reported_fraud")
+            and not p.get("scam_confirmed")
+        )
+        for p in phones if isinstance(p, dict)
+    ):
+        return "CLEAN"
+    if any(p.get("probe_status") == "COMPLETED" for p in phones if isinstance(p, dict)):
+        return "COMPLETED"
+    return "UNAVAILABLE" if phones else "NOT_PROVIDED"
 
 
 def _calibrate_unknown_search_output(parsed: dict, entities: dict, osint_results: dict) -> dict:
@@ -119,8 +153,10 @@ def _fallback_analysis(entities: dict, osint_results: dict) -> dict:
     else:
         verdict, score = "AMAN", 28
     risks = []
-    if not address_exact:
-        risks.append("Alamat exact belum terverifikasi")
+    if entities.get("addresses") and not address_exact:
+        risks.append("Alamat fisik belum terverifikasi exact")
+    elif not entities.get("addresses"):
+        risks.append("Alamat fisik tidak tercantum")
     if any("@" in e and e.rsplit("@", 1)[-1].lower() in FREE_EMAIL_DOMAINS for e in entities.get("emails") or []):
         risks.append("Email memakai domain gratisan")
     if not phones:
@@ -147,6 +183,11 @@ def _is_valid_llm_output(
     if parsed.get("verdict") not in ("AMAN", "WASPADA", "BAHAYA"):
         return False
     if not isinstance(parsed.get("risk_score"), (int, float)):
+        return False
+    score = float(parsed["risk_score"])
+    verdict_limits = {"AMAN": (0, 39), "WASPADA": (40, 74), "BAHAYA": (75, 100)}
+    low, high = verdict_limits[parsed["verdict"]]
+    if not low <= score <= high:
         return False
 
     for field in ("summary", "risk_factors", "safe_factors", "recommendations"):
@@ -198,12 +239,27 @@ def _sanitize_llm_output(
         "Nol indikasi penipuan di seluruh hasil pencarian SERP": "Belum ditemukan indikasi penipuan spesifik pada hasil yang relevan",
         "Nol indikasi penipuan di seluruh hasil pencarian": "Belum ditemukan indikasi penipuan spesifik pada hasil yang relevan",
     }
+    no_input_address = not (entities.get("addresses") or []) and not (osint_results.get("address_validations") or [])
+    if no_input_address:
+        replacements.update({
+            "Alamat exact belum terverifikasi": "Alamat fisik tidak tercantum",
+            "Alamat fisik tidak tervalidasi": "Alamat fisik tidak tercantum",
+            "Alamat fisik belum terverifikasi": "Alamat fisik tidak tercantum",
+            "Alamat tidak ditemukan": "Alamat fisik tidak tercantum",
+        })
+    phone_state = _phone_reputation_state(osint_results)
     for field in ("summary", "risk_factors", "safe_factors", "recommendations"):
         value = parsed.get(field)
         values = value if isinstance(value, list) else [value]
         cleaned = []
         for item in values:
             if not isinstance(item, str):
+                continue
+            if phone_state == "CLEAN" and field == "risk_factors" and _re.search(
+                r"reputasi\s+(?:nomor|hp|telepon).*belum\s+terkonfirmasi",
+                item,
+                _re.I,
+            ):
                 continue
             text = item
             if corrected and canonical_company and corrected != canonical_company:
@@ -213,6 +269,27 @@ def _sanitize_llm_output(
             if not _has_corrupt_text(text, entities, allowed_tokens):
                 cleaned.append(text)
         parsed[field] = cleaned if isinstance(value, list) else (cleaned[0] if cleaned else "")
+
+    if phone_state == "CLEAN":
+        for field in ("risk_factors", "summary"):
+            value = parsed.get(field)
+            values = value if isinstance(value, list) else [value]
+            if field == "risk_factors":
+                parsed[field] = [
+                    item for item in values
+                    if isinstance(item, str)
+                    and not _re.search(
+                        r"reputasi\s+(?:nomor|hp|telepon).*belum\s+terkonfirmasi",
+                        item,
+                        _re.I,
+                    )
+                ]
+        safe = parsed.get("safe_factors") or []
+        if not isinstance(safe, list):
+            safe = [safe]
+        if not any("diperiksa kaspersky" in item.lower() for item in safe if isinstance(item, str)):
+            safe.append("Nomor HP diperiksa Kaspersky dan tidak ditemukan laporan fraud")
+        parsed["safe_factors"] = safe[:3]
 
     # Gmail/free email is never an official corporate channel by itself.
     if canonical_company:
@@ -305,7 +382,13 @@ async def analyze_with_verifin(
     except Exception as exc:
         # Rule-based fallback engine if LLM API is unavailable
         comp_name = (entities.get("companies") or ["Perusahaan"])[0]
-        has_fraud_phone = any(p.get("reported_fraud") for p in (osint_results.get("phones") or []))
+        has_fraud_phone = any(
+            p.get("reported_fraud")
+            or p.get("scam_confirmed")
+            or p.get("reputation_status") == "FLAGGED"
+            for p in (osint_results.get("phones") or [])
+            if isinstance(p, dict)
+        )
         has_free_email = any(
             "@" in e and e.split("@")[-1].lower() in FREE_EMAIL_DOMAINS
             for e in (entities.get("emails") or [])

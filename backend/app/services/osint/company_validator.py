@@ -242,7 +242,7 @@ def validate_company_public(company: str, entities: dict | None = None) -> dict[
         "neutral_notes": (
             ["Search engine tidak mengembalikan hasil yang dapat diverifikasi."]
             if successful_requests == 0 else (
-                [f"Tidak ada hasil relevan untuk '{name}' pada request yang berhasil; ini bukan bukti ketiadaan jejak publik. "]
+                [f"Tidak ada hasil relevan untuk '{name}' pada request yang berhasil; ini bukan bukti ketiadaan jejak publik."]
                 if mention_count == 0 else []
             )
         ),
