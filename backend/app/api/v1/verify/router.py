@@ -12,6 +12,7 @@ Modular:
 
 import logging
 import os
+import asyncio
 import tempfile
 from typing import List
 from uuid import UUID
@@ -60,7 +61,7 @@ async def verify_from_text(
     request: TextVerifyRequest = Body(...), 
     db: Session = Depends(get_db)
 ):
-    cached_resp = _get_cached_case_from_db(db, request.text)
+    cached_resp = await asyncio.to_thread(_get_cached_case_from_db, db, request.text)
     if cached_resp:
         return cached_resp
 
@@ -72,7 +73,7 @@ async def verify_from_text(
         osint_results = await _run_osint_on_entities(entities)
 
         # Layer 5: Fraud Network — case memory (GAR-HGNN inspired)
-        network_context = _check_fraud_network(db, entities)
+        network_context = await asyncio.to_thread(_check_fraud_network, db, entities)
 
         raw_text = request.text if request.include_raw_text else None
         analysis = await analyze_with_verifin(entities, osint_results, raw_text=raw_text)
@@ -81,7 +82,8 @@ async def verify_from_text(
         analysis["nlp_result"] = nlp_result
         analysis["network_context"] = network_context
 
-        _save_case_to_db(
+        await asyncio.to_thread(
+            _save_case_to_db,
             db, request.text, analysis, osint_results, entities=entities, source="text"
         )
         return _to_response(analysis, entities, osint_results)
@@ -123,15 +125,20 @@ async def verify_from_image(
         tmp_path = tmp.name
 
     try:
-        raw_text = extract_text_from_image(tmp_path)
+        ocr_metrics: dict = {}
+        # ponytail: request sinkron (tanpa background job) — cukup untuk demo;
+        # upgrade ke FastAPI BackgroundTasks + polling job_id kalau latency
+        # OSINT/LLM (>2 mnt) butuh progress sejati di FE.
+        raw_text = await asyncio.to_thread(extract_text_from_image, tmp_path, ocr_metrics)
         if not raw_text or not raw_text.strip():
             raise HTTPException(
                 status_code=422,
                 detail="Tidak ada teks yang berhasil dibaca dari gambar. Coba unggah gambar yang lebih jelas.",
             )
+        logger.info("[OCR] image metrics=%s", ocr_metrics)
 
         # Cache-check dari hash teks OCR — gambar identik = hasil identik
-        cached_resp = _get_cached_case_from_db(db, raw_text)
+        cached_resp = await asyncio.to_thread(_get_cached_case_from_db, db, raw_text)
         if cached_resp:
             return cached_resp
 
@@ -143,7 +150,7 @@ async def verify_from_image(
         osint_results = await _run_osint_on_entities(entities)
 
         # Layer 5: Fraud Network Check
-        network_context = _check_fraud_network(db, entities)
+        network_context = await asyncio.to_thread(_check_fraud_network, db, entities)
 
         analysis = await analyze_with_verifin(
             entities, osint_results, raw_text=raw_text
@@ -151,10 +158,14 @@ async def verify_from_image(
         analysis["nlp_result"] = nlp_result
         analysis["network_context"] = network_context
 
-        _save_case_to_db(
+        await asyncio.to_thread(
+            _save_case_to_db,
             db, raw_text, analysis, osint_results, entities=entities, source="image"
         )
-        return _to_response(analysis, entities, osint_results)
+        response = _to_response(analysis, entities, osint_results)
+        if response.osint is not None:
+            response.osint.setdefault("timing", {})["ocr"] = ocr_metrics
+        return response
 
     except HTTPException:
         raise
@@ -182,7 +193,7 @@ async def verify_from_url(
     request: UrlVerifyRequest = Body(...),
     db: Session = Depends(get_db)
 ):
-    cached_resp = _get_cached_case_from_db(db, request.url)
+    cached_resp = await asyncio.to_thread(_get_cached_case_from_db, db, request.url)
     if cached_resp:
         return cached_resp
 
@@ -194,7 +205,7 @@ async def verify_from_url(
         for p in tmp_paths:
             if p and os.path.exists(p):
                 try:
-                    t = extract_text_from_image(p)
+                    t = await asyncio.to_thread(extract_text_from_image, p)
                     if t and t.strip():
                         ocr_texts.append(t.strip())
                 except Exception as exc:
@@ -213,7 +224,7 @@ async def verify_from_url(
 
         full_raw_text = "\n\n".join(text_blocks).strip()
 
-        cached_resp_full = _get_cached_case_from_db(db, full_raw_text)
+        cached_resp_full = await asyncio.to_thread(_get_cached_case_from_db, db, full_raw_text)
         if cached_resp_full:
             return cached_resp_full
         
@@ -227,13 +238,14 @@ async def verify_from_url(
         osint_results = await _run_osint_on_entities(entities)
 
         # Layer 5: Fraud Network Check (case memory + community reports)
-        network_context = _check_fraud_network(db, entities)
+        network_context = await asyncio.to_thread(_check_fraud_network, db, entities)
 
         analysis = await analyze_with_verifin(
             entities, osint_results, raw_text=full_raw_text
         )
         analysis["network_context"] = network_context
-        _save_case_to_db(
+        await asyncio.to_thread(
+            _save_case_to_db,
             db, full_raw_text, analysis, osint_results, entities=entities, source="url"
         )
         return _to_response(analysis, entities, osint_results)
@@ -426,5 +438,3 @@ def get_case_by_id(case_id: UUID, db: Session = Depends(get_db)):
         "osint_failed": db_case.osint_failed,
         "created_at": db_case.created_at.isoformat() if db_case.created_at else None,
     }
-
-
