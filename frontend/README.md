@@ -1,36 +1,66 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# 🎨 Verifin Frontend (Next.js 14)
 
-## Getting Started
+UI Verifin — verifikasi lowongan kerja, lapor komunitas, dan dashboard admin.
 
-First, run the development server:
+---
+
+## 🚀 Menjalankan
 
 ```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+cd frontend
+npm install
+npm run dev          # http://localhost:3000 (hot-reload)
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+Build produksi: `npm run build` · serve: `npm start` · lint: `npm run lint`
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+### Environment (`frontend/.env.local`)
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+```env
+NEXT_PUBLIC_API_URL=http://localhost:8000   # base URL backend (tanpa trailing slash)
 
-## Learn More
+# Admin panel (hanya server-side, tanpa prefix NEXT_PUBLIC_)
+ADMIN_PASSWORD=verifin2026                 # ganti di produksi!
+ADMIN_SESSION_SECRET=verifin-admin-secret-change-me
+```
 
-To learn more about Next.js, take a look at the following resources:
+---
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+## 🗂️ Halaman
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+| Route | Modul | Catatan |
+| :--- | :--- | :--- |
+| `/` | `modules/home/HomePage` | Landing + VerifyBox (input teks/gambar/URL) |
+| `/report` | `modules/report/ReportPage` | Hasil verifikasi (render dari sessionStorage) |
+| `/report-job` | `modules/report-job/ReportJobPage` | Form lapor lowongan → `POST /community/report` |
+| `/admin` | `modules/admin/AdminPage` | Riwayat kasus + moderasi laporan komunitas |
+| `/verify` | — | redirect ke `/` |
 
-## Deploy on Vercel
+Navigasi admin & lapor tersedia di footer.
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+---
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+## 🔌 Kontrak Backend
+
+Semua panggilan API lewat `lib/api.ts` (verifikasi, status, community) dan
+`lib/admin.ts` (riwayat kasus):
+
+- `POST /api/v1/verify/text` · `POST /api/v1/verify/image` · `POST /api/v1/verify/url`
+- `GET /api/v1/verify/status`
+- `GET /api/v1/cases`
+- `POST /api/v1/community/report`
+- `GET /api/v1/community/reports`
+- `PATCH /api/v1/community/reports/{id}`
+
+Tipe kontrak di `types/verify.ts` & `types/admin.ts` — sinkron dengan schema
+Pydantic backend. `osint.timing.ocr` (latency OCR) dan `persistence_status`
+ditampilkan di report.
+
+---
+
+## 🔐 Admin
+
+Login via Next.js API route (`app/api/admin/*`) — password dari env
+`ADMIN_PASSWORD`, sesi cookie httpOnly 8 jam. **Backend tidak punya konsep role**;
+endpoint `/cases` dan `/community/reports` bersifat publik (data moderasi
+sebaiknya dilindungi reverse-proxy/auth bila dideploy publik).

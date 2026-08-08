@@ -344,6 +344,7 @@ def list_cases(limit: int = 100, skip: int = 0, db: Session = Depends(get_db)):
                 "id": str(c.id),
                 "source": c.source,
                 "company_name": c.company_name,
+                "raw_text_preview": c.raw_text_preview,
                 "phones": c.phones,
                 "emails": c.emails,
                 "verdict": c.verdict,

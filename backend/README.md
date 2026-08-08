@@ -1,140 +1,149 @@
 # 🛡️ Verifin Backend Engine
 
-**Verifin** adalah platform verifikasi lowongan kerja pintar berbasis **Multimodal OCR**, **OSINT (Open Source Intelligence)**, **Scrapling Engine**, dan **Explainable AI (XAI)** untuk mendeteksi penipuan rekrutmen dan Tindak Pidana Perdagangan Orang (TPPO) siber.
+Backend FastAPI untuk **Verifin** — verifikasi lowongan kerja berbasis bukti OSINT
+(multimodal OCR + OSINT paralel + LLM reasoning + Evidence Attribution).
 
 ---
 
-## 🧩 3 Pilar Utama Arsitektur Verifin
-
-Verifin bekerja menggunakan arsitektur 3 tahap (Multi-Stage Processing Pipeline):
+## 🧩 Arsitektur
 
 ```
-+-------------------+      +-------------------------+      +--------------------------+
-| 1. OCR & NER      | ---> | 2. OSINT & Scrapling    | ---> | 3. LLM Reasoner & XAI    |
-| (OpenCV CLAHE +   |      | (WHOIS, OSM, Kredibel,  |      | (Grok-4.5 + SHAP         |
-|  PaddleOCR +      |      |  GForm, Web, Threads)   |      |  Feature Explainer)      |
-|  Regex struktural)|      |                         |      |                          |
-+-------------------+      +-------------------------+      +--------------------------+
+Input (teks / gambar poster / URL)
+   │
+   ├─ OCR (PaddleOCR lang=id) + OpenCV CLAHE  ── gambar → teks
+   ├─ NER Hibrida: Regex struktural (ner.py) + LLM extraction (entity_extraction.py)
+   │     · NLP Layer 1 = STUB (classifier.py, jujur enabled:false)
+   ├─ OSINT Engine (services/osint/runner.py — asyncio.gather paralel)
+   │     · WHOIS/DNS      : umur domain + SPF/DMARC (domain korporat saja)
+   │     · Phone          : Kredibel reputation + probe_status kanonikal
+   │     · Address        : Nominatim (OSM) — match_level exact/street/area
+   │     · Web Evidence   : SearXNG + Scrapling, relevance filter
+   │     · Company        : jejak publik + deteksi sindikat (graph)
+   │     · Social OSINT   : Instagram/Threads/TikTok/FB via SERP
+   │     · GForm Inspector: follow shortlink → parse pertanyaan → phishing flags
+   ├─ Fraud Network (graph/fraud_network.py — case-memory 500 kasus)
+   ├─ LLM Reasoning (verifin_reasoning.py — verdict AMAN/WASPADA/BAHAYA,
+   │     temperature=0, seed=42, 3x retry + fallback evidence-only)
+   └─ Evidence Attribution (xai/shap_explainer.py — kontribusi fitur + waterfall)
 ```
 
-### 1. Ekstraksi Teks & Entitas (OCR + NER)
-* **OpenCV CLAHE & Border Padding:** Preprocess poster/flyer lokal (kontras adaptif + margin 30px).
-* **PaddleOCR (paddlepaddle 2.6.2 + paddleocr 2.8.1):** Ekstraksi teks lokal (wajib venv Python 3.11 di macOS Intel).
-* **Regex NER struktural (`ner.py`):** Full regex (tanpa IndoBERT) — company legal form, alamat multi-layout berbasis pola Indonesia (Jl/Dusun/RT-RW/kode pos, **bukan whitelist kota**), phone `+62`, email, URL, gaji.
-
-### 2. Investigasi Intelijen Real-Time (OSINT Engine)
-* **WHOIS & DNS Security:** Umur domain + SPF/DMARC (domain korporat saja; Gmail/Yahoo = netral).
-* **Kredibel Phone:** Reputasi nomor HP/WA (scrape + cookie session).
-* **OpenStreetMap Geocoding:** Validasi alamat fisik.
-* **Google Form Phishing Inspector:** Follow shortlink (`bit.ly`, `forms.gle`), deteksi minta rekening/KTP/biaya.
-* **Web Scrapling:** Website + SERP + **query email footprint** (email tidak lagi dicari di Threads).
-* **Threads OSINT:** Jejak postingan/brand dari **nama perusahaan** saja.
-
-### 3. Penalaran & Penjelasan Transparan (LLM Reasoner + SHAP XAI)
-* **Verifin Reasoning Engine (`verifin_reasoning.py` via Grok-4.5 / OpenAgentic):** Verdict `AMAN` | `WASPADA` | `BAHAYA` + skor 0–100, anti-halusinasi (hanya fakta OSINT).
-* **Kalibrasi skor:** Gmail netral untuk UMKM; target UMKM valid (OSM + HP bersih + no fee) **AMAN 5–15**.
-* **SHAP Feature Explainer (`shap_explainer.py`):** Kontribusi fitur + `waterfall_chart` untuk frontend.
+**Status kontrak:** semua probe memakai vocabulary kanonikal di
+`services/status_contract.py` (`COMPLETED` / `FOUND` / `NO_RESULTS` /
+`NO_RELEVANT_RESULTS` / `UNAVAILABLE` / `PARSE_FAILED` / `INVALID_INPUT` /
+`NOT_PROVIDED`).
 
 ---
 
-## 📁 Struktur Direktori Backend
+## 🚀 Menjalankan
+
+> **Penting (macOS Intel):** wajib Python 3.11 + `paddlepaddle==2.6.2`.
+> Pakai venv `.venv311` yang sudah ada.
+
+```bash
+cd backend
+.venv311/bin/uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
+# atau setelah activate: uvicorn app.main:app --port 8000 --reload
+```
+
+Docs API: http://localhost:8000/docs · Redoc: http://localhost:8000/redoc
+
+### Environment (`backend/.env` — tidak di-commit)
+
+```env
+LLM_BASE_URL=https://.../v1            # OpenAI-compatible
+LLM_API_KEY=sk-...                     # wajib
+LLM_MODEL=fb/deepseek/deepseek-v4-flash
+LLM_TIMEOUT=120
+DATABASE_URL=postgresql://...          # PostgreSQL (Supabase pooler OK)
+SEARXNG_URL=https://...                # SearXNG self-hosted
+REDIS_URL=redis://localhost:6379/0     # opsional
+```
+
+Contoh lengkap di `.env.example`.
+
+---
+
+## 📁 Struktur
 
 ```
 backend/
 ├── app/
-│   ├── main.py                     # FastAPI Entry Point
-│   ├── config.py                   # Environment & LLM Settings
-│   ├── api/
-│   │   └── v1/
-│   │       ├── health/
-│   │       │   └── router.py       # GET /api/v1/health
-│   │       └── verify/
-│   │           ├── router.py       # verify/text, verify/image, verify/status, ...
-│   │           └── schema.py       # Pydantic Request/Response
+│   ├── main.py                    # FastAPI entry + OCR warmup di startup
+│   ├── config.py                  # env → config
+│   ├── api/v1/
+│   │   ├── verify/                # router.py (endpoints), pipeline.py (orchestration), schema.py
+│   │   ├── community/             # lapor + moderasi laporan komunitas
+│   │   └── health/                # health check
+│   ├── database/                  # SQLAlchemy models + postgres client
 │   └── services/
-│       ├── ocr.py                  # OpenCV CLAHE + PaddleOCR
-│       ├── ner.py                  # Regex struktural NER (no ML)
-│       ├── osint/
-│       │   ├── address_validator.py
-│       │   ├── company_validator.py
-│       │   ├── gform_inspector.py
-│       │   ├── phone_validator.py
-│       │   ├── threads_osint.py    # query company/brand only
-│       │   ├── web_evidence.py     # website + SERP + email search
-│       │   └── whois_handler.py
-│       ├── llm/
-│       │   ├── prompt_builder.py   # anti-halusinasi + kalibrasi skor
-│       │   ├── client.py
-│       │   └── verifin_reasoning.py
-│       └── xai/
-│           └── shap_explainer.py
-├── secrets/                        # cookies OSINT (gitignored)
+│       ├── ocr.py                 # PaddleOCR lang=id + CLAHE + downscale 1000px
+│       ├── ner.py                 # regex struktural + _uniq_addresses (dedup by nomor rumah)
+│       ├── nlp/classifier.py      # STUB (jujur enabled:false)
+│       ├── llm/                   # client (retry+repair JSON), verifin_reasoning, entity_extraction
+│       ├── osint/                 # runner.py (probe paralel) + tiap probe per file
+│       ├── graph/                 # fraud_network.py (NetworkX)
+│       ├── xai/                   # shap_explainer.py → Evidence Attribution
+│       ├── status_contract.py     # vocab status kanonikal
+│       ├── url_guard.py           # SSRF guard (blok localhost/private IP)
+│       └── db_cache.py            # exact-match cache (hash text+model → auto invalidasi)
+├── secrets/                       # cookies OSINT (gitignored)
+├── test_regression.py             # corpus regression (assert-based, tanpa framework)
 ├── .env.example
-├── requirements.txt
-└── README.md
+└── requirements.txt
 ```
 
 ---
 
-## 🚀 Cara Menjalankan Server Backend
-
-> **Penting (macOS Intel):** Pakai **Python 3.11** + `paddlepaddle==2.6.2`.  
-> Venv Python 3.14 (`.venv`) biasanya **tidak** punya paddle yang jalan.
-
-1. **Virtual Environment (disarankan `.venv311`):**
-   ```bash
-   cd backend
-   python3.11 -m venv .venv311
-   source .venv311/bin/activate
-   pip install -r requirements.txt
-   ```
-
-2. **Environment Variable (`.env`):**
-   ```env
-   LLM_BASE_URL=https://openagentic.id/api/v1
-   LLM_API_KEY=your_api_key_here
-   LLM_MODEL=grok-4.5
-   ```
-
-3. **Jalankan Uvicorn:**
-   ```bash
-   .venv311/bin/uvicorn app.main:app --host 127.0.0.1 --port 8000 --reload
-   # atau setelah activate:
-   uvicorn app.main:app --host 127.0.0.1 --port 8000 --reload
-   ```
-
-4. **Docs:**
-   * Swagger: `http://localhost:8000/docs`
-   * Redoc: `http://localhost:8000/redoc`
-
----
-
-## 🧪 Endpoint Utama API
+## 🔌 Endpoint
 
 | Method | Endpoint | Deskripsi |
 | :--- | :--- | :--- |
-| `GET` | `/api/v1/health` | Status server + LLM + OSINT |
+| `GET` | `/api/v1/health` | Status server + PostgreSQL + LLM |
 | `POST` | `/api/v1/verify/text` | Verifikasi dari teks |
-| `POST` | `/api/v1/verify/image` | Verifikasi dari gambar (PaddleOCR lokal) |
-| `GET` | `/api/v1/verify/status` | Status LLM OpenAgentic |
+| `POST` | `/api/v1/verify/image` | Verifikasi dari gambar (OCR PaddleOCR `lang=id`) |
+| `POST` | `/api/v1/verify/url` | Verifikasi dari URL postingan (fetch + OCR gambar) |
+| `GET` | `/api/v1/verify/status` | Status LLM (model aktif) |
 | `GET` | `/api/v1/check-domain` | Cek cepat umur domain + SPF/DMARC |
-| `GET` | `/api/v1/osint/scan-email` | Footprint email |
-| `GET` | `/api/v1/osint/scan-username` | Footprint username |
+| `GET` | `/api/v1/cases` | Riwayat kasus (limit/skip) |
+| `GET` | `/api/v1/cases/lookup/by-entity` | Cari case by phone/email/company |
+| `GET` | `/api/v1/cases/{case_id}` | Detail kasus per ID |
+| `POST` | `/api/v1/community/report` | Kirim laporan komunitas (IP pelapor terekam server-side) |
+| `GET` | `/api/v1/community/reports` | Daftar laporan + filter status (moderasi) |
+| `PATCH` | `/api/v1/community/reports/{id}` | Approve/reject + catatan reviewer |
+| `GET` | `/api/v1/community/check` | Agregasi laporan per entitas (fraud network) |
+| `GET` | `/api/v1/community/recent` | Laporan terbaru (publik) |
 
-### Contoh test poster
+### Test cepat image
+
 ```bash
 curl -X POST "http://127.0.0.1:8000/api/v1/verify/image" \
-  -F "file=@loker_test2.jpeg"
+  -F "file=@poster.webp;type=image/webp"
 ```
 
 ---
 
-## 📊 Verdict & Skor Risiko
+## 🧪 Regression
 
-| Verdict | Skor | Arti singkat |
+```bash
+.venv311/bin/python3 test_regression.py
+```
+
+Menutup: multi-address (boundary `Cabang:`/`Alamat lain:`), dedup by nomor rumah,
+shortlink, scam phone `08...`→`+62...`, SSRF guard, verdict-score contract,
+single-token search relevance, effective weight SHAP, metadata NLP STUB.
+
+E2E lengkap: `../test/hasil-test-raw/_run_tests.sh fresh` (butuh server hidup).
+
+---
+
+## 📊 Verdict & Skor
+
+| Verdict | Skor | Arti |
 | :--- | :--- | :--- |
-| `AMAN` | 0–39 | UMKM valid target **5–15**; 0–10 sangat aman |
-| `WASPADA` | 40–74 | Ada red flag kombinasi / jejak meragukan |
-| `BAHAYA` | 75–100 | Minta biaya, HP fraud, phishing form, scam SERP |
+| `AMAN` | 0–39 | Tidak ditemukan red flag keras |
+| `WASPADA` | 40–74 | Ada kombinasi sinyal mencurigakan |
+| `BAHAYA` | 75–100 | Minta biaya / HP fraud / phishing / jejak scam |
 
-**Netral (bukan red flag tunggal):** email Gmail/Yahoo, gaji tidak disebut, tidak ada website jika alamat OSM valid / medsos aktif.
+Skor diverifikasi service-layer (`_is_valid_llm_output`); LLM gagal 3x →
+fallback evidence-only. Cache key = `sha256(text + model)` → ganti model otomatis
+invalidasi hasil lama.

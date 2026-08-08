@@ -6,6 +6,7 @@ export interface ExtractedEntities {
   emails: string[];
   urls: string[];
   addresses: string[];
+  location_candidates: string[];
   salaries: string[];
 }
 
@@ -131,7 +132,7 @@ export interface LlmStatusResponse {
   provider: string;
   configured: boolean;
   reachable: boolean;
-  available_models: string[];
+  available_models?: string[];
   target_model: string;
   detail?: string | null;
 }
