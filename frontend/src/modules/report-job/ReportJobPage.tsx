@@ -11,7 +11,6 @@ import {
   CheckCircle,
   Warning,
   Flag,
-  CloudArrowUp,
 } from "@phosphor-icons/react";
 import { cn } from "@/lib/utils";
 import type { ReportType } from "@/types/admin";
@@ -45,18 +44,10 @@ export default function ReportJobPage() {
   const [reportType, setReportType]   = useState<ReportType | "">("");
   const [description, setDescription] = useState("");
   const [evidenceUrl, setEvidenceUrl] = useState("");
-  const [fileName, setFileName]       = useState("");
 
   const [loading, setLoading] = useState(false);
   const [success, setSuccess] = useState(false);
   const [error, setError] = useState("");
-
-  function handleFileChange(e: React.ChangeEvent<HTMLInputElement>) {
-    const file = e.target.files?.[0];
-    if (file) {
-      setFileName(file.name);
-    }
-  }
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -127,7 +118,6 @@ export default function ReportJobPage() {
                 setReportType("");
                 setDescription("");
                 setEvidenceUrl("");
-                setFileName("");
                 setSuccess(false);
               }}
               className="w-full rounded-xl border border-border bg-bg-subtle py-3 text-[13px] font-medium text-text-secondary transition-colors hover:border-border-focus hover:text-text-primary"
@@ -287,7 +277,7 @@ export default function ReportJobPage() {
               {/* Evidence URL */}
               <div>
                 <label className="mb-1.5 block text-[12px] font-medium text-text-secondary">
-                  Tautan Bukti Gambar/Drive <span className="text-text-muted">(opsional)</span>
+                  Tautan Bukti (Gambar/Drive) <span className="text-text-muted">(opsional)</span>
                 </label>
                 <div className="relative">
                   <span className="absolute inset-y-0 left-0 flex items-center pl-3.5 text-text-muted">
@@ -297,31 +287,9 @@ export default function ReportJobPage() {
                     type="url"
                     value={evidenceUrl}
                     onChange={(e) => setEvidenceUrl(e.target.value)}
-                    placeholder="Contoh: https://drive.google.com/..."
+                    placeholder="Contoh: https://drive.google.com/... (unggah file belum didukung)"
                     className="w-full rounded-xl border border-border bg-bg pl-9 pr-4 py-2.5 text-[13px] text-text-primary placeholder:text-text-muted outline-none transition-colors focus:border-border-focus"
                   />
-                </div>
-              </div>
-
-              {/* Upload file placeholder */}
-              <div>
-                <label className="mb-1.5 block text-[12px] font-medium text-text-secondary">
-                  Unggah File Bukti <span className="text-text-muted">(opsional)</span>
-                </label>
-                <div className="relative flex flex-col items-center justify-center rounded-xl border border-dashed border-border bg-bg p-5 text-center transition-colors hover:border-border-focus">
-                  <input
-                    type="file"
-                    accept="image/*,.pdf"
-                    onChange={handleFileChange}
-                    className="absolute inset-0 cursor-pointer opacity-0"
-                  />
-                  <CloudArrowUp size={24} className="text-text-muted" />
-                  <p className="mt-2 text-[12px] font-semibold text-text-primary">
-                    {fileName || "Pilih file bukti"}
-                  </p>
-                  <p className="mt-0.5 text-[10px] text-text-muted">
-                    Maksimal 5MB (PNG, JPG, PDF)
-                  </p>
                 </div>
               </div>
             </div>
