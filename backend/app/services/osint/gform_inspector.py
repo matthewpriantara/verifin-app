@@ -161,6 +161,12 @@ def inspect_gform(url: str) -> dict[str, Any]:
 
         risk_flags: list[str] = []
         safe_flags: list[str] = []
+        final_url_lower = final_url.lower()
+        invalid_dynamic_link = "invalid dynamic link" in form_title.lower()
+        valid_form_target = (
+            ("docs.google.com/forms" in final_url_lower or "forms.google.com" in final_url_lower)
+            and not invalid_dynamic_link
+        )
 
         # Deteksi Phishing pada pertanyaan & deskripsi
         combined_text = (form_title + " " + form_desc + " " + " ".join(questions)).lower()
@@ -184,7 +190,7 @@ def inspect_gform(url: str) -> dict[str, Any]:
                 safe_flags.append(
                     f"✅ Google Form terverifikasi aman: memuat {len(questions)} pertanyaan standar loker ({q_sample})."
                 )
-            elif "forms" in final_url.lower() or "bit.ly" in url.lower():
+            elif valid_form_target:
                 safe_flags.append(
                     "✅ Shortlink/Google Form terverifikasi terhubung ke infrastruktur resmi Google Forms."
                 )
@@ -192,7 +198,7 @@ def inspect_gform(url: str) -> dict[str, Any]:
         return {
             "is_gform": True,
             "probe_status": COMPLETED,
-            "parse_status": COMPLETED if (form_title or questions or "forms" in final_url.lower()) else PARSE_FAILED,
+            "parse_status": COMPLETED if valid_form_target and (form_title or questions) else PARSE_FAILED,
             "url": url,
             "final_url": final_url,
             "form_title": form_title or "Formulir Pendaftaran Loker",
