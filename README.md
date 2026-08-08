@@ -4,36 +4,32 @@
 > Setiap klaim bisa dibuktikan, setiap angka bisa diukur, setiap keterbatasan diakui jujur.
 
 Verifin menganalisis lowongan kerja (teks, gambar poster, atau tautan) lalu memberi **Skor Risiko 0–100**
-(0 = aman, 100 = bahaya) beserta penjelasan yang dapat diaudit. Bukan sekadar "tebakan AI" — semua
-kesimpulan ditarik dari **bukti OSINT nyata** (WHOIS, peta, web, laporan publik).
-
-**Status kesiapan:** ✅ SIAP dikumpulkan tahap awal — skor internal ~92/100.
-Lihat ringkasan lengkap di repo pendamping [`gemastik19`](../gemastik19) (folder `kritik-juri/`).
+(0 = aman, 100 = bahaya) beserta penjelasan yang dapat diaudit. Semua kesimpulan ditarik dari
+**bukti OSINT nyata** (WHOIS, peta, web, laporan komunitas) — bukan tebakan AI.
 
 ---
 
 ## 1. Arsitektur Singkat
 
-Pipeline 4 layer (dijalankan bertahap, hasil deterministik):
-
 ```
-Input (teks/gambar/link)
-   │
-   ├─ Layer 1: NER Hibrida — Regex (entitas struktural) + LLM extraction (entitas semantik)
-   │            + PaddleOCR bila input berupa gambar poster
-   ├─ Layer 2: Klasifikasi Teks — TF-IDF + Logistic Regression (hybrid ML + aturan perilaku)
-   │            dilatih pada dataset EMSCAD → ROC-AUC 0,996 · Recall 98,4%
-   ├─ Layer 3: OSINT Engine (paralel, asyncio)
-   │            ├─ Domain/URL  : WHOIS/RDAP, umur domain, keaktifan web, inspeksi shortlink/GForm
-   │            ├─ Phone       : validasi format + prefix operator + cek laporan Kredibel (scraping)
-   │            └─ Company     : multi-engine web search (DuckDuckGo/Yahoo/Bing) + relevance filter,
-   │                            validasi alamat via OpenStreetMap (Nominatim), deteksi sosial media
-   └─ Layer 4: LLM Reasoning + XAI — kimi-k3-high via OpenAgentic, temperature=0 (deterministik),
-                evidence-only prompting (hanya boleh menyimpulkan dari bukti OSINT), NetworkX graph
+Input (teks / gambar / URL)
+   ├─ OCR: PaddleOCR lang=id + OpenCV CLAHE (downscale 1000px, preload di startup)
+   ├─ NER Hibrida: Regex struktural + LLM extraction (paralel)
+   │     · NLP classifier Layer 1 = STUB (belum ada dataset berlabel Indonesia — jujur enabled:false)
+   ├─ OSINT Paralel: WHOIS/DNS · Kredibel phone · Nominatim (OSM) · SearXNG+Scrapling ·
+   │                 company footprint · social (IG/Threads/TikTok/FB) · Google Form inspector
+   ├─ Fraud Network: NetworkX case-memory (500 kasus) + deteksi sindikat nomor/email
+   ├─ LLM Reasoning: verdict AMAN/WASPADA/BAHAYA, temperature=0 + seed (deterministik),
+   │                 3x retry + fallback evidence-only saat model gagal
+   └─ Evidence Attribution: kontribusi fitur + waterfall (rule-based, bukan SHAP statistik)
 ```
 
-**Stack:** FastAPI (backend) · Next.js 14 (frontend) · scikit-learn TF-IDF+LogReg · PaddleOCR 2.8.1 +
-OpenCV · Scrapling · curl_cffi + BeautifulSoup · python-whois · NetworkX · OpenStreetMap · Kredibel.
+**Stack:** FastAPI · Next.js 14 · PaddleOCR 2.8.1 + OpenCV · SearXNG + Scrapling ·
+python-whois · NetworkX · PostgreSQL (Supabase) · LLM OpenAI-compatible (env-driven).
+
+**Status kontrak probe:** vocabulary kanonikal (`COMPLETED`/`FOUND`/`NO_RESULTS`/
+`NO_RELEVANT_RESULTS`/`UNAVAILABLE`/`PARSE_FAILED`) — konsumen tidak lagi membaca boolean
+`found`/`ok` yang ambigu.
 
 ---
 
@@ -42,79 +38,60 @@ OpenCV · Scrapling · curl_cffi + BeautifulSoup · python-whois · NetworkX · 
 ### Backend (FastAPI)
 ```bash
 cd backend
-source .venv311/bin/activate        # virtualenv Python 3.11 (sudah ada, jangan dibuat ulang sembarangan)
-uvicorn app.main:app --port 8000 --reload
+.venv311/bin/uvicorn app.main:app --port 8000 --reload   # wajib venv .venv311 (Python 3.11)
 ```
 - Docs API: http://localhost:8000/docs
-- Matikan server: `lsof -tiTCP:8000 -sTCP:LISTEN | xargs kill -9`
+- Isi `backend/.env` dari `.env.example` (`LLM_BASE_URL`, `LLM_API_KEY`, `LLM_MODEL`,
+  `DATABASE_URL`, `SEARXNG_URL`).
+- Detail lengkap: `backend/README.md`.
 
 ### Frontend (Next.js 14)
 ```bash
 cd frontend
-npm install   # pertama kali
-npm run dev   # jalan di http://localhost:3000 (hot-reload)
+npm install
+npm run dev   # http://localhost:3000
 ```
-
-### Environment
-Salin `.env.example` → `.env` (backend) dan `.env.local` (frontend), isi kunci API yang diperlukan.
-**File `.env` tidak di-commit** — minta kredensial ke tim.
+- Isi `frontend/.env.local`: `NEXT_PUBLIC_API_URL=http://localhost:8000` (+ `ADMIN_PASSWORD` untuk admin).
+- Detail lengkap: `frontend/README.md`.
 
 ---
 
-## 3. Testing & Evaluasi
+## 3. Fitur
 
-| Jenis | Lokasi / Perintah | Hasil |
-|-------|-------------------|-------|
-| Evaluasi model (EMSCAD) | `backend/evaluasi_emscad_full.py` | ROC-AUC **0,996** · Recall **98,4%** · F1 0,718 |
-| Latih ulang classifier | `backend/latih_tfidf_emscad.py` | model → `backend/app/services/nlp/model/` |
-| Test end-to-end | lihat repo `gemastik19/test/` | 3 kanal OK; negatif → BAHAYA skor 95 |
-
-**Catatan data:** `dataset/fake_job_postings.csv` (EMSCAD, ~48 MB) **tidak di-commit** karena besar.
-Unduh terpisah bila ingin melatih/evaluasi ulang. Model hasil latih (`.pkl`) juga lokal-only.
+- **Verifikasi** teks / gambar poster / URL — laporan berisi verdict, skor, faktor risiko/aman,
+  entitas terekstrak, bukti OSINT, graf fraud, Evidence Attribution, latensi OCR.
+- **Lapor Komunitas** (`/report-job`) — pengguna melaporkan lowongan mencurigakan
+  (`POST /api/v1/community/report`, IP pelapor terekam server-side).
+- **Moderasi & Admin** (`/admin`) — riwayat kasus + approve/reject laporan komunitas
+  (status `pending`/`approved`/`rejected` + catatan reviewer).
+- **Cache exact-match** — hash `text + model LLM`; ganti model otomatis invalidasi hasil lama.
 
 ---
 
-## 4. Struktur Kode Penting
+## 4. Testing
+
+| Jenis | Perintah | Keterangan |
+|-------|----------|------------|
+| Regression unit | `cd backend && .venv311/bin/python3 test_regression.py` | 9 kasus: multi-address, shortlink, scam phone, SSRF, verdict-score, single-token search, effective weight, NLP STUB |
+| E2E 3 kanal | `test/hasil-test-raw/_run_tests.sh fresh` (di repo `gemastik19`) | text / image OCR / URL; butuh server hidup |
+
+Catatan: `dataset/fake_job_postings.csv` (EMSCAD ~48MB) tidak di-commit; skrip
+`backend/evaluasi_emscad_full.py` & `backend/latih_tfidf_emscad.py` tersedia untuk
+evaluasi ulang — tetapi **classifier TF-IDF tidak aktif** di pipeline (STUB).
+
+---
+
+## 5. Struktur Penting
 
 ```
 backend/app/
-├─ api/v1/verify/router.py     # endpoint verifikasi (teks/gambar/link)
-├─ api/v1/community/           # komunitas (lapor & upvote/downvote)
-├─ services/
-│  ├─ ner.py                   # Regex NER + entitas struktural
-│  ├─ llm/
-│  │  ├─ entity_extraction.py  # ekstraksi entitas semantik via LLM
-│  │  └─ verifin_reasoning.py  # Layer 4: evidence-only reasoning
-│  ├─ nlp/classifier.py        # Layer 2: TF-IDF + LogReg hybrid
-│  ├─ osint/
-│  │  ├─ web_evidence.py       # multi-engine search + RELEVANCE FILTER entitas
-│  │  ├─ whois_handler.py      # domain/whois
-│  │  ├─ phone_validator.py    # nomor HP + Kredibel
-│  │  ├─ address_validator.py  # geocoding OpenStreetMap
-│  │  ├─ company_validator.py  # jejak perusahaan
-│  │  ├─ social_osint.py       # deteksi sosial media
-│  │  └─ gform_inspector.py    # deteksi shortlink/Google Form
-│  ├─ graph/fraud_network.py   # NetworkX fraud network
-│  └─ cache_service.py         # cache konsisten antar kanal
+├── api/v1/verify/          # router, pipeline (orchestration), schema
+├── api/v1/community/       # lapor + moderasi
+├── services/
+│   ├── ocr.py · ner.py · nlp/ · llm/ · osint/ (runner.py + probe) · graph/ · xai/
+│   ├── status_contract.py · url_guard.py · db_cache.py
+├── test_regression.py
 frontend/src/
-├─ components/verify/VerifyBox.tsx   # input teks/gambar/link (isPureUrl, auto-resize)
-└─ components/report/RiskMeter.tsx   # gauge skor risiko (0/45/80+)
+├── modules/{home,verify,report,report-job,admin}/
+├── lib/{api,admin}.ts · types/{verify,admin}.ts
 ```
-
----
-
-## 5. Prinsip Integritas (untuk juri)
-
-- **Tidak ada hardcode/fabrikasi** di output — semua dari data nyata yang bisa diverifikasi ulang.
-- **Deterministik:** `temperature=0`, seed tetap → input sama = hasil sama.
-- **Evidence-only:** LLM dilarang klaim di luar bukti OSINT.
-- **Jujur soal batas:** legalitas AHU/OSS tidak diverifikasi otomatis (tidak ada API publik) — diakui terbuka.
-
----
-
-## 6. Untuk Teman Tim
-
-- Branch kerja: **`hafidz`** · branch utama: **`main`**.
-- Sebelum commit: pastikan `git status` tidak menyertakan `.env`, `dataset/`, `node_modules/`, atau `*.aux` LaTeX (sudah di-`.gitignore`).
-- Backend HARUS pakai `.venv311` (Python 3.11) — PaddleOCR/scikit-learn sudah terpasang di situ.
-- Dokumen proposal & analisis juri ada di repo **`gemastik19`**, bukan di repo ini.
