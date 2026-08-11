@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { ShieldCheck, ArrowLeft, Gauge } from "@phosphor-icons/react";
+import { ShieldCheck, ChatTeardropText, Gauge } from "@phosphor-icons/react";
 
 export function Navbar() {
   const pathname = usePathname();
@@ -23,11 +23,11 @@ export function Navbar() {
         <div className="flex items-center gap-2">
           {onReport && (
             <Link
-              href="/"
+              href="/report-job"
               className="flex items-center gap-1.5 rounded-lg border border-border bg-bg-subtle px-3 py-1.5 text-[13px] text-text-secondary transition-colors hover:border-border-focus hover:text-text-primary"
             >
-              <ArrowLeft size={13} />
-              Verifikasi baru
+              <ChatTeardropText size={13} weight="bold" />
+              Lapor komunitas
             </Link>
           )}
         </div>
