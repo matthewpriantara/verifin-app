@@ -5,6 +5,20 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
+
+# Uvicorn's default logging config does not always lower the level of
+# application loggers. Keep Verifin pipeline logs visible during local runs.
+logging.basicConfig(
+    level=logging.DEBUG,
+    format="%(asctime)s %(levelname)s [%(name)s] %(message)s",
+    force=True,
+)
+logging.getLogger("httpx").setLevel(logging.WARNING)
+logging.getLogger("httpcore").setLevel(logging.WARNING)
+logging.getLogger("ppocr").setLevel(logging.WARNING)
+logging.getLogger("app").setLevel(logging.DEBUG)
+logging.getLogger("scrapling").propagate = False
+
 if hasattr(sys.stdout, "reconfigure"):
     sys.stdout.reconfigure(encoding="utf-8")
 if hasattr(sys.stderr, "reconfigure"):

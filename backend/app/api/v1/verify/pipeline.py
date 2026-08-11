@@ -266,6 +266,7 @@ def _merge_entities(primary: dict, secondary: dict) -> dict:
             clean_urls = [
                 u for u in combined
                 if u and not re.search(r"^(?:[a-zA-Z]\.com|gmail|yahoo|gmai|gamil)\.", u, re.I)
+                and not re.search(r"[A-Za-z0-9_.+-]+@[A-Za-z0-9-]+\.[A-Za-z0-9.-]+", u)
             ]
             out[key] = _uniq(clean_urls)
         elif key == "addresses":
@@ -372,7 +373,7 @@ def _build_osint_summary(osint_results: dict | None) -> dict | None:
     phones = osint_results.get("phones") or []
     addrs = osint_results.get("address_validations") or []
     web = osint_results.get("web") or {}
-    threads = osint_results.get("threads") or {}
+    social = osint_results.get("social") or {}
     return {
         "phones": [
             {
@@ -398,8 +399,8 @@ def _build_osint_summary(osint_results: dict | None) -> dict | None:
         "web_search_count": len((web.get("searches") or [])),
         "web_safe_flags": (web.get("safe_flags") or web.get("safe_signals") or [])[:8],
         "web_risk_flags": (web.get("risk_flags") or [])[:8],
-        "threads_query": threads.get("query"),
-        "threads_found": bool(threads.get("found")),
+        "social_query": social.get("query"),
+        "social_found": bool(social.get("found")),
         "domain": {
             "age_years": (osint_results.get("domain") or {}).get("age_years"),
             "is_new": (osint_results.get("domain") or {}).get("is_new"),

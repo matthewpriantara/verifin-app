@@ -121,22 +121,11 @@ def _build_company_osint_section(companies: list) -> str:
                 f"  → Jejak search: {stats.get('public_mentions', 0)} hasil, "
                 f"indikasi penipuan di SERP: {stats.get('fraud_related_mentions', 0)}"
             )
-        for ev in (c.get("evidence") or [])[:6]:
-            et = ev.get("type")
-            if et == "website_fetch":
-                lines.append(
-                    f"  → [FETCH] {ev.get('url')} ok={ev.get('ok')} title={(ev.get('title') or '')[:60]}"
-                )
-            elif et == "web_search":
-                lines.append(f"  → [SEARCH] q=`{ev.get('query')}` ok={ev.get('ok')}")
-                for r in (ev.get("results") or [])[:2]:
-                    lines.append(
-                        f"     · {(r.get('title') or '')[:90]} | {r.get('url')}"
-                    )
-            elif et == "registry_portal_probe":
-                lines.append(
-                    f"  → [AHU PORTAL] {ev.get('url')} ok={ev.get('ok')} — {ev.get('note', '')[:120]}"
-                )
+        if stats.get("search_count") is not None:
+            lines.append(
+                f"  → Detail search tersedia di bagian Web Evidence; "
+                f"{stats.get('search_count', 0)} query dipakai tanpa menyalin payload."
+            )
         for f in c.get("risk_flags") or []:
             lines.append(f"  → ⚠️ {f}")
         for f in c.get("safe_flags") or []:
@@ -181,6 +170,12 @@ def _build_web_osint_section(web: dict) -> str:
                 lines.append(f"  · Pertanyaan Formulir: {qs_str}")
             if gf.get("has_phishing_signals"):
                 lines.append("  · 🚨 PERINGATAN: Formulir memuat pertanyaan sensitif/keuangan mencurigakan!")
+            elif gf.get("content_verification_status") == "UNVERIFIED":
+                lines.append(
+                    "  · ⚠️ Isi pertanyaan belum berhasil dibaca; jangan menyimpulkan form bebas phishing."
+                )
+            elif gf.get("has_phishing_signals") is False:
+                lines.append("  · Tidak ditemukan kata kunci phishing pada isi form yang berhasil dibaca; ini bukan bukti perusahaan/lowongan resmi.")
 
     for s in (web.get("searches") or [])[:2]:
         lines.append(f"- Search: `{s.get('query')}` (status={s.get('status', 'UNKNOWN')}, engine={s.get('engine', 'unknown')})")
@@ -227,22 +222,22 @@ def _build_web_osint_section(web: dict) -> str:
     return "\n".join(lines)
 
 
-def _build_social_osint_section(threads: dict) -> str:
+def _build_social_osint_section(social: dict) -> str:
     """Format hasil OSINT Social Media untuk prompt reasoner — ringkas."""
-    if not threads:
+    if not social:
         return "- Tidak ada data media sosial."
-    if not threads.get("enabled"):
-        return f"- Social Media OSINT nonaktif: {threads.get('note') or 'tidak ada data'}."
-    if threads.get("error") and not threads.get("found"):
-        return f"- Social Media OSINT error: {threads.get('error')}"
+    if not social.get("enabled"):
+        return f"- Social Media OSINT nonaktif: {social.get('note') or 'tidak ada data'}."
+    if social.get("error") and not social.get("found"):
+        return f"- Social Media OSINT error: {social.get('error')}"
 
-    found = threads.get("social_found", threads.get("found", False))
-    public_footprint_found = threads.get("public_footprint_found", found)
-    platform_hits = threads.get("official_platform_hits") or threads.get("platform_hits") or {}
+    found = social.get("social_found", social.get("found", False))
+    public_footprint_found = social.get("public_footprint_found", found)
+    platform_hits = social.get("official_platform_hits") or social.get("platform_hits") or {}
     active_platforms = [p for p, v in platform_hits.items() if v]
-    risk_flags = threads.get("risk_flags") or []
-    profiles = threads.get("profiles") or []
-    posts = threads.get("posts") or []
+    risk_flags = social.get("risk_flags") or []
+    profiles = social.get("profiles") or []
+    posts = social.get("posts") or []
 
     lines = [
         f"- Jejak ditemukan: {'Ya' if found else 'Tidak'}",
@@ -254,7 +249,7 @@ def _build_social_osint_section(threads: dict) -> str:
     if risk_flags:
         for f in risk_flags:
             lines.append(f"- Risiko: {f}")
-    counts = threads.get("evidence_counts") or {}
+    counts = social.get("evidence_counts") or {}
     if counts:
         lines.append(
             "- COUNTS DETERMINISTIK SOCIAL: "
@@ -288,26 +283,33 @@ def _build_address_osint_section(address_validations: list) -> str:
             lines.append(f"- `{addr}`: Gagal divalidasi ({error})")
             continue
 
+        details = av.get("address_details", {}) or {}
+        match_level = details.get("match_level", "area")
+
         if not found:
             lines.append(f"- `{addr}`: ❌ TIDAK DITEMUKAN di peta Indonesia (kemungkinan alamat fiktif).")
-            continue
-
-        details = av.get("address_details", {}) or {}
-        display = details.get("display_name", "")[:120]
-        match_level = details.get("match_level", "area")
-        if match_level == "exact":
-            lines.append(f"- `{addr}`: ✅ Jalan dan nomor cocok dengan hasil peta ({display}...).")
-        elif match_level == "street":
-            lines.append(f"- `{addr}`: ℹ️ Nama jalan ditemukan, tetapi nomor bangunan belum cocok ({display}...).")
         else:
-            lines.append(f"- `{addr}`: ℹ️ Hanya wilayah sekitar yang ditemukan di peta ({display}...). BUKAN bukti titik outlet exact.")
+            display = details.get("display_name", "")[:120]
+            if match_level == "exact":
+                lines.append(f"- `{addr}`: ✅ Jalan dan nomor cocok dengan hasil peta ({display}...).")
+            elif match_level == "street":
+                lines.append(f"- `{addr}`: ℹ️ Nama jalan ditemukan, tetapi nomor bangunan belum cocok ({display}...).")
+            else:
+                lines.append(f"- `{addr}`: ℹ️ Hanya wilayah sekitar yang ditemukan di peta ({display}...). BUKAN bukti titik outlet exact.")
 
         # Catatan netral dari pencarian bisnis
         neutral_notes = av.get("neutral_notes", [])
         for note in neutral_notes:
             lines.append(f"  → ℹ️ {note}")
 
-        if biz_found is True and match_level == "exact":
+        if biz_found is True and biz_details.get("source") == "google_maps_serp":
+            matched = biz_details.get("matched_name", "?")
+            business_level = biz_details.get("match_level", "business_location")
+            lines.append(
+                f"  → ✅ Titik bisnis ditemukan dari hasil Google Maps publik: '{matched}' "
+                f"(status lokasi: {business_level}; bukan konfirmasi alamat exact OSM)."
+            )
+        elif biz_found is True and match_level == "exact":
             matched = biz_details.get("matched_name", "?")
             sim = biz_details.get("similarity", 0) * 100
             lines.append(f"  → ✅ Nama perusahaan ditemukan di OSM dekat lokasi: '{matched}' (kemiripan {sim:.0f}%).")
@@ -402,7 +404,7 @@ Analisis secara mendalam, formal, dan berbasis evidence. Berikan keputusan apaka
 {_build_web_osint_section(osint_results.get("web", {}))}
 
 **Jejak Media Sosial (Instagram, Threads, TikTok, Facebook, X):**
-{_build_social_osint_section(osint_results.get("threads", {}))}
+{_build_social_osint_section(osint_results.get("social", {}))}
 
 **Kebijakan evidence:**
 {(osint_results.get("evidence_policy") or {}).get("note", "Hanya fakta dari sumber OSINT.")}
@@ -471,7 +473,7 @@ Jangan naikkan ke WASPADA hanya karena tidak ada alamat/PT/website — itu norma
 7. Hanya sebut akun/kanal "resmi" jika evidence secara eksplisit membuktikan hubungan resmi; jika tidak, gunakan "jejak publik".
 8. risk_score HARUS selaras verdict dan band di atas.
 9. Jika semua query web berstatus `NO_RESULTS`/`UNAVAILABLE`, gunakan istilah `bukti publik tidak tersedia pada run ini`, bukan `zero footprint` atau `nihil jejak`.
-10. Jika `evidence_counts.relevant_results > 0` atau `threads.evidence_counts.public_posts > 0`, DILARANG menulis `bukti publik tidak tersedia` atau `zero footprint`.
+10. Jika `evidence_counts.relevant_results > 0` atau `social.evidence_counts.public_posts > 0`, DILARANG menulis `bukti publik tidak tersedia` atau `zero footprint`.
 
 ---
 

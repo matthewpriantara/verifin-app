@@ -85,6 +85,75 @@ def test_nlp_stub_metadata():
     meta = classify_text("lowongan")
     assert meta["enabled"] is False and meta["status"] == "STUB"
 
+def test_google_maps_business_coordinates():
+    from app.services.osint import web_evidence
+    from app.services.osint.address_validator import _verify_address_via_web
+
+    original = web_evidence.search_web_evidence
+    try:
+        web_evidence.search_web_evidence = lambda query, max_results=5: {
+            "ok": True,
+            "results": [{
+                "title": "Example Commerce Center",
+                "url": "https://www.google.com/maps/place/Example+Commerce/@-6.200000,106.816666,17z/data=!3d-6.200000!4d106.816666",
+                "snippet": "Example Commerce Center, Jalan Sudirman, Jakarta",
+            }],
+        }
+        result = _verify_address_via_web(
+            "Jl. Sudirman No.38, Jakarta",
+            "Example Commerce",
+        )
+    finally:
+        web_evidence.search_web_evidence = original
+
+    assert result["maps_match"] is True
+    assert result["lat"] == -6.2
+    assert result["lon"] == 106.816666
+    assert result["address_match_level"] == "business_location"
+
+def test_google_maps_business_name_is_dynamic():
+    from app.services.osint import web_evidence
+    from app.services.osint.address_validator import _verify_address_via_web
+
+    original = web_evidence.search_web_evidence
+    try:
+        def fake_search(query, max_results=5):
+            return {
+                "ok": True,
+                "results": [{
+                    "title": "Kedai Nusantara",
+                    "url": "https://www.google.com/maps/place/Kedai+Nusantara/data=!3d-7.250000!4d112.750000",
+                    "snippet": "Kedai Nusantara, Jalan Pemuda, Surabaya",
+                }],
+            }
+        web_evidence.search_web_evidence = fake_search
+        result = _verify_address_via_web(
+            "Jalan Pemuda No. 7, Surabaya",
+            "Kedai Nusantara",
+        )
+    finally:
+        web_evidence.search_web_evidence = original
+
+    assert result["maps_match"] is True
+    assert result["lat"] == -7.25
+    assert result["lon"] == 112.75
+
+def test_social_platform_statuses_are_audit_complete():
+    from app.services.osint.social import run_social_osint
+
+    result = run_social_osint({"companies": ["Example Commerce"]}, {"searches": [], "social_searches": [
+        {"platform": platform, "status": "NO_RESULTS", "results": []}
+        for platform in ("instagram", "threads", "tiktok", "facebook", "x_twitter")
+    ]})
+    assert result["platform_hits"] == {
+        "instagram": False,
+        "threads": False,
+        "tiktok": False,
+        "facebook": False,
+        "x_twitter": False,
+    }
+    assert len(result["social_searches"]) == 5
+
 if __name__ == "__main__":
     print("Regression corpus (wajib sebelum FE):")
     for name, fn in sorted(globals().items()):

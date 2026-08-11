@@ -10,22 +10,14 @@ Metodologi:
 - Output berupa risk_flags/safe_flags yang digabung di pipeline, bukan verdict final.
 
 Sumber data:
-1. Website domain perusahaan (dari email di entities) — cek konten nyata
-2. Web search: nama PT + kata kunci penipuan (DuckDuckGo → Yahoo → Bing fallback)
+1. Website dan search evidence yang sudah dikumpulkan oleh web_evidence.py
+2. Tidak ada request jaringan yang dilakukan dari modul ini.
 """
 
 import re
 from typing import Any
-import asyncio
 
-from app.services.constants import FREE_EMAIL_DOMAINS as _FREE_EMAIL_DOMAINS
 from app.services.status_contract import COMPLETED
-from app.services.osint.web_evidence import (
-    _domain_from_email,
-    fetch_company_website,
-    search_web_evidence,
-)
-from app.services.osint.query_builder import build_search_queries
 from app.services.osint.web_evidence import _result_matches_query
 
 # Token umum yang tidak bermakna untuk deteksi nama perusahaan di blob search
@@ -41,39 +33,11 @@ _GENERAL_NEWS_KEYWORDS = frozenset({
 })
 
 
-def _search_company_traces(company: str, entities: dict | None = None) -> list[dict[str, Any]]:
-    """Cari jejak perusahaan memakai fallback entitas yang sama dengan web evidence."""
-    search_entities = {"companies": [company], **(entities or {})}
-    candidates = build_search_queries(search_entities, include_email=False)
-    queries = [
-        f'{candidate["query"]} lowongan penipuan OR penipu OR scam'
-        for candidate in candidates
-    ]
-    queries += [
-        f'{candidate["query"]} NIB OR "akta pendirian" OR "terdaftar" OR AHU OR OSS'
-        for candidate in candidates[:3]
-    ]
-    out = []
-    for q in queries:
-        res = search_web_evidence(q, max_results=3)
-        out.append(
-            {
-                "query": q,
-                "ok": res.get("ok"),
-                "request_status": res.get("request_status"),
-                "source": res.get("engine", "searxng"),
-                "search_url": res.get("url"),
-                "results": res.get("results") or [],
-                "error": res.get("error"),
-                "status": res.get("status"),
-                "fallback_kind": res.get("fallback_kind"),
-                "risk_flags": res.get("risk_flags") or [],
-            }
-        )
-    return out
-
-
-def validate_company_public(company: str, entities: dict | None = None) -> dict[str, Any]:
+def validate_company_public(
+    company: str,
+    entities: dict | None = None,
+    web_evidence: dict | None = None,
+) -> dict[str, Any]:
     """
     Validasi publik untuk satu nama perusahaan.
     Semua field evidence berasal dari fetch/search nyata.
@@ -91,41 +55,25 @@ def validate_company_public(company: str, entities: dict | None = None) -> dict[
             "safe_flags": [],
         }
 
-    evidence: list[dict[str, Any]] = []
     risk_flags: list[str] = []
     safe_flags: list[str] = []
 
-    # 1) Website hanya domain korporat (skip Gmail dll) — max 1
-    domains = []
-    for em in (entities.get("emails") or [])[:1]:
-        d = _domain_from_email(em)
-        if d and d not in _FREE_EMAIL_DOMAINS:
-            domains.append(d)
-    for u in (entities.get("urls") or [])[:1]:
-        if u:
-            domains.append(u)
-
-    websites = []
-    for d in list(dict.fromkeys(domains))[:1]:
-        w = fetch_company_website(d)
-        websites.append(w)
-        evidence.append(
-            {
-                "type": "website_fetch",
-                "source": "scrapling",
-                "url": w.get("url"),
-                "ok": w.get("ok"),
-                "title": w.get("title"),
-                "snippet": (w.get("snippet") or "")[:240],
-                "raw_status": w.get("status"),
-                "error": w.get("error"),
-            }
-        )
+    # Web fetching/searching is owned by web_evidence.py. This module only
+    # projects the already-fetched evidence into a company-level record.
+    web_evidence = web_evidence if isinstance(web_evidence, dict) else {}
+    websites = [
+        w for w in (web_evidence.get("websites") or [])
+        if isinstance(w, dict)
+    ]
+    searches = [
+        s for s in (web_evidence.get("searches") or [])
+        if isinstance(s, dict)
+    ]
+    for w in websites:
         risk_flags.extend(w.get("risk_flags") or [])
         safe_flags.extend(w.get("safe_flags") or [])
 
-    # 2) search scam + jejak legalitas
-    searches = _search_company_traces(name, entities)
+    # Search evidence is already filtered/normalized by web_evidence.py.
     mention_count = 0
     fraud_mentions = 0
     legality_mentions = 0
@@ -133,17 +81,9 @@ def validate_company_public(company: str, entities: dict | None = None) -> dict[
     for s in searches:
         if s.get("request_status") == COMPLETED:
             successful_requests += 1
-        is_legality_query = "NIB" in s.get("query", "") or "akta pendirian" in s.get("query", "")
-        evidence.append(
-            {
-                "type": "web_search",
-                "source": s.get("source", "searxng"),
-                "query": s.get("query"),
-                "search_url": s.get("search_url"),
-                "ok": s.get("ok"),
-                "results": s.get("results") or [],
-                "error": s.get("error"),
-            }
+        is_legality_query = any(
+            token in s.get("query", "").lower()
+            for token in ("nib", "akta pendirian", "terdaftar", "ahu", "oss")
         )
         comp_tokens = [
             t for t in re.split(r"\s+", name.lower())
@@ -231,10 +171,8 @@ def validate_company_public(company: str, entities: dict | None = None) -> dict[
                 "Hanya probe portal + jejak web publik."
             ),
         },
-        "websites": websites,
-        "searches": searches,
-        "evidence": evidence,
         "stats": {
+            "search_count": len(searches),
             "public_mentions": mention_count,
             "fraud_related_mentions": fraud_mentions,
             "legality_mentions": legality_mentions,
@@ -253,17 +191,18 @@ def validate_company_public(company: str, entities: dict | None = None) -> dict[
     }
 
 
-async def validate_companies(entities: dict, limit: int = 1) -> list[dict[str, Any]]:
+async def validate_companies(
+    entities: dict,
+    limit: int = 1,
+    web_evidence: dict | None = None,
+) -> list[dict[str, Any]]:
     companies = [c for c in (entities.get("companies") or []) if c][:limit]
     if not companies:
         return []
 
-    loop = asyncio.get_running_loop()
     out = []
     for name in companies:
-        result = await loop.run_in_executor(
-            None, validate_company_public, name, entities
-        )
+        result = validate_company_public(name, entities, web_evidence)
         out.append(result)
     return out
 

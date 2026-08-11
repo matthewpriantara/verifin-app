@@ -13,9 +13,11 @@ Modular:
 import logging
 import os
 import asyncio
+import json
 import tempfile
+import time
 from typing import List
-from uuid import UUID
+from uuid import UUID, uuid4
 from sqlalchemy.orm import Session
 
 from fastapi import APIRouter, Body, File, HTTPException, Query, UploadFile, Depends
@@ -47,10 +49,83 @@ from app.api.v1.verify.pipeline import (
 )
 from app.services.db_cache import _save_case_to_db, _get_cached_case_from_db
 from app.services.web_fetcher import _fetch_url_content_and_image
+from app.config import VERIFIN_DEBUG_RAW_JSON
 
 logger = logging.getLogger(__name__)
 
 router = APIRouter()
+
+
+def _request_id() -> str:
+    return uuid4().hex[:8]
+
+
+def _entity_counts(entities: dict) -> dict[str, int]:
+    return {
+        key: len(entities.get(key) or [])
+        for key in ("companies", "phones", "emails", "urls", "addresses", "salaries")
+    }
+
+
+def _log_osint_summary(request_id: str, osint_results: dict) -> None:
+    timing = osint_results.get("timing") or {}
+    probe_statuses = {
+        "whois_domain": (
+            "SKIPPED_FREE_EMAIL"
+            if (osint_results.get("domain") or {}).get("skipped") == "free_email"
+            else "COMPLETED"
+            if (osint_results.get("domain") or {}).get("domain")
+            else "NOT_PROVIDED"
+        ),
+        "phone_reputation": (osint_results.get("phone_probe") or {}).get("status", "N/A"),
+        "address_osm": (
+            "COMPLETED"
+            if any(item.get("probe_status") == "COMPLETED" for item in (osint_results.get("address_validations") or []))
+            else "NOT_PROVIDED"
+            if not osint_results.get("address_validations")
+            else "UNAVAILABLE"
+        ),
+        "web_evidence": (osint_results.get("web") or {}).get("probe_status", "N/A"),
+        "social_media": (osint_results.get("social") or {}).get("probe_status", "N/A"),
+        "legal_registry": "NOT_AVAILABLE",
+    }
+    logger.info(
+        "[verify][%s] OSINT done: probes=%d total=%ss statuses=%s timing=%s",
+        request_id,
+        len(probe_statuses),
+        timing.get("osint_parallel_sec", "?"),
+        probe_statuses,
+        timing,
+    )
+
+
+def _log_end(request_id: str, source: str, started: float, response: VerifyResponse) -> None:
+    duration = time.perf_counter() - started
+    logger.info(
+        "[verify][%s] END source=%s verdict=%s score=%s total=%.2fs model=%s",
+        request_id,
+        source,
+        response.verdict,
+        response.risk_score,
+        duration,
+        response.model_used,
+    )
+
+
+def _log_raw_json(request_id: str, label: str, payload: object) -> None:
+    """Dump payload pipeline saat debug lokal diaktifkan; payload dapat berisi PII."""
+    if not VERIFIN_DEBUG_RAW_JSON:
+        return
+    try:
+        encoded = json.dumps(
+            payload.model_dump(mode="json") if hasattr(payload, "model_dump") else payload,
+            ensure_ascii=False,
+            indent=2,
+            default=str,
+        )
+        print(f"[verify][{request_id}] {label}_JSON\n{encoded}", flush=True)
+    except Exception:
+        print(f"[verify][{request_id}] gagal mencetak {label}_JSON", flush=True)
 
 @router.post(
     "/verify/text",
@@ -61,22 +136,54 @@ async def verify_from_text(
     request: TextVerifyRequest = Body(...), 
     db: Session = Depends(get_db)
 ):
-    cached_resp = await asyncio.to_thread(_get_cached_case_from_db, db, request.text)
-    if cached_resp:
-        return cached_resp
+    request_id = _request_id()
+    started = time.perf_counter()
+    logger.info(
+        "[verify][%s] START source=text chars=%d include_raw_text=%s",
+        request_id,
+        len(request.text or ""),
+        request.include_raw_text,
+    )
 
     try:
-        # Layer 1: NLP — TF-IDF behavioral features (paper22 Springer)
-        nlp_result = classify_text(request.text)
+        cache_started = time.perf_counter()
+        cached_resp = await asyncio.to_thread(_get_cached_case_from_db, db, request.text)
+        logger.info("[verify][%s] cache lookup hit=%s duration=%.2fs", request_id, bool(cached_resp), time.perf_counter() - cache_started)
+        if cached_resp:
+            logger.info("[verify][%s] CACHE_HIT source=text", request_id)
+            _log_raw_json(request_id, "RESPONSE_CACHE", cached_resp)
+            _log_end(request_id, "text-cache", started, cached_resp)
+            return cached_resp
 
+        # Layer 1: NLP — TF-IDF behavioral features (paper22 Springer)
+        stage_started = time.perf_counter()
+        nlp_result = classify_text(request.text)
+        logger.info(
+            "[verify][%s] NLP done status=%s enabled=%s label=%s duration=%.2fs",
+            request_id, nlp_result.get("status"), nlp_result.get("enabled"),
+            nlp_result.get("label"), time.perf_counter() - stage_started,
+        )
+
+        stage_started = time.perf_counter()
         entities = await _extract_entities_hybrid(request.text)
+        _log_raw_json(request_id, "ENTITIES", entities)
+        logger.info("[verify][%s] NER done counts=%s meta=%s duration=%.2fs", request_id, _entity_counts(entities), entities.get("_ner_meta"), time.perf_counter() - stage_started)
+
+        stage_started = time.perf_counter()
         osint_results = await _run_osint_on_entities(entities)
+        _log_osint_summary(request_id, osint_results)
+        logger.info("[verify][%s] OSINT duration=%.2fs", request_id, time.perf_counter() - stage_started)
 
         # Layer 5: Fraud Network — case memory (GAR-HGNN inspired)
+        stage_started = time.perf_counter()
         network_context = await asyncio.to_thread(_check_fraud_network, db, entities)
+        logger.info("[verify][%s] fraud-network done status=%s in_network=%s reports=%s duration=%.2fs", request_id, network_context.get("status"), network_context.get("entity_in_fraud_network"), (network_context.get("community_reports") or {}).get("report_count"), time.perf_counter() - stage_started)
 
         raw_text = request.text if request.include_raw_text else None
+        stage_started = time.perf_counter()
         analysis = await analyze_with_verifin(entities, osint_results, raw_text=raw_text)
+        _log_raw_json(request_id, "ANALYSIS", analysis)
+        logger.info("[verify][%s] LLM done verdict=%s score=%s model=%s duration=%.2fs", request_id, analysis.get("verdict"), analysis.get("risk_score"), analysis.get("model_used"), time.perf_counter() - stage_started)
 
         # Attach NLP + network context untuk SHAP explainer
         analysis["nlp_result"] = nlp_result
@@ -87,10 +194,13 @@ async def verify_from_text(
             db, request.text, analysis, osint_results, entities=entities, source="text"
         )
         response = _to_response(analysis, entities, osint_results)
+        _log_raw_json(request_id, "RESPONSE", response)
         if response.osint is not None:
             response.osint["persistence_status"] = save_status
+        _log_end(request_id, "text", started, response)
         return response
     except Exception as e:
+        logger.exception("[verify][%s] ERROR source=text after=%.2fs: %s", request_id, time.perf_counter() - started, e)
         raise HTTPException(
             status_code=500, detail=f"Gagal memproses verifikasi teks: {e}"
         ) from e
@@ -111,6 +221,9 @@ async def verify_from_image(
     ),
     db: Session = Depends(get_db)
 ):
+    request_id = _request_id()
+    started = time.perf_counter()
+    logger.info("[verify][%s] START source=image filename=%s content_type=%s", request_id, file.filename, file.content_type)
     allowed_types = ["image/jpeg", "image/jpg", "image/png", "image/webp"]
     if file.content_type not in allowed_types:
         raise HTTPException(
@@ -139,25 +252,43 @@ async def verify_from_image(
                 detail="Tidak ada teks yang berhasil dibaca dari gambar. Coba unggah gambar yang lebih jelas.",
             )
         logger.info("[OCR] image metrics=%s", ocr_metrics)
+        logger.info("[verify][%s] OCR done chars=%d metrics=%s duration=%.2fs", request_id, len(raw_text), ocr_metrics, time.perf_counter() - started)
 
         # Cache-check dari hash teks OCR — gambar identik = hasil identik
         cached_resp = await asyncio.to_thread(_get_cached_case_from_db, db, raw_text)
         if cached_resp:
+            logger.info("[verify][%s] cache hit source=image", request_id)
+            logger.info("[verify][%s] CACHE_HIT source=image", request_id)
+            _log_raw_json(request_id, "RESPONSE_CACHE", cached_resp)
+            _log_end(request_id, "image-cache", started, cached_resp)
             return cached_resp
 
+        stage_started = time.perf_counter()
         entities = await _extract_entities_hybrid(raw_text)
+        _log_raw_json(request_id, "ENTITIES", entities)
+        logger.info("[verify][%s] NER done counts=%s meta=%s duration=%.2fs", request_id, _entity_counts(entities), entities.get("_ner_meta"), time.perf_counter() - stage_started)
 
         # Layer 1: NLP — jalan sebelum OSINT, konsisten dengan text endpoint
+        stage_started = time.perf_counter()
         nlp_result = classify_text(raw_text)
+        logger.info("[verify][%s] NLP done status=%s enabled=%s label=%s duration=%.2fs", request_id, nlp_result.get("status"), nlp_result.get("enabled"), nlp_result.get("label"), time.perf_counter() - stage_started)
 
+        stage_started = time.perf_counter()
         osint_results = await _run_osint_on_entities(entities)
+        _log_osint_summary(request_id, osint_results)
+        logger.info("[verify][%s] OSINT duration=%.2fs", request_id, time.perf_counter() - stage_started)
 
         # Layer 5: Fraud Network Check
+        stage_started = time.perf_counter()
         network_context = await asyncio.to_thread(_check_fraud_network, db, entities)
+        logger.info("[verify][%s] fraud-network done status=%s in_network=%s reports=%s duration=%.2fs", request_id, network_context.get("status"), network_context.get("entity_in_fraud_network"), (network_context.get("community_reports") or {}).get("report_count"), time.perf_counter() - stage_started)
 
+        stage_started = time.perf_counter()
         analysis = await analyze_with_verifin(
             entities, osint_results, raw_text=raw_text
         )
+        _log_raw_json(request_id, "ANALYSIS", analysis)
+        logger.info("[verify][%s] LLM done verdict=%s score=%s model=%s duration=%.2fs", request_id, analysis.get("verdict"), analysis.get("risk_score"), analysis.get("model_used"), time.perf_counter() - stage_started)
         analysis["nlp_result"] = nlp_result
         analysis["network_context"] = network_context
 
@@ -166,14 +297,17 @@ async def verify_from_image(
             db, raw_text, analysis, osint_results, entities=entities, source="image"
         )
         response = _to_response(analysis, entities, osint_results)
+        _log_raw_json(request_id, "RESPONSE", response)
         if response.osint is not None:
             response.osint.setdefault("timing", {})["ocr"] = ocr_metrics
             response.osint["persistence_status"] = save_status
+        _log_end(request_id, "image", started, response)
         return response
 
     except HTTPException:
         raise
     except Exception as e:
+        logger.exception("[verify][%s] ERROR source=image after=%.2fs: %s", request_id, time.perf_counter() - started, e)
         raise HTTPException(
             status_code=500, detail=f"Gagal memproses verifikasi gambar: {e}"
         ) from e
@@ -197,13 +331,21 @@ async def verify_from_url(
     request: UrlVerifyRequest = Body(...),
     db: Session = Depends(get_db)
 ):
+    request_id = _request_id()
+    started = time.perf_counter()
+    logger.info("[verify][%s] START source=url chars=%d", request_id, len(request.url or ""))
     cached_resp = await asyncio.to_thread(_get_cached_case_from_db, db, request.url)
     if cached_resp:
+        logger.info("[verify][%s] cache hit source=url", request_id)
+        logger.info("[verify][%s] CACHE_HIT source=url", request_id)
+        _log_raw_json(request_id, "RESPONSE_CACHE", cached_resp)
+        _log_end(request_id, "url-cache", started, cached_resp)
         return cached_resp
 
     tmp_paths = []
     try:
         caption_text, tmp_paths = await _fetch_url_content_and_image(request.url)
+        logger.info("[verify][%s] URL fetch done caption_chars=%d images=%d duration=%.2fs", request_id, len(caption_text or ""), len(tmp_paths), time.perf_counter() - started)
         
         ocr_texts = []
         for p in tmp_paths:
@@ -239,27 +381,40 @@ async def verify_from_url(
             )
 
         entities = await _extract_entities_hybrid(full_raw_text)
+        _log_raw_json(request_id, "ENTITIES", entities)
+        logger.info("[verify][%s] NER done counts=%s meta=%s duration=%.2fs", request_id, _entity_counts(entities), entities.get("_ner_meta"), time.perf_counter() - started)
+        stage_started = time.perf_counter()
         osint_results = await _run_osint_on_entities(entities)
+        _log_osint_summary(request_id, osint_results)
+        logger.info("[verify][%s] OSINT duration=%.2fs", request_id, time.perf_counter() - stage_started)
 
         # Layer 5: Fraud Network Check (case memory + community reports)
+        stage_started = time.perf_counter()
         network_context = await asyncio.to_thread(_check_fraud_network, db, entities)
+        logger.info("[verify][%s] fraud-network done status=%s in_network=%s reports=%s duration=%.2fs", request_id, network_context.get("status"), network_context.get("entity_in_fraud_network"), (network_context.get("community_reports") or {}).get("report_count"), time.perf_counter() - stage_started)
 
+        stage_started = time.perf_counter()
         analysis = await analyze_with_verifin(
             entities, osint_results, raw_text=full_raw_text
         )
+        _log_raw_json(request_id, "ANALYSIS", analysis)
+        logger.info("[verify][%s] LLM done verdict=%s score=%s model=%s duration=%.2fs", request_id, analysis.get("verdict"), analysis.get("risk_score"), analysis.get("model_used"), time.perf_counter() - stage_started)
         analysis["network_context"] = network_context
         save_status = await asyncio.to_thread(
             _save_case_to_db,
             db, full_raw_text, analysis, osint_results, entities=entities, source="url"
         )
         response = _to_response(analysis, entities, osint_results)
+        _log_raw_json(request_id, "RESPONSE", response)
         if response.osint is not None:
             response.osint["persistence_status"] = save_status
+        _log_end(request_id, "url", started, response)
         return response
 
     except HTTPException:
         raise
     except Exception as e:
+        logger.exception("[verify][%s] ERROR source=url after=%.2fs: %s", request_id, time.perf_counter() - started, e)
         safe_msg = str(e).encode("ascii", errors="ignore").decode("ascii") or "Terjadi kesalahan internal."
         raise HTTPException(
             status_code=500, detail=f"Gagal memproses verifikasi URL: {safe_msg}"

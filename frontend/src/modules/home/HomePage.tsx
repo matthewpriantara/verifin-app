@@ -17,15 +17,15 @@ const STEPS = [
     num: "01",
     icon: Scan,
     title: "Ekstraksi Entitas",
-    desc: "PaddleOCR membaca teks dari gambar. Regex NER mengidentifikasi nama PT, HP, email, URL, dan alamat.",
-    tags: ["PaddleOCR", "OpenCV CLAHE", "Regex NER"],
+     desc: "Teks, gambar, atau URL diproses untuk mengidentifikasi nama perusahaan, HP, email, URL, alamat, dan gaji.",
+     tags: ["PaddleOCR bila gambar", "Hybrid NER", "Entity Extraction"],
   },
   {
     num: "02",
     icon: MagnifyingGlass,
     title: "Validasi OSINT Real-time",
-    desc: "Enam sumber dijalankan paralel: WHOIS domain, reputasi HP (Kredibel), validasi alamat (OSM), dan inspeksi form phishing.",
-    tags: ["WHOIS", "Kredibel.id", "OpenStreetMap", "Scrapling"],
+     desc: "Kanal publik diperiksa: WHOIS/DNS, reputasi nomor, OSM, pencarian web, media sosial, dan inspeksi Google Forms bila ada.",
+     tags: ["WHOIS/DNS", "Kaspersky Who Calls", "OSM", "Web & Social"],
   },
   {
     num: "03",
@@ -37,9 +37,9 @@ const STEPS = [
   {
     num: "04",
     icon: Cpu,
-    title: "Trust Assessment & Penjelasan AI",
-    desc: "LLM menghasilkan penilaian kepercayaan AMAN/WASPADA/BAHAYA. SHAP menjelaskan kontribusi tiap sinyal secara transparan.",
-    tags: ["LLM Reasoning", "SHAP XAI", "Explainable AI"],
+     title: "Risk Assessment & Penjelasan Bukti",
+     desc: "LLM menyusun penilaian risiko AMAN/WASPADA/BAHAYA dari evidence yang tersedia. Evidence Attribution menjelaskan kontribusi sinyal.",
+     tags: ["LLM Reasoning", "Evidence Attribution", "Explainable AI"],
   },
 ];
 
@@ -126,7 +126,7 @@ export default function HomePage() {
             transition={{ duration: 0.4 }}
             className="mb-4 font-mono text-[11px] uppercase tracking-widest text-text-muted"
           >
-            Job Trust Platform
+             Job Risk Platform
           </motion.p>
 
           <motion.h1
@@ -144,7 +144,7 @@ export default function HomePage() {
             transition={{ duration: 0.5, delay: 0.12, ease: [0.16, 1, 0.3, 1] }}
             className="mt-5 max-w-md text-[15px] leading-relaxed text-text-secondary"
           >
-            Verifin mengotomatisasi seluruh proses verifikasi yang biasanya kamu lakukan secara manual — mengecek perusahaan, lokasi, nomor HP, dan jejak digital — menjadi satu penilaian kepercayaan yang transparan.
+             Verifin membantu memeriksa risiko lowongan secara lebih cepat — dari perusahaan, lokasi, nomor HP, email, tautan, hingga jejak digital — lalu merangkum buktinya secara transparan.
           </motion.p>
 
           <motion.div
@@ -154,9 +154,9 @@ export default function HomePage() {
             className="mt-8 flex flex-wrap gap-6"
           >
             {[
-              { val: "6+", unit: "Sumber", label: "OSINT Real-time" },
-              { val: "4", unit: "Layer", label: "Trust Infrastructure" },
-              { val: "100%", unit: "Transparan", label: "SHAP XAI" },
+               { val: "6+", unit: "Kanal", label: "Pemeriksaan publik" },
+               { val: "4", unit: "Tahap", label: "Analisis Verifin" },
+               { val: "Evidence", unit: "first", label: "Penjelasan transparan" },
             ].map(({ val, unit, label }) => (
               <div key={label}>
                 <p className="font-mono text-2xl font-semibold text-text-primary">
@@ -197,7 +197,7 @@ export default function HomePage() {
               <ShieldCheck size={11} weight="bold" className="text-bg-elevated" />
             </div>
             <span className="text-[13px] font-medium text-text-primary">
-              Cek kepercayaan lowongan
+               Cek risiko lowongan
             </span>
           </div>
           <VerifyBox />
@@ -215,13 +215,13 @@ export default function HomePage() {
             className="mb-10 text-center"
           >
             <p className="font-mono text-[11px] uppercase tracking-widest text-text-muted">
-              Job Trust Infrastructure
+               Job Risk Infrastructure
             </p>
             <h2 className="mt-2 text-2xl font-semibold tracking-tight text-text-primary sm:text-3xl">
-              Cara Verifin menilai kepercayaan
+               Cara Verifin menilai risiko
             </h2>
             <p className="mt-2 text-[14px] text-text-secondary">
-              4 layer analisis berjalan paralel — hasilnya satu penilaian yang bisa kamu audit.
+               Ekstraksi, pemeriksaan publik, pemetaan relasi, dan reasoning dirangkai menjadi satu penilaian yang bisa kamu audit.
             </p>
           </motion.div>
 

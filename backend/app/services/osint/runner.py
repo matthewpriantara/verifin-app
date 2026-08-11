@@ -5,7 +5,6 @@ Dipanggil pipeline via run_osint_probes(entities).
 """
 
 import asyncio
-import re
 
 from app.services.osint.address_validator import validate_address_and_business
 from app.services.osint.company_validator import validate_companies
@@ -17,7 +16,7 @@ from app.services.status_contract import COMPLETED, NOT_PROVIDED, UNAVAILABLE
 
 async def run_osint_probes(entities: dict) -> dict:
     """
-    OSINT live paralel: WHOIS/DNS + OSM + Kaspersky Who Calls + Scrapling web + Threads.
+    OSINT live paralel: WHOIS/DNS + OSM + Kaspersky Who Calls + Scrapling web + seluruh platform media sosial.
     Optimasi latency: asyncio.gather (bukan serial await).
     """
     from app.services.constants import FREE_EMAIL_DOMAINS
@@ -44,7 +43,7 @@ async def run_osint_probes(entities: dict) -> dict:
             "risk_flags": [],
             "safe_flags": [],
         },
-        "threads": {
+        "social": {
             "enabled": False,
             "found": False,
             "posts": [],
@@ -55,7 +54,7 @@ async def run_osint_probes(entities: dict) -> dict:
             "mode": "factual_sources_only",
             "note": (
                 "Semua temuan OSINT berasal dari fetch/scrape/API nyata "
-                "(WHOIS, DNS, OSM, Kaspersky Who Calls, Scrapling, Threads). "
+                "(WHOIS, DNS, OSM, Kaspersky Who Calls, Scrapling, dan seluruh platform media sosial). "
                 "LLM reasoner dilarang mengarang fakta di luar evidence."
             ),
             "social": "all_platforms",
@@ -169,7 +168,11 @@ async def run_osint_probes(entities: dict) -> dict:
 
     async def _companies_job() -> list:
         try:
-            return await validate_companies(entities, limit=1)
+            return await validate_companies(
+                entities,
+                limit=1,
+                web_evidence=osint_results.get("web") or {},
+            )
         except Exception as exc:
             return [
                 {
@@ -183,20 +186,6 @@ async def run_osint_probes(entities: dict) -> dict:
                 }
             ]
 
-    async def _threads_job() -> dict:
-        try:
-            return await asyncio.to_thread(run_social_osint, entities)
-        except Exception as exc:
-            return {
-                "enabled": True,
-                "probe_status": UNAVAILABLE,
-                "found": False,
-                "posts": [],
-                "profiles": [],
-                "risk_flags": [],
-                "error": str(exc),
-            }
-
     loop = asyncio.get_running_loop()
     t0 = loop.time()
     (
@@ -204,15 +193,11 @@ async def run_osint_probes(entities: dict) -> dict:
         addr_list,
         phones,
         web,
-        companies_osint,
-        threads,
     ) = await asyncio.gather(
         loop.run_in_executor(None, _domain_job),
         _addresses_job(),
         _phones_job(),
         _web_job(),
-        _companies_job(),
-        _threads_job(),
     )
     osint_results["timing"]["osint_parallel_sec"] = round(loop.time() - t0, 3)
 
@@ -235,65 +220,46 @@ async def run_osint_probes(entities: dict) -> dict:
             else "Nomor HP ditemukan, tetapi validator reputasi tidak tersedia.",
         }
     osint_results["web"] = web
+    try:
+        social = await asyncio.to_thread(run_social_osint, entities, web)
+    except Exception as exc:
+        social = {
+            "enabled": True,
+            "probe_status": UNAVAILABLE,
+            "found": False,
+            "posts": [],
+            "profiles": [],
+            "risk_flags": [],
+            "error": str(exc),
+        }
+    # Company validation consumes web evidence; it must not issue a second
+    # round of company searches or website fetches.
+    companies_osint = await _companies_job()
     osint_results["companies"] = companies_osint
-    osint_results["threads"] = threads
-    _merge_company_web_evidence(osint_results["companies"], web)
-    _merge_company_social_evidence(osint_results["companies"], threads)
+    osint_results["social"] = social
+    _attach_company_evidence_counts(osint_results["companies"], web, social)
     return osint_results
 
 
-def _merge_company_web_evidence(company_records: list, web: dict) -> None:
-    if not company_records or not isinstance(web, dict):
+def _attach_company_evidence_counts(
+    company_records: list,
+    web: dict,
+    social: dict,
+) -> None:
+    """Attach counts only; detailed evidence stays in its canonical sections."""
+    if not company_records:
         return
+    web_searches = web.get("searches") if isinstance(web, dict) else []
+    social_posts = social.get("posts") if isinstance(social, dict) else []
+    web_match_count = sum(
+        len(search.get("results") or [])
+        for search in web_searches or []
+        if isinstance(search, dict)
+    )
+    social_count = len(social_posts or [])
     for record in company_records:
         if not isinstance(record, dict):
             continue
-        company_name = str(record.get("name") or "")
-        tokens = {
-            token for token in re.sub(r"[^a-z0-9 ]", " ", company_name.lower()).split()
-            if len(token) >= 4 and token not in {"badan", "group", "indonesia"}
-        }
-        matches = []
-        for search in web.get("searches") or []:
-            for result in search.get("results") or []:
-                blob = f"{result.get('title', '')} {result.get('snippet', '')}".lower()
-                matched = sum(token in blob for token in tokens)
-                if matched >= min(2, len(tokens)):
-                    matches.append({
-                        "title": result.get("title"),
-                        "url": result.get("url"),
-                        "source_type": result.get("source_type"),
-                    })
-        if not matches:
-            continue
         stats = record.setdefault("stats", {})
-        stats["public_mentions"] = max(stats.get("public_mentions", 0), len(matches))
-        stats["cross_service_public_mentions"] = len(matches)
-        record["cross_service_evidence"] = matches[:8]
-        if not record.get("safe_flags"):
-            record["safe_flags"] = [
-                f"Ditemukan {len(matches)} jejak publik yang cocok dari web evidence."
-            ]
-
-
-def _merge_company_social_evidence(company_records: list, social: dict) -> None:
-    if not company_records or not isinstance(social, dict):
-        return
-    posts = [post for post in social.get("posts") or [] if isinstance(post, dict)]
-    if not posts:
-        return
-    evidence = [
-        {
-            "title": post.get("title"),
-            "url": post.get("url"),
-            "platform": post.get("platform"),
-            "source_type": post.get("source_type"),
-            "is_official": bool(post.get("is_official")),
-        }
-        for post in posts[:12]
-    ]
-    for record in company_records:
-        stats = record.setdefault("stats", {})
-        stats["social_public_mentions"] = len(evidence)
-        stats["official_social_mentions"] = sum(item["is_official"] for item in evidence)
-        record["social_evidence"] = evidence
+        stats["cross_service_match_count"] = web_match_count
+        stats["social_public_mention_count"] = social_count

@@ -41,6 +41,16 @@ export interface OsintSearch {
   risk_flags?: string[];
 }
 
+export interface SocialSearchAudit {
+  platform?: string;
+  query?: string;
+  status?: string;
+  attempt_count?: number;
+  raw_result_count?: number;
+  relevant_result_count?: number;
+  results?: { title?: string; url?: string; snippet?: string }[];
+}
+
 export interface OsintPayload {
   domain?: Record<string, unknown>;
   email_security?: Record<string, unknown>;
@@ -55,7 +65,7 @@ export interface OsintPayload {
     safe_flags?: string[];
     error?: string;
   };
-  threads?: {
+  social?: {
     enabled?: boolean;
     platform?: string;
     found?: boolean;
@@ -69,8 +79,16 @@ export interface OsintPayload {
     }[];
     profiles?: { username?: string; url?: string; title?: string }[];
     platform_hits?: Record<string, boolean>;
+    social_searches?: SocialSearchAudit[];
     risk_flags?: string[];
     error?: string;
+  };
+  fraud_network?: {
+    status?: string;
+    entity_in_fraud_network?: boolean;
+    total_case_count?: number;
+    threat_level?: string;
+    cluster_id?: string | null;
   };
   evidence_policy?: {
     mode?: string;

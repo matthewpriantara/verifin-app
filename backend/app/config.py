@@ -22,3 +22,8 @@ REDIS_URL = os.getenv("REDIS_URL", "redis://localhost:6379/0")
 
 # SearXNG self-hosted — primary web search engine
 SEARXNG_URL = os.getenv("SEARXNG_URL", "").rstrip("/")
+
+# Debug lokal: cetak payload pipeline lengkap sebagai JSON (mengandung PII/evidence).
+VERIFIN_DEBUG_RAW_JSON = os.getenv("VERIFIN_DEBUG_RAW_JSON", "false").lower() in {
+    "1", "true", "yes", "on"
+}

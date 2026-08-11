@@ -935,6 +935,12 @@ def extract_entities_from_text(text: str) -> dict:
         url for url in urls
         if url.lower() not in emails
         and url.lower() not in email_domains
+        # Email yang tertangkap sebagai path URL, misalnya
+        # propanraya.com/nama@propanraya.com, bukan URL lowongan.
+        and not any(
+            re.search(rf"(?<![A-Za-z0-9_.+-]){re.escape(email)}(?![A-Za-z0-9_.+-])", url, re.I)
+            for email in emails
+        )
         and not re.search(r"^(?:gmail|yahoo|hotmail|gmai|gamil)\.(?:com|co|id)$", url, re.I)
         and not re.match(r"^[a-zA-Z]\.(?:com|co|id)$", url, re.I)
         # Tolak bare domain 2-label tanpa http/www/path yang kemungkinan nama brand (misal "eplus.co")

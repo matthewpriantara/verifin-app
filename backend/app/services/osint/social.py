@@ -11,8 +11,6 @@ from urllib.parse import urlsplit, urlunsplit
 from collections import Counter
 
 from scrapling.fetchers import Fetcher
-from app.services.osint.web_evidence import search_web_evidence
-from app.services.osint.query_builder import build_search_queries
 
 _SOCIAL_AGGREGATOR_TOKENS = (
     "lokerjogja", "loker jogja", "lokerterbaru", "loker terbaru",
@@ -26,6 +24,7 @@ _PLATFORM_SITE_HINTS = {
     "facebook": "site:facebook.com",
     "x_twitter": "site:x.com OR site:twitter.com",
 }
+_SOCIAL_PLATFORMS = tuple(_PLATFORM_SITE_HINTS)
 
 _PLATFORM_DOMAINS = {
     "instagram": ("instagram.com",),
@@ -125,30 +124,10 @@ def _slug_candidates(company: str) -> list[str]:
     return out[:4]
 
 
-def _search_platform_serp(query: str, platform: str = "") -> list[dict[str, str]]:
-    """Cari platform via broad SERP, lalu filter domain di aplikasi."""
-    query_text = query.strip()
-    quoted_query = query_text if query_text.startswith('"') else f'"{query_text}"'
-    result = search_web_evidence(
-        quoted_query,
-        max_results=8,
-    )
-    domains = _PLATFORM_DOMAINS.get(platform)
-    return [
-        {
-            "platform": _classify_platform(r.get("url", ""), default="social_media"),
-            "source": "serp",
-            "title": r.get("title", "")[:120],
-            "snippet": r.get("snippet", "")[:280],
-            "url": r.get("url", ""),
-        }
-        for r in result.get("results", [])
-        if not domains or any(domain in (r.get("url") or "").lower() for domain in domains)
-        if r.get("title") or r.get("snippet")
-    ]
-
-
-def run_social_osint(entities: dict) -> dict[str, Any]:
+def run_social_osint(
+    entities: dict,
+    web_evidence: dict | None = None,
+) -> dict[str, Any]:
     """
     Social Media OSINT — cari jejak perusahaan di berbagai platform.
     Platform: Instagram, Threads, X (Twitter), TikTok, Facebook, Linktree, Portal Loker.
@@ -164,6 +143,11 @@ def run_social_osint(entities: dict) -> dict[str, Any]:
             "found": False,
             "posts": [],
             "profiles": [],
+            "platform_hits": {platform: False for platform in _SOCIAL_PLATFORMS},
+            "social_searches": [],
+            "search_diagnostics": {
+                "platforms_requested": list(_SOCIAL_PLATFORMS),
+            },
             "risk_flags": [],
             "note": "Tidak ada nama perusahaan untuk dicari di media sosial.",
         }
@@ -173,15 +157,20 @@ def run_social_osint(entities: dict) -> dict[str, Any]:
     clean_company = re.sub(r"\([^)]*\)", "", raw_company)
     clean_company = re.sub(r"^(pt|cv|ud)\.?\s+", "", clean_company, flags=re.I).strip()
 
+    web_evidence = web_evidence if isinstance(web_evidence, dict) else {}
     serp_posts: list[dict] = []
-    query_candidates = build_search_queries(entities, include_email=True)
-    for candidate in query_candidates:
-        hits = _search_platform_serp(candidate["query"])
-        for hit in hits:
-            hit["fallback_kind"] = candidate["kind"]
-        serp_posts.extend(hits)
-        if any(_is_social_platform_post(hit) and not _is_aggregator_post(hit) for hit in hits):
-            break
+    for search in web_evidence.get("searches") or []:
+        for result in search.get("results") or []:
+            serp_posts.append(
+                {
+                    "platform": _classify_platform(result.get("url", "")),
+                    "source": "serp",
+                    "title": result.get("title", "")[:120],
+                    "snippet": result.get("snippet", "")[:280],
+                    "url": result.get("url", ""),
+                    "fallback_kind": search.get("fallback_kind"),
+                }
+            )
     # Dedup snippet
     _seen_snip: set[str] = set()
     initial_posts = []
@@ -191,28 +180,29 @@ def run_social_osint(entities: dict) -> dict[str, Any]:
             _seen_snip.add(key)
             initial_posts.append(p)
 
-    # 2. Multi-platform via SearXNG (reuse _search_platform_serp)
-    platforms = [
-        ("instagram", f"{clean_company} instagram"),
-        ("threads",   f"{clean_company} threads"),
-        ("tiktok",    f"{clean_company} tiktok"),
-        ("facebook",  f"{clean_company} facebook"),
-        ("x_twitter", f"{clean_company} twitter"),
-    ]
+    # Platform requests are owned by web_evidence.py. Consume their results.
     extra_posts: list[dict[str, str]] = []
-    platform_hits: dict[str, bool] = {}
-
-    fallback_candidates = query_candidates or [{"query": raw_company}]
-    for platform_key, search_q in platforms:
-        hits = []
-        for candidate in fallback_candidates:
-            hits = _search_platform_serp(f"{candidate['query']} {platform_key}", platform_key)
-            for hit in hits:
-                hit["fallback_kind"] = candidate.get("kind")
-            if hits:
-                break
+    platform_hits: dict[str, bool] = {
+        platform: False for platform in _SOCIAL_PLATFORMS
+    }
+    for search in web_evidence.get("social_searches") or []:
+        platform_key = search.get("platform") or "social_media"
+        hits = [
+            {
+                "platform": _classify_platform(
+                    result.get("url", ""), default=platform_key
+                ),
+                "source": "serp",
+                "title": result.get("title", "")[:120],
+                "snippet": result.get("snippet", "")[:280],
+                "url": result.get("url", ""),
+                "fallback_kind": search.get("fallback_kind"),
+            }
+            for result in search.get("results") or []
+            if result.get("title") or result.get("snippet")
+        ]
         extra_posts.extend(hits)
-        platform_hits[platform_key] = bool(hits)
+        platform_hits[platform_key] = platform_hits.get(platform_key, False) or bool(hits)
 
     # Gabungkan semua posts & dedup berdasarkan URL, set platform dinamis
     seen_urls: set[str] = set()
@@ -377,6 +367,7 @@ def run_social_osint(entities: dict) -> dict[str, Any]:
             "search_engine": "searxng",
             "note": "Hasil sosial diklasifikasikan terpisah dari portal loker dan aggregator.",
         },
+        "social_searches": web_evidence.get("social_searches") or [],
         "risk_flags": risk_flags,
         "errors": [],
     }

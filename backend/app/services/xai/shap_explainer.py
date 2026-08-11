@@ -454,7 +454,7 @@ def _build_forensic_metadata(
     companies = o.get("companies") or []
     addr = o.get("address_validations") or []
     web = o.get("web") or {}
-    threads = o.get("threads") or {}
+    social = o.get("social") or {}
     domain = o.get("domain") or {}
     email_sec = o.get("email_security") or {}
     fraud_net = o.get("fraud_network") or {}
@@ -528,11 +528,11 @@ def _build_forensic_metadata(
     ) and not web_hit
     official_platforms = {"instagram", "threads", "tiktok", "facebook", "x_twitter", "linktree"}
     social_hit = bool(
-        any(threads.get("platform_hits", {}).get(platform) for platform in official_platforms)
-        or any(p.get("is_official") and p.get("platform") in official_platforms for p in (threads.get("posts") or []))
-        or threads.get("profiles")
+        any(social.get("platform_hits", {}).get(platform) for platform in official_platforms)
+        or any(p.get("is_official") and p.get("platform") in official_platforms for p in (social.get("posts") or []))
+        or social.get("profiles")
     )
-    public_footprint = web_hit or bool(threads.get("posts") or threads.get("profiles"))
+    public_footprint = web_hit or bool(social.get("posts") or social.get("profiles"))
     is_free_email = (
         domain.get("skipped") == "free_email"
         or email_sec.get("skipped") == "free_email"
