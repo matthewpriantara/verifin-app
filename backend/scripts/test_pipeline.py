@@ -104,8 +104,8 @@ async def run_single_test(tc: dict) -> dict:
             ),
             "web_risk_flags": (osint_res.get("web") or {}).get("risk_flags", []),
             "web_safe_flags": (osint_res.get("web") or {}).get("safe_flags", []),
-            "social_found": (osint_res.get("threads") or {}).get("found", False),
-            "social_platforms": (osint_res.get("threads") or {}).get("platform_hits", {}),
+            "social_found": (osint_res.get("social") or {}).get("found", False),
+            "social_platforms": (osint_res.get("social") or {}).get("platform_hits", {}),
         },
         "shap_summary": {
             "model_type": shap_res.get("model_type"),

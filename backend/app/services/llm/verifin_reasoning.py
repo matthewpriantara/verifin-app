@@ -45,7 +45,7 @@ def _search_has_only_unknown(osint_results: dict) -> bool:
 
 def _has_public_evidence(osint_results: dict) -> bool:
     web = osint_results.get("web") or {}
-    social = osint_results.get("threads") or {}
+    social = osint_results.get("social") or {}
     web_counts = web.get("evidence_counts") or {}
     social_counts = social.get("evidence_counts") or {}
     return bool(
@@ -311,7 +311,7 @@ async def analyze_with_verifin(
             },
             "email_security": {"spf_active": False, "dmarc_active": False},
             "address_validations": [],
-            "threads": {},
+            "social": {},
         }
 
     if raw_text:

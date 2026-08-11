@@ -27,6 +27,14 @@ _ENTITY_QUERY_STOPWORDS = {
     "penipu", "scam", "instagram", "website", "toko", "or", "dan",
 }
 
+_SOCIAL_PLATFORM_DOMAINS = {
+    "instagram": ("instagram.com",),
+    "threads": ("threads.net", "threads.com"),
+    "tiktok": ("tiktok.com",),
+    "facebook": ("facebook.com",),
+    "x_twitter": ("x.com", "twitter.com"),
+}
+
 
 def _public_source_type(url: str, title: str = "", snippet: str = "") -> str:
     url_title = f"{url} {title}".lower()
@@ -361,6 +369,90 @@ def _search_with_fallbacks(
     return attempts
 
 
+def _collect_social_searches(entities: dict) -> list[dict[str, Any]]:
+    """Collect platform searches once; social.py only consumes these results."""
+    if not (entities.get("companies") or entities.get("emails")):
+        return []
+
+    candidates = build_search_queries(entities, include_email=True)
+    if not candidates:
+        return []
+
+    searches: list[dict[str, Any]] = []
+    for platform, domains in _SOCIAL_PLATFORM_DOMAINS.items():
+        selected_result: dict[str, Any] | None = None
+        selected_candidate: dict[str, Any] | None = None
+        selected_platform_results: list[dict[str, Any]] = []
+        selected_index = 0
+        attempts: list[dict[str, Any]] = []
+        for index, candidate in enumerate(candidates):
+            result = search_web_evidence(
+                f'{candidate["query"]} {platform}',
+                max_results=8,
+            )
+            platform_results = [
+                item for item in (result.get("results") or [])
+                if any(
+                    domain in (item.get("url") or "").lower()
+                    for domain in domains
+                )
+            ]
+            attempts.append(
+                {
+                    "query": result.get("query"),
+                    "status": result.get("status"),
+                    "request_status": result.get("request_status"),
+                    "raw_result_count": result.get("raw_result_count", 0),
+                    "relevant_result_count": len(platform_results),
+                    "fallback_kind": candidate.get("kind"),
+                    "fallback_index": index,
+                }
+            )
+            selected_result = result
+            selected_candidate = candidate
+            selected_index = index
+            selected_platform_results = platform_results
+            if platform_results:
+                selected_result = {**result, "results": platform_results}
+                break
+
+        if selected_result is None or selected_candidate is None:
+            continue
+
+        platform_results = selected_platform_results
+        if not platform_results:
+            raw_count = selected_result.get("raw_result_count", 0)
+            final_status = (
+                "UNAVAILABLE"
+                if selected_result.get("status") == "UNAVAILABLE"
+                else "NO_RESULTS"
+                if not raw_count
+                else "NO_RELEVANT_RESULTS"
+            )
+        else:
+            final_status = "FOUND"
+
+        searches.append(
+            {
+                "platform": platform,
+                "query": selected_result.get("query"),
+                "ok": bool(platform_results),
+                "request_status": selected_result.get("request_status"),
+                "engine": selected_result.get("engine"),
+                "status": final_status,
+                "results": platform_results,
+                "raw_result_count": selected_result.get("raw_result_count", 0),
+                "relevant_result_count": len(platform_results),
+                "error": selected_result.get("error"),
+                "fallback_kind": selected_candidate.get("kind"),
+                "fallback_index": selected_index,
+                "attempt_count": len(attempts),
+                "attempts": attempts,
+            }
+        )
+    return searches
+
+
 _FREE_WEB_DOMAINS = FREE_EMAIL_DOMAINS  
 
 
@@ -423,7 +515,8 @@ def collect_web_evidence(entities: dict) -> dict[str, Any]:
     domains: list[str] = []
 
     seen_urls = set()
-    # Hanya domain dari URL poster / email korporat (bukan Gmail)
+    # Hanya domain dari URL website nyata / email korporat (bukan Gmail).
+    # URL form dan shortlink ditangani khusus oleh gform_inspections.
     for em in emails[:1]:
         d = _domain_from_email(em)
         if d and d not in _FREE_WEB_DOMAINS and d not in domains:
@@ -437,12 +530,17 @@ def collect_web_evidence(entities: dict) -> dict[str, Any]:
             if clean_url in seen_urls:
                 continue
             seen_urls.add(clean_url)
+            # Form/shortlink hanya diproses oleh gform_inspections di bawah;
+            # jangan masukkan host-nya ke website/domain probe.
+            if is_gform_url(clean_url):
+                continue
             if clean_host and clean_host not in domains and clean_host not in _FREE_WEB_DOMAINS:
                 domains.append(clean_host)
-            if not is_gform_url(clean_url):
-                website_checks.append(fetch_company_website(clean_url))
+            website_checks.append(fetch_company_website(clean_url))
 
     for d in domains[:1]:
+        if is_gform_url(d):
+            continue
         if any(d.lower() in (c.get("url") or "").lower() for c in website_checks):
             continue
         website_checks.append(fetch_company_website(d))
@@ -451,6 +549,13 @@ def collect_web_evidence(entities: dict) -> dict[str, Any]:
     if companies or emails:
         searches.extend(_search_with_fallbacks(entities, "instagram OR website OR toko"))
         searches.extend(_search_with_fallbacks(entities, "penipu OR scam", include_email=False))
+        searches.extend(
+            _search_with_fallbacks(
+                entities,
+                'NIB OR "akta pendirian" OR "terdaftar" OR AHU OR OSS',
+                include_email=False,
+            )
+        )
     elif domains:
         searches.append(search_web_evidence(f'"{domains[0]}" penipuan OR scam'))
 
@@ -461,6 +566,8 @@ def collect_web_evidence(entities: dict) -> dict[str, Any]:
             continue
         searches.append(search_web_evidence(f'"{em_clean}" penipu OR scam OR penipuan OR loker'))
 
+    social_searches = _collect_social_searches(entities)
+
     gform_inspections: list[dict[str, Any]] = []
     for u in urls[:2]:
         if is_gform_url(u):
@@ -468,9 +575,12 @@ def collect_web_evidence(entities: dict) -> dict[str, Any]:
 
     risk_flags: list[str] = []
     safe_flags: list[str] = []
+    neutral_notes: list[str] = []
     for gf in gform_inspections:
         risk_flags.extend(gf.get("risk_flags") or [])
         safe_flags.extend(gf.get("safe_flags") or [])
+        if gf.get("verification_note"):
+            neutral_notes.append(gf["verification_note"])
 
     has_any_working_web_or_social = any(
         w.get("website_status") == "AVAILABLE"
@@ -562,6 +672,7 @@ def collect_web_evidence(entities: dict) -> dict[str, Any]:
         "probe_status": "COMPLETED",
         "gform_inspections": gform_inspections,
         "searches": searches,
+        "social_searches": social_searches,
         "evidence_counts": {
             "relevant_results": total_public_results,
             "by_source_type": source_counts,
@@ -572,6 +683,7 @@ def collect_web_evidence(entities: dict) -> dict[str, Any]:
         },
         "risk_flags": uniq(risk_flags),
         "safe_flags": uniq(safe_flags),
+        "neutral_notes": uniq(neutral_notes),
     }
 
 

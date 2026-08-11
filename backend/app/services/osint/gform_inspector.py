@@ -168,12 +168,20 @@ def inspect_gform(url: str) -> dict[str, Any]:
             and not invalid_dynamic_link
         )
 
-        # Deteksi Phishing pada pertanyaan & deskripsi
-        combined_text = (form_title + " " + form_desc + " " + " ".join(questions)).lower()
-        
-        detected_phishing_terms = [
-            kw for kw in PHISHING_KEYWORDS if re.search(rf"\b{re.escape(kw)}\b", combined_text)
-        ]
+        content_verification_status = (
+            "COMPLETED" if valid_form_target and (form_desc or questions) else "UNVERIFIED"
+        )
+
+        # Form title/redirect alone is not enough to assess phishing content.
+        combined_text = (form_desc + " " + " ".join(questions)).lower()
+        detected_phishing_terms = (
+            [
+                kw for kw in PHISHING_KEYWORDS
+                if re.search(rf"\b{re.escape(kw)}\b", combined_text)
+            ]
+            if content_verification_status == "COMPLETED"
+            else []
+        )
 
         if detected_phishing_terms:
             terms_str = ", ".join(detected_phishing_terms[:4])
@@ -183,28 +191,39 @@ def inspect_gform(url: str) -> dict[str, Any]:
         else:
             if form_desc:
                 safe_flags.append(
-                    f"✅ Deskripsi Google Form terverifikasi resmi: '{form_desc[:180]}...'"
+                    f"ℹ️ Deskripsi form berhasil dibaca dari Google Forms: '{form_desc[:180]}...'"
                 )
             if questions:
                 q_sample = ", ".join(questions[:3])
                 safe_flags.append(
-                    f"✅ Google Form terverifikasi aman: memuat {len(questions)} pertanyaan standar loker ({q_sample})."
+                    f"✅ Tidak ditemukan kata kunci phishing pada {len(questions)} pertanyaan yang berhasil dibaca ({q_sample})."
                 )
             elif valid_form_target:
-                safe_flags.append(
-                    "✅ Shortlink/Google Form terverifikasi terhubung ke infrastruktur resmi Google Forms."
-                )
+                safe_flags.append("ℹ️ URL terhubung ke infrastruktur resmi Google Forms; ini bukan verifikasi perusahaan atau lowongan.")
+
+        verification_note = None
+        if valid_form_target and content_verification_status == "UNVERIFIED":
+            verification_note = (
+                "URL mengarah ke Google Forms, tetapi pertanyaan/deskripsi belum berhasil "
+                "dibaca; sinyal phishing belum dapat dinilai."
+            )
 
         return {
             "is_gform": True,
             "probe_status": COMPLETED,
-            "parse_status": COMPLETED if valid_form_target and (form_title or questions) else PARSE_FAILED,
+            "parse_status": COMPLETED if content_verification_status == "COMPLETED" else PARSE_FAILED,
+            "content_verification_status": content_verification_status,
+            "verification_note": verification_note,
             "url": url,
             "final_url": final_url,
             "form_title": form_title or "Formulir Pendaftaran Loker",
             "form_desc": form_desc,
             "questions": questions[:10],
-            "has_phishing_signals": bool(detected_phishing_terms),
+            "has_phishing_signals": (
+                bool(detected_phishing_terms)
+                if content_verification_status == "COMPLETED"
+                else None
+            ),
             "risk_flags": risk_flags,
             "safe_flags": safe_flags,
         }

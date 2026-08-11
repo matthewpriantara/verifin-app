@@ -23,6 +23,7 @@ import {
   Fingerprint,
   Graph,
   MagnifyingGlass,
+  ShareNetwork,
   Scan,
   Database,
   ChatTeardropText,
@@ -32,6 +33,7 @@ import {
 } from "@phosphor-icons/react";
 import { Button } from "@/components/ui/Button";
 import { ShapChart } from "@/modules/report/ShapChart";
+import { EvidencePanel } from "@/components/report/EvidencePanel";
 import { REPORT_STORAGE_KEY, cn, normalizeVerdict, verdictTone } from "@/lib/utils";
 import type { VerifyResponse, ExtractedEntities } from "@/types/verify";
 
@@ -47,7 +49,6 @@ function vLabel(v: string) {
   const n = normalizeVerdict(v);
   return n === "AMAN" ? "Aman" : n === "WASPADA" ? "Waspada" : n === "BAHAYA" ? "Bahaya" : "Error";
 }
-
 const ENTITY_FIELDS: { key: keyof ExtractedEntities; label: string; icon: React.ElementType }[] = [
   { key: "companies", label: "Perusahaan", icon: Buildings },
   { key: "contacts",  label: "Kontak/HP",  icon: Phone },
@@ -72,7 +73,6 @@ function BentoCard({ title, icon: Icon, children, className }: {
     </div>
   );
 }
-
 /* ─── Factor row ────────────────────────────────────────────────────────── */
 function FactorItem({ text, kind }: { text: string; kind: "risk" | "safe" | "reco" }) {
   const Icon = kind === "risk" ? Warning : kind === "safe" ? CheckCircle : Lightbulb;
@@ -84,7 +84,6 @@ function FactorItem({ text, kind }: { text: string; kind: "risk" | "safe" | "rec
     </li>
   );
 }
-
 /* ─── OSINT badge ───────────────────────────────────────────────────────── */
 function OsintBadge({ label, status, detail }: {
   label: string; status: "ok" | "warn" | "unknown"; detail?: string;
@@ -146,7 +145,7 @@ function computeEvidenceMetrics(report: VerifyResponse) {
   const addrs = (osint?.address_validations as Record<string, unknown>[] | undefined) || [];
   const phones = osint?.phones || [];
   const web = osint?.web;
-  const threads = osint?.threads;
+  const social = osint?.social;
 
   // Probe yang "dijalankan" = field ada di payload. Probe yang "sukses" = ada data bermakna.
   const probes: { ran: boolean; hit: boolean }[] = [];
@@ -155,7 +154,7 @@ function computeEvidenceMetrics(report: VerifyResponse) {
   probes.push({ ran: addrs.length > 0, hit: addrs.some((a) => a.found || a.address_found) });
   probes.push({ ran: phones.length > 0, hit: phones.some((p) => p.found || p.reported_fraud === false) });
   probes.push({ ran: Boolean(web?.enabled), hit: Boolean(web?.websites?.length || web?.searches?.length) });
-  probes.push({ ran: Boolean(threads?.enabled), hit: Boolean(threads?.posts?.length || threads?.profiles?.length) });
+  probes.push({ ran: Boolean(social?.enabled), hit: Boolean(social?.posts?.length || social?.profiles?.length) });
 
   const ranProbes = probes.filter((p) => p.ran);
   const coverage = ranProbes.length === 0 ? 0 : Math.round((ranProbes.filter((p) => p.hit).length / probes.length) * 100);
@@ -212,12 +211,14 @@ export default function ReportPage() {
   const entities = report.entities;
   const osint   = report.osint;
   const shap    = report.shap_explanation;
-  const nc      = (report as unknown as Record<string,unknown>).network_context as Record<string,unknown> | undefined;
+  const legacyNetwork = (report as unknown as Record<string, unknown>).network_context as Record<string, unknown> | undefined;
+  const nc = (osint?.fraud_network as Record<string, unknown> | undefined) || legacyNetwork;
   const metrics = computeEvidenceMetrics(report);
 
   const domain = (osint?.domain as Record<string, unknown> | undefined) || {};
   const addrs = (osint?.address_validations as Record<string, unknown>[] | undefined) || [];
   const phones = osint?.phones || [];
+  const social = osint?.social;
   const timing = (osint?.timing as Record<string, unknown> | undefined) || {};
   const ocrTiming = (timing.ocr as Record<string, unknown> | undefined) || {};
   const ocrSec = typeof ocrTiming.inference_sec === "number" ? ocrTiming.inference_sec : null;
@@ -230,7 +231,7 @@ export default function ReportPage() {
       detail: `Umur: ${domain.age_years ?? "tidak diketahui"}`,
     },
     {
-      label: "Kredibel HP",
+      label: "Reputasi Nomor",
       status: phones.length > 0
         ? (phones.some((p) => p.reported_fraud) ? "warn" : "ok")
         : "unknown",
@@ -255,16 +256,16 @@ export default function ReportPage() {
       detail: osint?.web?.enabled ? "SERP publik" : "Nonaktif",
     },
     {
-      label: "Threads/Sosmed",
-      status: osint?.threads?.enabled
-        ? ((osint.threads.posts?.length || osint.threads.profiles?.length) ? "ok" : "unknown")
+      label: "Social Media",
+      status: osint?.social?.enabled
+        ? ((osint.social.posts?.length || osint.social.profiles?.length) ? "ok" : "unknown")
         : "unknown",
-      detail: osint?.threads?.enabled ? "Jejak publik" : "Nonaktif",
+      detail: osint?.social?.enabled ? "Jejak publik" : "Nonaktif",
     },
     {
-      label: "Legalitas AHU/OSS",
-      status: "unknown",
-      detail: "API publik tidak tersedia",
+      label: "Keamanan Email",
+      status: Object.keys((osint?.email_security as Record<string, unknown> | undefined) || {}).length > 0 ? "ok" : "unknown",
+      detail: domain.skipped === "free_email" ? "Provider email gratis" : "SPF/DMARC",
     },
   ] as const;
 
@@ -278,7 +279,7 @@ export default function ReportPage() {
         </Link>
         <div className="flex items-center gap-2">
           <span className="hidden font-mono text-[11px] text-text-muted sm:block">
-            {auditMode ? "Mode Audit Forensik" : "Mode Ringkas"}
+             {auditMode ? "Audit Bukti" : "Ringkasan"}
           </span>
           <button
             onClick={() => setAuditMode(!auditMode)}
@@ -286,7 +287,7 @@ export default function ReportPage() {
               "relative inline-flex h-6 w-11 items-center rounded-full transition-colors",
               auditMode ? "bg-aman-fg" : "bg-bg-muted"
             )}
-            aria-label="Toggle audit mode"
+             aria-label="Toggle tampilan ringkasan dan audit bukti"
           >
             <span className={cn(
               "inline-block h-4 w-4 transform rounded-full bg-bg-elevated transition-transform",
@@ -400,6 +401,90 @@ export default function ReportPage() {
             </BentoCard>
           </motion.div>
 
+          {/* Detail lokasi/social sengaja dikunci di Ringkasan; buka Audit Bukti untuk evidence. */}
+          <div className="relative overflow-hidden rounded-2xl">
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 blur-[3px] opacity-75" aria-hidden="true">
+            <BentoCard title="Lokasi yang Ditemukan" icon={MapPin} className="h-full">
+              {addrs.length === 0 ? (
+                <p className="text-[14px] text-text-muted">Tidak ada alamat yang terdeteksi.</p>
+              ) : (() => {
+                const address = addrs[0];
+                const addressDetails = (address.address_details as Record<string, unknown>) || {};
+                const businessDetails = (address.business_details as Record<string, unknown>) || {};
+                const name = String(
+                  businessDetails.matched_name ?? entities?.companies?.[0] ?? "Lokasi usaha",
+                );
+                const input = String(address.address_input ?? addressDetails.display_name ?? "");
+                const matchLevel = String(addressDetails.match_level ?? "area");
+                const hasBusinessPoint = businessDetails.source === "google_maps_serp" && businessDetails.lat != null;
+                return (
+                  <div>
+                    <p className="font-semibold text-text-primary">{name}</p>
+                    <p className="mt-1 line-clamp-2 text-[12px] leading-relaxed text-text-secondary">{input}</p>
+                    <span className={cn(
+                      "mt-3 inline-flex rounded-md px-2 py-1 text-[11px] font-semibold",
+                      hasBusinessPoint || matchLevel === "exact"
+                        ? "bg-aman-bg text-aman-fg"
+                        : "bg-waspada-bg text-waspada-fg",
+                    )}>
+                      {hasBusinessPoint
+                        ? "Titik bisnis ditemukan"
+                        : matchLevel === "exact"
+                        ? "Jalan & nomor cocok"
+                        : matchLevel === "street"
+                        ? "Jalan ditemukan, nomor belum pasti"
+                        : "Wilayah sekitar ditemukan"}
+                    </span>
+                  </div>
+                );
+              })()}
+            </BentoCard>
+
+            <BentoCard title="Jejak Media Sosial" icon={ShareNetwork} className="h-full">
+              {!social ? (
+                <p className="text-[14px] text-text-muted">Pemeriksaan media sosial tidak tersedia.</p>
+              ) : (
+                <div>
+                  <p className="mb-3 text-[12px] text-text-muted">
+                    Status pencarian publik per platform
+                  </p>
+                  <div className="flex flex-wrap gap-1.5">
+                    {["instagram", "threads", "tiktok", "facebook", "x_twitter"].map((platform) => {
+                      const audit = social.social_searches?.find((item) => item.platform === platform);
+                      const found = social.platform_hits?.[platform] === true;
+                      const status = audit?.status ?? (found ? "FOUND" : "NO_RESULTS");
+                      return (
+                        <span key={platform} className={cn(
+                          "rounded-md px-2 py-1 text-[10px] font-semibold capitalize",
+                          status === "FOUND"
+                            ? "bg-aman-bg text-aman-fg"
+                            : status === "UNAVAILABLE"
+                            ? "bg-bahaya-bg text-bahaya-fg"
+                            : "bg-bg-subtle text-text-muted",
+                        )}>
+                          {platform.replace("_", " ")}: {status.replaceAll("_", " ")}
+                        </span>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
+            </BentoCard>
+            </div>
+            <div className="absolute inset-0 flex flex-col items-center justify-center rounded-2xl border border-border bg-bg/75 px-6 text-center backdrop-blur-[2px]">
+              <MagnifyingGlass size={20} className="text-text-primary" weight="bold" />
+              <p className="mt-2 text-[14px] font-semibold text-text-primary">Detail lokasi & media sosial tersedia di Audit Bukti</p>
+              <p className="mt-1 max-w-md text-[12px] text-text-secondary">Lihat sumber, status tiap platform, titik peta, dan bukti OSINT tanpa memenuhi tampilan ringkasan.</p>
+              <button
+                type="button"
+                onClick={() => setAuditMode(true)}
+                className="mt-3 rounded-xl bg-text-primary px-4 py-2 text-[12px] font-semibold text-bg-elevated transition-opacity hover:opacity-90"
+              >
+                Buka Audit Bukti
+              </button>
+            </div>
+          </div>
+
           {/* CTA + fitur lanjutan (dilabeli jujur) */}
           <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 0.26 }}
             className="flex flex-col gap-3">
@@ -410,12 +495,12 @@ export default function ReportPage() {
               </Link>
             </div>
             <p className="text-center text-[12px] text-text-muted">
-              Ingin lihat bukti teknis lengkap? Aktifkan <button onClick={() => setAuditMode(true)} className="font-semibold text-text-primary underline underline-offset-2">Mode Audit</button> di atas.
-            </p>
-          </motion.div>
+               Ingin lihat bukti teknis lengkap? Aktifkan <button onClick={() => setAuditMode(true)} className="font-semibold text-text-primary underline underline-offset-2">Audit Bukti</button> di atas.
+             </p>
+           </motion.div>
         </div>
       ) : (
-        /* ── MODE AUDIT FORENSIK (semua dari data nyata) ─────────────────── */
+         /* ── AUDIT BUKTI (semua dari data nyata) ─────────────────────────── */
         <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
 
           {/* Verdict hero */}
@@ -595,9 +680,14 @@ export default function ReportPage() {
                         {String(nc.total_case_count ?? 0)}
                       </span>
                     </div>
+                    {nc.status === "NO_DATA" && (
+                      <p className="text-[12px] text-text-muted">
+                        Belum ada kasus fraud tersimpan yang cocok dengan entitas ini.
+                      </p>
+                    )}
                   </div>
                 ) : (
-                  <p className="text-[14px] text-text-muted">Belum ada kasus untuk dibandingkan.</p>
+                  <p className="text-[14px] text-text-muted">Data fraud network tidak tersedia pada respons ini.</p>
                 )}
               </BentoCard>
 
@@ -624,8 +714,10 @@ export default function ReportPage() {
           {/* Peta lokasi (data nyata) */}
           <MapSection osint={osint} entities={entities} />
 
-          {/* Jejak sosmed (data nyata) */}
-          <SocialSection osint={osint} />
+           {/* Evidence detail (data nyata) */}
+           <div className="col-span-4">
+             <EvidencePanel osint={osint} />
+           </div>
 
           {/* CTA */}
           <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 0.3 }}
@@ -646,11 +738,13 @@ function MapSection({ osint, entities }: { osint: VerifyResponse["osint"]; entit
   const hasAddrs = validAddrs.length > 0 || entityAddrs.length > 0;
   if (!hasAddrs) return null;
 
-  const primaryAddr = validAddrs[0] || {};
+  const primaryAddr = validAddrs[0] || rawAddrs[0] || {};
   const details = (primaryAddr.address_details as Record<string, unknown>) || {};
   const bizDetails = (primaryAddr.business_details as Record<string, unknown>) || {};
-  const lat = primaryAddr.lat ?? details.lat;
-  const lon = primaryAddr.lon ?? details.lon;
+  const businessLat = bizDetails.source === "google_maps_serp" ? bizDetails.lat : undefined;
+  const businessLon = bizDetails.source === "google_maps_serp" ? bizDetails.lon : undefined;
+  const lat = businessLat ?? primaryAddr.lat ?? details.lat;
+  const lon = businessLon ?? primaryAddr.lon ?? details.lon;
   const addressInput = String(primaryAddr.address_input ?? entityAddrs[0] ?? "");
   const geocodedDisplay = String(details.display_name ?? primaryAddr.display_name ?? "");
   const display = addressInput || geocodedDisplay || "Alamat dari lowongan tidak tersedia";
@@ -658,13 +752,17 @@ function MapSection({ osint, entities }: { osint: VerifyResponse["osint"]; entit
   const placeTitle = matchedBizName || display.split(",")[0] || "Lokasi Usaha";
   const matchLevel = String(details.match_level ?? primaryAddr.match_level ?? "area");
   const hasExactCoordinates = matchLevel === "exact" && lat != null && lon != null;
+  const hasBusinessCoordinates = businessLat != null && businessLon != null;
 
   const mapSearchQuery = matchedBizName
     ? `${matchedBizName}, ${addressInput || geocodedDisplay}`
     : addressInput || geocodedDisplay;
+  const mapQuery = hasBusinessCoordinates
+    ? `${Number(businessLat).toFixed(6)},${Number(businessLon).toFixed(6)}`
+    : mapSearchQuery;
 
   const gmapsUrl = String(
-    details.google_maps_url ?? primaryAddr.google_maps_url ??
+    bizDetails.maps_url ?? details.google_maps_url ?? primaryAddr.google_maps_url ??
     `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(mapSearchQuery)}`,
   );
 
@@ -691,10 +789,16 @@ function MapSection({ osint, entities }: { osint: VerifyResponse["osint"]; entit
               matchLevel === "exact" ? "bg-aman-bg text-aman-fg" : "bg-bg-subtle text-text-secondary",
             )}>
               {matchLevel === "exact" ? <CheckCircle size={11} weight="fill" /> : <MapPin size={11} weight="fill" />}
-              {matchLevel === "exact" ? "OSM Exact Match" : "Alamat Lowongan"}
+              {matchLevel === "exact"
+                ? "OSM Exact Match"
+                : hasBusinessCoordinates
+                ? "Titik Bisnis dari Google Maps"
+                : "Alamat Lowongan"}
             </span>
             <span className="rounded-md bg-amber-500/20 px-2 py-0.5 font-mono text-[10px] font-bold text-amber-500">
-              {accuracyLabel}
+              {hasBusinessCoordinates && matchLevel !== "exact"
+                ? "Nama bisnis ditemukan; nomor alamat belum tentu exact"
+                : accuracyLabel}
             </span>
           </div>
           <h4 className="mt-2.5 text-[17px] font-extrabold tracking-tight text-text-primary">{placeTitle}</h4>
@@ -738,7 +842,7 @@ function MapSection({ osint, entities }: { osint: VerifyResponse["osint"]; entit
               title={`Peta ${placeTitle}`}
               width="100%"
               height="230"
-              src={`https://maps.google.com/maps?q=${encodeURIComponent(mapSearchQuery)}&z=16&output=embed`}
+              src={`https://maps.google.com/maps?q=${encodeURIComponent(mapQuery)}&z=16&output=embed`}
               style={{ border: 0 }}
               allowFullScreen
               loading="lazy"
@@ -765,75 +869,3 @@ function MapSection({ osint, entities }: { osint: VerifyResponse["osint"]; entit
   );
 }
 
-/* ─── Social section (data nyata) ──────────────────────────────────────── */
-function SocialSection({ osint }: { osint: VerifyResponse["osint"] }) {
-  const threadsData = (osint?.threads as Record<string, unknown> | undefined) || {};
-  const webData = (osint?.web as Record<string, unknown> | undefined) || {};
-
-  const posts = (threadsData.posts as Record<string, unknown>[]) || [];
-  const profiles = (threadsData.profiles as Record<string, unknown>[]) || [];
-  const platformHits = threadsData.platform_hits as Record<string, boolean> | undefined;
-
-  if (posts.length === 0 && Array.isArray(webData.searches)) {
-    for (const s of webData.searches as Record<string, unknown>[]) {
-      for (const r of (s.results as Record<string, unknown>[]) || []) {
-        posts.push({ platform: "web_evidence", title: r.title, snippet: r.snippet, url: r.url });
-      }
-    }
-  }
-
-  const items = posts.length > 0 ? posts : profiles;
-  const showSection = items.length > 0 || Boolean(platformHits);
-  if (!showSection) return null;
-
-  return (
-    <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.28 }}
-      className="col-span-4 sm:col-span-2">
-      <BentoCard title="Jejak Media Sosial & Web Publik" icon={MagnifyingGlass}>
-        <p className="mb-3 text-[13px] text-text-muted">
-          Profil & bukti keaktifan yang ditemukan di ruang publik
-        </p>
-        {platformHits && (
-          <div className="mb-3.5 flex flex-wrap gap-1.5">
-            {Object.entries(platformHits).map(([platform, found]) => (
-              <span key={platform} className={cn(
-                "rounded-lg px-2.5 py-1 text-[11px] font-semibold capitalize",
-                found ? "border border-aman-border bg-aman-bg text-aman-fg" : "bg-bg-subtle text-text-muted opacity-50 line-through"
-              )}>
-                {platform.replace("_", " ")}
-              </span>
-            ))}
-          </div>
-        )}
-        <div className="space-y-3">
-          {items.slice(0, 5).map((p: Record<string, unknown>, i: number) => {
-            const platformStr = typeof p.platform === "string" ? p.platform : "web";
-            const titleStr = typeof p.title === "string" ? p.title : "";
-            const snippetStr = typeof p.snippet === "string" ? p.snippet : "";
-            const urlStr = typeof p.url === "string" ? p.url : "";
-            return (
-              <div key={i} className="overflow-hidden rounded-2xl border border-border bg-bg-elevated p-4">
-                <span className="inline-flex items-center rounded-md border border-border bg-bg-subtle px-2 py-0.5 font-mono text-[10px] font-bold capitalize text-text-secondary">
-                  {platformStr.replace("_", " ")}
-                </span>
-                {titleStr && (
-                  <h5 className="mt-2 line-clamp-2 text-[14px] font-bold leading-snug text-text-primary">{titleStr}</h5>
-                )}
-                {snippetStr && (
-                  <p className="mt-1.5 line-clamp-3 text-[12px] leading-relaxed text-text-secondary">{snippetStr}</p>
-                )}
-                {urlStr && (
-                  <a href={urlStr.startsWith("http") ? urlStr : `https://${urlStr}`} target="_blank" rel="noreferrer"
-                    className="mt-3 inline-flex w-full items-center justify-between rounded-xl border border-border bg-bg-subtle px-3 py-2 text-[11px] font-medium text-text-primary transition-colors hover:border-border-focus">
-                    <span className="truncate">{urlStr}</span>
-                    <ArrowSquareOut size={12} className="ml-1 shrink-0 text-text-muted" />
-                  </a>
-                )}
-              </div>
-            );
-          })}
-        </div>
-      </BentoCard>
-    </motion.div>
-  );
-}

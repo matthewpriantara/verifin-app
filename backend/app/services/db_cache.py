@@ -12,7 +12,7 @@ from app.services.hasher import compute_content_sha256
 from app.api.v1.verify.pipeline import _build_osint_summary, _to_response
 
 logger = logging.getLogger(__name__)
-CACHE_SCHEMA_VERSION = 6
+CACHE_SCHEMA_VERSION = 7
 
 
 def _case_hash(raw_input: str) -> str:
@@ -143,6 +143,12 @@ def _get_cached_case_from_db(db: Session, raw_input_str: str) -> VerifyResponse 
             if not isinstance(osint, dict):
                 logger.info("[DB Cache Skip] legacy/incomplete OSINT payload: %s", text_hash[:10])
                 return None
+            # Cache sebelum rename menyimpan agregat seluruh platform sebagai
+            # `threads`; normalisasi saat baca agar kontrak response sekarang
+            # tetap `social` tanpa mengulang probe eksternal.
+            if "social" not in osint and isinstance(osint.get("threads"), dict):
+                osint = {**osint, "social": osint["threads"]}
+                osint.pop("threads", None)
             logger.debug("[DB Cache Hit] hash: %s", text_hash[:10])
             return _to_response(analysis, ent, osint)
     except Exception as e:

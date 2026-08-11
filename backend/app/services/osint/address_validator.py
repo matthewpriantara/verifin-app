@@ -5,7 +5,7 @@ Memverifikasi alamat fisik dari lowongan kerja menggunakan Nominatim (OpenStreet
 
 import re
 import httpx
-from urllib.parse import quote_plus
+from urllib.parse import quote_plus, unquote
 from app.services.status_contract import COMPLETED, FOUND, NO_RESULTS, UNAVAILABLE
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -312,7 +312,7 @@ def _verify_address_via_web(address: str, company_name: str) -> dict:
     """
     from app.services.osint.web_evidence import search_web_evidence
 
-    query = f'"{company_name}" alamat OR lokasi OR maps OR "Google Maps"'
+    query = f'"{company_name}" "{_clean_address_input(address)}" maps OR "Google Maps"'
     result = search_web_evidence(query, max_results=5)
 
     if not result.get("ok") or not result.get("results"):
@@ -325,22 +325,83 @@ def _verify_address_via_web(address: str, company_name: str) -> dict:
     if not addr_tokens:
         return {"found": False, "method": "web_search", "match_score": 0.0}
 
+    input_house_numbers = set(re.findall(r"\b\d+[a-z]?\b", address.lower()))
     best_score = 0.0
     best_snippet = ""
+    best_result: dict = {}
+    best_coordinates: tuple[float, float] | None = None
+    best_name_match = False
+    best_street_match = False
+    best_house_number_match = False
+
+    def _maps_coordinates(url: str) -> tuple[float, float] | None:
+        """Extract coordinates from Google Maps @lat,lon or !3dlat!4dlon URLs."""
+        patterns = (
+            r"@(-?\d{1,3}\.\d+),(-?\d{1,3}\.\d+)",
+            r"!3d(-?\d{1,3}\.\d+)!4d(-?\d{1,3}\.\d+)",
+        )
+        for pattern in patterns:
+            match = re.search(pattern, url or "")
+            if not match:
+                continue
+            lat, lon = float(match.group(1)), float(match.group(2))
+            if -90 <= lat <= 90 and -180 <= lon <= 180:
+                return lat, lon
+        return None
+
     for r in result["results"]:
-        snippet = f"{r.get('title', '')} {r.get('snippet', '')}".lower()
+        title = r.get("title", "")
+        url = r.get("url", "")
+        searchable_text = unquote(f"{url} {title} {r.get('snippet', '')}").lower()
+        snippet = f"{title} {r.get('snippet', '')}".lower()
         snippet_tokens = set(re.sub(r"[^\w\s]", " ", snippet).split())
-        score = len(addr_tokens & snippet_tokens) / len(addr_tokens)
+        score = len(addr_tokens & snippet_tokens) / len(addr_tokens) if addr_tokens else 0
+        company_tokens = {
+            token for token in re.findall(r"[a-z0-9]+", company_name.lower())
+            if len(token) >= 3 and token not in {"the", "shop", "store", "toko"}
+        }
+        name_match = bool(
+            company_tokens
+            and len(company_tokens & set(re.findall(r"[a-z0-9]+", searchable_text)))
+            >= min(2, len(company_tokens))
+        )
+        street_match = bool(
+            re.search(r"\b(?:jl\.?|jln\.?|jalan)\s+[a-z0-9 ]+", snippet, re.I)
+            and any(token in searchable_text for token in _address_tokens(address))
+        )
+        result_numbers = set(re.findall(r"\b\d+[a-z]?\b", searchable_text))
+        house_number_match = bool(input_house_numbers & result_numbers)
+        coordinates = _maps_coordinates(url)
+        if coordinates and name_match:
+            score += 0.75
         if score > best_score:
             best_score = score
             best_snippet = snippet
+            best_result = r
+            best_coordinates = coordinates
+            best_name_match = name_match
+            best_street_match = street_match
+            best_house_number_match = house_number_match
 
     found = best_score >= 0.4
+    maps_match = bool(best_coordinates and best_name_match)
     return {
-        "found": found,
-        "method": "web_search",
+        "found": found or maps_match,
+        "method": "google_maps_serp",
         "match_score": round(best_score, 2),
         "matched_snippet": best_snippet[:200] if found else None,
+        "maps_match": maps_match,
+        "maps_url": best_result.get("url") if maps_match else None,
+        "lat": best_coordinates[0] if maps_match and best_coordinates else None,
+        "lon": best_coordinates[1] if maps_match and best_coordinates else None,
+        "matched_name": best_result.get("title") if maps_match else None,
+        "name_match": best_name_match if maps_match else False,
+        "street_match": best_street_match if maps_match else False,
+        "house_number_match": best_house_number_match if maps_match else False,
+        "address_match_level": (
+            "exact" if maps_match and best_street_match and best_house_number_match
+            else "business_location" if maps_match else "none"
+        ),
     }
 
 
@@ -375,31 +436,52 @@ async def validate_address_and_business(address: str, company_name: str = None) 
         result["risk_signals"].append(
             f"Alamat '{address}' tidak ditemukan di peta OpenStreetMap Indonesia."
         )
-        return result
-
-    result["address_found"] = True
-    if geo.get("match_level") == "exact":
-        result["safe_signals"].append(
-            f"Alamat jalan dan nomor cocok dengan hasil peta: {geo.get('display_name', '')[:120]}"
-        )
-    elif geo.get("match_level") == "street":
-        result["neutral_notes"].append(
-            "Nama jalan ditemukan, tetapi nomor bangunan belum cocok dengan hasil peta."
-        )
     else:
-        result["neutral_notes"].append(
-            "Peta hanya menemukan wilayah sekitar; titik ini bukan bukti alamat outlet yang exact."
-        )
+        result["address_found"] = True
+        if geo.get("match_level") == "exact":
+            result["safe_signals"].append(
+                f"Alamat jalan dan nomor cocok dengan hasil peta: {geo.get('display_name', '')[:120]}"
+            )
+        elif geo.get("match_level") == "street":
+            result["neutral_notes"].append(
+                "Nama jalan ditemukan, tetapi nomor bangunan belum cocok dengan hasil peta."
+            )
+        else:
+            result["neutral_notes"].append(
+                "Peta hanya menemukan wilayah sekitar; titik ini bukan bukti alamat outlet yang exact."
+            )
 
     # Step 2: Web search konfirmasi keberadaan bisnis
     if company_name:
         web = _verify_address_via_web(address, company_name)
         result["web_verification"] = web
-        if web.get("found"):
+        if web.get("maps_match"):
+            result["business_found"] = True
+            result["business_details"] = {
+                "matched_name": web.get("matched_name"),
+                "maps_url": web.get("maps_url"),
+                "lat": web.get("lat"),
+                "lon": web.get("lon"),
+                "name_match": web.get("name_match"),
+                "street_match": web.get("street_match"),
+                "house_number_match": web.get("house_number_match"),
+                "match_level": web.get("address_match_level"),
+                "source": "google_maps_serp",
+            }
             result["safe_signals"].append(
-                f"Perusahaan '{company_name}' ditemukan di web dengan referensi alamat "
-                f"(skor kemiripan: {web['match_score']})."
+                f"Titik bisnis '{web.get('matched_name') or company_name}' ditemukan dari hasil Google Maps publik."
             )
+            if web.get("address_match_level") != "exact":
+                result["neutral_notes"].append(
+                    "Titik Google Maps menemukan bisnis, tetapi nomor alamat belum terbukti cocok secara exact."
+                )
+        elif web.get("found"):
+            result["business_found"] = True
+            result["neutral_notes"].append(
+                f"Nama bisnis ditemukan di web, tetapi koordinat Google Maps tidak tersedia (skor {web['match_score']})."
+            )
+        else:
+            result["business_found"] = False
 
     if result.get("address_details"):
         result["address_details"]["coordinate_confidence"] = (

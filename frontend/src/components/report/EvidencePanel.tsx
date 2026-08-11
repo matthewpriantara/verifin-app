@@ -4,7 +4,7 @@ import {
   Globe,
   Phone,
   Buildings,
-  ThreadsLogo,
+  ShareNetwork,
   Warning,
   CheckCircle,
 } from "@phosphor-icons/react/dist/ssr";
@@ -68,7 +68,7 @@ export function EvidencePanel({ osint }: EvidencePanelProps) {
   const phones    = osint.phones ?? [];
   const companies = osint.companies ?? [];
   const web       = osint.web;
-  const threads   = osint.threads;
+  const social    = osint.social;
 
   return (
     <section className="rounded-xl border border-border bg-bg-elevated p-5">
@@ -131,18 +131,20 @@ export function EvidencePanel({ osint }: EvidencePanelProps) {
           </SectionRow>
         )}
 
-        {/* Companies */}
-        {companies.length > 0 && (
-          <SectionRow label="Legalitas Perusahaan (AHU)" icon={Buildings}>
+         {/* Company public-web summary */}
+         {companies.length > 0 && (
+          <SectionRow label="Profil Perusahaan dari Web Publik" icon={Buildings}>
             <ul className="space-y-1">
               {companies.map((c, i) => (
                 <li key={i} className="flex flex-wrap items-center gap-2">
                   <span className="font-mono text-text-primary">
-                    {String(c.company_name ?? "—")}
+                    {String(c.name ?? c.company_name ?? "—")}
                   </span>
-                  {c.found
-                    ? <Flag text="Terdaftar AHU" kind="safe" />
-                    : <Flag text="Tidak ditemukan di AHU" kind="risk" />}
+                  {typeof c.stats === "object" && c.stats !== null && (
+                    <span className="text-[11px] text-text-muted">
+                      {String((c.stats as Record<string, unknown>).public_mentions ?? 0)} jejak publik
+                    </span>
+                  )}
                 </li>
               ))}
             </ul>
@@ -180,34 +182,53 @@ export function EvidencePanel({ osint }: EvidencePanelProps) {
           </SectionRow>
         )}
 
-        {/* Threads */}
-        {threads && (
-          <SectionRow label="Threads OSINT" icon={ThreadsLogo}>
-            {!threads.found ? (
-              <p className="text-text-muted">Tidak ada jejak ditemukan di Threads.</p>
-            ) : (
-              <div className="space-y-2">
-                {(threads.posts ?? []).map((p, i) => (
-                  <p key={i} className="rounded-md bg-bg-subtle px-3 py-2 text-[12px] text-text-secondary">
-                    {p.snippet}
-                  </p>
-                ))}
-                {(threads.profiles ?? []).map((p, i) => (
-                  <a
-                    key={i}
-                    href={p.url}
-                    target="_blank"
-                    rel="noreferrer"
-                    className="block text-text-primary underline underline-offset-2 hover:text-text-secondary"
-                  >
-                    @{p.username}{p.title ? ` - ${p.title}` : ""}
-                  </a>
-                ))}
-                {(threads.risk_flags ?? []).map((f) => (
-                  <Flag key={f} text={f} kind="risk" />
-                ))}
-              </div>
-            )}
+        {/* Social media */}
+         {social && (
+          <SectionRow label="Social Media OSINT" icon={ShareNetwork}>
+            <div className="space-y-2">
+              {social.social_searches && social.social_searches.length > 0 && (
+                <div className="space-y-1.5">
+                  <p className="text-[11px] text-text-muted">Status pencarian per platform</p>
+                  {social.social_searches.map((search, i) => (
+                    <div key={`${search.platform ?? "platform"}-${i}`} className="flex items-center justify-between gap-2 rounded-md bg-bg-subtle px-2.5 py-1.5">
+                      <span className="text-[12px] capitalize text-text-secondary">{(search.platform ?? "social media").replace("_", " ")}</span>
+                      <span className={cn(
+                        "font-mono text-[10px] font-semibold",
+                        search.status === "FOUND" ? "text-aman-fg" : search.status === "UNAVAILABLE" ? "text-bahaya-fg" : "text-text-muted",
+                      )}>
+                        {search.status ?? "UNKNOWN"}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              )}
+              {!social.found && (
+                <p className="text-text-muted">Tidak ada jejak relevan ditemukan di media sosial.</p>
+              )}
+              {social.found && (
+                <>
+                  {(social.posts ?? []).map((p, i) => (
+                    <p key={i} className="rounded-md bg-bg-subtle px-3 py-2 text-[12px] text-text-secondary">
+                      {p.snippet}
+                    </p>
+                  ))}
+                  {(social.profiles ?? []).map((p, i) => (
+                    <a
+                      key={i}
+                      href={p.url}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="block text-text-primary underline underline-offset-2 hover:text-text-secondary"
+                    >
+                      @{p.username}{p.title ? ` - ${p.title}` : ""}
+                    </a>
+                  ))}
+                  {(social.risk_flags ?? []).map((f) => (
+                    <Flag key={f} text={f} kind="risk" />
+                  ))}
+                </>
+              )}
+            </div>
           </SectionRow>
         )}
       </div>

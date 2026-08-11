@@ -33,48 +33,66 @@ function normalizeUrl(s: string): string {
   return /^https?:\/\//i.test(t) ? t : `https://${t}`;
 }
 
-const STEPS = [
-  {
-    id: "ocr",
-    label: "OCR + Ekstraksi Entitas",
-    detail: "PaddleOCR memproses input, regex NER mengekstrak nama PT, HP, email, URL",
-    icon: Scan,
-    duration: 1400,
-  },
-  {
-    id: "osint",
-    label: "OSINT Investigasi",
-    detail: "WHOIS domain, Kredibel phone check, AHU whitelist, OpenStreetMap, web evidence",
-    icon: MagnifyingGlass,
-    duration: 3200,
-  },
-  {
-    id: "graph",
-    label: "Pemetaan Relasi Entitas",
-    detail: "Membangun graf koneksi antar entitas yang ditemukan dari sumber publik",
-    icon: Graph,
-    duration: 1800,
-  },
-  {
-    id: "ai",
-    label: "LLM Reasoning + Evidence Attribution",
-    detail: "Verifin AI menganalisis fakta OSINT, Evidence Attribution menghitung kontribusi tiap sinyal risiko",
-    icon: Cpu,
-    duration: 2500,
-  },
-];
+type InputSource = "text" | "image" | "url";
+
+function getSteps(source: InputSource) {
+  const firstStep = source === "image"
+    ? {
+        id: "ocr",
+        label: "OCR + Ekstraksi Entitas",
+        detail: "PaddleOCR membaca gambar untuk mengekstrak nama perusahaan, HP, email, URL, dan alamat",
+      }
+    : source === "url"
+    ? {
+        id: "fetch",
+        label: "Ambil Konten + Ekstraksi Entitas",
+        detail: "Konten link diambil; OCR berjalan bila ditemukan gambar poster, lalu entitas diekstrak",
+      }
+    : {
+        id: "extract",
+        label: "Ekstraksi Entitas",
+        detail: "Teks diproses langsung untuk mengekstrak nama perusahaan, HP, email, URL, dan alamat",
+      };
+
+  return [
+    { ...firstStep, icon: Scan, duration: 1400 },
+    {
+      id: "osint",
+      label: "Pemeriksaan OSINT",
+      detail: "WHOIS/DNS, reputasi nomor, OSM, web evidence, media sosial, dan inspeksi Google Forms bila relevan",
+      icon: MagnifyingGlass,
+      duration: 3200,
+    },
+    {
+      id: "graph",
+      label: "Pemetaan Relasi Entitas",
+      detail: "Membangun graf koneksi antar entitas yang ditemukan dari sumber publik",
+      icon: Graph,
+      duration: 1800,
+    },
+    {
+      id: "ai",
+      label: "Reasoning + Penjelasan Bukti",
+      detail: "Verifin AI menyusun penilaian dari fakta OSINT dan menghitung kontribusi sinyal risiko",
+      icon: Cpu,
+      duration: 2500,
+    },
+  ];
+}
 
 /* ─── Loading Modal Popup ────────────────────────────────────────────────── */
 function LoadingModal({
   stepIndex,
   dotCount,
   progress,
+  steps,
 }: {
   stepIndex: number;
   dotCount: number;
   progress: number;
+  steps: ReturnType<typeof getSteps>;
 }) {
-  const currentStep = STEPS[stepIndex];
+  const currentStep = steps[stepIndex];
   const StepIcon = currentStep?.icon ?? Scan;
 
   useEffect(() => {
@@ -117,7 +135,7 @@ function LoadingModal({
 
         {/* Step list */}
         <div className="divide-y divide-border">
-          {STEPS.map((step, i) => {
+          {steps.map((step, i) => {
             const Icon = step.icon;
             const done = i < stepIndex;
             const active = i === stepIndex;
@@ -203,6 +221,12 @@ export function VerifyBox() {
   const [error, setError] = useState<string | null>(null);
   const [stepIndex, setStepIndex] = useState(0);
   const [dotCount, setDotCount] = useState(0);
+  const inputSource: InputSource = file
+    ? "image"
+    : isPureUrl(text)
+    ? "url"
+    : "text";
+  const steps = getSteps(inputSource);
 
   useEffect(() => {
     return () => { if (preview) URL.revokeObjectURL(preview); };
@@ -219,13 +243,13 @@ export function VerifyBox() {
       const t = setTimeout(() => setStepIndex(0), 0);
       return () => clearTimeout(t);
     }
-    if (stepIndex >= STEPS.length - 1) return;
+    if (stepIndex >= steps.length - 1) return;
     const timer = setTimeout(
-      () => setStepIndex((s) => Math.min(s + 1, STEPS.length - 1)),
-      STEPS[stepIndex]?.duration ?? 2000,
+      () => setStepIndex((s) => Math.min(s + 1, steps.length - 1)),
+      steps[stepIndex]?.duration ?? 2000,
     );
     return () => clearTimeout(timer);
-  }, [loading, stepIndex]);
+  }, [loading, stepIndex, steps]);
 
   const attachFile = useCallback((f: File | null) => {
     if (!f) {
@@ -329,14 +353,14 @@ export function VerifyBox() {
     }
   }
 
-  const progress = Math.round(((stepIndex + 1) / STEPS.length) * 100);
+  const progress = Math.round(((stepIndex + 1) / steps.length) * 100);
 
   return (
     <>
       {/* Loading modal popup */}
       <AnimatePresence>
         {loading && (
-          <LoadingModal stepIndex={stepIndex} dotCount={dotCount} progress={progress} />
+          <LoadingModal stepIndex={stepIndex} dotCount={dotCount} progress={progress} steps={steps} />
         )}
       </AnimatePresence>
 
