@@ -90,6 +90,8 @@ def _build_phone_osint_section(phones: list) -> str:
         lines.append(" | ".join(parts))
         for f in p.get("risk_flags") or []:
             lines.append(f"  → {f}")
+        for n in p.get("neutral_notes") or []:
+            lines.append(f"  → [info] {n}")
         if p.get("summary"):
             lines.append(f"  → ringkas: {p.get('summary')}")
         # Sertakan juga SERP fallback jika ada flag tambahan
@@ -213,6 +215,27 @@ def _build_web_osint_section(web: dict) -> str:
             f"NO_RELEVANT_RESULTS={counts.get('no_relevant_searches', 0)}; "
             f"UNAVAILABLE={counts.get('unavailable_searches', 0)}."
         )
+        # Search Intelligence Layer — digital footprint verdict
+        footprint = counts.get("digital_footprint", "unknown")
+        if footprint != "unknown":
+            footprint_label = {
+                "strong": "KUAT (banyak jejak terverifikasi)",
+                "moderate": "SEDANG (ada beberapa jejak)",
+                "weak": "MINIM (jejak sangat tipis)",
+                "none": "TIDAK ADA (tidak ditemukan jejak apapun)",
+            }.get(footprint, footprint)
+            lines.append(f"- DIGITAL FOOTPRINT (Search Intelligence): {footprint_label}")
+            presences = []
+            if counts.get("official_presence"):
+                presences.append("website/halaman resmi")
+            if counts.get("marketplace_presence"):
+                presences.append("marketplace")
+            if counts.get("social_presence"):
+                presences.append("media sosial")
+            if counts.get("maps_presence"):
+                presences.append("Google Maps")
+            if presences:
+                lines.append(f"  → Kehadiran terdeteksi di: {', '.join(presences)}")
         lines.append(
             "- `NO_RESULTS`/`NO_RELEVANT_RESULTS` bukan bukti tidak ada penipuan; hasil harus relevan dan spesifik untuk menjadi evidence."
         )
@@ -241,7 +264,7 @@ def _build_social_osint_section(social: dict) -> str:
 
     lines = [
         f"- Jejak ditemukan: {'Ya' if found else 'Tidak'}",
-        f"- Footprint publik non-sosial: {'Ya' if public_footprint_found and not found else 'Tidak'}",
+        f"- Footprint publik media sosial: {'Ya' if public_footprint_found else 'Tidak'}",
         f"- Platform aktif: {', '.join(active_platforms) if active_platforms else 'tidak ada'}",
         f"- Jumlah postingan ditemukan: {len(posts)}",
         f"- Jumlah profil ditemukan: {len(profiles)}",
@@ -422,6 +445,7 @@ Analisis secara mendalam, formal, dan berbasis evidence. Berikan keputusan apaka
 5. Gaji tidak disebut = NETRAL (banyak loker legitimate tanpa gaji di poster).
 6. Tidak ada website resmi = NETRAL jika ada jejak publik ATAU alamat `match_level=exact`.
 7. shortlink bit.ly / Google Forms = praktik umum rekrutmen UMKM, BUKAN penipuan sendirian.
+7a. GOOGLE FORMS (GFORM): Jika `has_phishing_signals` = null atau `content_verification_status` = "UNVERIFIED", artinya isi form BELUM berhasil dibaca. DILARANG menyimpulkan "Google Forms" sebagai risk_factor. Hanya boleh masuk risk_factor jika `has_phishing_signals` = true DAN ada bukti phishing eksplisit.
 8. PORTAL LOKER PUBLIK (JobStreet, LinkedIn, Glints, KitaLulus): Ketiadaan nomor HP atau email kontak langsung di dalam teks ADALAH HAL WARJAR karena lamaran dikirim langsung via tombol portal. DILARANG menjadikan "tidak ada email/telepon" sebagai faktor risiko untuk portal loker publik.
 9. DILARANG MENGHALUSINASI BERITA UMUM KEPOLISIAN/OJK: Berita portal umum mengenai penipuan umum (misal berita 'Aparat Memburu Penipu Pendirian SPPG', 'Satgas PASTI', atau 'Deretan Hoaks Lowongan Kerja') BUKAN bukti bahwa lowongan ini adalah penipuan tersebut. HANYA klaim berita penipuan jika judul/snippet secara spesifik menyebutkan nama lengkap entitas atau nomor telepon ini.
 10. STATUS NOMOR: Bedakan `probe_status` dari `found`. `probe_status=COMPLETED` berarti pemeriksaan berhasil; `reputation_status=CLEAN` dan `reported_fraud=false` berarti tidak ada laporan fraud/spam yang ditemukan. `found=false` hanya berarti bukti scam tidak ditemukan, BUKAN pemeriksaan gagal atau reputasi belum terkonfirmasi.

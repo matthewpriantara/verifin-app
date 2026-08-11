@@ -66,6 +66,10 @@ class VerifyResponse(BaseModel):
         ge=0,
         le=100
     )
+    case_id: Optional[str] = Field(
+        default=None,
+        description="ID persisten laporan; dapat dipakai untuk membuka ulang /report/{case_id}.",
+    )
     summary: str = Field(
         description="Ringkasan singkat alasan mengapa verdict ini diberikan."
     )

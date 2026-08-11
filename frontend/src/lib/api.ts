@@ -79,6 +79,14 @@ export async function verifyUrl(url: string): Promise<VerifyResponse> {
   return res.json() as Promise<VerifyResponse>;
 }
 
+export async function getCaseById(caseId: string): Promise<VerifyResponse> {
+  const res = await fetch(`${API_BASE}/api/v1/cases/${encodeURIComponent(caseId)}`, {
+    cache: "no-store",
+  });
+  if (!res.ok) throw new Error(await parseError(res));
+  return res.json() as Promise<VerifyResponse>;
+}
+
 export async function getAiStatus(): Promise<LlmStatusResponse> {
   const res = await fetch(`${API_BASE}/api/v1/verify/status`, {
     method: "GET",

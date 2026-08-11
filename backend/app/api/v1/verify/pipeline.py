@@ -25,7 +25,7 @@ from app.services.graph.fraud_network import (
 from app.services.status_contract import COMPLETED, NOT_PROVIDED, UNAVAILABLE
 
 def _check_fraud_network(db: Session, entities: dict) -> dict:
-    """Cek entitas lowongan ke fraud graph NetworkX (GAR-HGNN inspired, 500 kasus terakhir)."""
+    """Cek entitas lowongan ke fraud graph NetworkX (exact-match, 500 kasus terakhir)."""
     try:
         # Ambil kasus terbaru dari DB untuk membangun graf
         cases = db.query(JobCase).order_by(
@@ -320,12 +320,17 @@ def _to_response(
             osint_results=osint_results or {},
             risk_factors=risk_factors,
             safe_factors=safe_factors,
-            nlp_result=analysis.get("nlp_result"),
+            nlp_result=(
+                analysis.get("nlp_result")
+                if (analysis.get("nlp_result") or {}).get("enabled") is True
+                else None
+            ),
             network_context=analysis.get("network_context"),
             entities=entities,
         )
     except Exception:
         shap_explanation = None
+    analysis["shap_explanation"] = shap_explanation
 
     # Ekspos status layer NLP jujur (STUB saat ini) — jangan sampai FE mengira aktif
     nlp_meta = analysis.get("nlp_result") or {}
@@ -353,6 +358,7 @@ def _to_response(
             )
 
     return VerifyResponse(
+        case_id=analysis.get("case_id"),
         verdict=verdict,
         risk_score=risk_score,
         summary=analysis.get("summary", ""),

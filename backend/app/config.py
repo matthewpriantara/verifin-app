@@ -20,7 +20,12 @@ DATABASE_URL = os.getenv("DATABASE_URL", "")
 # Redis (opsional)
 REDIS_URL = os.getenv("REDIS_URL", "redis://localhost:6379/0")
 
-# SearXNG self-hosted — primary web search engine
+# Lightpanda headless browser — primary web fetcher & search renderer
+# Container docker: docker run -d --name lightpanda -p 127.0.0.1:9222:9222 lightpanda/browser:nightly
+LIGHTPANDA_CONTAINER = os.getenv("LIGHTPANDA_CONTAINER", "lightpanda")
+LIGHTPANDA_CDP_URL = os.getenv("LIGHTPANDA_CDP_URL", "http://127.0.0.1:9222")
+
+# SearXNG self-hosted — fallback search engine (opsional)
 SEARXNG_URL = os.getenv("SEARXNG_URL", "").rstrip("/")
 
 # Debug lokal: cetak payload pipeline lengkap sebagai JSON (mengandung PII/evidence).

@@ -70,9 +70,9 @@ def build_search_queries(entities: dict, *, include_email: bool = True) -> list[
     if companies:
         full = _clean_text(companies[0])
         without_legal, brand = _company_forms(full)
-        queries.append({"kind": "company_exact", "query": f'"{full}"'})
+        queries.append({"kind": "company_exact", "query": full})
         if without_legal and without_legal.lower() != full.lower():
-            queries.append({"kind": "company_clean", "query": f'"{without_legal}"'})
+            queries.append({"kind": "company_clean", "query": without_legal})
 
         brands = [brand] if brand else []
         brands.extend(_clean_text(candidate) for candidate in companies[1:])
@@ -80,18 +80,14 @@ def build_search_queries(entities: dict, *, include_email: bool = True) -> list[
         for candidate in brands:
             if not candidate or candidate.lower() == full.lower():
                 continue
-            queries.append({"kind": "brand", "query": f'"{candidate}"'})
+            queries.append({"kind": "brand", "query": candidate})
             location = _location_phrase(location_source, candidate) if location_source else None
             if location:
-                queries.append({"kind": "brand_location", "query": f'"{candidate}" "{location}"'})
+                queries.append({"kind": "brand_location", "query": f"{candidate} {location}"})
 
     if include_email:
         for email in emails[:1]:
-            domain = email.rsplit("@", 1)[-1]
-            if domain not in FREE_EMAIL_DOMAINS:
-                queries.append({"kind": "email", "query": f'"{email}"'})
-            else:
-                queries.append({"kind": "email", "query": f'"{email}"'})
+            queries.append({"kind": "email", "query": email})
 
     seen: set[str] = set()
     return [item for item in queries if not (item["query"].lower() in seen or seen.add(item["query"].lower()))]

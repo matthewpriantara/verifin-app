@@ -26,12 +26,12 @@ def _save_case_to_db(
     osint_results: dict | None,
     entities: dict | None = None,
     source: str = "text",
-) -> str:
-    """Simpan case + entities lengkap. Return persistence_status: SAVED | FAILED."""
+) -> dict:
+    """Simpan case + entities lengkap dan kembalikan status serta case_id."""
     from sqlalchemy.exc import IntegrityError
 
     if db is None:
-        return "SKIPPED"
+        return {"status": "SKIPPED", "case_id": None}
 
     try:
         text_hash = _case_hash(raw_text)
@@ -50,6 +50,7 @@ def _save_case_to_db(
             "recommendations": analysis.get("recommendations") or [],
             "model_used": analysis.get("model_used"),
             "corrected_company_name": analysis.get("corrected_company_name"),
+            "shap_explanation": analysis.get("shap_explanation"),
         }
 
         osint_failed = False
@@ -100,11 +101,12 @@ def _save_case_to_db(
             )
             db.add(db_case)
         db.commit()
-        return "SAVED"
+        case_id = existing.id if existing else db_case.id
+        return {"status": "SAVED", "case_id": str(case_id)}
     except Exception as e:
         db.rollback()
         logger.warning("Error saving job case to database: %s", e)
-        return "FAILED"
+        return {"status": "FAILED", "case_id": None}
 
 
 def _get_cached_case_from_db(db: Session, raw_input_str: str) -> VerifyResponse | None:
@@ -126,6 +128,7 @@ def _get_cached_case_from_db(db: Session, raw_input_str: str) -> VerifyResponse 
                 "salaries": cached.salaries or [],
             }
             analysis = {
+                "case_id": str(cached.id),
                 "verdict": cached.verdict,
                 "risk_score": cached.risk_score,
                 "summary": llm_payload.get("summary", ""),
@@ -134,6 +137,7 @@ def _get_cached_case_from_db(db: Session, raw_input_str: str) -> VerifyResponse 
                 "recommendations": llm_payload.get("recommendations", []),
                 "model_used": f"{llm_payload.get('model_used', 'unknown')} (DB Cache Hit)",
                 "corrected_company_name": llm_payload.get("corrected_company_name"),
+                "shap_explanation": llm_payload.get("shap_explanation"),
             }
             cached_osint = cached.osint_summary or {}
             if cached_osint.get("cache_schema_version") != CACHE_SCHEMA_VERSION:

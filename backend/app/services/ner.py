@@ -619,7 +619,8 @@ def _extract_companies(text: str) -> list[str]:
         r"hubungi|loker|info|join|team|crew|outlet|dibutuhkan|segera|"
         r"ringkasan|deskripsi|benefit|fasilitas|pendidikan|pengalaman|umur|gender|"
         r"jam\s+kerja|shift|libur|bonus|reward|gaji|"
-        r"jl|jln|jalan|gg|gang|alamat|lokasi|no|rt|rw|profesional|pelamar|karyawan|pegawai|staff|admin"
+        r"jl|jln|jalan|gg|gang|alamat|lokasi|no|rt|rw|profesional|pelamar|karyawan|pegawai|staff|admin|"
+        r"penempatan|wilayah|area|kota|provinsi|kecamatan|kelurahan"
     )
     for line in lines:
         ln = line.strip().rstrip("!*")
@@ -651,6 +652,45 @@ def _extract_companies(text: str) -> list[str]:
         brand = re.sub(r"!+$", "", m.group(1)).strip()
         if len(brand) >= 3 and not re.search(rf"\b(?:{_BRAND_STOP})\b", brand, re.I):
             companies.append(brand)
+
+    # 8) Company name di baris setelah header lowongan (Title Case atau ALLCAPS)
+    #    "DIBUTUHKAN STAF ADMIN\nThe Biker Shop" atau "LOWONGAN KERJA\nThe Biker Shop"
+    #    Format: baris setelah header lowongan yang berisi 2-5 kata, bukan syarat/kontak
+    _HEADER_KEYWORDS = re.compile(
+        r"^(?:DIBUTUHKAN|LOWONGAN|KERJA|WE'?RE|WE\s+ARE|HIRING|OPEN\s+RECRUITMENT|"
+        r"DIBUTUHKAN\s+STAF|LOWONGAN\s+KERJA|LOKER|VACANCY|CAREER)",
+        re.I,
+    )
+    for idx, line in enumerate(lines):
+        if not _HEADER_KEYWORDS.search(line):
+            continue
+        # Cari baris setelah header yang berisi nama brand (bukan header, bukan syarat)
+        for next_idx in range(idx + 1, min(idx + 4, len(lines))):
+            next_line = lines[next_idx].strip().rstrip("!*")
+            if not next_line or _HEADER_KEYWORDS.search(next_line):
+                continue
+            # Skip baris syarat/kualifikasi/kontak
+            if re.search(rf"\b(?:{_BRAND_STOP})\b", next_line, re.I):
+                break  # baris syarat → berhenti, bukan company
+            # Skip baris yang terlalu pendek atau terlalu panjang
+            if len(next_line) < 4 or len(next_line) > 60:
+                continue
+            # Skip jika hanya satu kata umum
+            words = next_line.split()
+            if len(words) < 1 or len(words) > 5:
+                continue
+            # Accept Title Case atau ALLCAPS (minimal 2 kata, atau 1 kata yang bukan stopword)
+            is_title = all(w[0].isupper() or not w[0].isalpha() for w in words) if words else False
+            is_allcaps = next_line.isupper()
+            if not (is_title or is_allcaps):
+                continue
+            # Skip jika dimulai dengan stopword
+            if re.match(r"^(?:THE|AND|FOR|WITH|DARI|UNTUK|YANG|WE|ARE)\b", next_line, re.I) and len(words) < 3:
+                continue
+            candidate = _normalize_company_name(next_line)
+            if len(candidate) >= 4 and not re.search(rf"\b(?:{_BRAND_STOP})\b", candidate, re.I):
+                companies.append(candidate)
+            break  # hanya ambil 1 baris setelah header
 
     # Filter akhir: buang tag metadata/header jika ada yang lolos
     clean_companies = []

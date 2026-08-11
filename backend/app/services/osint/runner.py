@@ -5,10 +5,11 @@ Dipanggil pipeline via run_osint_probes(entities).
 """
 
 import asyncio
+import re
 
 from app.services.osint.address_validator import validate_address_and_business
 from app.services.osint.company_validator import validate_companies
-from app.services.osint.phone_validator import check_phones_reputation
+from app.services.osint.phone_validator import check_phones_reputation, normalize_phone_id
 from app.services.osint.social import run_social_osint
 from app.services.osint.web_evidence import run_web_evidence
 from app.services.osint.whois_handler import check_domain_age, check_email_security
@@ -124,13 +125,19 @@ async def run_osint_probes(entities: dict) -> dict:
                 {"spf_active": False, "dmarc_active": False},
             )
 
-    async def _addresses_job() -> list:
+    # ── Arsitektur "1 query nama → distribusi" ──────────────────────────────
+    # Pencarian perusahaan hanya ditembak SEKALI (di _web_job via intelligent_
+    # search). Hasilnya (web_results) lalu dibagikan ke phone_validator dan
+    # address_validator untuk deteksi scam/konfirmasi bisnis TANPA query baru.
+    # Ini meminimalkan request ke engine publik (anti rate-limit/captcha).
+
+    async def _addresses_job(web_results: list) -> list:
         if not addresses:
             return []
 
         async def one(addr: str):
             try:
-                return await validate_address_and_business(addr, company_name)
+                return await validate_address_and_business(addr, company_name, web_results)
             except Exception:
                 return {
                     "address_input": addr,
@@ -142,10 +149,10 @@ async def run_osint_probes(entities: dict) -> dict:
 
         return list(await asyncio.gather(*[one(a) for a in addresses]))
 
-    async def _phones_job() -> list:
+    async def _phones_job(web_results: list) -> list:
         try:
             company = (entities.get("companies") or [""])[0]
-            return await check_phones_reputation(entities.get("phones") or [], limit=1, company=company)
+            return await check_phones_reputation(entities.get("phones") or [], limit=1, company=company, web_results=web_results)
         except Exception as exc:
             return [
                 {"source": "kredibel", "found": False, "probe_status": UNAVAILABLE,
@@ -188,16 +195,25 @@ async def run_osint_probes(entities: dict) -> dict:
 
     loop = asyncio.get_running_loop()
     t0 = loop.time()
-    (
-        domain_pair,
-        addr_list,
-        phones,
-        web,
-    ) = await asyncio.gather(
-        loop.run_in_executor(None, _domain_job),
-        _addresses_job(),
-        _phones_job(),
+
+    # Tahap 1: jalankan pencarian web (1 query) + domain probe secara paralel.
+    web, domain_pair = await asyncio.gather(
         _web_job(),
+        loop.run_in_executor(None, _domain_job),
+    )
+
+    # Ekstrak semua hasil pencarian untuk dibagikan ke phone/address validator.
+    shared_web_results: list = [
+        r
+        for s in (web.get("searches") or [])
+        for r in (s.get("results") or [])
+        if isinstance(r, dict)
+    ]
+
+    # Tahap 2: phone + address validator memakai hasil web yang sudah ada.
+    addr_list, phones = await asyncio.gather(
+        _addresses_job(shared_web_results),
+        _phones_job(shared_web_results),
     )
     osint_results["timing"]["osint_parallel_sec"] = round(loop.time() - t0, 3)
 
@@ -238,7 +254,109 @@ async def run_osint_probes(entities: dict) -> dict:
     osint_results["companies"] = companies_osint
     osint_results["social"] = social
     _attach_company_evidence_counts(osint_results["companies"], web, social)
+    _cross_check_phone_official(osint_results)
     return osint_results
+
+
+# Prefix operator seluler Indonesia (2 digit pertama setelah kode negara / leading 0).
+# Dipakai untuk menolak false positive seperti ID numerik atau nomor pendek acak.
+_ID_MOBILE_PREFIXES = {
+    "811", "812", "813", "821", "822", "823", "851", "852", "853",  # Telkomsel
+    "814", "815", "816", "855", "856", "857", "858",                # Indosat
+    "817", "818", "819", "859", "877", "878", "879",                # XL/Axis
+    "831", "832", "833", "838",                                     # Axis/3
+    "881", "882", "883", "884", "885", "886", "887", "888", "889",  # Smartfren
+    "895", "896", "897", "898", "899",                              # Three
+    "828", "868",                                                   # Smartfren/Bolt
+}
+
+
+def _extract_phones_from_text(text: str) -> set[str]:
+    """Ekstrak kandidat nomor telepon Indonesia dari teks bebas, dinormalisasi
+    ke bentuk lokal (tanpa kode negara, tanpa leading 0). Mendukung separator
+    spasi/titik/strip di tengah nomor (mis. 0811-2607-494, 0811.2658.586).
+
+    Guard anti-false-positive (generik): nomor harus cukup panjang DAN berawalan
+    prefix operator seluler Indonesia yang dikenal, supaya ID numerik / kode acak
+    (mis. '0817000 60' dari teks lain) tidak dianggap nomor telepon.
+    """
+    found: set[str] = set()
+    # Blok digit dengan separator opsional; total digit 9-14 setelah dinormalisasi
+    for m in re.findall(r"(?:\+?62|0)(?:[\s.\-]?\d){8,13}", text or ""):
+        digits = re.sub(r"\D", "", m)
+        if digits.startswith("62"):
+            local = digits[2:]
+        elif digits.startswith("0"):
+            local = digits[1:]
+        else:
+            continue
+        local = local.lstrip("0")
+        # Nomor seluler ID: 9-12 digit lokal & prefix operator valid.
+        if 9 <= len(local) <= 12 and local[:3] in _ID_MOBILE_PREFIXES:
+            found.add(local)
+    return found
+
+
+def _cross_check_phone_official(osint_results: dict) -> None:
+    """Bandingkan nomor kontak lowongan dengan nomor yang tercantum pada jejak
+    publik resmi bisnis (website resmi, Google Maps, halaman sosial) dari SERP.
+
+    Bila nomor lowongan BERSIH dari laporan penipuan tetapi BERBEDA dengan nomor
+    resmi bisnis, tambahkan neutral_note — bukan risk flag, karena nomor HR
+    memang bisa berbeda dari nomor CS/resmi.
+    """
+    phones = osint_results.get("phones") or []
+    web = osint_results.get("web") or {}
+    if not phones or not isinstance(web, dict):
+        return
+
+    # Kumpulkan nomor dari snippet hasil web (official + maps + sosial)
+    official_phones: set[str] = set()
+    sources_with_phone: list[str] = []
+    for search in web.get("searches") or []:
+        for r in (search.get("results") or []):
+            if not isinstance(r, dict):
+                continue
+            snippet = r.get("snippet") or ""
+            title = r.get("title") or ""
+            blob = f"{title} {snippet}"
+            nums = _extract_phones_from_text(blob)
+            if nums:
+                official_phones.update(nums)
+                sources_with_phone.append(r.get("url") or "")
+    # Juga dari website resmi yang berhasil di-fetch
+    for site in web.get("websites") or []:
+        if not isinstance(site, dict):
+            continue
+        text = (site.get("text") or site.get("content") or "")
+        official_phones.update(_extract_phones_from_text(text))
+
+    if not official_phones:
+        return
+
+    for p in phones:
+        if not isinstance(p, dict):
+            continue
+        raw = p.get("phone") or ""
+        if not raw:
+            continue
+        local = normalize_phone_id(raw).get("local", "").lstrip("0")
+        if not local:
+            continue
+        if local not in official_phones:
+            sample = sorted(official_phones)[:3]
+            note = (
+                f"Nomor kontak lowongan ({raw}) berbeda dari nomor yang tercantum pada "
+                f"jejak publik resmi bisnis (mis. +62{sample[0]}). Ini netral — nomor HR "
+                f"dapat berbeda dari kontak resmi — tetapi pastikan konfirmasi seleksi "
+                f"berasal dari kanal resmi perusahaan."
+            )
+            notes = p.setdefault("neutral_notes", [])
+            if note not in notes:
+                notes.append(note)
+        else:
+            p.setdefault("neutral_notes", [])
+            p["matches_official_contact"] = True
 
 
 def _attach_company_evidence_counts(

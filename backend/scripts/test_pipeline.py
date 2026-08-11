@@ -141,7 +141,10 @@ async def main():
             result = await run_single_test(tc)
             results.append({"status": "PASS", **result})
             print(f"  Verdict:    {result['verdict']} ({result['risk_score']}/100)")
-            print(f"  NLP Layer:  {result['nlp_result']['label']} (conf={result['nlp_result']['confidence']})")
+            print(
+                f"  NLP Layer:  {result['nlp_result']['status']} "
+                f"(enabled={result['nlp_result']['enabled']})"
+            )
             print(f"  Elapsed:    {result['elapsed_seconds']}s")
             print(f"  Addr found: {result['osint_summary']['address_found']}")
             print(f"  Social:     {result['osint_summary']['social_found']}")

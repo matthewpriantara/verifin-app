@@ -157,8 +157,8 @@ def _fallback_analysis(entities: dict, osint_results: dict) -> dict:
         risks.append("Alamat fisik belum terverifikasi exact")
     elif not entities.get("addresses"):
         risks.append("Alamat fisik tidak tercantum")
-    if any("@" in e and e.rsplit("@", 1)[-1].lower() in FREE_EMAIL_DOMAINS for e in entities.get("emails") or []):
-        risks.append("Email memakai domain gratisan")
+    # Email gratisan (Gmail/Yahoo) = NETRAL untuk UMKM, bukan risk factor
+    # Hanya jadi risk jika digabung dengan red flag lain (sudah di-handle di hard_risk check)
     if not phones:
         risks.append("Nomor HP tidak tercantum")
     return {
@@ -167,7 +167,7 @@ def _fallback_analysis(entities: dict, osint_results: dict) -> dict:
         "corrected_company_name": None,
         "summary": f"Analisis evidence-only untuk {company}; hasil bahasa model tidak digunakan.",
         "risk_factors": risks[:3],
-        "safe_factors": ["Tidak ada hard evidence fraud" ] if not hard_risk else [],
+        "safe_factors": [],
         "recommendations": ["Verifikasi kanal dan alamat sebelum melamar"],
         "model_used": f"{LLM_MODEL} (Evidence Fallback)",
         "entities_analyzed": entities,
@@ -238,6 +238,19 @@ def _sanitize_llm_output(
         "Tidak ada laporan penipuan di SERP": "Belum ditemukan laporan penipuan spesifik pada query publik",
         "Nol indikasi penipuan di seluruh hasil pencarian SERP": "Belum ditemukan indikasi penipuan spesifik pada hasil yang relevan",
         "Nol indikasi penipuan di seluruh hasil pencarian": "Belum ditemukan indikasi penipuan spesifik pada hasil yang relevan",
+        "Nomor HP terkonfirmasi bersih di Kaspersky": "Tidak ditemukan laporan fraud pada Kaspersky Who Calls",
+        "Nomor HP terkonfirmasi bersih": "Tidak ditemukan laporan fraud pada sumber reputasi yang diperiksa",
+        "Nomor HP bersih di Kaspersky": "Tidak ditemukan laporan penipuan pada Kaspersky Who Calls",
+        "Nomor HP bersih": "Tidak ditemukan laporan penipuan pada sumber reputasi yang diperiksa",
+        "Nomor terkonfirmasi bersih di Kaspersky": "Tidak ditemukan laporan penipuan pada Kaspersky Who Calls",
+        "Nomor terkonfirmasi bersih": "Tidak ditemukan laporan penipuan pada sumber reputasi yang diperiksa",
+        "Ditemukan jejak bisnis publik toko otomotif": "Ditemukan hasil web relevan dengan nama perusahaan",
+        "Ditemukan jejak bisnis publik": "Ditemukan hasil web relevan dengan nama perusahaan",
+        "memiliki jejak publik toko otomotif yang jelas": "memiliki satu hasil web yang relevan dengan nama perusahaan",
+        "memiliki jejak publik yang jelas": "memiliki hasil web yang relevan dengan nama perusahaan",
+        "jejak publik toko otomotif yang jelas": "hasil web yang relevan dengan nama perusahaan",
+        "Tidak ada indikasi permintaan biaya pendaftaran": "Tidak ditemukan permintaan biaya pada input",
+        "Pendaftaran menggunakan tautan Google Forms": "Isi Google Form belum berhasil diverifikasi",
     }
     no_input_address = not (entities.get("addresses") or []) and not (osint_results.get("address_validations") or [])
     if no_input_address:
@@ -284,12 +297,14 @@ def _sanitize_llm_output(
                         _re.I,
                     )
                 ]
-        safe = parsed.get("safe_factors") or []
-        if not isinstance(safe, list):
-            safe = [safe]
-        if not any("diperiksa kaspersky" in item.lower() for item in safe if isinstance(item, str)):
-            safe.append("Nomor HP diperiksa Kaspersky dan tidak ditemukan laporan fraud")
-        parsed["safe_factors"] = safe[:3]
+        # Ketiadaan laporan dari satu sumber adalah fakta pemeriksaan, bukan
+        # faktor aman yang menurunkan risiko.
+        parsed["safe_factors"] = [
+            item for item in (parsed.get("safe_factors") or [])
+            if isinstance(item, str)
+            and "diperiksa kaspersky" not in item.lower()
+            and "tidak ditemukan laporan" not in item.lower()
+        ][:3]
 
     # Gmail/free email is never an official corporate channel by itself.
     if canonical_company:
@@ -372,7 +387,7 @@ async def analyze_with_verifin(
                     "Pastikan semua field terisi lengkap dan setiap kalimat tidak terpotong di tengah."
                 ),
             })
-        parsed["model_used"] = f"{LLM_MODEL} (Forensic Reasoning)"
+        parsed["model_used"] = f"{LLM_MODEL} (Evidence Reasoning)"
         if not _is_valid_llm_output(parsed, entities, allowed_tokens):
             logger.warning("Semua 3 attempt LLM gagal validasi semantik — memakai fallback evidence-only.")
             parsed = _fallback_analysis(entities, osint_results)
@@ -408,7 +423,7 @@ async def analyze_with_verifin(
             risk_score += 65
             risk_factors.append("Nomor telepon kontak terdaftar dalam aduan penipuan publik.")
         else:
-            safe_factors.append("Nomor HP kontak bebas dari laporan penipuan di Kaspersky Who Calls.")
+            safe_factors.append("Tidak ditemukan laporan penipuan pada Kaspersky Who Calls.")
 
         if has_free_email:
             risk_score += 10
@@ -421,11 +436,11 @@ async def analyze_with_verifin(
         verdict_label = {"AMAN": "berisiko rendah", "WASPADA": "perlu diperiksa lebih lanjut", "BAHAYA": "berisiko tinggi"}[verdict]
         summary_parts = [f"Berdasarkan pemeriksaan bukti publik independen, lowongan {comp_name} dinilai {verdict_label}."]
         if has_address:
-            summary_parts.append("Alamat fisik berhasil dipetakan di OpenStreetMap.")
+            summary_parts.append("Jalan/area ditemukan di OpenStreetMap; kecocokan nomor bergantung pada level match.")
         if has_fraud_phone:
             summary_parts.append("Ditemukan laporan penipuan pada nomor kontak.")
         elif not has_fraud_phone and osint_results.get("phones"):
-            summary_parts.append("Nomor kontak bebas laporan aduan penipuan.")
+            summary_parts.append("Tidak ditemukan laporan penipuan pada Kaspersky Who Calls.")
         summary = " ".join(summary_parts)
 
         return {
@@ -438,7 +453,7 @@ async def analyze_with_verifin(
                 "Pastikan wawancara diadakan di lokasi resmi perusahaan.",
                 "TIDAK AKAN membayar biaya registrasi, seragam, atau pelatihan."
             ],
-            "model_used": f"{LLM_MODEL} (Forensic Reasoning)",
+            "model_used": f"{LLM_MODEL} (Evidence Reasoning)",
             "entities_analyzed": entities,
         }
 

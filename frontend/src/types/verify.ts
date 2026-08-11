@@ -126,9 +126,26 @@ export interface ShapExplanation {
   top_risk_features: string[];
   top_safe_features: string[];
   summary: string;
+  evidence_confidence?: number | null;
+  decision_confidence?: number | null;
+  confidence_method?: string;
+  probe_hit_rate_percent?: number | null;
+  probe_applicability?: {
+    applicable?: number;
+    positive?: number;
+    outcomes?: Record<string, boolean>;
+  };
+  coverage_probes?: {
+    name?: string;
+    label?: string;
+    status?: string;
+    applicable?: boolean;
+    hit?: boolean;
+  }[];
 }
 
 export interface VerifyResponse {
+  case_id?: string | null;
   verdict: Verdict | string;
   risk_score: number;
   summary: string;
