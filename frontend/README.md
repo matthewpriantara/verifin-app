@@ -1,6 +1,13 @@
-# 🎨 Verifin Frontend (Next.js 14)
+# 🎨 Verifin Frontend (Next.js 16)
 
 UI Verifin — verifikasi lowongan kerja, lapor komunitas, dan dashboard admin.
+Stack: Next.js 16 (App Router) · React 19 · TypeScript · Tailwind CSS 4 ·
+motion/react · Phosphor Icons.
+
+> **Catatan integritas:** visualisasi **Fraud Network Graph interaktif belum
+> diimplementasikan** di frontend (belum memakai React Flow/D3). Halaman hasil
+> menampilkan breakdown OSINT, kontribusi XAI (`ShapChart`), dan faktor risiko.
+> Tidak ada infrastruktur unit test (Jest/Vitest) saat ini.
 
 ---
 
@@ -13,6 +20,7 @@ npm run dev          # http://localhost:3000 (hot-reload)
 ```
 
 Build produksi: `npm run build` · serve: `npm start` · lint: `npm run lint`
+(Tidak ada script `test` — proyek belum memiliki runner Jest/Vitest.)
 
 ### Environment (`frontend/.env.local`)
 

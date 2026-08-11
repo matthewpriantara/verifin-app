@@ -15,7 +15,7 @@ Input (teks / gambar poster / URL)
    │     · NLP Layer 1 = STUB (classifier.py, jujur enabled:false)
    ├─ OSINT Engine (services/osint/runner.py — asyncio.gather paralel)
    │     · WHOIS/DNS      : umur domain + SPF/DMARC (domain korporat saja)
-   │     · Phone          : Kredibel reputation + probe_status kanonikal
+   │     · Phone          : Kaspersky Who Calls (scrape) + pencarian laporan SERP publik
    │     · Address        : Nominatim (OSM) — match_level exact/street/area
    │     · Web Evidence   : SearXNG + Scrapling, relevance filter
    │     · Company        : jejak publik + deteksi sindikat (graph)
@@ -50,16 +50,43 @@ Docs API: http://localhost:8000/docs · Redoc: http://localhost:8000/redoc
 ### Environment (`backend/.env` — tidak di-commit)
 
 ```env
-LLM_BASE_URL=https://.../v1            # OpenAI-compatible
+LLM_BASE_URL=https://.../v1            # OpenAI-compatible endpoint
 LLM_API_KEY=sk-...                     # wajib
-LLM_MODEL=fb/deepseek/deepseek-v4-flash
+LLM_MODEL=...                          # nama model (dinamis; mis. ag/gemini-3.6-flash-high)
+LLM_VISION_MODEL=...                   # model untuk kanal gambar/URL
 LLM_TIMEOUT=120
 DATABASE_URL=postgresql://...          # PostgreSQL (Supabase pooler OK)
-SEARXNG_URL=https://...                # SearXNG self-hosted
+SEARXNG_URL=https://...                # SearXNG self-hosted (engine: bing, brave)
 REDIS_URL=redis://localhost:6379/0     # opsional
 ```
 
-Contoh lengkap di `.env.example`.
+Contoh lengkap di `.env.example`. **Nama model tidak di-hardcode** — dibaca dari
+`LLM_MODEL`, sehingga ganti model cukup lewat env (cache otomatis ter-invaliddasi
+karena cache key = `sha256(text + model)`).
+
+---
+
+## ⚠️ Catatan Integritas (apa yang ADA vs BELUM)
+
+Dokumen ini menggambarkan kode **apa adanya**, bukan rencana:
+
+- **Tidak ada PII masking / no-retention.** Teks lowongan dikirim **apa adanya** ke
+  API LLM eksternal, dan hasil analisis beserta entitas (nomor HP, alamat) **disimpan**
+  ke tabel `job_cases` untuk mendukung Fraud Network & riwayat. PII masking adalah
+  pekerjaan lanjutan yang direncanakan.
+- **Tidak ada Alembic.** Evolusi skema dilakukan via migrasi SQL manual
+  (`ALTER TABLE ... IF NOT EXISTS`) di `community/router.py`.
+- **Tidak ada Supabase Auth / role.** Supabase hanya dipakai sebagai **hosting
+  PostgreSQL**. Endpoint `/community/report` bersifat anonim terbuka.
+- **`nlp/classifier.py` adalah STUB** (`enabled:false`) — penilaian sinyal perilaku teks
+  dilakukan oleh LLM reasoning, bukan model ML terlatih.
+- **Tidak ada tabel `fraud_fingerprints`.** Deduplikasi lintas kasus memakai
+  `raw_text_hash` (SHA-256) + pencocokan entitas ternormalisasi di `job_cases` /
+  `community_reports`.
+- **SearXNG** memakai engine **Bing + Brave** (bukan DDG/Mojeek/Startpage).
+- **OSINT alamat** hanya via **Nominatim** (OpenStreetMap); **tidak ada Overpass**.
+- **OSINT domain** via **python-whois**; fallback ke **Wayback Machine CDX** (bukan RDAP).
+- **XAI** adalah *SHAP-inspired additive scoring* **custom (rule-based)** — bukan library `shap`.
 
 ---
 
