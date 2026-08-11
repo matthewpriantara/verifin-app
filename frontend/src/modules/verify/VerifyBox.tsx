@@ -345,7 +345,7 @@ export function VerifyBox() {
         result = await verifyText({ text: trimmed, include_raw_text: true });
       }
       sessionStorage.setItem(REPORT_STORAGE_KEY, JSON.stringify(result));
-      router.push("/report");
+       router.push(result.case_id ? `/report/${result.case_id}` : "/report");
     } catch (err) {
       setError(err instanceof Error ? err.message : "Terjadi kesalahan saat memproses.");
     } finally {
@@ -364,7 +364,7 @@ export function VerifyBox() {
         )}
       </AnimatePresence>
 
-      <form onSubmit={handleSubmit} className="w-full max-w-xl space-y-3">
+      <form onSubmit={handleSubmit} className="w-full space-y-3">
         {/* Input area */}
         <div
           className={cn(

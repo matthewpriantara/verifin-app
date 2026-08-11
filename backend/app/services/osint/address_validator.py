@@ -303,19 +303,13 @@ async def geocode_address(address: str, company_name: str | None = None) -> dict
 _ADDR_STOP_WORDS = {"jl", "no", "rt", "rw", "kec", "kab", "kel", "desa", "indonesia", "jalan", "gang", "gg"}
 
 
-def _verify_address_via_web(address: str, company_name: str) -> dict:
-    """Verifikasi keberadaan perusahaan via web search — fallback dari Overpass/OSM.
-
-    Pakai search_web_evidence yang sudah ada. Cocokkan token alamat poster
-    dengan snippet hasil pencarian.
-    # ponytail: token overlap O(n) — upgrade ke TF-IDF/BM25 kalau precision perlu naik
+def _verify_address_via_web(address: str, company_name: str, web_results: list[dict] | None = None) -> dict:
+    """Verifikasi keberadaan perusahaan dari hasil pencarian yang SUDAH ADA
+    (1 query perusahaan), BUKAN menembak query baru. Cocokkan token alamat
+    poster dengan snippet hasil pencarian.
     """
-    from app.services.osint.web_evidence import search_web_evidence
-
-    query = f'"{company_name}" "{_clean_address_input(address)}" maps OR "Google Maps"'
-    result = search_web_evidence(query, max_results=5)
-
-    if not result.get("ok") or not result.get("results"):
+    results = web_results or []
+    if not results:
         return {"found": False, "method": "web_search", "match_score": 0.0}
 
     addr_tokens = {
@@ -349,7 +343,7 @@ def _verify_address_via_web(address: str, company_name: str) -> dict:
                 return lat, lon
         return None
 
-    for r in result["results"]:
+    for r in results:
         title = r.get("title", "")
         url = r.get("url", "")
         searchable_text = unquote(f"{url} {title} {r.get('snippet', '')}").lower()
@@ -405,7 +399,7 @@ def _verify_address_via_web(address: str, company_name: str) -> dict:
     }
 
 
-async def validate_address_and_business(address: str, company_name: str = None) -> dict:
+async def validate_address_and_business(address: str, company_name: str = None, web_results: list[dict] | None = None) -> dict:
     """
     Fungsi utama yang menggabungkan geocoding + pencarian bisnis menjadi
     satu hasil analisis OSINT yang lengkap.
@@ -413,6 +407,8 @@ async def validate_address_and_business(address: str, company_name: str = None) 
     Args:
         address: Alamat fisik dari hasil NER.
         company_name: Nama perusahaan dari hasil NER (opsional).
+        web_results: hasil 1 pencarian perusahaan (dibagikan) — dipakai untuk
+            konfirmasi keberadaan bisnis tanpa menembak query baru.
 
     Returns:
         dict berisi semua hasil validasi alamat dan keberadaan bisnis.
@@ -451,9 +447,9 @@ async def validate_address_and_business(address: str, company_name: str = None) 
                 "Peta hanya menemukan wilayah sekitar; titik ini bukan bukti alamat outlet yang exact."
             )
 
-    # Step 2: Web search konfirmasi keberadaan bisnis
+    # Step 2: Konfirmasi keberadaan bisnis dari hasil pencarian yang SUDAH ADA
     if company_name:
-        web = _verify_address_via_web(address, company_name)
+        web = _verify_address_via_web(address, company_name, web_results)
         result["web_verification"] = web
         if web.get("maps_match"):
             result["business_found"] = True

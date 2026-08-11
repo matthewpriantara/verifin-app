@@ -83,15 +83,17 @@ def _check_kaspersky(phone_meta: dict[str, str]) -> dict[str, Any]:
         return result
 
 
-def _search_phone_public_serp(phone_meta: dict[str, str]) -> dict[str, Any]:
+def _search_phone_public_serp(phone_meta: dict[str, str], web_results: list[dict] | None = None) -> dict[str, Any]:
+    """Deteksi bukti scam pada nomor dari hasil pencarian yang SUDAH ADA
+    (1 query perusahaan), BUKAN menembak query baru. Bila web_results tidak
+    diberikan, kembalikan hasil kosong — menghindari request tambahan."""
     phone_digits = phone_meta["local"]
-    query = f'"{phone_meta["display"]}" OR "0{phone_digits}" penipu OR scam OR penipuan'
-    from app.services.osint.web_evidence import search_web_evidence
-
-    res = search_web_evidence(query, max_results=5)
-    results = res.get("results") or []
     risk_flags = []
     found_scam = False
+
+    results = web_results or []
+    if not results:
+        return {"serp_checked": False, "serp_results": [], "risk_flags": [], "found_scam": False}
 
     # Filter noise: buang result yang tidak relevan dengan nomor HP Indonesia
     # (Baidu, Yahoo JP, Microsoft JP, dsb sering masuk saat query nomor tidak ditemukan)
@@ -176,8 +178,12 @@ def _search_phone_public_serp(phone_meta: dict[str, str]) -> dict[str, Any]:
     return {"serp_checked": True, "serp_results": filtered, "risk_flags": risk_flags, "found_scam": found_scam}
 
 
-def check_phone_reputation(phone: str, company: str = "") -> dict[str, Any]:
-    """Cek reputasi nomor HP via Kaspersky → SERP fallback."""
+def check_phone_reputation(phone: str, company: str = "", web_results: list[dict] | None = None) -> dict[str, Any]:
+    """Cek reputasi nomor HP via Kaspersky → deteksi scam dari hasil web yang SUDAH ADA.
+
+    web_results: hasil 1 pencarian perusahaan (dibagikan dari web_evidence) —
+    dipakai untuk mendeteksi laporan scam tanpa menembak query baru.
+    """
     meta = normalize_phone_id(phone)
     meta["company"] = company
     if not meta["local"] or len(meta["local"]) < 8:
@@ -197,8 +203,8 @@ def check_phone_reputation(phone: str, company: str = "") -> dict[str, Any]:
 
     kaspersky = _check_kaspersky(meta)
 
-    # SERP fallback kalau Kaspersky tidak dapat hasil atau nomor aman
-    serp = _search_phone_public_serp(meta)
+    # Deteksi scam dari hasil pencarian yang sudah ada (bukan query baru)
+    serp = _search_phone_public_serp(meta, web_results)
 
     all_risk_flags = kaspersky.get("risk_flags", []) + serp.get("risk_flags", [])
     return {
@@ -218,13 +224,13 @@ def check_phone_reputation(phone: str, company: str = "") -> dict[str, Any]:
     }
 
 
-async def check_phones_reputation(contacts: list[str], limit: int = 2, company: str = "") -> list[dict[str, Any]]:
+async def check_phones_reputation(contacts: list[str], limit: int = 2, company: str = "", web_results: list[dict] | None = None) -> list[dict[str, Any]]:
     phones = [c for c in (contacts or []) if c][:limit]
     if not phones:
         return []
     loop = asyncio.get_running_loop()
     results = []
     for ph in phones:
-        result = await loop.run_in_executor(None, check_phone_reputation, ph, company)
+        result = await loop.run_in_executor(None, check_phone_reputation, ph, company, web_results)
         results.append(result)
     return results

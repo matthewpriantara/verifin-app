@@ -2,7 +2,7 @@
 Router verifikasi Verifin — Job Trust Infrastructure.
 
 Tiga kanal input: teks, gambar (OCR), URL postingan.
-Pipeline 5 layer: NLP → NER → OSINT → LLM → Fraud Network → SHAP response.
+    Pipeline: NER → OSINT → LLM → Fraud Network → Evidence Attribution response.
 
 Modular:
   pipeline.py   — entity extraction, OSINT runner, fraud network, response builder
@@ -67,6 +67,29 @@ def _entity_counts(entities: dict) -> dict[str, int]:
     }
 
 
+def _address_probe_status(addresses: list[dict]) -> str:
+    """Map nested address evidence to an honest aggregate log status."""
+    if not addresses:
+        return "NOT_PROVIDED"
+
+    details = [
+        item.get("address_details") or {}
+        for item in addresses
+        if isinstance(item, dict)
+    ]
+    if any(detail.get("match_level") == "exact" for detail in details):
+        return "EXACT"
+    if any(detail.get("match_level") == "street" for detail in details):
+        return "STREET_LEVEL"
+    if any(detail.get("match_level") == "area" for detail in details):
+        return "AREA_ONLY"
+    if any(detail.get("probe_status") == "COMPLETED" for detail in details):
+        return "COMPLETED_NO_MATCH"
+    if any(detail.get("probe_status") == "UNAVAILABLE" for detail in details):
+        return "UNAVAILABLE"
+    return "NO_RESULT"
+
+
 def _log_osint_summary(request_id: str, osint_results: dict) -> None:
     timing = osint_results.get("timing") or {}
     probe_statuses = {
@@ -78,13 +101,7 @@ def _log_osint_summary(request_id: str, osint_results: dict) -> None:
             else "NOT_PROVIDED"
         ),
         "phone_reputation": (osint_results.get("phone_probe") or {}).get("status", "N/A"),
-        "address_osm": (
-            "COMPLETED"
-            if any(item.get("probe_status") == "COMPLETED" for item in (osint_results.get("address_validations") or []))
-            else "NOT_PROVIDED"
-            if not osint_results.get("address_validations")
-            else "UNAVAILABLE"
-        ),
+        "address_osm": _address_probe_status(osint_results.get("address_validations") or []),
         "web_evidence": (osint_results.get("web") or {}).get("probe_status", "N/A"),
         "social_media": (osint_results.get("social") or {}).get("probe_status", "N/A"),
         "legal_registry": "NOT_AVAILABLE",
@@ -155,13 +172,14 @@ async def verify_from_text(
             _log_end(request_id, "text-cache", started, cached_resp)
             return cached_resp
 
-        # Layer 1: NLP — TF-IDF behavioral features (paper22 Springer)
+        # NLP classifier belum aktif; simpan metadata STUB tanpa menganggapnya
+        # sebagai tahap analisis yang menghasilkan sinyal risiko.
         stage_started = time.perf_counter()
         nlp_result = classify_text(request.text)
         logger.info(
-            "[verify][%s] NLP done status=%s enabled=%s label=%s duration=%.2fs",
+            "[verify][%s] NLP skipped status=%s enabled=%s duration=%.2fs",
             request_id, nlp_result.get("status"), nlp_result.get("enabled"),
-            nlp_result.get("label"), time.perf_counter() - stage_started,
+            time.perf_counter() - stage_started,
         )
 
         stage_started = time.perf_counter()
@@ -174,7 +192,7 @@ async def verify_from_text(
         _log_osint_summary(request_id, osint_results)
         logger.info("[verify][%s] OSINT duration=%.2fs", request_id, time.perf_counter() - stage_started)
 
-        # Layer 5: Fraud Network — case memory (GAR-HGNN inspired)
+        # Layer 5: Fraud Network — case memory (exact-match entity linking)
         stage_started = time.perf_counter()
         network_context = await asyncio.to_thread(_check_fraud_network, db, entities)
         logger.info("[verify][%s] fraud-network done status=%s in_network=%s reports=%s duration=%.2fs", request_id, network_context.get("status"), network_context.get("entity_in_fraud_network"), (network_context.get("community_reports") or {}).get("report_count"), time.perf_counter() - stage_started)
@@ -189,14 +207,16 @@ async def verify_from_text(
         analysis["nlp_result"] = nlp_result
         analysis["network_context"] = network_context
 
+        response = _to_response(analysis, entities, osint_results)
         save_status = await asyncio.to_thread(
             _save_case_to_db,
             db, request.text, analysis, osint_results, entities=entities, source="text"
         )
+        analysis["case_id"] = save_status.get("case_id")
         response = _to_response(analysis, entities, osint_results)
         _log_raw_json(request_id, "RESPONSE", response)
         if response.osint is not None:
-            response.osint["persistence_status"] = save_status
+            response.osint["persistence_status"] = save_status.get("status")
         _log_end(request_id, "text", started, response)
         return response
     except Exception as e:
@@ -268,10 +288,10 @@ async def verify_from_image(
         _log_raw_json(request_id, "ENTITIES", entities)
         logger.info("[verify][%s] NER done counts=%s meta=%s duration=%.2fs", request_id, _entity_counts(entities), entities.get("_ner_meta"), time.perf_counter() - stage_started)
 
-        # Layer 1: NLP — jalan sebelum OSINT, konsisten dengan text endpoint
+        # NLP classifier belum aktif; hanya ekspos metadata STUB.
         stage_started = time.perf_counter()
         nlp_result = classify_text(raw_text)
-        logger.info("[verify][%s] NLP done status=%s enabled=%s label=%s duration=%.2fs", request_id, nlp_result.get("status"), nlp_result.get("enabled"), nlp_result.get("label"), time.perf_counter() - stage_started)
+        logger.info("[verify][%s] NLP skipped status=%s enabled=%s duration=%.2fs", request_id, nlp_result.get("status"), nlp_result.get("enabled"), time.perf_counter() - stage_started)
 
         stage_started = time.perf_counter()
         osint_results = await _run_osint_on_entities(entities)
@@ -292,15 +312,17 @@ async def verify_from_image(
         analysis["nlp_result"] = nlp_result
         analysis["network_context"] = network_context
 
+        response = _to_response(analysis, entities, osint_results)
         save_status = await asyncio.to_thread(
             _save_case_to_db,
             db, raw_text, analysis, osint_results, entities=entities, source="image"
         )
+        analysis["case_id"] = save_status.get("case_id")
         response = _to_response(analysis, entities, osint_results)
         _log_raw_json(request_id, "RESPONSE", response)
         if response.osint is not None:
             response.osint.setdefault("timing", {})["ocr"] = ocr_metrics
-            response.osint["persistence_status"] = save_status
+            response.osint["persistence_status"] = save_status.get("status")
         _log_end(request_id, "image", started, response)
         return response
 
@@ -400,14 +422,16 @@ async def verify_from_url(
         _log_raw_json(request_id, "ANALYSIS", analysis)
         logger.info("[verify][%s] LLM done verdict=%s score=%s model=%s duration=%.2fs", request_id, analysis.get("verdict"), analysis.get("risk_score"), analysis.get("model_used"), time.perf_counter() - stage_started)
         analysis["network_context"] = network_context
+        response = _to_response(analysis, entities, osint_results)
         save_status = await asyncio.to_thread(
             _save_case_to_db,
             db, full_raw_text, analysis, osint_results, entities=entities, source="url"
         )
+        analysis["case_id"] = save_status.get("case_id")
         response = _to_response(analysis, entities, osint_results)
         _log_raw_json(request_id, "RESPONSE", response)
         if response.osint is not None:
-            response.osint["persistence_status"] = save_status
+            response.osint["persistence_status"] = save_status.get("status")
         _log_end(request_id, "url", started, response)
         return response
 
@@ -581,8 +605,30 @@ def get_case_by_id(case_id: UUID, db: Session = Depends(get_db)):
     db_case = db.query(JobCase).filter(JobCase.id == case_id).first()
     if not db_case:
         raise HTTPException(status_code=404, detail="Kasus tidak ditemukan")
+    llm_output = db_case.llm_output or {}
+    cached_osint = db_case.osint_summary or {}
+    osint = cached_osint.get("response_osint") or {}
+    stored_entities = db_case.entities or {
+        "companies": db_case.companies or [],
+        "phones": db_case.phones or [],
+        "emails": db_case.emails or [],
+        "urls": db_case.urls or [],
+        "addresses": db_case.addresses or [],
+        "location_candidates": [],
+        "salaries": db_case.salaries or [],
+    }
+    entities = {
+        "companies": stored_entities.get("companies") or [],
+        "contacts": stored_entities.get("contacts") or stored_entities.get("phones") or [],
+        "emails": stored_entities.get("emails") or [],
+        "urls": stored_entities.get("urls") or [],
+        "addresses": stored_entities.get("addresses") or [],
+        "location_candidates": stored_entities.get("location_candidates") or [],
+        "salaries": stored_entities.get("salaries") or [],
+    }
     return {
         "id": str(db_case.id),
+        "case_id": str(db_case.id),
         "raw_text_hash": db_case.raw_text_hash,
         "source": db_case.source,
         "raw_text_preview": db_case.raw_text_preview,
@@ -596,8 +642,16 @@ def get_case_by_id(case_id: UUID, db: Session = Depends(get_db)):
         "entities": db_case.entities,
         "verdict": db_case.verdict,
         "risk_score": db_case.risk_score,
-        "llm_output": db_case.llm_output,
-        "osint_summary": db_case.osint_summary,
+        "summary": llm_output.get("summary", ""),
+        "risk_factors": llm_output.get("risk_factors", []),
+        "safe_factors": llm_output.get("safe_factors", []),
+        "recommendations": llm_output.get("recommendations", []),
+        "model_used": llm_output.get("model_used"),
+        "entities": entities,
+        "osint": osint,
+        "shap_explanation": llm_output.get("shap_explanation"),
+        "llm_output": llm_output,
+        "osint_summary": cached_osint,
         "osint_failed": db_case.osint_failed,
         "created_at": db_case.created_at.isoformat() if db_case.created_at else None,
     }

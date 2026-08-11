@@ -1,7 +1,7 @@
 """
 Social Media OSINT — Scraping jejak rekrutmen/scam di berbagai platform media sosial.
 Platform: Threads, Instagram, X (Twitter), TikTok, Facebook.
-Menggunakan SearXNG self-hosted untuk semua SERP query.
+Menggunakan Lightpanda browser untuk render JS penuh (menggantikan SearXNG).
 """
 
 import re
@@ -48,6 +48,11 @@ _COMPANY_GENERIC_TOKENS = {
     "berkah", "karunia", "persada", "nusantara", "jakarta", "yogyakarta",
     "bandung", "surabaya", "medan", "semarang", "solo", "depok", "bekasi",
     "tangerang", "bogor", "malang", "makassar", "palembang",
+    # English stopwords yang tidak boleh jadi token identitas
+    "the", "and", "for", "with", "from", "that", "this", "are", "was", "were",
+    "but", "not", "you", "all", "can", "had", "her", "has", "how", "its",
+    "may", "our", "out", "see", "way", "who", "did", "let", "say", "own",
+    "just", "get", "got",
 }
 
 
@@ -87,6 +92,40 @@ def _canonical_social_url(url: str) -> str | None:
             return None
         return urlunsplit(("https", host, f"/{segments[0]}", "", ""))
     return urlunsplit((parts.scheme or "https", host, path, "", ""))
+
+
+# Segmen path yang menandakan konten (post/video), BUKAN halaman profil/brand.
+_SOCIAL_CONTENT_SEGMENTS = {
+    "p", "reel", "reels", "popular", "explore", "accounts",  # instagram
+    "videos", "photos", "photo", "posts", "watch", "story.php", "permalink.php",  # facebook
+    "status", "video",  # x / tiktok / umum
+}
+
+
+def _profile_only_url(url: str) -> str | None:
+    """Kembalikan URL halaman PROFIL/brand saja; None bila URL mengarah ke
+    konten spesifik (post/reel/video/status) — konten bukan bukti kepemilikan akun.
+    Generik lintas platform, bukan hardcode satu situs."""
+    parts = urlsplit((url or "").strip())
+    host = parts.netloc.lower().removeprefix("www.")
+    segments = [s for s in parts.path.split("/") if s]
+    if not segments:
+        return None
+    first = segments[0].lower()
+    if first in _SOCIAL_CONTENT_SEGMENTS:
+        return None
+    # Facebook profile.php?id=... → anggap profil (ada query id), terima.
+    if host == "facebook.com" and first == "profile.php":
+        return urlunsplit(("https", host, parts.path, parts.query, ""))
+    # Kedalaman > 1 biasanya konten (facebook.com/Page/videos/..., /posts/...)
+    if len(segments) > 1 and segments[1].lower() in _SOCIAL_CONTENT_SEGMENTS:
+        return None
+    # Normal: ambil segmen pertama sebagai handle profil
+    if host in ("instagram.com", "threads.net", "threads.com", "tiktok.com", "x.com", "twitter.com"):
+        return urlunsplit(("https", host, f"/{segments[0]}", "", ""))
+    if host == "facebook.com":
+        return urlunsplit(("https", host, f"/{segments[0]}", "", ""))
+    return None
 
 
 def _slug_candidates(company: str) -> list[str]:
@@ -158,28 +197,6 @@ def run_social_osint(
     clean_company = re.sub(r"^(pt|cv|ud)\.?\s+", "", clean_company, flags=re.I).strip()
 
     web_evidence = web_evidence if isinstance(web_evidence, dict) else {}
-    serp_posts: list[dict] = []
-    for search in web_evidence.get("searches") or []:
-        for result in search.get("results") or []:
-            serp_posts.append(
-                {
-                    "platform": _classify_platform(result.get("url", "")),
-                    "source": "serp",
-                    "title": result.get("title", "")[:120],
-                    "snippet": result.get("snippet", "")[:280],
-                    "url": result.get("url", ""),
-                    "fallback_kind": search.get("fallback_kind"),
-                }
-            )
-    # Dedup snippet
-    _seen_snip: set[str] = set()
-    initial_posts = []
-    for p in serp_posts:
-        key = p.get("snippet", "")[:80].lower()
-        if key not in _seen_snip:
-            _seen_snip.add(key)
-            initial_posts.append(p)
-
     # Platform requests are owned by web_evidence.py. Consume their results.
     extra_posts: list[dict[str, str]] = []
     platform_hits: dict[str, bool] = {
@@ -204,7 +221,8 @@ def run_social_osint(
         extra_posts.extend(hits)
         platform_hits[platform_key] = platform_hits.get(platform_key, False) or bool(hits)
 
-    # Gabungkan semua posts & dedup berdasarkan URL, set platform dinamis
+    # Hanya social_searches yang boleh masuk ke social.posts. Hasil web biasa
+    # tetap berada di web.searches dan tidak boleh menjadi social_media.
     seen_urls: set[str] = set()
     all_posts = []
 
@@ -216,7 +234,7 @@ def run_social_osint(
         and t not in {"yang", "untuk", "dari", "dengan", "adalah", "dan", "atau"}
     } - {"pt", "cv", "ud", "tb"}
 
-    raw_posts = extra_posts + initial_posts
+    raw_posts = extra_posts
     for p in raw_posts:
         canonical_url = _canonical_social_url(p.get("url") or "")
         if not canonical_url:
@@ -229,8 +247,8 @@ def run_social_osint(
 
         # Klasifikasi platform presisi berdasarkan URL domain
         real_plat = _classify_platform(link, default=p.get("platform") or "social_media")
-        if any(domain in link for domain in ("lokerjogja", "glints", "jobstreet", "kalibrr", "kitagrad", "karir")):
-            real_plat = "portal_loker"
+        if real_plat not in _SOCIAL_PLATFORMS:
+            continue
 
         p["platform"] = real_plat
         p["is_official"] = False
@@ -254,33 +272,23 @@ def run_social_osint(
             p["matched_reason"] = "generic_only"
 
         # Buang post yang tidak mengandung token nama perusahaan yang cukup
-        # instagram/threads: threshold 0.25 (bukan 0.0) — partial match generic seperti
-        # "solution", "internasional" di domain lain harus dibuang
-        min_conf = 0.26 if real_plat in ("instagram", "threads") else 0.01
+        # Threshold lebih ketat: 0.34 untuk semua platform — butuh ≥1/2 atau
+        # ≥2/3 token identitas match, bukan sekadar 1 token generic seperti "biker"
+        min_conf = 0.34
         if p["match_confidence"] < min_conf:
             continue
 
-        # Filter post luar negeri yang tidak relevan (bukan Indonesia)
-        # Hanya berlaku untuk platform social_media, bukan portal_loker/instagram
-        if real_plat == "social_media" and p["match_confidence"] < 1.0:
-            link_lower = (p.get("url") or "").lower()
-            snippet_lower = (p.get("snippet") or "").lower()
-            title_lower = (p.get("title") or "").lower()
-            blob_lower = f"{link_lower} {snippet_lower} {title_lower}"
-            _id_signals = ("indonesia", " indo ", "jogja", "jakarta", "surabaya",
-                           "bandung", "semarang", ".co.id", "lowongan", "loker",
-                           "gaji", "pelamar", "rekrutmen")
-            has_id_context = any(w in blob_lower for w in _id_signals)
-            # domain .com tanpa konteks Indonesia = buang juga
-            is_foreign = not has_id_context and (
-                any(tld in link_lower for tld in (".com.my", ".sg", ".au", ".uk", ".us", ".ph"))
-                or (
-                    not any(tld in link_lower for tld in (".co.id", ".id/", "instagram.com",
-                                                           "facebook.com", "tiktok.com"))
-                    and p["match_confidence"] <= 0.75
-                )
-            )
-            if is_foreign:
+        # Single-token match (mis. hanya "biker") hanya valid bila token
+        # eksplisit ada di URL/handle — bukan sekadar di title/snippet global.
+        # Netflix "Watch Biker" tidak boleh match "The Biker Shop".
+        # Tapi "biker" di "thebikershopdjokomotorgroup" tetap valid (compact match).
+        if len(p.get("matched_tokens") or []) == 1 and _comp_tokens:
+            token = p["matched_tokens"][0]
+            url_lower = (p.get("url") or "").lower()
+            # Cek boundary match ATAU compact match (token sebagai substring di path/handle)
+            path_match = re.search(rf"(?:^|[./@_-]){re.escape(token)}(?:$|[./@_-])", url_lower)
+            compact_match = token in re.sub(r"[^a-z0-9]", "", url_lower.split("//")[-1].split("?")[0])
+            if not path_match and not compact_match:
                 continue
 
         all_posts.append(p)
@@ -289,12 +297,62 @@ def run_social_osint(
     _SOCIAL_PRIORITY = {"instagram", "threads", "tiktok", "facebook", "x_twitter", "linktree"}
     all_posts.sort(key=lambda p: 0 if (p.get("platform") or "").lower() in _SOCIAL_PRIORITY else 1)
 
-    valid_profiles: list = []
+    # ── Sinkronisasi dengan web.searches ──────────────────────────────────────
+    # web_evidence.py (intelligent_search) menemukan URL media sosial yang
+    # relevan (mis. profil Instagram resmi), tetapi social_searches per-platform
+    # bisa kosong. Agar social.profiles tidak kosong palsu, derivasikan profil
+    # dari hasil web yang URL-nya platform sosial DAN lolos filter relevansi
+    # token perusahaan yang sama dengan posts.
+    derived_profiles: list[dict[str, Any]] = []
+    if web_evidence:
+        web_results = [
+            r
+            for search in (web_evidence.get("searches") or [])
+            for r in (search.get("results") or [])
+            if isinstance(r, dict)
+        ]
+        for r in web_results:
+            url = (r.get("url") or "").strip()
+            if not url:
+                continue
+            plat = _classify_platform(url, default="")
+            if plat not in _SOCIAL_PLATFORMS:
+                continue
+            # Hanya halaman profil/brand — bukan post/reel/video — yang menjadi
+            # bukti "profil". Konten spesifik tetap masuk social.posts.
+            canonical = _profile_only_url(url)
+            if not canonical:
+                continue
+            # Relevansi: token perusahaan muncul di title/snippet/url
+            blob = f"{r.get('title', '')} {r.get('snippet', '')}".lower()
+            url_compact = re.sub(r"[^a-z0-9]", "", canonical.lower())
+            matched = {
+                t for t in _comp_tokens
+                if _token_in_blob(t, blob) or t in url_compact
+            }
+            if _comp_tokens and not matched:
+                continue
+            profile = {
+                "platform": plat,
+                "url": canonical,
+                "title": (r.get("title") or "")[:120],
+                "snippet": (r.get("snippet") or "")[:280],
+                "source": "web_search",
+                "is_official": False,
+                "matched_tokens": sorted(matched),
+                "match_confidence": (
+                    round(len(matched) / len(_comp_tokens), 2) if _comp_tokens else 0.0
+                ),
+            }
+            if not any(p.get("url") == canonical for p in derived_profiles):
+                derived_profiles.append(profile)
+
+    valid_profiles: list = derived_profiles
     social_found = bool(
         any(_is_social_platform_post(post) and not _is_aggregator_post(post) for post in all_posts)
         or valid_profiles
     )
-    public_footprint_found = bool(all_posts or valid_profiles)
+    public_footprint_found = social_found
     found = social_found
 
     # Risk flag analysis — gabungan semua platform
@@ -311,31 +369,27 @@ def run_social_osint(
         risk_flags.append("Ditemukan postingan publik dengan frasa indikasi penipuan spesifik.")
 
     # Hitung ulang hanya dari profil/post yang memang ditandai resmi.
-    platform_hits = {key: False for key in platform_hits}
+    platform_hits = {key: False for key in _SOCIAL_PLATFORMS}
     for p in all_posts:
         plat = p.get("platform", "")
-        if plat == "instagram" and p.get("is_official"):
-            platform_hits["instagram"] = True
-        elif plat == "threads" and p.get("is_official"):
-            platform_hits["threads"] = True
-        elif plat == "tiktok" and p.get("is_official"):
-            platform_hits["tiktok"] = True
-        elif plat == "facebook" and p.get("is_official"):
-            platform_hits["facebook"] = True
-        elif plat in ("x_twitter", "twitter") and p.get("is_official"):
-            platform_hits["x_twitter"] = True
+        if plat in platform_hits:
+            platform_hits[plat] = True
+    for p in valid_profiles:
+        plat = p.get("platform", "")
+        if plat in platform_hits:
+            platform_hits[plat] = True
 
     platform_counts = Counter(p.get("platform") or "other" for p in all_posts)
-    known_platforms = (*platform_hits.keys(), "portal_loker", "linktree", "social_media")
+    profile_counts = Counter(p.get("platform") or "other" for p in valid_profiles)
+    known_platforms = (*platform_hits.keys(),)
     by_platform = {
-        platform: platform_counts.get(platform, 0)
+        platform: platform_counts.get(platform, 0) + profile_counts.get(platform, 0)
         for platform in known_platforms
     }
     by_platform["other"] = sum(
         count for platform, count in platform_counts.items()
         if platform not in by_platform
     )
-    assert sum(by_platform.values()) == len(all_posts)
 
     return {
         "enabled": True,
@@ -352,10 +406,7 @@ def run_social_osint(
         "profiles": valid_profiles,
         "platform_hits": platform_hits,
         "official_platform_hits": platform_hits.copy(),
-        "public_platform_hits": {
-            platform: any(p.get("platform") == platform for p in all_posts)
-            for platform in ("instagram", "threads", "tiktok", "facebook", "x_twitter", "portal_loker")
-        },
+        "public_platform_hits": platform_hits.copy(),
         "evidence_counts": {
             "public_posts": len(all_posts),
             "public_profiles": len(valid_profiles),
@@ -364,7 +415,7 @@ def run_social_osint(
         },
         "search_diagnostics": {
             "platforms_requested": list(_PLATFORM_SITE_HINTS),
-            "search_engine": "searxng",
+            "search_engine": "lightpanda",
             "note": "Hasil sosial diklasifikasikan terpisah dari portal loker dan aggregator.",
         },
         "social_searches": web_evidence.get("social_searches") or [],

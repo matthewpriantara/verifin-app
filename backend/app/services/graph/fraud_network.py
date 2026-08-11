@@ -5,12 +5,11 @@ Komponen Case Memory Graph yang memantau jaringan entitas penipuan secara
 berkelanjutan, sebagai bagian dari platform pendamping pencari kerja Verifin.
 
 Implementasi (JUJUR — exact-match entity linking, BUKAN GNN terlatih):
-    Case-Memory Entity Graph yang terinspirasi dari konsep heterogeneous graph
-    pada GAR-HGNN (ACM ACAIB 2025) untuk fraud detection. Saat ini yang
-    diimplementasikan adalah *entity linking exact-match*: membangun graph
-    NetworkX dari entitas (HP, email, PT, URL) lintas job_cases, lalu memeriksa
-    apakah entitas baru terhubung ke kasus BAHAYA/WASPADA sebelumnya.
-    Belum ada Graph Neural Network / learned embedding — itu roadmap lanjutan.
+    Case-Memory Entity Graph dengan entity linking berbasis exact-match:
+    membangun graph NetworkX dari entitas (HP, email, PT, URL) lintas job_cases,
+    lalu memeriksa apakah entitas baru terhubung ke kasus BAHAYA/WASPADA
+    sebelumnya. Belum ada Graph Neural Network / learned embedding —
+    itu roadmap lanjutan.
 - Proposal FR-4: Network Risk Propagator
 
 Arsitektur:

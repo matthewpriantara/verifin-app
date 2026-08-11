@@ -11,12 +11,17 @@ logger = logging.getLogger(__name__)
 def _wayback_first_seen(domain: str) -> datetime | None:
     """Fallback: tanya Wayback Machine CDX API kapan domain pertama kali di-crawl."""
     try:
-        from curl_cffi import requests as cffi_req
         url = (
             f"https://web.archive.org/cdx/search/cdx"
             f"?url={domain}&output=json&limit=1&fl=timestamp&from=2000&filter=statuscode:200"
         )
-        r = cffi_req.get(url, impersonate="chrome120", timeout=6)
+        try:
+            from curl_cffi import requests as cffi_req
+            r = cffi_req.get(url, impersonate="chrome120", timeout=6)
+        except ImportError:
+            import requests as _stdlib_req
+            r = _stdlib_req.get(url, timeout=6,
+                headers={"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.1"})
         if r.status_code != 200:
             return None
         data = r.json()

@@ -1,12 +1,13 @@
 """
 NLP Pre-Screening — Layer 1 (STUB, nonaktif).
 
-Behavioral Feature Scoring rule-based terinspirasi paper22 (Neural Processing
-Letters 2022). Dinonaktifkan karena dataset berlabel bahasa Indonesia belum
+Rule-based behavioral feature scoring untuk pola penipuan lowongan kerja
+Indonesia. Dinonaktifkan karena dataset berlabel bahasa Indonesia belum
 tersedia — roadmap: fine-tune IndoBERT setelah dataset terkumpul.
 
-Pipeline tetap berjalan normal; metadata STUB diekspos jujur ke response agar
-FE/audit tidak mengira layer ini aktif.
+    Pipeline tetap berjalan normal; metadata STUB diekspos jujur ke response agar
+    FE/audit tidak mengira classifier ini aktif. Output ini tidak dipakai untuk
+    scoring atau Evidence Attribution.
 """
 
 from typing import Any
