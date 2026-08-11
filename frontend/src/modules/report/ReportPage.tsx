@@ -49,11 +49,19 @@ function vLabel(v: string) {
   const n = normalizeVerdict(v);
   return n === "AMAN" ? "Aman" : n === "WASPADA" ? "Waspada" : n === "BAHAYA" ? "Bahaya" : "Error";
 }
-function riskLevelLabel(score: number) {
-  if (score < 25) return "Risiko rendah";
-  if (score < 50) return "Risiko sedang";
-  if (score < 75) return "Risiko tinggi";
-  return "Risiko sangat tinggi";
+function riskLevelLabel(verdict: string) {
+  const n = normalizeVerdict(verdict);
+  if (n === "AMAN")    return "Risiko rendah";
+  if (n === "WASPADA") return "Risiko sedang";
+  if (n === "BAHAYA")  return "Risiko tinggi";
+  return "Tidak dapat dinilai";
+}
+function verdictStroke(verdict: string): string {
+  const n = normalizeVerdict(verdict);
+  if (n === "AMAN")    return "#2f5c34";
+  if (n === "WASPADA") return "#7a5500";
+  if (n === "BAHAYA")  return "#8f2f2d";
+  return "#8a8279";
 }
 const ENTITY_FIELDS: { key: keyof ExtractedEntities; label: string; icon: React.ElementType }[] = [
   { key: "companies", label: "Perusahaan", icon: Buildings },
@@ -205,7 +213,7 @@ export default function ReportPage() {
   const fadeUp = { initial: { opacity: 0, y: 10 }, animate: { opacity: 1, y: 0 } };
 
   return (
-    <div className="mx-auto w-full max-w-6xl px-4 py-6 sm:px-6 sm:py-8 lg:px-8 lg:py-12">
+    <div className="mx-auto w-full max-w-7xl px-4 py-6 sm:px-6 sm:py-8 lg:px-10 lg:py-12">
 
       {/* ── Top bar ── */}
       <div className="mb-5 flex items-center justify-between gap-3">
@@ -221,11 +229,11 @@ export default function ReportPage() {
       <motion.div
         {...fadeUp}
         transition={{ duration: 0.4, ease: [0.16, 1, 0.3, 1] }}
-        className={cn("rounded-3xl border-2 p-5 sm:p-8 lg:p-10", tone.bg, tone.border)}
+        className={cn("mb-4 rounded-3xl border-2 p-5 sm:p-8 lg:mb-5 lg:p-10", tone.bg, tone.border)}
       >
-        <div className="grid items-center gap-6 lg:grid-cols-[auto_1fr_auto] lg:gap-8">
+        <div className="flex flex-col gap-6 lg:flex-row lg:items-center lg:gap-10">
           {/* Icon + verdict */}
-          <div className="flex items-center gap-4">
+          <div className="flex items-center gap-4 lg:shrink-0">
             <div className={cn("shrink-0", tone.fg)}>
               <span className="hidden sm:block"><VerdictIcon verdict={report.verdict} size={56} /></span>
               <span className="block sm:hidden"><VerdictIcon verdict={report.verdict} size={44} /></span>
@@ -234,48 +242,41 @@ export default function ReportPage() {
               <h1 className={cn("text-3xl font-bold tracking-tight sm:text-5xl", tone.fg)}>
                 {vLabel(report.verdict)}
               </h1>
-              <p className="mt-1 text-sm font-medium text-text-secondary">{riskLevelLabel(clamped)}</p>
+              <p className="mt-1 text-sm font-medium text-text-secondary">{riskLevelLabel(report.verdict)}</p>
             </div>
           </div>
 
-          {/* Summary */}
+          {/* Summary — fleksibel, mengisi ruang tengah */}
           {report.summary && (
-            <p className="max-w-xl text-[14px] leading-relaxed text-text-secondary sm:text-[15px]">{report.summary}</p>
+            <p className="flex-1 text-[14px] leading-relaxed text-text-secondary sm:text-[15px] lg:px-2">
+              {report.summary}
+            </p>
           )}
 
-          {/* Score */}
-          <div className="flex items-center gap-4 border-t pt-5 lg:border-t-0 lg:pt-0 lg:justify-end" style={{ borderColor: "var(--border)" }}>
-            <div className="flex-1 lg:flex-none lg:text-right">
-              <p className={cn("text-4xl font-bold tabular-nums sm:text-5xl", tone.fg)}>{clamped}</p>
-              <p className="mt-1 text-xs font-medium text-text-muted">skor risiko / 100</p>
+          {/* Score gauge — ring memuat angka di tengah, satu unit ringkas */}
+          <div className="flex items-center gap-4 border-t pt-5 lg:shrink-0 lg:border-t-0 lg:border-l lg:pt-0 lg:pl-8" style={{ borderColor: "var(--border)" }}>
+            <div className="relative h-20 w-20 shrink-0 sm:h-24 sm:w-24" role="img" aria-label={`Skor risiko ${clamped} dari 100`}>
+              <svg viewBox="0 0 84 84" className="h-full w-full -rotate-90">
+                <circle cx="42" cy="42" r="34" fill="none" stroke="var(--bg-muted)" strokeWidth="7" />
+                <circle
+                  cx="42" cy="42" r="34" fill="none"
+                  stroke={verdictStroke(report.verdict)}
+                  strokeWidth="7" strokeLinecap="round"
+                  pathLength={100}
+                  strokeDasharray="100 100"
+                  strokeDashoffset={100 - clamped}
+                />
+              </svg>
+              <div className="absolute inset-0 flex flex-col items-center justify-center">
+                <span className={cn("text-2xl font-bold leading-none tabular-nums sm:text-3xl", tone.fg)}>{clamped}</span>
+                <span className="mt-1 text-[9px] font-medium uppercase tracking-wide text-text-muted">/ 100</span>
+              </div>
             </div>
-            {/* Gauge */}
-            <svg width="72" height="72" viewBox="0 0 84 84" className="shrink-0">
-              <circle cx="42" cy="42" r="34" fill="none" stroke="var(--bg-muted)" strokeWidth="8" />
-              <motion.circle
-                cx="42" cy="42" r="34" fill="none"
-                stroke={clamped < 25 ? "#2f5c34" : clamped < 50 ? "#7a5500" : "#8f2f2d"}
-                strokeWidth="8" strokeLinecap="round"
-                strokeDasharray={Math.PI * 68}
-                initial={{ strokeDashoffset: Math.PI * 68 }}
-                animate={{ strokeDashoffset: Math.PI * 68 - (clamped / 100) * Math.PI * 68 }}
-                transition={{ duration: 1, ease: "easeOut", delay: 0.3 }}
-                transform="rotate(-90 42 42)"
-              />
-            </svg>
+            <div className="min-w-0">
+              <p className="text-xs font-semibold uppercase tracking-wider text-text-muted">Skor risiko</p>
+              <p className="mt-1 text-sm font-bold text-text-secondary">{clamped} dari 100</p>
+            </div>
           </div>
-        </div>
-
-        <div className="mt-6 flex flex-col gap-3 border-t pt-5 sm:flex-row sm:items-center lg:mt-8 lg:pt-6" style={{ borderColor: "var(--border)" }}>
-          <button
-            onClick={() => setShowAudit(true)}
-            className="inline-flex items-center justify-center gap-2 rounded-xl bg-text-primary px-5 py-2.5 text-sm font-semibold text-bg-elevated transition-all hover:opacity-90"
-          >
-            Lihat audit bukti lengkap <CaretDown size={15} weight="bold" />
-          </button>
-          <p className="text-xs leading-relaxed text-text-muted">
-            Dinilai dari {osint ? "entitas, jejak web, telepon, alamat, dan jaringan fraud" : "teks lowongan"}.
-          </p>
         </div>
       </motion.div>
 
@@ -508,34 +509,30 @@ export default function ReportPage() {
       </motion.div>
 
       {/* ── Detail teknis / SHAP (collapse) ── */}
-      {shap && shap.feature_contributions.length > 0 && (
-        <motion.div {...fadeUp} transition={{ delay: 0.28 }} className="mt-6 overflow-hidden rounded-3xl border border-border bg-bg-elevated">
-          <button onClick={() => setShowAudit(!showAudit)} className="flex w-full items-center justify-between gap-3 px-5 py-4 text-left sm:px-8 sm:py-5">
-            <div className="min-w-0">
-              <h2 className="text-base font-bold text-text-primary sm:text-lg">Detail Teknis & Atribusi Bukti</h2>
-              <p className="mt-0.5 text-[13px] text-text-muted sm:text-sm">Kontribusi tiap sinyal terhadap skor akhir</p>
-            </div>
-            <span className="shrink-0 text-text-muted">{showAudit ? <CaretUp size={18} /> : <CaretDown size={18} />}</span>
-          </button>
-          {showAudit && (
-            <div className="border-t border-border px-5 py-5 sm:px-8 sm:py-6">
-              <ShapChart shap={shap} />
-              <div className="mt-8">
-                <EvidencePanel osint={osint} />
-              </div>
-            </div>
-          )}
-        </motion.div>
-      )}
+      <motion.div {...fadeUp} transition={{ delay: 0.28 }} className="mt-6 overflow-hidden rounded-3xl border border-border bg-bg-elevated">
+        <button onClick={() => setShowAudit((s) => !s)} className="flex w-full items-center justify-between gap-3 px-5 py-4 text-left sm:px-8 sm:py-5">
+          <div className="min-w-0">
+            <h2 className="text-base font-bold text-text-primary sm:text-lg">Detail Teknis & Atribusi Bukti</h2>
+            <p className="mt-0.5 text-[13px] text-text-muted sm:text-sm">Kontribusi tiap sinyal terhadap skor akhir</p>
+          </div>
+          <span className="shrink-0 text-text-muted">{showAudit ? <CaretUp size={18} /> : <CaretDown size={18} />}</span>
+        </button>
+        {showAudit && (
+          <div className="border-t border-border px-5 py-5 sm:px-8 sm:py-6">
+            {shap && shap.feature_contributions.length > 0 && (
+              <>
+                <ShapChart shap={shap} />
+                <div className="my-8 border-t border-border" />
+              </>
+            )}
+            <EvidencePanel osint={osint} />
+          </div>
+        )}
+      </motion.div>
 
       {/* ── CTA ── */}
-      <motion.div {...fadeUp} transition={{ delay: 0.32 }} className="mt-8 flex flex-col gap-3">
+      <motion.div {...fadeUp} transition={{ delay: 0.32 }} className="mt-8">
         <Link href="/"><Button fullWidth>Verifikasi lowongan lain</Button></Link>
-        <div className="flex justify-center">
-          <Link href="/report-job" className="inline-flex items-center gap-1.5 rounded-xl border border-border bg-bg-subtle px-4 py-2 text-xs font-medium text-text-secondary transition-all hover:border-border-focus hover:text-text-primary">
-            <ChatTeardropText size={13} /> Laporkan ke komunitas
-          </Link>
-        </div>
       </motion.div>
     </div>
   );
