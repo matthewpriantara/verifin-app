@@ -11,6 +11,7 @@ import {
   Graph,
   Cpu,
   CheckCircle,
+  CircleNotch,
   ArrowRight,
   ClipboardText,
 } from "@phosphor-icons/react";
@@ -55,27 +56,27 @@ function getSteps(source: InputSource) {
       };
 
   return [
-    { ...firstStep, icon: Scan, duration: 1400 },
+    { ...firstStep, icon: Scan, duration: 350 },
     {
       id: "osint",
       label: "Pemeriksaan OSINT",
       detail: "WHOIS/DNS, reputasi nomor, OSM, web evidence, media sosial, dan inspeksi Google Forms bila relevan",
       icon: MagnifyingGlass,
-      duration: 3200,
+      duration: 5500,
     },
     {
       id: "graph",
       label: "Pemetaan Relasi Entitas",
       detail: "Membangun graf koneksi antar entitas yang ditemukan dari sumber publik",
       icon: Graph,
-      duration: 1800,
+      duration: 1500,
     },
     {
       id: "ai",
       label: "Reasoning + Penjelasan Bukti",
       detail: "Verifin AI menyusun penilaian dari fakta OSINT dan menghitung kontribusi sinyal risiko",
       icon: Cpu,
-      duration: 2500,
+      duration: 3000,
     },
   ];
 }
@@ -121,13 +122,12 @@ function LoadingModal({
           <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
             <div className="flex items-center gap-3">
               <div className="relative flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl bg-text-primary text-bg-elevated shadow-md">
-                <StepIcon size={20} weight="bold" />
-                <span className="absolute -inset-1 animate-ping rounded-2xl bg-text-primary opacity-20" />
+                <CircleNotch size={20} weight="bold" className="animate-spin" />
               </div>
               <div className="min-w-0">
                 <h3 className="text-base font-bold text-text-primary flex items-center gap-2">
                   Proses Verifikasi AI
-                  <span className="inline-flex h-2 w-2 rounded-full bg-emerald-500 animate-pulse" />
+                  <CircleNotch size={14} weight="bold" className="animate-spin text-text-muted" />
                 </h3>
                 <p className="text-[12px] text-text-muted">
                   Analisis data & bukti OSINT paralel
@@ -162,8 +162,36 @@ function LoadingModal({
               return (
                 <div key={step.id} className="relative flex flex-col">
                   {/* Top Node & Horizontal Flow Connector */}
-                  <div className="relative mb-3 flex items-center">
-                    {/* Step Node Icon */}
+                  <div className="relative mb-3 flex items-center justify-center">
+                    {/* Horizontal Flow Connector Line (Desktop/Tablet) */}
+                    {!isLast && (
+                      <div className="hidden md:block absolute left-1/2 w-full top-1/2 -translate-y-1/2 h-0.5 overflow-hidden bg-border z-0">
+                        {/* Flowing Horizontal Beam Line */}
+                        <motion.div
+                          className={cn(
+                            "h-full w-full origin-left transition-colors duration-500",
+                            isDone
+                              ? "bg-aman-fg"
+                              : isActive
+                              ? "bg-gradient-to-r from-text-primary via-text-primary/50 to-transparent"
+                              : "bg-transparent"
+                          )}
+                          initial={{ scaleX: 0 }}
+                          animate={{ scaleX: isDone ? 1 : isActive ? 0.7 : 0 }}
+                          transition={{ duration: 0.5, ease: "easeInOut" }}
+                        />
+                        {/* Active Traveling Light Beam matching HomePage FlowConnector */}
+                        {isActive && (
+                          <motion.div
+                            className="absolute inset-y-0 w-12 bg-gradient-to-r from-transparent via-text-primary/60 to-transparent"
+                            animate={{ x: ["-48px", "180%"] }}
+                            transition={{ duration: 1.6, repeat: Infinity, repeatDelay: 0.4, ease: "easeInOut" }}
+                          />
+                        )}
+                      </div>
+                    )}
+
+                    {/* Step Node Icon (Centered) */}
                     <div className="relative z-10">
                       <motion.div
                         animate={
@@ -184,7 +212,7 @@ function LoadingModal({
                             : { duration: 0.2 }
                         }
                         className={cn(
-                          "flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl transition-all duration-300",
+                          "flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl transition-all duration-300 mx-auto",
                           isDone && "bg-aman-fg text-white shadow-sm",
                           isActive && "bg-text-primary text-bg-elevated shadow-lg ring-4 ring-text-primary/20",
                           isPending && "border border-border bg-bg-subtle text-text-muted opacity-70"
@@ -199,34 +227,6 @@ function LoadingModal({
                         )}
                       </motion.div>
                     </div>
-
-                    {/* Horizontal Flow Connector Line (Desktop/Tablet) */}
-                    {!isLast && (
-                      <div className="hidden md:block absolute left-10 right-0 top-1/2 -translate-y-1/2 h-0.5 overflow-hidden bg-bg-muted z-0">
-                        {/* Flowing Horizontal Beam Line */}
-                        <motion.div
-                          className={cn(
-                            "h-full w-full origin-left transition-colors duration-500",
-                            isDone
-                              ? "bg-aman-fg"
-                              : isActive
-                              ? "bg-gradient-to-r from-text-primary via-amber-500 to-bg-muted"
-                              : "bg-transparent"
-                          )}
-                          initial={{ scaleX: 0 }}
-                          animate={{ scaleX: isDone ? 1 : isActive ? 0.7 : 0 }}
-                          transition={{ duration: 0.5, ease: "easeInOut" }}
-                        />
-                        {/* Active Traveling Pulse Light Beam */}
-                        {isActive && (
-                          <motion.div
-                            className="absolute top-0 bottom-0 w-6 bg-white shadow-[0_0_8px_#fff]"
-                            animate={{ x: ["-100%", "250%"], opacity: [0, 1, 0] }}
-                            transition={{ duration: 1.5, repeat: Infinity, ease: "easeInOut" }}
-                          />
-                        )}
-                      </div>
-                    )}
                   </div>
 
                   {/* Horizontal Step Card Box */}
@@ -253,21 +253,10 @@ function LoadingModal({
                     }
                     transition={{ duration: 0.35, ease: [0.16, 1, 0.3, 1] }}
                     className={cn(
-                      "relative flex-1 flex flex-col justify-between overflow-hidden rounded-2xl border p-4 transition-shadow",
-                      isActive && "shadow-md border-text-primary/80 ring-1 ring-text-primary/20",
-                      !isActive && "bg-bg-elevated"
+                      "relative flex-1 flex flex-col justify-between overflow-hidden rounded-2xl border p-4 transition-all",
+                      isActive ? "border-text-primary/70 bg-bg-subtle shadow-sm" : "border-border bg-bg-elevated"
                     )}
                   >
-                    {/* Active Step Top Glowing Line Accent */}
-                    {isActive && (
-                      <motion.div
-                        layoutId="activeGlowHorizontal"
-                        className="absolute left-0 right-0 top-0 h-1 bg-text-primary"
-                        initial={{ opacity: 0 }}
-                        animate={{ opacity: 1 }}
-                        exit={{ opacity: 0 }}
-                      />
-                    )}
 
                     <div>
                       <div className="flex items-center justify-between gap-1 mb-1.5">
