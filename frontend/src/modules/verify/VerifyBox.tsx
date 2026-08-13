@@ -300,19 +300,6 @@ function LoadingModal({
                         {step.detail}
                       </p>
                     </div>
-
-                    {/* Active Real-Time Live Pulse */}
-                    {isActive && (
-                      <div className="mt-3 flex items-center gap-1.5 pt-2 border-t border-border/50">
-                        <div className="relative flex h-2 w-2 shrink-0">
-                          <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-text-primary opacity-75" />
-                          <span className="relative inline-flex rounded-full h-2 w-2 bg-text-primary" />
-                        </div>
-                        <span className="text-[10px] font-semibold text-text-primary truncate">
-                          Aktif real-time...
-                        </span>
-                      </div>
-                    )}
                   </motion.div>
                 </div>
               );
