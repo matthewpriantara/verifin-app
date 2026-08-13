@@ -72,6 +72,84 @@ const ENTITY_FIELDS: { key: keyof ExtractedEntities; label: string; icon: React.
   { key: "salaries",  label: "Gaji",        icon: Money },
 ];
 
+/* ─── Animated Score Gauge ─────────────────────────────────────────────────── */
+function AnimatedScoreGauge({
+  score,
+  verdict,
+  tone,
+}: {
+  score: number;
+  verdict: string;
+  tone: { fg: string };
+}) {
+  const [displayScore, setDisplayScore] = useState(0);
+
+  useEffect(() => {
+    let startTime: number | null = null;
+    const duration = 1400;
+
+    const step = (timestamp: number) => {
+      if (!startTime) startTime = timestamp;
+      const progress = Math.min((timestamp - startTime) / duration, 1);
+      const easeProgress = progress === 1 ? 1 : 1 - Math.pow(2, -10 * progress);
+      setDisplayScore(Math.round(easeProgress * score));
+
+      if (progress < 1) {
+        requestAnimationFrame(step);
+      }
+    };
+
+    const handle = requestAnimationFrame(step);
+    return () => cancelAnimationFrame(handle);
+  }, [score]);
+
+  return (
+    <div
+      className="relative h-20 w-20 shrink-0 sm:h-24 sm:w-24"
+      role="img"
+      aria-label={`Skor risiko ${score} dari 100`}
+    >
+      <svg viewBox="0 0 84 84" className="h-full w-full -rotate-90 transform-gpu">
+        <circle
+          cx="42"
+          cy="42"
+          r="34"
+          fill="none"
+          stroke="var(--bg-muted)"
+          strokeWidth="7"
+        />
+        <motion.circle
+          cx="42"
+          cy="42"
+          r="34"
+          fill="none"
+          stroke={verdictStroke(verdict)}
+          strokeWidth="7"
+          strokeLinecap="round"
+          pathLength={100}
+          strokeDasharray="100 100"
+          initial={{ strokeDashoffset: 100 }}
+          animate={{ strokeDashoffset: 100 - score }}
+          transition={{ duration: 1.4, ease: [0.16, 1, 0.3, 1], delay: 0.1 }}
+        />
+      </svg>
+      <div className="absolute inset-0 flex flex-col items-center justify-center">
+        <motion.span
+          initial={{ opacity: 0, scale: 0.8 }}
+          animate={{ opacity: 1, scale: 1 }}
+          transition={{ duration: 0.4, delay: 0.1 }}
+          className={cn("text-2xl font-bold leading-none tabular-nums sm:text-3xl", tone.fg)}
+        >
+          {displayScore}
+        </motion.span>
+        <span className="mt-1 text-[9px] font-medium uppercase tracking-wide text-text-muted">
+          / 100
+        </span>
+      </div>
+    </div>
+  );
+}
+
 /* ─── Social Platform Icon ─────────────────────────────────────────────────── */
 function SocialPlatformIcon({ platform }: { platform: string }) {
   const p = platform.toLowerCase();
@@ -255,23 +333,7 @@ export default function ReportPage() {
 
           {/* Score gauge — ring memuat angka di tengah, satu unit ringkas */}
           <div className="flex items-center gap-4 border-t pt-5 lg:shrink-0 lg:border-t-0 lg:border-l lg:pt-0 lg:pl-8" style={{ borderColor: "var(--border)" }}>
-            <div className="relative h-20 w-20 shrink-0 sm:h-24 sm:w-24" role="img" aria-label={`Skor risiko ${clamped} dari 100`}>
-              <svg viewBox="0 0 84 84" className="h-full w-full -rotate-90">
-                <circle cx="42" cy="42" r="34" fill="none" stroke="var(--bg-muted)" strokeWidth="7" />
-                <circle
-                  cx="42" cy="42" r="34" fill="none"
-                  stroke={verdictStroke(report.verdict)}
-                  strokeWidth="7" strokeLinecap="round"
-                  pathLength={100}
-                  strokeDasharray="100 100"
-                  strokeDashoffset={100 - clamped}
-                />
-              </svg>
-              <div className="absolute inset-0 flex flex-col items-center justify-center">
-                <span className={cn("text-2xl font-bold leading-none tabular-nums sm:text-3xl", tone.fg)}>{clamped}</span>
-                <span className="mt-1 text-[9px] font-medium uppercase tracking-wide text-text-muted">/ 100</span>
-              </div>
-            </div>
+            <AnimatedScoreGauge score={clamped} verdict={report.verdict} tone={tone} />
             <div className="min-w-0">
               <p className="text-xs font-semibold uppercase tracking-wider text-text-muted">Skor risiko</p>
               <p className="mt-1 text-sm font-bold text-text-secondary">{clamped} dari 100</p>
