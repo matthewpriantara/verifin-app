@@ -1,7 +1,8 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { motion } from "motion/react";
+import { useRouter } from "next/navigation";
+import { motion, AnimatePresence } from "motion/react";
 import {
   Warning,
   CheckCircle,
@@ -11,12 +12,184 @@ import {
   LockKey,
   SignOut,
   XCircle,
+  Database,
+  ImageSquare,
+  Link as LinkIcon,
+  FileText,
+  ArrowUpRight,
+  MagnifyingGlass,
+  Funnel,
+  ShieldCheck,
+  WarningOctagon,
+  CaretLeft,
+  CaretRight,
 } from "@phosphor-icons/react";
 import { cn } from "@/lib/utils";
 import { fetchCases, fetchAiStatus } from "@/lib/admin";
 import type { AdminCase } from "@/lib/admin";
 import ReportChart from "@/modules/admin/ReportChart";
 import ModerationTable from "@/modules/admin/ModerationTable";
+
+/* ─── Mock User Input History (Database Logs) ──────────────────────────────── */
+export interface UserInputLog {
+  id: string;
+  case_id: string;
+  source: "text" | "image" | "url";
+  raw_input: string;
+  company_name: string;
+  verdict: "AMAN" | "WASPADA" | "BAHAYA";
+  risk_score: number;
+  extracted_entities: string[];
+  created_at: string;
+  ip_address: string;
+}
+
+const MOCK_USER_INPUTS: UserInputLog[] = [
+  {
+    id: "input-101",
+    case_id: "a8f912b4",
+    source: "image",
+    raw_input: "poster_lowongan_admin_cs_telegram.png (PaddleOCR 94% text match)",
+    company_name: "PT Sukses Sejahtera Internasional",
+    verdict: "BAHAYA",
+    risk_score: 88,
+    extracted_entities: ["PT Sukses Sejahtera", "0812-9988-7766", "admin@sukses-fake.com", "Rp 8.000.000"],
+    created_at: "2026-08-13 19:40 WIB",
+    ip_address: "182.253.xx.xx",
+  },
+  {
+    id: "input-102",
+    case_id: "b4c219f8",
+    source: "url",
+    raw_input: "https://careers.tokopedia.com/job/senior-frontend-engineer",
+    company_name: "PT Tokopedia",
+    verdict: "AMAN",
+    risk_score: 12,
+    extracted_entities: ["PT Tokopedia", "careers.tokopedia.com", "Jakarta Selatan"],
+    created_at: "2026-08-13 18:15 WIB",
+    ip_address: "114.124.xx.xx",
+  },
+  {
+    id: "input-103",
+    case_id: "c7d341a9",
+    source: "text",
+    raw_input: "Dibutuhkan Staff Data Entry Gaji 7-10 Juta per Bulan Tanpa Syarat Pengalaman, Hubungi WA 0813-1122-3344...",
+    company_name: "Staff Entry Data Mandiri",
+    verdict: "WASPADA",
+    risk_score: 58,
+    extracted_entities: ["0813-1122-3344", "Form Online WA", "Gaji 7-10 Juta"],
+    created_at: "2026-08-13 16:30 WIB",
+    ip_address: "36.72.xx.xx",
+  },
+  {
+    id: "input-104",
+    case_id: "d9e552c1",
+    source: "image",
+    raw_input: "screenshot_flyer_bumn_rekrutmen.webp (PaddleOCR 98%)",
+    company_name: "PT Pertamina (Persero)",
+    verdict: "AMAN",
+    risk_score: 5,
+    extracted_entities: ["PT Pertamina", "rekrutmenbersama.fhcibumn.id"],
+    created_at: "2026-08-13 14:10 WIB",
+    ip_address: "180.244.xx.xx",
+  },
+  {
+    id: "input-105",
+    case_id: "e1f663d2",
+    source: "text",
+    raw_input: "Kerja Part Time Transkrip Suara Komisi Rp 500rb/Hari Wajib Transfer Biaya Pendaftaran Rp 150rb...",
+    company_name: "Freelance Transkrip Fast",
+    verdict: "BAHAYA",
+    risk_score: 94,
+    extracted_entities: ["Deposit 150rb", "Rekening BCA 8830xxxxxx", "BCA a.n Budi"],
+    created_at: "2026-08-13 11:05 WIB",
+    ip_address: "125.160.xx.xx",
+  },
+  {
+    id: "input-106",
+    case_id: "f2a774e3",
+    source: "url",
+    raw_input: "https://shopee-express-recruitment.temp-site.net/form-pendaftaran",
+    company_name: "Shopee Express Palsu",
+    verdict: "BAHAYA",
+    risk_score: 91,
+    extracted_entities: ["Shopee Express", "Domain Gratis Phishing", "Jakarta Barat"],
+    created_at: "2026-08-13 09:20 WIB",
+    ip_address: "110.138.xx.xx",
+  },
+  {
+    id: "input-107",
+    case_id: "g3b885f4",
+    source: "text",
+    raw_input: "Lowongan Driver Operasional Kantor Gaji UMR + Bonus Harian Hubungi 0857-4433-2211...",
+    company_name: "Logistik Bersama Sentosa",
+    verdict: "AMAN",
+    risk_score: 18,
+    extracted_entities: ["0857-4433-2211", "Driver Operasional", "UMR Jakarta"],
+    created_at: "2026-08-12 21:10 WIB",
+    ip_address: "180.252.xx.xx",
+  },
+  {
+    id: "input-108",
+    case_id: "h4c996a5",
+    source: "image",
+    raw_input: "brosur_loker_bca_fake_hotel.jpg (PaddleOCR 91%)",
+    company_name: "BCA Recruitment Travel Trap",
+    verdict: "BAHAYA",
+    risk_score: 96,
+    extracted_entities: ["Travel Agent Wajib", "PT Nusantara Travel", "Biaya 2.5 Juta"],
+    created_at: "2026-08-12 17:45 WIB",
+    ip_address: "202.67.xx.xx",
+  },
+  {
+    id: "input-109",
+    case_id: "i5d007b6",
+    source: "url",
+    raw_input: "https://glints.com/id/opportunities/jobs/ui-ux-designer-remote",
+    company_name: "PT Tech Creative Studio",
+    verdict: "AMAN",
+    risk_score: 8,
+    extracted_entities: ["glints.com", "UI/UX Designer", "Remote Indonesia"],
+    created_at: "2026-08-12 15:30 WIB",
+    ip_address: "118.99.xx.xx",
+  },
+  {
+    id: "input-110",
+    case_id: "j6e118c7",
+    source: "text",
+    raw_input: "Loker Packing Barang Online Shop Dikerjakan di Rumah Gaji Rp 300rb/Hari Wajib Beli Alat Seal...",
+    company_name: "Home Packing Olshop",
+    verdict: "WASPADA",
+    risk_score: 64,
+    extracted_entities: ["Beli Alat 250rb", "Packing Olshop", "WA Admin 0896-1122"],
+    created_at: "2026-08-12 12:00 WIB",
+    ip_address: "36.85.xx.xx",
+  },
+  {
+    id: "input-111",
+    case_id: "k7f229d8",
+    source: "image",
+    raw_input: "pamflet_bumn_pln_palsu.png (PaddleOCR 89%)",
+    company_name: "PT PLN (Persero) Fake Call",
+    verdict: "BAHAYA",
+    risk_score: 89,
+    extracted_entities: ["PT PLN", "Surat Panggilan Palsu", "Travel Bali Express"],
+    created_at: "2026-08-12 09:15 WIB",
+    ip_address: "125.164.xx.xx",
+  },
+  {
+    id: "input-112",
+    case_id: "l8g330e9",
+    source: "url",
+    raw_input: "https://jobstreet.co.id/en/job/full-stack-developer-123456",
+    company_name: "PT Digital Innovation Hub",
+    verdict: "AMAN",
+    risk_score: 10,
+    extracted_entities: ["jobstreet.co.id", "Full Stack Developer", "Jakarta Pusat"],
+    created_at: "2026-08-11 20:00 WIB",
+    ip_address: "114.122.xx.xx",
+  },
+];
 
 /* ─── Login Gate ──────────────────────────────────────────────────────────── */
 function LoginGate({ onAuth }: { onAuth: () => void }) {
@@ -113,16 +286,13 @@ function VerdictBadge({ verdict }: { verdict: string }) {
     <span
       className={cn(
         "inline-flex items-center gap-1 rounded-md px-2 py-0.5 text-[11px] font-semibold uppercase tracking-wide",
-        v === "AMAN"    && "bg-aman-bg text-aman-fg",
-        v === "WASPADA" && "bg-waspada-bg text-waspada-fg",
-        v === "BAHAYA"  && "bg-bahaya-bg text-bahaya-fg",
-        !["AMAN", "WASPADA", "BAHAYA"].includes(v) && "bg-bg-subtle text-text-muted",
+        v === "AMAN"    && "bg-aman-bg text-aman-fg border border-aman-border",
+        v === "WASPADA" && "bg-waspada-bg text-waspada-fg border border-waspada-border",
+        v === "BAHAYA"  && "bg-bahaya-bg text-bahaya-fg border border-bahaya-border",
+        !["AMAN", "WASPADA", "BAHAYA"].includes(v) && "bg-bg-subtle text-text-muted border border-border",
       )}
     >
-      {v === "AMAN"    && <CheckCircle size={10} weight="bold" />}
-      {v === "WASPADA" && <Warning size={10} weight="bold" />}
-      {v === "BAHAYA"  && <Warning size={10} weight="fill" />}
-      {v}
+      {verdict}
     </span>
   );
 }
@@ -138,7 +308,15 @@ function StatCard({ label, value, color }: { label: string; value: number; color
 }
 
 /* ─── Cases table ─────────────────────────────────────────────────────────── */
-function CasesTable({ cases, loading }: { cases: AdminCase[]; loading: boolean }) {
+function CasesTable({
+  cases,
+  loading,
+  onViewUserInputs,
+}: {
+  cases: AdminCase[];
+  loading: boolean;
+  onViewUserInputs: () => void;
+}) {
   if (loading) {
     return (
       <div className="flex items-center justify-center py-16 text-text-muted text-[13px]">
@@ -165,6 +343,7 @@ function CasesTable({ cases, loading }: { cases: AdminCase[]; loading: boolean }
             <th className="px-4 py-3 text-left font-medium text-text-muted">Preview</th>
             <th className="px-4 py-3 text-left font-medium text-text-muted">Sumber</th>
             <th className="px-4 py-3 text-left font-medium text-text-muted">Waktu</th>
+            <th className="px-4 py-3 text-right font-medium text-text-muted">Aksi</th>
           </tr>
         </thead>
         <tbody className="divide-y divide-border">
@@ -201,6 +380,15 @@ function CasesTable({ cases, loading }: { cases: AdminCase[]; loading: boolean }
                     })
                   : "—"}
               </td>
+              <td className="px-4 py-3 text-right">
+                <button
+                  onClick={onViewUserInputs}
+                  className="inline-flex items-center gap-1 rounded-lg border border-border bg-bg-subtle px-2.5 py-1 text-[11px] font-semibold text-text-primary transition-colors hover:border-border-focus hover:bg-bg-elevated active:scale-95"
+                >
+                  Lihat Detail
+                  <ArrowUpRight size={11} weight="bold" />
+                </button>
+              </td>
             </motion.tr>
           ))}
         </tbody>
@@ -211,6 +399,8 @@ function CasesTable({ cases, loading }: { cases: AdminCase[]; loading: boolean }
 
 /* ─── Main page ───────────────────────────────────────────────────────────── */
 export default function AdminPage() {
+  const router = useRouter();
+
   /* auth */
   const [authed, setAuthed]         = useState(false);
   const [authChecked, setAuthChecked] = useState(false);
@@ -228,7 +418,21 @@ export default function AdminPage() {
   const [aiStatus, setAiStatus] = useState<Record<string, unknown> | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError]     = useState<string | null>(null);
-  const [activeTab, setActiveTab] = useState<"cases" | "moderation">("cases");
+  
+  // Total 3 Tabs: "cases" | "moderation" | "user_inputs"
+  const [activeTab, setActiveTab] = useState<"cases" | "moderation" | "user_inputs">("cases");
+
+  // State untuk Tab Riwayat Inputan User (Database)
+  const [userInputs] = useState<UserInputLog[]>(MOCK_USER_INPUTS);
+  const [searchQuery, setSearchQuery] = useState("");
+  const [verdictFilter, setVerdictFilter] = useState<"ALL" | "BAHAYA" | "WASPADA" | "AMAN">("ALL");
+  const [sourceFilter, setSourceFilter] = useState<"ALL" | "text" | "image" | "url">("ALL");
+  const [currentPage, setCurrentPage] = useState(1);
+
+  // Reset ke halaman 1 saat filter atau keyword pencarian berubah
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [searchQuery, verdictFilter, sourceFilter]);
 
   async function load() {
     setLoading(true);
@@ -256,7 +460,47 @@ export default function AdminPage() {
     setCases([]);
     setAiStatus(null);
     setError(null);
+    router.push("/");
   }
+
+  // Filter User Input Logs (Insensitif Spasi, Tanda Baca, & Huruf Besar/Kecil)
+  const normalizeSearchText = (text: string) => text.toLowerCase().replace(/[\s\-_.]/g, "");
+  const normalizedQuery = normalizeSearchText(searchQuery);
+
+  const filteredUserInputs = userInputs.filter((item) => {
+    const matchesSearch =
+      !normalizedQuery ||
+      normalizeSearchText(item.company_name).includes(normalizedQuery) ||
+      normalizeSearchText(item.raw_input).includes(normalizedQuery) ||
+      normalizeSearchText(item.case_id).includes(normalizedQuery) ||
+      item.extracted_entities.some((entity) =>
+        normalizeSearchText(entity).includes(normalizedQuery)
+      );
+
+    const matchesVerdict = verdictFilter === "ALL" || item.verdict === verdictFilter;
+    const matchesSource = sourceFilter === "ALL" || item.source === sourceFilter;
+
+    return matchesSearch && matchesVerdict && matchesSource;
+  });
+
+  // Pagination Riwayat Inputan User (6 Konten per Halaman)
+  const ITEMS_PER_PAGE = 6;
+  const totalPages = Math.max(1, Math.ceil(filteredUserInputs.length / ITEMS_PER_PAGE));
+  const paginatedUserInputs = filteredUserInputs.slice(
+    (currentPage - 1) * ITEMS_PER_PAGE,
+    currentPage * ITEMS_PER_PAGE
+  );
+
+  const getSourceIcon = (source: UserInputLog["source"]) => {
+    switch (source) {
+      case "image":
+        return <ImageSquare size={13} weight="bold" className="text-text-muted" />;
+      case "url":
+        return <LinkIcon size={13} weight="bold" className="text-text-muted" />;
+      case "text":
+        return <FileText size={13} weight="bold" className="text-text-muted" />;
+    }
+  };
 
   /* render guards */
   if (!authChecked) {
@@ -335,61 +579,64 @@ export default function AdminPage() {
         </div>
       </div>
 
-      {/* ── Stat cards ── */}
-      <div className="mb-6 grid grid-cols-2 gap-3 sm:grid-cols-4">
-        <StatCard label="Total Kasus"  value={stats.total}   color="text-text-primary" />
-        <StatCard label="Aman"         value={stats.aman}    color="text-aman-fg" />
-        <StatCard label="Waspada"      value={stats.waspada} color="text-waspada-fg" />
-        <StatCard label="Bahaya"       value={stats.bahaya}  color="text-bahaya-fg" />
+      {/* ── Stat cards dengan Button Lihat Detail di Sebelah Kanan ── */}
+      <div className="mb-6 flex flex-col gap-3 sm:flex-row sm:items-stretch">
+        <div className="grid flex-1 grid-cols-2 gap-3 sm:grid-cols-4">
+          <StatCard label="Total Kasus"  value={stats.total}   color="text-text-primary" />
+          <StatCard label="Aman"         value={stats.aman}    color="text-aman-fg" />
+          <StatCard label="Waspada"      value={stats.waspada} color="text-waspada-fg" />
+          <StatCard label="Bahaya"       value={stats.bahaya}  color="text-bahaya-fg" />
+        </div>
       </div>
 
-      {/* ── Tabs ── */}
-      <div className="mb-6 flex gap-1 rounded-xl border border-border bg-bg-subtle p-1">
-        {(["cases", "moderation"] as const).map((tab) => (
-          <button
-            key={tab}
-            onClick={() => setActiveTab(tab)}
-            className={cn(
-              "flex-1 rounded-lg px-4 py-2 text-[13px] font-medium transition-colors",
-              activeTab === tab
-                ? "bg-bg-elevated text-text-primary shadow-sm"
-                : "text-text-muted hover:text-text-secondary",
-            )}
-          >
-            {tab === "cases" ? (
-              <span className="flex items-center justify-center gap-1.5">
-                <ClockCounterClockwise size={13} />
-                Riwayat Kasus ({stats.total})
+      {/* ── Total 3 Tabs ── */}
+      <div className="mb-6 flex flex-col gap-2 sm:flex-row rounded-xl border border-border bg-bg-subtle p-1">
+        {[
+          { id: "cases", label: `Riwayat Kasus (${stats.total})`, icon: ClockCounterClockwise },
+          { id: "moderation", label: "Moderasi Laporan", icon: Flag },
+          { id: "user_inputs", label: `Riwayat Inputan User (${userInputs.length})`, icon: Database },
+        ].map((tab) => {
+          const Icon = tab.icon;
+          const isActive = activeTab === tab.id;
+          return (
+            <button
+              key={tab.id}
+              onClick={() => setActiveTab(tab.id as typeof activeTab)}
+              className={cn(
+                "flex-1 rounded-lg px-3.5 py-2 text-[13px] font-medium transition-all",
+                isActive
+                  ? "bg-bg-elevated text-text-primary shadow-sm font-semibold"
+                  : "text-text-muted hover:text-text-secondary hover:bg-bg-elevated/40",
+              )}
+            >
+              <span className="flex items-center justify-center gap-2">
+                <Icon size={14} weight={isActive ? "bold" : "regular"} />
+                {tab.label}
               </span>
-            ) : (
-              <span className="flex items-center justify-center gap-1.5">
-                <Flag size={13} />
-                Moderasi Laporan
-              </span>
-            )}
-          </button>
-        ))}
+            </button>
+          );
+        })}
       </div>
 
-      {/* ── Tab: Riwayat Kasus ── */}
+      {/* ── Tab 1: Riwayat Kasus ── */}
       {activeTab === "cases" && (
         <div className="flex flex-col gap-4">
           {/* chart */}
-          <ReportChart cases={cases} />
+          <ReportChart cases={cases} onViewUserInputs={() => setActiveTab("user_inputs")} />
 
           {/* table */}
           <div className="rounded-xl border border-border bg-bg-elevated overflow-hidden">
-            <div className="border-b border-border bg-bg-subtle px-4 py-3">
+            <div className="border-b border-border bg-bg-subtle px-4 py-3 flex items-center justify-between">
               <p className="text-[12px] font-medium text-text-muted">
-                Daftar Verifikasi Terbaru
+                Daftar Verifikasi Terbaru (Aktivitas Verifikasi)
               </p>
             </div>
-            <CasesTable cases={cases} loading={loading} />
+            <CasesTable cases={cases} loading={loading} onViewUserInputs={() => setActiveTab("user_inputs")} />
           </div>
         </div>
       )}
 
-      {/* ── Tab: Moderasi Laporan ── */}
+      {/* ── Tab 2: Moderasi Laporan ── */}
       {activeTab === "moderation" && (
         <div className="flex flex-col gap-4">
           {/* info callout */}
@@ -407,6 +654,197 @@ export default function AdminPage() {
           </div>
 
           <ModerationTable />
+        </div>
+      )}
+
+      {/* ── Tab 3: Riwayat Inputan User (Database) ── */}
+      {activeTab === "user_inputs" && (
+        <div className="flex flex-col gap-4">
+          {/* Header Callout Info */}
+          <div className="flex items-start gap-3 rounded-xl border border-border bg-bg-elevated px-4 py-3">
+            <div className="mt-0.5 flex h-6 w-6 shrink-0 items-center justify-center rounded-md bg-bg-subtle border border-border text-text-primary">
+              <Database size={13} weight="bold" />
+            </div>
+            <div>
+              <p className="text-[13px] font-medium text-text-primary">Riwayat Inputan User dari Database PostgreSQL</p>
+              <p className="mt-0.5 text-[12px] leading-relaxed text-text-muted">
+                Menampilkan log seluruh inputan teks, poster gambar (OCR), dan link URL yang dikirim oleh publik ke sistem Verifin beserta entitas & bukti risiko yang diekstrak.
+              </p>
+            </div>
+          </div>
+
+          {/* Filter & Search Bar */}
+          <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 rounded-xl border border-border bg-bg-elevated p-3 shadow-sm">
+            {/* Search Input */}
+            <div className="relative flex-1">
+              <MagnifyingGlass size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-text-muted" />
+              <input
+                type="text"
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                placeholder="Cari perusahaan, teks input, atau Case ID..."
+                className="w-full rounded-lg border border-border bg-bg-subtle pl-9 pr-3 py-1.5 text-[12px] text-text-primary placeholder:text-text-muted outline-none focus:border-border-focus transition-colors"
+              />
+            </div>
+
+            {/* Filters */}
+            <div className="flex items-center gap-2 overflow-x-auto pb-1 sm:pb-0">
+              {/* Verdict Filter */}
+              <div className="flex items-center gap-1 border border-border bg-bg-subtle p-1 rounded-lg">
+                {(["ALL", "BAHAYA", "WASPADA", "AMAN"] as const).map((v) => (
+                  <button
+                    key={v}
+                    onClick={() => setVerdictFilter(v)}
+                    className={cn(
+                      "px-2 py-0.5 text-[10px] font-mono font-semibold rounded transition-colors uppercase",
+                      verdictFilter === v
+                        ? "bg-text-primary text-bg-elevated"
+                        : "text-text-muted hover:text-text-primary"
+                    )}
+                  >
+                    {v}
+                  </button>
+                ))}
+              </div>
+
+              {/* Source Filter */}
+              <div className="flex items-center gap-1 border border-border bg-bg-subtle p-1 rounded-lg">
+                {(["ALL", "text", "image", "url"] as const).map((s) => (
+                  <button
+                    key={s}
+                    onClick={() => setSourceFilter(s)}
+                    className={cn(
+                      "px-2 py-0.5 text-[10px] font-mono font-semibold rounded transition-colors uppercase",
+                      sourceFilter === s
+                        ? "bg-text-primary text-bg-elevated"
+                        : "text-text-muted hover:text-text-primary"
+                    )}
+                  >
+                    {s}
+                  </button>
+                ))}
+              </div>
+            </div>
+          </div>
+
+          {/* Cards Aktivitas Verifikasi Inputan User */}
+          <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+            {paginatedUserInputs.length > 0 ? (
+              paginatedUserInputs.map((item) => (
+                <motion.div
+                  key={item.id}
+                  initial={{ opacity: 0, y: 8 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  className="relative flex flex-col justify-between rounded-2xl border border-border bg-bg-elevated p-4 shadow-sm transition-all hover:border-border-focus"
+                >
+                  <div>
+                    {/* Header Row: Source Icon, Case ID & Verdict */}
+                    <div className="flex items-center justify-between gap-2 mb-3">
+                      <div className="flex items-center gap-2">
+                        <span className="inline-flex items-center gap-1.5 rounded-md border border-border bg-bg-subtle px-2 py-0.5 font-mono text-[10px] uppercase font-semibold text-text-muted">
+                          {getSourceIcon(item.source)}
+                          {item.source}
+                        </span>
+                        <span className="font-mono text-[11px] text-text-muted">
+                          ID: #{item.case_id}
+                        </span>
+                      </div>
+                      <div className="flex items-center gap-1.5">
+                        <VerdictBadge verdict={item.verdict} />
+                        <span className="font-mono text-[11px] font-bold text-text-primary">
+                          ({item.risk_score})
+                        </span>
+                      </div>
+                    </div>
+
+                    {/* Company Name */}
+                    <h4 className="text-[14px] font-bold text-text-primary">
+                      {item.company_name}
+                    </h4>
+
+                    {/* Raw Input Content Preview */}
+                    <p className="mt-1.5 text-[12px] leading-relaxed text-text-secondary line-clamp-2 bg-bg-subtle/50 p-2.5 rounded-xl border border-border/40 font-mono">
+                      {item.raw_input}
+                    </p>
+
+                    {/* Extracted Entities Badges */}
+                    <div className="mt-3 flex flex-wrap gap-1">
+                      {item.extracted_entities.map((entity, idx) => (
+                        <span
+                          key={idx}
+                          className="rounded border border-border bg-bg-subtle px-1.5 py-0.5 font-mono text-[10px] text-text-muted"
+                        >
+                          {entity}
+                        </span>
+                      ))}
+                    </div>
+                  </div>
+
+                  {/* Footer Row: Timestamp, IP & Button "Lihat Detail" / "Lihat Selengkapnya" at bottom-right corner */}
+                  <div className="mt-4 pt-3 border-t border-border/50 flex items-center justify-between">
+                    <div className="flex items-center gap-2 font-mono text-[10px] text-text-muted">
+                      <span>{item.created_at}</span>
+                      <span>•</span>
+                      <span>{item.ip_address}</span>
+                    </div>
+
+                    {/* Button Lihat Detail / Lihat Selengkapnya (Pojok Kanan Bawah) */}
+                    <button
+                      onClick={() => router.push(`/report/${item.case_id}`)}
+                      className="inline-flex items-center gap-1.5 rounded-xl border border-border bg-bg-subtle px-3 py-1.5 text-[12px] font-semibold text-text-primary transition-all hover:border-border-focus hover:bg-text-primary hover:text-bg-elevated active:scale-95 cursor-pointer"
+                    >
+                      Lihat Detail
+                      <ArrowUpRight size={13} weight="bold" />
+                    </button>
+                  </div>
+                </motion.div>
+              ))
+            ) : (
+              <div className="col-span-full py-12 text-center rounded-2xl border border-border bg-bg-elevated p-6">
+                <p className="text-[13px] font-medium text-text-muted">
+                  Tidak ada data inputan user yang cocok dengan filter pencarian.
+                </p>
+              </div>
+            )}
+          </div>
+
+          {/* Kontrol Pagination (6 Konten per Halaman) */}
+          {filteredUserInputs.length > 0 && (
+            <div className="mt-2 flex items-center justify-between rounded-xl border border-border bg-bg-elevated px-4 py-3 shadow-sm">
+              <span className="font-mono text-[11px] text-text-muted">
+                Menampilkan {Math.min((currentPage - 1) * ITEMS_PER_PAGE + 1, filteredUserInputs.length)}–
+                {Math.min(currentPage * ITEMS_PER_PAGE, filteredUserInputs.length)} dari {filteredUserInputs.length} inputan
+              </span>
+
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  disabled={currentPage === 1}
+                  onClick={() => setCurrentPage((p) => Math.max(p - 1, 1))}
+                  className="flex h-8 w-8 items-center justify-center rounded-lg border border-border bg-bg-subtle text-text-muted transition-colors hover:border-border-focus hover:text-text-primary disabled:opacity-30 disabled:pointer-events-none active:scale-95"
+                  title="Halaman sebelumnya"
+                >
+                  <CaretLeft size={14} weight="bold" />
+                </button>
+
+                <div className="flex items-center gap-1 px-2 font-mono text-[12px] font-semibold text-text-primary">
+                  <span>{currentPage}</span>
+                  <span className="text-text-muted">/</span>
+                  <span className="text-text-muted">{totalPages}</span>
+                </div>
+
+                <button
+                  type="button"
+                  disabled={currentPage === totalPages}
+                  onClick={() => setCurrentPage((p) => Math.min(p + 1, totalPages))}
+                  className="flex h-8 w-8 items-center justify-center rounded-lg border border-border bg-bg-subtle text-text-muted transition-colors hover:border-border-focus hover:text-text-primary disabled:opacity-30 disabled:pointer-events-none active:scale-95"
+                  title="Halaman selanjutnya"
+                >
+                  <CaretRight size={14} weight="bold" />
+                </button>
+              </div>
+            </div>
+          )}
         </div>
       )}
     </div>

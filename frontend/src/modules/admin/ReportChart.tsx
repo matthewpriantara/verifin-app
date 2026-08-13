@@ -1,5 +1,6 @@
 "use client";
 
+import { ArrowUpRight } from "@phosphor-icons/react";
 import { motion } from "motion/react";
 import type { AdminCase } from "@/types/admin";
 
@@ -13,10 +14,10 @@ function groupByDate(cases: AdminCase[]): { label: string; total: number; aman: 
     const prev = map.get(label) ?? { total: 0, aman: 0, waspada: 0, bahaya: 0 };
     const v = c.verdict.toUpperCase();
     map.set(label, {
-      total:   prev.total + 1,
-      aman:    prev.aman    + (v === "AMAN"    ? 1 : 0),
+      total: prev.total + 1,
+      aman: prev.aman + (v === "AMAN" ? 1 : 0),
       waspada: prev.waspada + (v === "WASPADA" ? 1 : 0),
-      bahaya:  prev.bahaya  + (v === "BAHAYA"  ? 1 : 0),
+      bahaya: prev.bahaya + (v === "BAHAYA" ? 1 : 0),
     });
   });
 
@@ -25,13 +26,13 @@ function groupByDate(cases: AdminCase[]): { label: string; total: number; aman: 
 
 /* ── mock data for empty state ────────────────────────────────────────────── */
 const MOCK: ReturnType<typeof groupByDate> = [
-  { label: "01 Agu", total: 4,  aman: 2, waspada: 1, bahaya: 1 },
-  { label: "02 Agu", total: 7,  aman: 3, waspada: 2, bahaya: 2 },
-  { label: "03 Agu", total: 5,  aman: 2, waspada: 2, bahaya: 1 },
-  { label: "04 Agu", total: 9,  aman: 4, waspada: 3, bahaya: 2 },
-  { label: "05 Agu", total: 6,  aman: 3, waspada: 1, bahaya: 2 },
+  { label: "01 Agu", total: 4, aman: 2, waspada: 1, bahaya: 1 },
+  { label: "02 Agu", total: 7, aman: 3, waspada: 2, bahaya: 2 },
+  { label: "03 Agu", total: 5, aman: 2, waspada: 2, bahaya: 1 },
+  { label: "04 Agu", total: 9, aman: 4, waspada: 3, bahaya: 2 },
+  { label: "05 Agu", total: 6, aman: 3, waspada: 1, bahaya: 2 },
   { label: "06 Agu", total: 11, aman: 6, waspada: 3, bahaya: 2 },
-  { label: "07 Agu", total: 8,  aman: 4, waspada: 2, bahaya: 2 },
+  { label: "07 Agu", total: 8, aman: 4, waspada: 2, bahaya: 2 },
 ];
 
 /* ── Bar ──────────────────────────────────────────────────────────────────── */
@@ -91,14 +92,20 @@ function LegendPill({ color, label }: { color: string; label: string }) {
 }
 
 /* ── Main component ───────────────────────────────────────────────────────── */
-export default function ReportChart({ cases }: { cases: AdminCase[] }) {
+export default function ReportChart({
+  cases,
+  onViewUserInputs,
+}: {
+  cases: AdminCase[];
+  onViewUserInputs?: () => void;
+}) {
   const raw = cases.length > 0 ? groupByDate(cases) : MOCK;
   // show last 14 data points max
   const data = raw.slice(-14);
-  const max  = Math.max(...data.map((d) => d.total), 1);
+  const max = Math.max(...data.map((d) => d.total), 1);
 
-  const totalAll    = data.reduce((s, d) => s + d.total, 0);
-  const totalAman   = data.reduce((s, d) => s + d.aman, 0);
+  const totalAll = data.reduce((s, d) => s + d.total, 0);
+  const totalAman = data.reduce((s, d) => s + d.aman, 0);
   const totalWaspada = data.reduce((s, d) => s + d.waspada, 0);
   const totalBahaya = data.reduce((s, d) => s + d.bahaya, 0);
 
@@ -145,11 +152,23 @@ export default function ReportChart({ cases }: { cases: AdminCase[] }) {
         ))}
       </div>
 
-      {/* legend */}
-      <div className="mt-3 flex flex-wrap gap-3 border-t border-border pt-3">
-        <LegendPill color="bg-aman-fg/70"    label="Aman" />
-        <LegendPill color="bg-waspada-fg/70" label="Waspada" />
-        <LegendPill color="bg-bahaya-fg/80"  label="Bahaya" />
+      {/* legend & bottom-right button */}
+      <div className="mt-3 flex flex-wrap items-center justify-between gap-3 border-t border-border pt-3">
+        <div className="flex flex-wrap gap-3">
+          <LegendPill color="bg-aman-fg/70" label="Aman" />
+          <LegendPill color="bg-waspada-fg/70" label="Waspada" />
+          <LegendPill color="bg-bahaya-fg/80" label="Bahaya" />
+        </div>
+
+        {onViewUserInputs && (
+          <button
+            onClick={onViewUserInputs}
+            className="inline-flex items-center gap-1.5 rounded-lg border border-border bg-bg-elevated px-3 py-1 text-[11px] font-semibold text-text-primary transition-all hover:border-border-focus hover:bg-bg-subtle active:scale-95 cursor-pointer"
+          >
+            Lihat Detail Inputan User
+            <ArrowUpRight size={12} weight="bold" />
+          </button>
+        )}
       </div>
     </div>
   );

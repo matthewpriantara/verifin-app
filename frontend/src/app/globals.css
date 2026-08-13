@@ -84,6 +84,21 @@ body {
 
 input, textarea, button, select { font: inherit; }
 
+/* ─── Global Cursor Pointer for All Buttons & Interactive Elements ───────── */
+button,
+[role="button"],
+input[type="button"],
+input[type="submit"],
+input[type="reset"] {
+  cursor: pointer;
+}
+
+button:disabled,
+[role="button"][aria-disabled="true"],
+input:disabled {
+  cursor: not-allowed;
+}
+
 /* ─── Scrollbar ──────────────────────────────────────────────────────────── */
 ::-webkit-scrollbar { width: 5px; }
 ::-webkit-scrollbar-track { background: var(--bg); }
