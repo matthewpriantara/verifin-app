@@ -28,6 +28,53 @@ _IG_NOISE_PATTERNS = [
     r"Laporkan masalah",
 ]
 
+def _is_script_or_ad_junk(text: str) -> bool:
+    if not text or not text.strip():
+        return True
+    low = text.lower()
+    junk_patterns = (
+        "adsbygoogle",
+        "function timer",
+        "clearinterval",
+        "setinterval",
+        "window.location",
+        "document.getelementbyid",
+        "document.queryselector",
+        "targetnode",
+        "mutationobserver",
+        "you are being redirected",
+        "intipxads",
+        "var count =",
+        "var counter =",
+        '{"require":',
+        "maybedisableanimations",
+        "qpltagserverjs",
+        "cometssrmergedcontentinjector",
+        "window.adsbygoogle",
+        "const targetnode",
+        "clearinterval( counter )",
+    )
+    if any(p in low for p in junk_patterns):
+        return True
+    if re.search(r"function\s+\w+\s*\(|var\s+count\s*=|window\.location\.href\s*=|document\.getElementById\(|MutationObserver\(|\(adsbygoogle\s*=", text, re.I):
+        return True
+    return False
+
+
+def _clean_text_lines(text: str) -> str:
+    if not text:
+        return ""
+    clean_lines = []
+    for line in text.splitlines():
+        line_str = line.strip()
+        if not line_str:
+            continue
+        if _is_script_or_ad_junk(line_str):
+            continue
+        clean_lines.append(line_str)
+    return "\n".join(clean_lines).strip()
+
+
 def _sync_scrapling_fetch(url: str) -> tuple[str, list[str]]:
     """Scrape teks + image URLs dari URL (Lightpanda → IG embed → oEmbed → proxy → Scrapling → HTTPX fallback)."""
     validate_public_http_url(url)
@@ -54,18 +101,22 @@ def _sync_scrapling_fetch(url: str) -> tuple[str, list[str]]:
                 for prop in ("og:title", "og:description"):
                     meta = soup.find("meta", property=prop)
                     if meta and meta.get("content"):
-                        text_parts.append(meta["content"].strip())
+                        cont = meta["content"].strip()
+                        if not _is_script_or_ad_junk(cont):
+                            text_parts.append(cont)
 
                 # Body text
-                for tag in soup(["script", "style", "nav", "footer", "header", "noscript"]):
+                for tag in soup(["script", "style", "nav", "footer", "header", "noscript", "template", "iframe"]):
                     tag.decompose()
-                body_text = soup.get_text(separator=" ", strip=True)
+                body_text = soup.get_text(separator="\n", strip=True)
                 if body_text:
-                    # Filter noise IG/Threads
+                    # Filter noise IG/Threads & JS script junk
                     lines = []
-                    for line in body_text.split("\n"):
+                    for line in body_text.splitlines():
                         if any(re.search(pat, line, re.I) for pat in _IG_NOISE_PATTERNS):
                             break
+                        if _is_script_or_ad_junk(line):
+                            continue
                         lines.append(line)
                     filtered = " ".join(lines).strip()
                     if filtered and len(filtered) > 30:
