@@ -514,7 +514,7 @@ export function EvidencePanel({ osint }: EvidencePanelProps) {
                     </span>
                     {!w.ok && <Flag text="Tidak dapat diakses" kind="risk" />}
                   </div>
-                  {w.snippet && (
+                  {w.snippet && !w.snippet.includes('{"require":') && !w.snippet.includes('maybeDisableAnimations') && (
                     <p className="mt-2 text-[12px] leading-relaxed text-text-muted">{w.snippet}</p>
                   )}
                   {(w.risk_flags ?? []).length > 0 && (
