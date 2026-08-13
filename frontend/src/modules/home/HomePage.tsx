@@ -3,6 +3,7 @@
 import { useRef } from "react";
 import { motion } from "motion/react";
 import { VerifyBox } from "@/modules/verify/VerifyBox";
+import { SearchHistory } from "@/modules/home/SearchHistory";
 import {
   Scan,
   MagnifyingGlass,
@@ -17,15 +18,15 @@ const STEPS = [
     num: "01",
     icon: Scan,
     title: "Ekstraksi Entitas",
-     desc: "Teks, gambar, atau URL diproses untuk mengidentifikasi nama perusahaan, nomor HP, email, tautan, alamat, dan besaran gaji.",
-     tags: ["PaddleOCR bila gambar", "Hybrid NER", "Entity Extraction"],
+    desc: "Teks, gambar, atau URL diproses untuk mengidentifikasi nama perusahaan, nomor HP, email, tautan, alamat, dan besaran gaji.",
+    tags: ["PaddleOCR bila gambar", "Hybrid NER", "Entity Extraction"],
   },
   {
     num: "02",
     icon: MagnifyingGlass,
     title: "Validasi OSINT Real-time",
-     desc: "Enam kanal publik diperiksa paralel: WHOIS/DNS domain, reputasi nomor, peta OSM, pencarian web, media sosial, dan inspeksi Google Forms bila ada.",
-     tags: ["WHOIS/DNS", "Kaspersky Who Calls", "OpenStreetMap", "Web & Social"],
+    desc: "Enam kanal publik diperiksa paralel: WHOIS/DNS domain, reputasi nomor, peta OSM, pencarian web, media sosial, dan inspeksi Google Forms bila ada.",
+    tags: ["WHOIS/DNS", "Kaspersky Who Calls", "OpenStreetMap", "Web & Social"],
   },
   {
     num: "03",
@@ -37,9 +38,9 @@ const STEPS = [
   {
     num: "04",
     icon: Cpu,
-     title: "Penilaian Risiko & Penjelasan",
-     desc: "LLM menyusun verdict AMAN/WASPADA/BAHAYA hanya dari bukti yang terkumpul, lalu Evidence Attribution menunjukkan kontribusi tiap sinyal.",
-     tags: ["LLM Reasoning", "Evidence Attribution", "Explainable AI"],
+    title: "Penilaian Risiko & Penjelasan",
+    desc: "LLM menyusun verdict AMAN/WASPADA/BAHAYA hanya dari bukti yang terkumpul, lalu Evidence Attribution menunjukkan kontribusi tiap sinyal.",
+    tags: ["LLM Reasoning", "Evidence Attribution", "Explainable AI"],
   },
 ];
 
@@ -116,17 +117,17 @@ export default function HomePage() {
     <div className="flex flex-1 flex-col">
 
       {/* ── Hero ─────────────────────────────────────────────────────── */}
-      <section className="mx-auto flex w-full max-w-6xl flex-col items-center gap-10 px-4 py-10 sm:gap-12 sm:px-6 sm:py-14 lg:flex-row lg:items-start lg:gap-16 lg:py-20">
+      <section className="mx-auto flex w-full max-w-6xl flex-col items-center gap-10 px-4 py-14 sm:px-6 sm:py-14 lg:flex-row lg:items-start lg:gap-16 lg:py-20">
 
         {/* Kiri — headline */}
-        <div className="w-full flex-1 lg:pt-4">
+        <div className="w-full flex-1">
           <motion.p
             initial={{ opacity: 0, y: 8 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.4 }}
             className="mb-4 font-mono text-[11px] uppercase tracking-widest text-text-muted"
           >
-              Job Risk Platform
+            Job Risk Platform
           </motion.p>
 
           <motion.h1
@@ -142,9 +143,9 @@ export default function HomePage() {
             initial={{ opacity: 0, y: 12 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.5, delay: 0.12, ease: [0.16, 1, 0.3, 1] }}
-            className="mt-4 max-w-md text-[14px] leading-relaxed text-text-secondary sm:mt-5 sm:text-[15px]"
+            className="mt-4 max-w-lg text-justify text-[14px] leading-relaxed text-text-secondary sm:mt-5 sm:text-[15px]"
           >
-             Verifin membantu memeriksa risiko lowongan secara lebih cepat — dari perusahaan, lokasi, nomor HP, email, tautan, hingga jejak digital — lalu merangkum buktinya secara transparan.
+            Lindungi perjalanan karirmu dari bahaya lowongan kerja palsu dan penipuan digital. Verifin memanfaatkan kecerdasan AI dan OSINT untuk memverifikasi profil perusahaan, keabsahan lokasi, nomor kontak, hingga jejak reputasi digital secara instan. Dapatkan rangkuman bukti risiko yang transparan dan dapat diaudit agar kamu bisa melamar kerja dengan percaya diri tanpa rasa cemas.
           </motion.p>
 
           <motion.div
@@ -154,9 +155,9 @@ export default function HomePage() {
             className="mt-7 flex flex-wrap gap-x-6 gap-y-4 sm:mt-8 sm:gap-6"
           >
             {[
-               { val: "6", unit: "Kanal", label: "Pemeriksaan publik" },
-               { val: "4", unit: "Tahap", label: "Analisis Verifin" },
-               { val: "Bukti", unit: "dulu", label: "Penjelasan transparan" },
+              { val: "6", unit: "Kanal", label: "Pemeriksaan publik" },
+              { val: "4", unit: "Tahap", label: "Analisis Verifin" },
+              { val: "Bukti", unit: "dulu", label: "Penjelasan transparan" },
             ].map(({ val, unit, label }) => (
               <div key={label}>
                 <p className="font-mono text-xl font-semibold text-text-primary sm:text-2xl">
@@ -197,15 +198,16 @@ export default function HomePage() {
               <ShieldCheck size={11} weight="bold" className="text-bg-elevated" />
             </div>
             <span className="text-[13px] font-medium text-text-primary">
-               Cek risiko lowongan
+              Cek risiko lowongan
             </span>
           </div>
           <VerifyBox />
+          <SearchHistory />
         </motion.div>
       </section>
 
       {/* ── Cara kerja ───────────────────────────────────────────────── */}
-      <section className="border-t border-border bg-bg-subtle/40 px-4 py-12 sm:px-6 sm:py-16 lg:py-20">
+      <section className="border-t border-border bg-bg-subtle/40 px-4 py-14 sm:px-6 lg:py-20">
         <div ref={howRef} className="mx-auto max-w-6xl scroll-mt-20">
           <motion.div
             initial={{ opacity: 0, y: 12 }}
@@ -215,13 +217,13 @@ export default function HomePage() {
             className="mb-8 text-center sm:mb-10"
           >
             <p className="font-mono text-[11px] uppercase tracking-widest text-text-muted">
-               Job Risk Infrastructure
+              Job Risk Infrastructure
             </p>
             <h2 className="mt-2 text-[1.4rem] font-semibold tracking-tight text-text-primary sm:text-3xl">
-               Cara Verifin menilai risiko
+              Cara Verifin menilai risiko
             </h2>
             <p className="mx-auto mt-2 max-w-xl text-[13px] leading-relaxed text-text-secondary sm:text-[14px]">
-               Ekstraksi, pemeriksaan publik, pemetaan relasi, dan reasoning dirangkai menjadi satu penilaian yang bisa kamu audit.
+              Ekstraksi, pemeriksaan publik, pemetaan relasi, dan reasoning dirangkai menjadi satu penilaian yang bisa kamu audit.
             </p>
           </motion.div>
 
