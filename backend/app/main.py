@@ -1,9 +1,11 @@
 import logging
+import os
 import sys
 
 from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.staticfiles import StaticFiles
 
 
 # Uvicorn's default logging config does not always lower the level of
@@ -68,6 +70,11 @@ app.add_middleware(
 app.include_router(verify_router, prefix="/api/v1")
 app.include_router(health_router, prefix="/api/v1")
 app.include_router(community_router, prefix="/api/v1")
+
+# Serve bukti gambar yang di-upload komunitas
+UPLOAD_DIR = os.path.join(os.path.dirname(os.path.dirname(__file__)), "uploads", "evidence")
+os.makedirs(UPLOAD_DIR, exist_ok=True)
+app.mount("/uploads", StaticFiles(directory=UPLOAD_DIR), name="uploads")
 
 
 if __name__ == "__main__":

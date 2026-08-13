@@ -63,6 +63,8 @@ class CommunityReport(Base):
     description = Column(Text, nullable=True)
     reporter_contact = Column(String(255), nullable=True)  # opsional, untuk follow-up
     reporter_ip = Column(String(45), nullable=True)
+    case_id = Column(String(64), nullable=True, index=True)  # link ke JobCase.id
+    evidence_file_url = Column(String(512), nullable=True)  # path ke bukti gambar yang di-upload
     status = Column(String(12), nullable=False, default="pending", server_default="pending", index=True)
     reviewed_at = Column(DateTime(timezone=True), nullable=True)
     reviewer_note = Column(Text, nullable=True)

@@ -2,18 +2,21 @@
 Community Reports — laporan penipuan dari komunitas (suplemen Fraud Network).
 
 Endpoint:
-- POST /community/report   → kirim laporan baru
+- POST /community/report   → kirim laporan baru (multipart: JSON fields + optional gambar)
 - GET  /community/check    → cek berapa kali entitas dilaporkan
 - GET  /community/recent   → laporan terbaru (transparansi publik)
 """
 
 from __future__ import annotations
 
+import json
 import logging
+import os
+import tempfile
 from typing import Optional
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, HTTPException, Query, Request
+from fastapi import APIRouter, Depends, File, Form, HTTPException, Query, Request, UploadFile
 from sqlalchemy import func, or_, text
 from sqlalchemy import func, or_
 from sqlalchemy.orm import Session
@@ -40,6 +43,8 @@ try:
             'ALTER TABLE community_reports ADD COLUMN IF NOT EXISTS reporter_ip VARCHAR(45)',
             'ALTER TABLE community_reports ADD COLUMN IF NOT EXISTS reviewed_at TIMESTAMPTZ',
             'ALTER TABLE community_reports ADD COLUMN IF NOT EXISTS reviewer_note TEXT',
+            'ALTER TABLE community_reports ADD COLUMN IF NOT EXISTS case_id VARCHAR(64)',
+            'ALTER TABLE community_reports ADD COLUMN IF NOT EXISTS evidence_file_url VARCHAR(512)',
             'CREATE INDEX IF NOT EXISTS ix_community_reports_status ON community_reports (status)',
         ):
             conn.execute(text(ddl))
@@ -48,22 +53,64 @@ except Exception as exc:  # noqa: BLE001
 
 
 @router.post("/community/report", status_code=201, summary="Kirim Laporan Penipuan Komunitas")
-def submit_report(payload: CommunityReportIn, request: Request, db: Session = Depends(get_db)):
-    if not any([payload.company_name, payload.phone, payload.email, payload.url]):
+async def submit_report(
+    request: Request,
+    db: Session = Depends(get_db),
+    company_name: Optional[str] = Form(None),
+    phone: Optional[str] = Form(None),
+    email: Optional[str] = Form(None),
+    url: Optional[str] = Form(None),
+    report_type: str = Form("penipuan"),
+    description: Optional[str] = Form(None),
+    reporter_contact: Optional[str] = Form(None),
+    case_id: Optional[str] = Form(None),
+    evidence_file: Optional[UploadFile] = File(None),
+):
+    if not any([company_name, phone, email, url]):
         raise HTTPException(
             status_code=422,
             detail="Isi minimal satu entitas yang dilaporkan: nama perusahaan, nomor HP, email, atau URL.",
         )
 
+    # Simpan gambar bukti jika ada
+    evidence_file_url = None
+    if evidence_file and evidence_file.filename:
+        # Validasi tipe file (hanya gambar)
+        allowed_types = {"image/jpeg", "image/png", "image/webp", "image/jpg"}
+        if evidence_file.content_type not in allowed_types:
+            raise HTTPException(
+                status_code=422,
+                detail="Format file tidak didukung. Gunakan JPG, PNG, atau WebP.",
+            )
+        # Validasi ukuran (max 5MB)
+        contents = await evidence_file.read()
+        if len(contents) > 5 * 1024 * 1024:
+            raise HTTPException(
+                status_code=422,
+                detail="Ukuran file terlalu besar. Maksimal 5MB.",
+            )
+
+        import uuid as _uuid
+        ext = os.path.splitext(evidence_file.filename)[1].lower() or ".jpg"
+        filename = f"{_uuid.uuid4().hex}{ext}"
+        upload_dir = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))), "uploads", "evidence")
+        os.makedirs(upload_dir, exist_ok=True)
+        filepath = os.path.join(upload_dir, filename)
+        with open(filepath, "wb") as f:
+            f.write(contents)
+        evidence_file_url = f"/uploads/evidence/{filename}"
+
     report = CommunityReport(
-        company_name=(payload.company_name or "").strip() or None,
-        phone=clean_indonesian_phone(payload.phone) or None,
-        email=(payload.email or "").strip().lower() or None,
-        url=(payload.url or "").strip() or None,
-        report_type=(payload.report_type or "penipuan").strip(),
-        description=(payload.description or "").strip() or None,
-        reporter_contact=(payload.reporter_contact or "").strip() or None,
+        company_name=(company_name or "").strip() or None,
+        phone=clean_indonesian_phone(phone) or None,
+        email=(email or "").strip().lower() or None,
+        url=(url or "").strip() or None,
+        report_type=(report_type or "penipuan").strip(),
+        description=(description or "").strip() or None,
+        reporter_contact=(reporter_contact or "").strip() or None,
         reporter_ip=request.client.host if request.client else None,
+        case_id=(case_id or "").strip() or None,
+        evidence_file_url=evidence_file_url,
         status="pending",
     )
     db.add(report)
@@ -144,6 +191,8 @@ def recent_reports(
                 url=r.url,
                 description=r.description,
                 reporter_ip=r.reporter_ip,
+                case_id=r.case_id,
+                evidence_file_url=r.evidence_file_url,
                 status=r.status or "pending",
                 reviewer_note=r.reviewer_note,
                 reviewed_at=r.reviewed_at.isoformat() if r.reviewed_at else None,
@@ -181,6 +230,8 @@ def list_reports(
                 url=r.url,
                 description=r.description,
                 reporter_ip=r.reporter_ip,
+                case_id=r.case_id,
+                evidence_file_url=r.evidence_file_url,
                 status=r.status or "pending",
                 reviewer_note=r.reviewer_note,
                 reviewed_at=r.reviewed_at.isoformat() if r.reviewed_at else None,

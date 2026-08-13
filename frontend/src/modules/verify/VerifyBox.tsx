@@ -16,8 +16,9 @@ import {
   ClipboardText,
 } from "@phosphor-icons/react";
 import { Button } from "@/components/ui/Button";
-import { cn, REPORT_STORAGE_KEY } from "@/lib/utils";
-import { verifyImage, verifyText, verifyUrl } from "@/lib/api";
+import { cn, REPORT_STORAGE_KEY, addHistory, normalizeVerdict } from "@/lib/utils";
+import { verifyImage, verifyText, verifyUrl, verifyUrlStream } from "@/lib/api";
+import type { SSEEvent } from "@/lib/api";
 import type { VerifyResponse } from "@/types/verify";
 
 /* ─── URL detection ─────────────────────────────────────────────────────── */
@@ -88,12 +89,16 @@ function LoadingModal({
   progress,
   steps,
   onCancel,
+  stageMessage,
+  stageStatuses,
 }: {
   stepIndex: number;
   dotCount: number;
   progress: number;
   steps: ReturnType<typeof getSteps>;
   onCancel?: () => void;
+  stageMessage?: string;
+  stageStatuses?: Record<string, "waiting" | "processing" | "done">;
 }) {
   const currentStep = steps[stepIndex];
 
@@ -311,7 +316,7 @@ function LoadingModal({
         <div className="border-t border-border bg-bg-subtle/30 px-6 py-3 text-center">
           <p className="text-[11px] font-medium text-text-muted flex items-center justify-center gap-1.5">
             <span className="h-1.5 w-1.5 rounded-full bg-emerald-500 animate-ping" />
-            Harap tunggu, Verifin AI sedang memverifikasi bukti OSINT secara mendalam...
+            {stageMessage || "Harap tunggu, Verifin AI sedang memverifikasi bukti OSINT secara mendalam..."}
           </p>
         </div>
       </motion.div>
@@ -333,6 +338,9 @@ export function VerifyBox() {
   const [error, setError] = useState<string | null>(null);
   const [stepIndex, setStepIndex] = useState(0);
   const [dotCount, setDotCount] = useState(0);
+  const [stageMessage, setStageMessage] = useState<string>("");
+  const [stageStatuses, setStageStatuses] = useState<Record<string, "waiting" | "processing" | "done">>({});
+  const abortControllerRef = useRef<AbortController | null>(null);
   const inputSource: InputSource = file
     ? "image"
     : isPureUrl(text)
@@ -350,18 +358,74 @@ export function VerifyBox() {
     return () => clearInterval(iv);
   }, [loading]);
 
-  useEffect(() => {
-    if (!loading) {
-      const t = setTimeout(() => setStepIndex(0), 0);
-      return () => clearTimeout(t);
+  // Stage mapping: SSE stage name → step index
+  // fetch/ocr → 0, ner → 1 (atau 0 untuk text), osint → 2, graph → 3, ai → 4
+  // Tapi steps array hanya 4: [extract/ocr, osint, graph, ai]
+  // Map: fetch/ocr/ner → 0, osint → 1, graph → 2, ai → 3
+  const _sseStageToStep = (stage: string): number => {
+    const idx = steps.findIndex((s) => {
+      if (stage === "fetch" || stage === "ocr" || stage === "ner") return s.id === "ocr" || s.id === "fetch" || s.id === "extract";
+      if (stage === "osint") return s.id === "osint";
+      if (stage === "graph") return s.id === "graph";
+      if (stage === "ai") return s.id === "ai";
+      return false;
+    });
+    return idx >= 0 ? idx : stepIndex;
+  };
+
+  // Simpan hasil verifikasi ke localStorage history
+  const _saveToHistory = (result: VerifyResponse, inputLabel?: string) => {
+    const verdict = normalizeVerdict(result.verdict);
+    if (verdict === "ERROR") return; // tidak simpan jika error
+
+    const companies = result.entities?.companies ?? [];
+    const urls = result.entities?.urls ?? [];
+    const contacts = result.entities?.contacts ?? [];
+
+    const title = companies[0] || inputLabel || "Lowongan tidak dikenal";
+    const entityParts: string[] = [];
+    if (companies[0]) entityParts.push(companies[0]);
+    if (urls[0]) entityParts.push(urls[0]);
+    else if (contacts[0]) entityParts.push(contacts[0]);
+    const entitiesSummary = entityParts.join(" • ") || "Tidak ada entitas";
+
+    addHistory({
+      id: result.case_id || `local-${Date.now()}`,
+      case_id: result.case_id ?? null,
+      title: title.slice(0, 120),
+      verdict: verdict as "AMAN" | "WASPADA" | "BAHAYA",
+      risk_score: result.risk_score,
+      entitiesSummary,
+    });
+  };
+
+  const _handleSSEEvent = (event: SSEEvent, steps: ReturnType<typeof getSteps>) => {
+    switch (event.event) {
+      case "start":
+        setStepIndex(0);
+        setStageStatuses({});
+        setStageMessage(event.data.message || "Memulai...");
+        break;
+      case "stage": {
+        const { stage, status, message } = event.data;
+        const idx = _sseStageToStep(stage);
+        setStepIndex(idx);
+        setStageMessage(message || "");
+        setStageStatuses((prev) => ({ ...prev, [stage]: status }));
+        break;
+      }
+      case "done": {
+        const result = event.data.response as VerifyResponse;
+        _saveToHistory(result, "URL Lowongan");
+        sessionStorage.setItem(REPORT_STORAGE_KEY, JSON.stringify(result));
+        router.push(result.case_id ? `/report/${result.case_id}` : "/report");
+        break;
+      }
+      case "error":
+        setError(event.data.message || "Terjadi kesalahan saat memproses.");
+        break;
     }
-    if (stepIndex >= steps.length - 1) return;
-    const timer = setTimeout(
-      () => setStepIndex((s) => Math.min(s + 1, steps.length - 1)),
-      steps[stepIndex]?.duration ?? 2000,
-    );
-    return () => clearTimeout(timer);
-  }, [loading, stepIndex, steps]);
+  };
 
   const attachFile = useCallback((f: File | null) => {
     if (!f) {
@@ -437,6 +501,18 @@ export function VerifyBox() {
     [attachFile]
   );
 
+  function handleCancel() {
+    // Abort SSE stream / fetch yang sedang berjalan
+    if (abortControllerRef.current) {
+      abortControllerRef.current.abort();
+      abortControllerRef.current = null;
+    }
+    setLoading(false);
+    setStepIndex(0);
+    setStageMessage("");
+    setStageStatuses({});
+  }
+
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     setError(null);
@@ -447,20 +523,43 @@ export function VerifyBox() {
     }
     setLoading(true);
     setStepIndex(0);
+    setStageStatuses({});
+    setStageMessage("");
+
+    // Buat AbortController untuk SSE stream (bisa di-cancel oleh tombol Batal)
+    const controller = new AbortController();
+    abortControllerRef.current = controller;
+
     try {
-      let result: VerifyResponse;
       if (file) {
-        result = await verifyImage(file);
+        // Image: pakai endpoint biasa (belum SSE)
+        const result = await verifyImage(file);
+        _saveToHistory(result, file.name);
+        sessionStorage.setItem(REPORT_STORAGE_KEY, JSON.stringify(result));
+        router.push(result.case_id ? `/report/${result.case_id}` : "/report");
       } else if (isPureUrl(trimmed)) {
-        result = await verifyUrl(normalizeUrl(trimmed));
+        // URL: pakai SSE streaming untuk real-time progress
+        await verifyUrlStream(
+          normalizeUrl(trimmed),
+          (event) => { _handleSSEEvent(event, steps); },
+          controller.signal,
+        );
       } else {
-        result = await verifyText({ text: trimmed, include_raw_text: true });
+        // Text: pakai endpoint biasa (belum SSE)
+        const result = await verifyText({ text: trimmed, include_raw_text: true });
+        _saveToHistory(result, trimmed.slice(0, 80));
+        sessionStorage.setItem(REPORT_STORAGE_KEY, JSON.stringify(result));
+        router.push(result.case_id ? `/report/${result.case_id}` : "/report");
       }
-      sessionStorage.setItem(REPORT_STORAGE_KEY, JSON.stringify(result));
-       router.push(result.case_id ? `/report/${result.case_id}` : "/report");
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Terjadi kesalahan saat memproses.");
+      // AbortError = user klik Batal, jangan tampilkan error
+      if (err instanceof DOMException && err.name === "AbortError") {
+        // silent — sudah di-handle oleh handleCancel
+      } else {
+        setError(err instanceof Error ? err.message : "Terjadi kesalahan saat memproses.");
+      }
     } finally {
+      abortControllerRef.current = null;
       setLoading(false);
     }
   }
@@ -477,7 +576,9 @@ export function VerifyBox() {
             dotCount={dotCount}
             progress={progress}
             steps={steps}
-            onCancel={() => setLoading(false)}
+            onCancel={() => handleCancel()}
+            stageMessage={stageMessage}
+            stageStatuses={stageStatuses}
           />
         )}
       </AnimatePresence>

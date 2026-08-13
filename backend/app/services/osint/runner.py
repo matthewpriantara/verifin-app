@@ -89,7 +89,15 @@ async def run_osint_probes(entities: dict) -> dict:
     # Jika tidak ada alamat fisik, gunakan location_candidates (lokasi kerja)
     # untuk validasi Nominatim — lokasi kerja dari poster lebih relevan daripada
     # alamat kantor pusat yang mungkin ditemukan OSINT nanti.
-    addresses = (entities.get("addresses") or entities.get("location_candidates") or [])[:2]
+    # Filter out non-geographic terms (Remote, Hybrid, WFH, dll) yang bukan lokasi fisik.
+    _NON_GEO_PATTERNS = re.compile(
+        r"^(?:remote|hybrid|wfh|work\s+from\s+home|onsite|on\s+site|"
+        r"anywhere|flexible|mobile|field|permanent|kontrak|contract|"
+        r"full\s*time|part\s*time|freelance|internship|magang)$",
+        re.I,
+    )
+    raw_addresses = (entities.get("addresses") or entities.get("location_candidates") or [])
+    addresses = [a for a in raw_addresses if not _NON_GEO_PATTERNS.match(a.strip())][:2]
     companies = entities.get("companies") or []
     company_name = companies[0] if companies else None
 

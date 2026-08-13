@@ -35,6 +35,8 @@ export interface CommunityReport {
   report_type: ReportType;
   description: string | null;
   reporter_ip: string | null;
+  case_id: string | null;
+  evidence_file_url: string | null;
   status: ReportStatus;
   reviewer_note: string | null;
   reviewed_at: string | null;

@@ -14,6 +14,8 @@ import {
   ChatText,
   Eye,
   CalendarBlank,
+  ImageSquare,
+  ArrowSquareOut,
 } from "@phosphor-icons/react";
 import { cn } from "@/lib/utils";
 import type { CommunityReport, ReportStatus, ReportType } from "@/types/admin";
@@ -154,6 +156,40 @@ function DetailModal({
               {report.description || "—"}
             </div>
           </div>
+
+          {/* Bukti Gambar (evidence_file_url) */}
+          {report.evidence_file_url && (
+            <div>
+              <span className="text-[11px] font-medium text-text-muted block uppercase tracking-wider mb-1.5">Bukti Gambar</span>
+              <a
+                href={`${report.evidence_file_url}`}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="block overflow-hidden rounded-xl border border-border bg-bg-subtle transition-colors hover:border-border-focus"
+              >
+                <img
+                  src={report.evidence_file_url}
+                  alt="Bukti komunitas"
+                  className="h-48 w-full object-cover"
+                />
+              </a>
+            </div>
+          )}
+
+          {/* Case ID (link ke report) */}
+          {report.case_id && (
+            <div>
+              <span className="text-[11px] font-medium text-text-muted block uppercase tracking-wider mb-1">Terkait Kasus Verifikasi</span>
+              <a
+                href={`/report/${report.case_id}`}
+                className="inline-flex items-center gap-1.5 rounded-lg border border-border bg-bg-subtle px-3 py-2 font-mono text-[12px] text-text-primary transition-colors hover:border-border-focus"
+              >
+                <ArrowSquareOut size={12} />
+                {report.case_id.slice(0, 8)}…
+                <span className="text-text-muted">→ Lihat Laporan</span>
+              </a>
+            </div>
+          )}
 
           {/* Reviewer Note */}
           {report.reviewer_note && (
@@ -349,6 +385,27 @@ function ReportRow({
             <LinkSimple size={10} />
             Bukti
           </a>
+        )}
+        {report.evidence_file_url && (
+          <span className="mt-1 inline-flex items-center gap-1 text-[11px] text-text-secondary">
+            <ImageSquare size={10} />
+            <a
+              href={report.evidence_file_url}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="underline-offset-2 hover:underline"
+            >
+              Gambar
+            </a>
+          </span>
+        )}
+        {report.case_id && (
+          <span className="mt-1 inline-flex items-center gap-1 font-mono text-[10px] text-text-muted">
+            <ArrowSquareOut size={9} />
+            <a href={`/report/${report.case_id}`} className="hover:underline">
+              {report.case_id.slice(0, 8)}…
+            </a>
+          </span>
         )}
         {report.reviewer_note && (
           <div className="mt-1.5 flex items-start gap-1 rounded-md bg-bg-subtle px-2 py-1">

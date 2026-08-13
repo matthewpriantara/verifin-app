@@ -438,21 +438,6 @@ export default function ReportPage() {
                 </p>
               )}
 
-              {/* Google Maps Embed */}
-              {hasCoords && (
-                <div className="mt-4 overflow-hidden rounded-2xl border border-border">
-                  <iframe
-                    src={`https://www.google.com/maps?q=${(addrDetails.lat as number).toFixed(6)},${(addrDetails.lon as number).toFixed(6)}&z=15&output=embed`}
-                    width="100%"
-                    height="200"
-                    style={{ border: 0 }}
-                    loading="lazy"
-                    referrerPolicy="no-referrer-when-downgrade"
-                    title="Lokasi di Google Maps"
-                  />
-                </div>
-              )}
-
               {/* Buka di Maps buttons */}
               {hasCoords && (
                 <div className="mt-3 flex flex-wrap gap-2">

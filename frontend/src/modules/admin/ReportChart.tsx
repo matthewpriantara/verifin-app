@@ -24,17 +24,6 @@ function groupByDate(cases: AdminCase[]): { label: string; total: number; aman: 
   return Array.from(map.entries()).map(([label, val]) => ({ label, ...val }));
 }
 
-/* ── mock data for empty state ────────────────────────────────────────────── */
-const MOCK: ReturnType<typeof groupByDate> = [
-  { label: "01 Agu", total: 4, aman: 2, waspada: 1, bahaya: 1 },
-  { label: "02 Agu", total: 7, aman: 3, waspada: 2, bahaya: 2 },
-  { label: "03 Agu", total: 5, aman: 2, waspada: 2, bahaya: 1 },
-  { label: "04 Agu", total: 9, aman: 4, waspada: 3, bahaya: 2 },
-  { label: "05 Agu", total: 6, aman: 3, waspada: 1, bahaya: 2 },
-  { label: "06 Agu", total: 11, aman: 6, waspada: 3, bahaya: 2 },
-  { label: "07 Agu", total: 8, aman: 4, waspada: 2, bahaya: 2 },
-];
-
 /* ── Bar ──────────────────────────────────────────────────────────────────── */
 function Bar({
   aman, waspada, bahaya, total, max, label, index,
@@ -99,7 +88,7 @@ export default function ReportChart({
   cases: AdminCase[];
   onViewUserInputs?: () => void;
 }) {
-  const raw = cases.length > 0 ? groupByDate(cases) : MOCK;
+  const raw = cases.length > 0 ? groupByDate(cases) : [];
   // show last 14 data points max
   const data = raw.slice(-14);
   const max = Math.max(...data.map((d) => d.total), 1);
@@ -141,16 +130,19 @@ export default function ReportChart({
       </div>
 
       {/* chart */}
-      {cases.length === 0 && (
-        <p className="mb-2 text-[11px] italic text-text-muted">
-          * Data contoh — belum ada kasus nyata
-        </p>
+      {cases.length === 0 ? (
+        <div className="flex h-28 items-center justify-center rounded-md bg-bg-subtle">
+          <p className="text-[12px] text-text-muted">
+            Belum ada aktivitas verifikasi
+          </p>
+        </div>
+      ) : (
+        <div className="flex items-end gap-1 overflow-x-auto pb-1">
+          {data.map((d, i) => (
+            <Bar key={d.label} {...d} max={max} index={i} />
+          ))}
+        </div>
       )}
-      <div className="flex items-end gap-1 overflow-x-auto pb-1">
-        {data.map((d, i) => (
-          <Bar key={d.label} {...d} max={max} index={i} />
-        ))}
-      </div>
 
       {/* legend & bottom-right button */}
       <div className="mt-3 flex flex-wrap items-center justify-between gap-3 border-t border-border pt-3">
