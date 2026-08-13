@@ -26,6 +26,31 @@ interface EvidencePanelProps {
   osint?: OsintPayload | null;
 }
 
+function isJunkSnippet(s?: string): boolean {
+  if (!s) return true;
+  const low = s.toLowerCase();
+  return (
+    low.includes("adsbygoogle") ||
+    low.includes("function timer") ||
+    low.includes("clearinterval") ||
+    low.includes("setinterval") ||
+    low.includes("window.location") ||
+    low.includes("document.getelementbyid") ||
+    low.includes("targetnode") ||
+    low.includes("mutationobserver") ||
+    low.includes("you are being redirected") ||
+    low.includes('{"require":') ||
+    low.includes("maybedisableanimations") ||
+    low.includes("qpltagserverjs") ||
+    low.includes("cometssrmergedcontentinjector") ||
+    low.includes("intipxads") ||
+    low.includes("var count") ||
+    /function\s*\(/i.test(s) ||
+    /var\s+\w+/i.test(s) ||
+    /const\s+\w+/i.test(s)
+  );
+}
+
 function SectionRow({ label, icon: Icon, children, badge }: {
   label: string;
   icon: React.ElementType;
@@ -514,7 +539,7 @@ export function EvidencePanel({ osint }: EvidencePanelProps) {
                     </span>
                     {!w.ok && <Flag text="Tidak dapat diakses" kind="risk" />}
                   </div>
-                  {w.snippet && (
+                  {w.snippet && !isJunkSnippet(w.snippet) && (
                     <p className="mt-2 text-[12px] leading-relaxed text-text-muted">{w.snippet}</p>
                   )}
                   {(w.risk_flags ?? []).length > 0 && (

@@ -80,7 +80,7 @@ function getSteps(source: InputSource) {
   ];
 }
 
-/* ─── Loading Modal Popup ────────────────────────────────────────────────── */
+/* ─── Loading Modal Popup (Horizontal Stepper) ─────────────────────────────── */
 function LoadingModal({
   stepIndex,
   dotCount,
@@ -107,100 +107,223 @@ function LoadingModal({
       initial={{ opacity: 0 }}
       animate={{ opacity: 1 }}
       exit={{ opacity: 0 }}
-      className="fixed inset-0 z-50 flex items-center justify-center bg-bg/80 px-4 backdrop-blur-sm"
+      className="fixed inset-0 z-50 flex items-center justify-center bg-bg/80 px-4 backdrop-blur-md"
     >
       <motion.div
-        initial={{ opacity: 0, scale: 0.95, y: 12 }}
+        initial={{ opacity: 0, scale: 0.94, y: 16 }}
         animate={{ opacity: 1, scale: 1, y: 0 }}
-        exit={{ opacity: 0, scale: 0.95, y: 8 }}
-        transition={{ duration: 0.25, ease: [0.16, 1, 0.3, 1] }}
-        className="w-full max-w-md overflow-hidden rounded-2xl border border-border bg-bg-elevated shadow-2xl"
+        exit={{ opacity: 0, scale: 0.94, y: 12 }}
+        transition={{ duration: 0.3, ease: [0.16, 1, 0.3, 1] }}
+        className="w-full max-w-4xl overflow-hidden rounded-3xl border border-border bg-bg-elevated shadow-2xl"
       >
-        {/* Header aktif */}
-        <div className="border-b border-border px-5 py-4">
-          <div className="flex items-center gap-3">
-            <div className="relative flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-text-primary">
-              <StepIcon size={16} weight="bold" className="text-bg-elevated" />
-              <span className="absolute inset-0 animate-ping rounded-xl bg-text-primary opacity-20" />
-            </div>
-            <div className="min-w-0">
-              <p className="text-[14px] font-semibold text-text-primary">
-                {currentStep?.label}
-                <span className="font-normal text-text-muted">{".".repeat(dotCount)}</span>
-              </p>
-              <p className="mt-0.5 text-[12px] text-text-muted">{currentStep?.detail}</p>
-            </div>
-          </div>
-        </div>
-
-        {/* Step list */}
-        <div className="divide-y divide-border">
-          {steps.map((step, i) => {
-            const Icon = step.icon;
-            const done = i < stepIndex;
-            const active = i === stepIndex;
-            return (
-              <div
-                key={step.id}
-                className={cn(
-                  "flex items-center gap-3 px-5 py-3 transition-colors",
-                  active && "bg-bg-subtle",
-                  done && "opacity-40",
-                )}
-              >
-                <div
-                  className={cn(
-                    "flex h-5 w-5 shrink-0 items-center justify-center rounded-md",
-                    done && "bg-aman-fg",
-                    active && "bg-text-primary",
-                    !done && !active && "bg-bg-muted",
-                  )}
-                >
-                  {done ? (
-                    <CheckCircle size={11} weight="bold" className="text-white" />
-                  ) : (
-                    <Icon size={11} weight="bold" className={active ? "text-white" : "text-text-muted"} />
-                  )}
-                </div>
-                <span
-                  className={cn(
-                    "flex-1 text-[13px]",
-                    active ? "font-medium text-text-primary" : "text-text-secondary",
-                    done && "text-text-muted",
-                  )}
-                >
-                  {step.label}
-                </span>
-                {active && (
-                  <span className="flex gap-1">
-                    {[0, 1, 2].map((j) => (
-                      <span
-                        key={j}
-                        className="h-1 w-1 rounded-full bg-text-primary"
-                        style={{ animation: `stepPulse 1.2s ease-in-out ${j * 0.2}s infinite` }}
-                      />
-                    ))}
-                  </span>
-                )}
+        {/* Header */}
+        <div className="border-b border-border bg-bg-subtle/40 px-6 py-5">
+          <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+            <div className="flex items-center gap-3">
+              <div className="relative flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl bg-text-primary text-bg-elevated shadow-md">
+                <StepIcon size={20} weight="bold" />
+                <span className="absolute -inset-1 animate-ping rounded-2xl bg-text-primary opacity-20" />
               </div>
-            );
-          })}
+              <div className="min-w-0">
+                <h3 className="text-base font-bold text-text-primary flex items-center gap-2">
+                  Proses Verifikasi AI
+                  <span className="inline-flex h-2 w-2 rounded-full bg-emerald-500 animate-pulse" />
+                </h3>
+                <p className="text-[12px] text-text-muted">
+                  Analisis data & bukti OSINT paralel
+                </p>
+              </div>
+            </div>
+
+            <div className="flex items-center gap-3 sm:text-right">
+              <div className="h-1.5 w-32 overflow-hidden rounded-full bg-bg-muted hidden sm:block">
+                <motion.div
+                  className="h-full rounded-full bg-text-primary"
+                  initial={{ width: "0%" }}
+                  animate={{ width: `${progress}%` }}
+                  transition={{ duration: 0.5, ease: "easeOut" }}
+                />
+              </div>
+              <span className="font-mono text-xl font-bold text-text-primary">{progress}%</span>
+            </div>
+          </div>
         </div>
 
-        {/* Progress bar */}
-        <div className="px-5 pb-5 pt-4">
-          <div className="h-1 w-full overflow-hidden rounded-full bg-bg-muted">
-            <motion.div
-              className="h-full rounded-full bg-text-primary"
-              initial={{ width: "0%" }}
-              animate={{ width: `${progress}%` }}
-              transition={{ duration: 0.5, ease: "easeOut" }}
-            />
+        {/* Horizontal Step Flow with Animated Flow Connectors */}
+        <div className="p-6">
+          <div className="grid grid-cols-1 gap-4 md:grid-cols-4 md:gap-3">
+            {steps.map((step, i) => {
+              const Icon = step.icon;
+              const isDone = i < stepIndex;
+              const isActive = i === stepIndex;
+              const isPending = i > stepIndex;
+              const isLast = i === steps.length - 1;
+
+              return (
+                <div key={step.id} className="relative flex flex-col">
+                  {/* Top Node & Horizontal Flow Connector */}
+                  <div className="relative mb-3 flex items-center">
+                    {/* Step Node Icon */}
+                    <div className="relative z-10">
+                      <motion.div
+                        animate={
+                          isActive
+                            ? {
+                                scale: [1, 1.12, 1],
+                                boxShadow: [
+                                  "0 0 0px rgba(0,0,0,0)",
+                                  "0 0 16px rgba(59,130,246,0.35)",
+                                  "0 0 0px rgba(0,0,0,0)",
+                                ],
+                              }
+                            : { scale: 1 }
+                        }
+                        transition={
+                          isActive
+                            ? { duration: 2, repeat: Infinity, ease: "easeInOut" }
+                            : { duration: 0.2 }
+                        }
+                        className={cn(
+                          "flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl transition-all duration-300",
+                          isDone && "bg-aman-fg text-white shadow-sm",
+                          isActive && "bg-text-primary text-bg-elevated shadow-lg ring-4 ring-text-primary/20",
+                          isPending && "border border-border bg-bg-subtle text-text-muted opacity-70"
+                        )}
+                      >
+                        {isDone ? (
+                          <CheckCircle size={20} weight="fill" />
+                        ) : isActive ? (
+                          <Icon size={20} weight="bold" />
+                        ) : (
+                          <Icon size={18} weight="bold" />
+                        )}
+                      </motion.div>
+                    </div>
+
+                    {/* Horizontal Flow Connector Line (Desktop/Tablet) */}
+                    {!isLast && (
+                      <div className="hidden md:block absolute left-10 right-0 top-1/2 -translate-y-1/2 h-0.5 overflow-hidden bg-bg-muted z-0">
+                        {/* Flowing Horizontal Beam Line */}
+                        <motion.div
+                          className={cn(
+                            "h-full w-full origin-left transition-colors duration-500",
+                            isDone
+                              ? "bg-aman-fg"
+                              : isActive
+                              ? "bg-gradient-to-r from-text-primary via-amber-500 to-bg-muted"
+                              : "bg-transparent"
+                          )}
+                          initial={{ scaleX: 0 }}
+                          animate={{ scaleX: isDone ? 1 : isActive ? 0.7 : 0 }}
+                          transition={{ duration: 0.5, ease: "easeInOut" }}
+                        />
+                        {/* Active Traveling Pulse Light Beam */}
+                        {isActive && (
+                          <motion.div
+                            className="absolute top-0 bottom-0 w-6 bg-white shadow-[0_0_8px_#fff]"
+                            animate={{ x: ["-100%", "250%"], opacity: [0, 1, 0] }}
+                            transition={{ duration: 1.5, repeat: Infinity, ease: "easeInOut" }}
+                          />
+                        )}
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Horizontal Step Card Box */}
+                  <motion.div
+                    initial={false}
+                    animate={
+                      isActive
+                        ? {
+                            scale: 1.02,
+                            borderColor: "var(--text-primary)",
+                            backgroundColor: "var(--bg-subtle)",
+                          }
+                        : isDone
+                        ? {
+                            scale: 1,
+                            borderColor: "var(--border)",
+                            opacity: 0.85,
+                          }
+                        : {
+                            scale: 1,
+                            borderColor: "var(--border)",
+                            opacity: 0.5,
+                          }
+                    }
+                    transition={{ duration: 0.35, ease: [0.16, 1, 0.3, 1] }}
+                    className={cn(
+                      "relative flex-1 flex flex-col justify-between overflow-hidden rounded-2xl border p-4 transition-shadow",
+                      isActive && "shadow-md border-text-primary/80 ring-1 ring-text-primary/20",
+                      !isActive && "bg-bg-elevated"
+                    )}
+                  >
+                    {/* Active Step Top Glowing Line Accent */}
+                    {isActive && (
+                      <motion.div
+                        layoutId="activeGlowHorizontal"
+                        className="absolute left-0 right-0 top-0 h-1 bg-text-primary"
+                        initial={{ opacity: 0 }}
+                        animate={{ opacity: 1 }}
+                        exit={{ opacity: 0 }}
+                      />
+                    )}
+
+                    <div>
+                      <div className="flex items-center justify-between gap-1 mb-1.5">
+                        <span
+                          className={cn(
+                            "rounded-full px-2 py-0.5 text-[9px] font-semibold uppercase tracking-wide",
+                            isDone && "bg-aman-bg text-aman-fg border border-aman-border",
+                            isActive && "bg-text-primary text-bg-elevated font-bold animate-pulse",
+                            isPending && "bg-bg-muted text-text-muted"
+                          )}
+                        >
+                          {isDone ? "Selesai" : isActive ? "Proses..." : "Menunggu"}
+                        </span>
+                        <span className="font-mono text-[10px] text-text-muted">Step {i + 1}</span>
+                      </div>
+
+                      <h4
+                        className={cn(
+                          "text-[13px] font-bold leading-tight transition-colors",
+                          isActive ? "text-text-primary" : isDone ? "text-text-primary" : "text-text-secondary"
+                        )}
+                      >
+                        {step.label}
+                        {isActive && <span className="ml-1 text-text-muted">{".".repeat(dotCount)}</span>}
+                      </h4>
+
+                      <p className="mt-1.5 text-[11px] leading-relaxed text-text-muted">
+                        {step.detail}
+                      </p>
+                    </div>
+
+                    {/* Active Real-Time Live Pulse */}
+                    {isActive && (
+                      <div className="mt-3 flex items-center gap-1.5 pt-2 border-t border-border/50">
+                        <div className="relative flex h-2 w-2 shrink-0">
+                          <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-text-primary opacity-75" />
+                          <span className="relative inline-flex rounded-full h-2 w-2 bg-text-primary" />
+                        </div>
+                        <span className="text-[10px] font-semibold text-text-primary truncate">
+                          Aktif real-time...
+                        </span>
+                      </div>
+                    )}
+                  </motion.div>
+                </div>
+              );
+            })}
           </div>
-          <div className="mt-2 flex items-center justify-between text-[11px] text-text-muted">
-            <span>Verifin AI sedang menganalisis...</span>
-            <span className="font-mono">{progress}%</span>
-          </div>
+        </div>
+
+        {/* Footer info */}
+        <div className="border-t border-border bg-bg-subtle/30 px-6 py-3 text-center">
+          <p className="text-[11px] font-medium text-text-muted flex items-center justify-center gap-1.5">
+            <span className="h-1.5 w-1.5 rounded-full bg-emerald-500 animate-ping" />
+            Harap tunggu, Verifin AI sedang memverifikasi bukti OSINT secara mendalam...
+          </p>
         </div>
       </motion.div>
     </motion.div>
