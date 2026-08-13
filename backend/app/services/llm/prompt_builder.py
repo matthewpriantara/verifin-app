@@ -1,10 +1,12 @@
 """
 Prompt Builder untuk Verifin AI Reasoning Engine.
 Mengubah data OSINT & NER yang sudah diekstrak menjadi prompt terstruktur
-yang siap dikirim ke LLM (OpenAgentic / Grok) untuk analisis risiko penipuan.
+yang siap dikirim ke LLM untuk analisis risiko penipuan.
 """
 
 # Domain gratisan yang umum digunakan — tidak perlu dicek WHOIS/SPF/DMARC
+import re
+
 from app.services.constants import FREE_EMAIL_DOMAINS
 
 
@@ -318,7 +320,14 @@ def _build_address_osint_section(address_validations: list) -> str:
             elif match_level == "street":
                 lines.append(f"- `{addr}`: ℹ️ Nama jalan ditemukan, tetapi nomor bangunan belum cocok ({display}...).")
             else:
-                lines.append(f"- `{addr}`: ℹ️ Hanya wilayah sekitar yang ditemukan di peta ({display}...). BUKAN bukti titik outlet exact.")
+                # Cek apakah alamat input mengandung nama jalan
+                addr_has_street = bool(re.search(r"\b(?:jl\.?|jln\.?|jalan)\b", addr, re.I))
+                # Cek apakah display_name dari OSM mengandung nama jalan
+                display_has_street = bool(re.search(r"\b(?:jl\.?|jln\.?|jalan|jalan)\b", display, re.I))
+                if addr_has_street or display_has_street:
+                    lines.append(f"- `{addr}`: ✅ Nama jalan ditemukan di peta ({display}...). Wilayah sekitar terkonfirmasi.")
+                else:
+                    lines.append(f"- `{addr}`: ℹ️ Wilayah sekitar ditemukan di peta ({display}...). Titik exact belum terkonfirmasi.")
 
         # Catatan netral dari pencarian bisnis
         neutral_notes = av.get("neutral_notes", [])

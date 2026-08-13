@@ -24,6 +24,7 @@ from urllib.parse import quote_plus, urlparse
 
 from app.services.osint.lightpanda_client import lightpanda_fetch, lightpanda_search
 from app.services.osint.ai_extractor import ai_extract_and_rank, ai_extract_from_page, merge_extracted_evidence
+from app.services.osint.search_intelligence import intelligent_search
 
 logger = logging.getLogger(__name__)
 

@@ -44,6 +44,7 @@ from app.api.v1.verify.pipeline import (
     _check_fraud_network,
     _extract_entities_hybrid,
     _run_osint_on_entities,
+    _enrich_entities_from_osint,
     _to_response,
     _build_osint_summary,
 )
@@ -140,9 +141,19 @@ def _log_raw_json(request_id: str, label: str, payload: object) -> None:
             indent=2,
             default=str,
         )
-        print(f"[verify][{request_id}] {label}_JSON\n{encoded}", flush=True)
-    except Exception:
-        print(f"[verify][{request_id}] gagal mencetak {label}_JSON", flush=True)
+        # Simpan ke file di root backend folder
+        import os
+        from datetime import datetime
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        debug_dir = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(__file__)))), "debug_json")
+        os.makedirs(debug_dir, exist_ok=True)
+        filename = f"{label}_{request_id}_{timestamp}.json"
+        filepath = os.path.join(debug_dir, filename)
+        with open(filepath, "w", encoding="utf-8") as f:
+            f.write(encoded)
+        print(f"[verify][{request_id}] {label}_JSON saved to {filepath}", flush=True)
+    except Exception as e:
+        print(f"[verify][{request_id}] gagal mencetak {label}_JSON: {e}", flush=True)
 
 @router.post(
     "/verify/text",
@@ -191,6 +202,9 @@ async def verify_from_text(
         osint_results = await _run_osint_on_entities(entities)
         _log_osint_summary(request_id, osint_results)
         logger.info("[verify][%s] OSINT duration=%.2fs", request_id, time.perf_counter() - stage_started)
+
+        # OSINT Enrichment: lengkapi entities dengan alamat dari hasil search
+        entities = await _enrich_entities_from_osint(entities, osint_results)
 
         # Layer 5: Fraud Network — case memory (exact-match entity linking)
         stage_started = time.perf_counter()
@@ -297,6 +311,9 @@ async def verify_from_image(
         osint_results = await _run_osint_on_entities(entities)
         _log_osint_summary(request_id, osint_results)
         logger.info("[verify][%s] OSINT duration=%.2fs", request_id, time.perf_counter() - stage_started)
+
+        # OSINT Enrichment: lengkapi entities dengan alamat dari hasil search
+        entities = await _enrich_entities_from_osint(entities, osint_results)
 
         # Layer 5: Fraud Network Check
         stage_started = time.perf_counter()
@@ -409,6 +426,9 @@ async def verify_from_url(
         osint_results = await _run_osint_on_entities(entities)
         _log_osint_summary(request_id, osint_results)
         logger.info("[verify][%s] OSINT duration=%.2fs", request_id, time.perf_counter() - stage_started)
+
+        # OSINT Enrichment: lengkapi entities dengan alamat dari hasil search
+        entities = await _enrich_entities_from_osint(entities, osint_results)
 
         # Layer 5: Fraud Network Check (case memory + community reports)
         stage_started = time.perf_counter()
