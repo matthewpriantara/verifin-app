@@ -127,12 +127,48 @@ def _normalize_url(url: str) -> str | None:
 
 
 
+def _is_script_or_ad_junk(t: str) -> bool:
+    if not t or not t.strip():
+        return True
+    low = t.lower()
+    junk_patterns = (
+        "adsbygoogle",
+        "function timer",
+        "clearinterval",
+        "setinterval",
+        "window.location",
+        "document.getelementbyid",
+        "document.queryselector",
+        "targetnode",
+        "mutationobserver",
+        "you are being redirected",
+        "intipxads",
+        "var count =",
+        "var counter =",
+        '{"require":',
+        "maybedisableanimations",
+        "qpltagserverjs",
+        "cometssrmergedcontentinjector",
+        "window.adsbygoogle",
+        "const targetnode",
+        "clearinterval( counter )",
+    )
+    if any(p in low for p in junk_patterns):
+        return True
+    if re.search(r"function\s+\w+\s*\(|var\s+count\s*=|window\.location\.href\s*=|document\.getElementById\(|MutationObserver\(|\(adsbygoogle\s*=", t, re.I):
+        return True
+    return False
+
+
 def _snippet_from_page(page, max_len: int = 500) -> str:
     try:
         texts = [t.strip() for t in page.css("body *::text").getall() if t and t.strip()]
     except Exception:
         texts = []
-    cleaned = [t for t in texts if len(t) > 20]
+    cleaned = [
+        t for t in texts
+        if len(t) > 20 and not _is_script_or_ad_junk(t)
+    ]
     blob = re.sub(r"\s+", " ", " ".join(cleaned[:40])).strip()
     return blob[:max_len]
 
@@ -140,9 +176,12 @@ def _snippet_from_page(page, max_len: int = 500) -> str:
 def _snippet_from_soup(soup, max_len: int = 500) -> str:
     """Extract snippet dari BeautifulSoup soup (untuk output Lightpanda HTML)."""
     try:
-        for tag in soup(["script", "style", "nav", "footer", "header", "noscript"]):
+        for tag in soup(["script", "style", "nav", "footer", "header", "noscript", "template", "iframe"]):
             tag.decompose()
-        texts = [t.strip() for t in soup.stripped_strings if len(t.strip()) > 20]
+        texts = [
+            t.strip() for t in soup.stripped_strings
+            if len(t.strip()) > 20 and not _is_script_or_ad_junk(t.strip())
+        ]
         blob = re.sub(r"\s+", " ", " ".join(texts[:40])).strip()
         return blob[:max_len]
     except Exception:
