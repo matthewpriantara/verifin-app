@@ -6,6 +6,8 @@ python-multipart==0.0.9
 
 # === HTTP Client ===
 httpx>=0.27.0
+curl_cffi>=0.7.0
+websockets>=12.0
 
 # === OSINT & Web Scraping ===
 python-whois==0.8.0
@@ -26,9 +28,9 @@ paddleocr==2.8.1
 opencv-python>=4.9.0
 Pillow>=10.0.0
 
-# === NLP & ML Layer (Layer 1 Classifier — paper22 Springer, Fraud-BERT Springer) ===
-# TF-IDF behavioral features + XGBoost-compatible scoring
+# === NLP & ML Layer (Layer 1 Classifier — rule-based, roadmap: IndoBERT) ===
+# TF-IDF behavioral features + scikit-learn (untuk evaluasi eksperimental)
 scikit-learn==1.5.2
 
-# === Graph Analysis (Fraud Network — GAR-HGNN ACM 2025 inspired) ===
+# === Graph Analysis (Fraud Network — NetworkX graph traversal) ===
 networkx==3.4.2
