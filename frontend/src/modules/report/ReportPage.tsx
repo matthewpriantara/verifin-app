@@ -437,7 +437,46 @@ export default function ReportPage() {
                   {(addrDetails.lat as number).toFixed(6)}, {(addrDetails.lon as number).toFixed(6)}
                 </p>
               )}
-              {typeof bizDetails.maps_url === "string" && bizDetails.maps_url && (
+
+              {/* Google Maps Embed */}
+              {hasCoords && (
+                <div className="mt-4 overflow-hidden rounded-2xl border border-border">
+                  <iframe
+                    src={`https://www.google.com/maps?q=${(addrDetails.lat as number).toFixed(6)},${(addrDetails.lon as number).toFixed(6)}&z=15&output=embed`}
+                    width="100%"
+                    height="200"
+                    style={{ border: 0 }}
+                    loading="lazy"
+                    referrerPolicy="no-referrer-when-downgrade"
+                    title="Lokasi di Google Maps"
+                  />
+                </div>
+              )}
+
+              {/* Buka di Maps buttons */}
+              {hasCoords && (
+                <div className="mt-3 flex flex-wrap gap-2">
+                  <a
+                    href={`https://www.google.com/maps?q=${(addrDetails.lat as number).toFixed(6)},${(addrDetails.lon as number).toFixed(6)}`}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="inline-flex items-center gap-2 rounded-xl bg-text-primary px-4 py-2.5 text-sm font-semibold text-bg-elevated transition-all hover:opacity-90"
+                  >
+                    <MapPin size={15} weight="bold" /> Google Maps <ArrowSquareOut size={13} />
+                  </a>
+                  {typeof addrDetails.osm_url === "string" && addrDetails.osm_url && (
+                    <a
+                      href={addrDetails.osm_url as string}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="inline-flex items-center gap-2 rounded-xl border border-border bg-bg-subtle px-4 py-2.5 text-sm font-semibold text-text-secondary transition-all hover:bg-bg-elevated"
+                    >
+                      <MapPin size={15} weight="bold" /> OpenStreetMap <ArrowSquareOut size={13} />
+                    </a>
+                  )}
+                </div>
+              )}
+              {!hasCoords && typeof bizDetails.maps_url === "string" && bizDetails.maps_url && (
                 <a
                   href={bizDetails.maps_url}
                   target="_blank"

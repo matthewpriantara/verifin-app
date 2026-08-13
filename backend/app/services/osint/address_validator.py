@@ -443,9 +443,16 @@ async def validate_address_and_business(address: str, company_name: str = None, 
                 "Nama jalan ditemukan, tetapi nomor bangunan belum cocok dengan hasil peta."
             )
         else:
-            result["neutral_notes"].append(
-                "Peta hanya menemukan wilayah sekitar; titik ini bukan bukti alamat outlet yang exact."
-            )
+            # Cek apakah alamat input mengandung nama jalan
+            addr_has_street = bool(re.search(r"\b(?:jl\.?|jln\.?|jalan)\b", address, re.I))
+            if addr_has_street:
+                result["neutral_notes"].append(
+                    "Nama jalan terdeteksi di alamat input; wilayah sekitar terkonfirmasi di peta."
+                )
+            else:
+                result["neutral_notes"].append(
+                    "Peta menemukan wilayah sekitar; titik exact belum terkonfirmasi."
+                )
 
     # Step 2: Konfirmasi keberadaan bisnis dari hasil pencarian yang SUDAH ADA
     if company_name:

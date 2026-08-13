@@ -86,7 +86,10 @@ async def run_osint_probes(entities: dict) -> dict:
     }
 
     emails = entities.get("emails", []) or []
-    addresses = (entities.get("addresses") or [])[:2]
+    # Jika tidak ada alamat fisik, gunakan location_candidates (lokasi kerja)
+    # untuk validasi Nominatim — lokasi kerja dari poster lebih relevan daripada
+    # alamat kantor pusat yang mungkin ditemukan OSINT nanti.
+    addresses = (entities.get("addresses") or entities.get("location_candidates") or [])[:2]
     companies = entities.get("companies") or []
     company_name = companies[0] if companies else None
 

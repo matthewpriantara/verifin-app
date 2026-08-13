@@ -63,6 +63,8 @@ _INDONESIAN_CITIES = (
     "Pakem|Sewon|Imogiri|Ngaglik|Ngemplak|Turi|Tempel|Seyegan|Minggir|Moyudan|"
     "Godean|Seturan|Mlati|Depok|Kalasan|Prambanan|Berbah|Gamping|Piyungan|Kasihan|Sedayu|"
     "Kotagede|Umbulharjo|Gondokusuman|Wirobrajan|Banguntapan|"
+    "Manding|Wukirsari|Dlingo|Pleret|Jetis|Srandakan|Sanden|Kretek|Pundong|Bambanglipuro|"
+    "Bantul|Sewon|Banguntapan|Pajangan|Inpres|Krapyak|Gamping|Patangpuluhan"
     "Cikarang|Karawang|Purwakarta|Subang|Indramayu|Majalengka|"
     "Kuningan|Sumedang|Garut|Cianjur|Sukabumi|Tasikmalaya|"
     "Gresik|Sidoarjo|Lamongan|Tuban|Bojonegoro|Jombang|"
@@ -368,8 +370,10 @@ def _address_confidence(s: str) -> float:
     if re.fullmatch(r"[\d\s\-+()]+", s):
         score -= 3.0
     # cuma "Kab. X" / "Kota X" tanpa street/RT → terlalu generik
+    # TAPI jangan penalti jika ada pasangan kota/kota (misal "Manding, Bantul")
     if not has_street and not re.search(r"\bRT\.?\s*\d+", s, re.I) and len(tokens) <= 3:
-        score -= 2.0
+        if not re.search(rf"\b(?:{_INDONESIAN_CITIES})\s*,\s*(?:{_INDONESIAN_CITIES})\b", s, re.I):
+            score -= 2.0
 
     return score
 
@@ -414,6 +418,13 @@ def _is_plausible_address(s: str) -> bool:
         c,
         re.I,
     ):
+        # Pengecualian: "Manding, Bantul" (kecamatan, kota) — pasangan kota/kec Indonesia
+        if re.search(
+            rf"\b(?:{_INDONESIAN_CITIES})\s*,\s*(?:{_INDONESIAN_CITIES})\b",
+            c,
+            re.I,
+        ):
+            return True
         return False
     return _address_confidence(c) >= 2.5
 
@@ -422,7 +433,7 @@ def _extract_location_candidates(text: str) -> list[str]:
     """Extract areas/branches without treating them as physical addresses."""
     lines = [line.strip() for line in _normalize_ocr_spacing(text or "").splitlines() if line.strip()]
     label_pattern = re.compile(
-        r"^(?:Lokasi(?:\s+Kerja)?|Penempatan(?:\s+Kerja)?|Wilayah|Area|"
+        r"^(?:[•·\-\*]\s*)?(?:Lokasi(?:\s+Kerja)?|Penempatan(?:\s+Kerja)?|Wilayah|Area|"
         r"Domisili|Cabang|Outlet|Alamat)\s*[:.\-]?\s*(.*)$", re.I
     )
     values: list[str] = []
@@ -443,7 +454,12 @@ def _extract_location_candidates(text: str) -> list[str]:
                 continue
             if re.search(r"@|https?://|(?:\+?62|0)\d[\d\s-]{7,}", item, re.I):
                 continue
-            if re.search(r"\b(?:pendidikan|pengalaman|gender|umur|gaji|bonus|benefit|reward|libur|syarat|deskripsi|pekerjaan|shift|kirim|lamaran|email|telepon|juta|tahun|maks|wanita|pria|kompetitif)\b", item, re.I):
+            # Stop words diperluas: tambah cv, dan, kirim, lamaran, kualifikasi, dll
+            if re.search(r"\b(?:pendidikan|pengalaman|gender|umur|gaji|bonus|benefit|reward|libur|syarat|deskripsi|pekerjaan|shift|kirim|lamaran|lamar|email|telepon|juta|tahun|maks|wanita|pria|kompetitif|cv|dan|dengan|serta|atau|ke|di|yang|untuk|dari|pada|dalam|hal|dll|dsb)\b", item, re.I):
+                continue
+            # Tolak jika item adalah hasil OCR corruption (kapital di tengah kata kecil)
+            # misal "Kirimc", "Vdanlamaran"
+            if re.search(r"[a-z]{2,}[A-Z][a-z]", item):
                 continue
             candidates.append(item)
     return _uniq(candidates)
@@ -770,7 +786,7 @@ def _extract_addresses(text: str) -> list[str]:
             candidates.append(ln)
 
     # C2) Lokasi kota/kecamatan tanpa prefix jalan:
-    #     "Godean, Yogyakarta", "Seturan, Yogyakarta"
+    #     "Godean, Yogyakarta", "Seturan, Yogyakarta", "Manding, Bantul"
     #     Match per baris supaya koma batas antar baris tidak ikut.
     for ln in spaced_lines:
         m_city = re.search(
@@ -782,6 +798,20 @@ def _extract_addresses(text: str) -> list[str]:
             span = m_city.group(1).strip(" .,;:-")
             candidates.append(span)
             continue  # baris ini sudah selesai
+
+        # C2b) Pattern: [Nama Kecamatan/Daerah], [Kota/Kabupaten]
+        #      Misal "Manding, Bantul" dimana Manding ada di _INDONESIAN_CITIES
+        m_kec = re.search(
+            rf"\b([A-Z][a-z]{{3,}})\s*,\s*((?:{_INDONESIAN_CITIES}))\b",
+            ln,
+            flags=re.I,
+        )
+        if m_kec:
+            span = m_kec.group(0).strip(" .,;:-")
+            # Pastikan bukan frasa admin/stop word
+            if not re.search(rf"\b(?:{_ADDR_STOP})\b", span, re.I):
+                candidates.append(span)
+            continue
 
         # Fallback: satu baris hanya nama kota + tidak ada stopword
         # (misal poster hanya tulis "Yogyakarta" atau "Sleman, DIY")

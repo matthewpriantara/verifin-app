@@ -42,15 +42,17 @@ Skema JSON:
 {
   "companies": ["nama perusahaan/PT/organisasi pemberi kerja, persis seperti tertulis"],
   "addresses": ["alamat fisik lengkap (jalan, gedung, kelurahan, kecamatan, kota, kode pos) persis seperti tertulis"],
+  "location_candidates": ["lokasi/area/penempatan kerja yang disebut (kota, kecamatan, provinsi, atau alamat area) persis seperti tertulis"],
   "salaries": ["nominal gaji/upah persis seperti tertulis, contoh: Rp 3.500.000, 5-7 juta, UMR"]
 }
 
 Aturan ketat:
 1. companies: HANYA entitas perusahaan/instansi/organisasi pemberi kerja nyata. JANGAN masukkan frasa deskriptif (mis. "dan cekatan", "bersedia training"), nama posisi, atau kata umum. Pertahankan legal form (PT/CV/UD) bila ada.
 2. addresses: HANYA alamat fisik lokasi kerja/kantor yang memiliki penanda fisik seperti jalan, nomor, RT/RW, gedung, ruko, atau kode pos. Jangan masukkan kota, kecamatan, area kerja, daftar cabang, atau lokasi tanpa penanda fisik.
-3. salaries: setiap nominal rentang gaji yang disebut. Simpan format aslinya.
-4. Jika suatu kategori tidak ada, kembalikan array kosong [].
-5. Jangan mengarang entitas yang tidak tertulis di teks. Ekstrak PERSIS substring dari teks sumber."""
+3. location_candidates: lokasi/area/penempatan kerja yang disebut di teks. Termasuk kota, kecamatan, provinsi, atau area kerja. Contoh: "Karawang", "Jakarta Selatan", "Bantul". Ekstrak dari label "Penempatan", "Lokasi", "Domisili", "Area", "Wilayah", atau konteks lain. PERSIS seperti tertulis di teks.
+4. salaries: setiap nominal rentang gaji yang disebut. Simpan format aslinya.
+5. Jika suatu kategori tidak ada, kembalikan array kosong [].
+6. Jangan mengarang entitas yang tidak tertulis di teks. Ekstrak PERSIS substring dari teks sumber."""
 
 _USER_TEMPLATE = """Ekstrak entitas dari teks lowongan berikut (mungkin hasil OCR, bisa mengandung salah ketik/spasi aneh):
 
@@ -133,6 +135,7 @@ async def extract_entities_llm(text: str) -> dict[str, Any] | None:
     return {
         "companies": _clean_str_list(data.get("companies")),
         "addresses": _clean_str_list(data.get("addresses")),
+        "location_candidates": _clean_str_list(data.get("location_candidates")),
         "salaries": _clean_str_list(data.get("salaries")),
     }
 
