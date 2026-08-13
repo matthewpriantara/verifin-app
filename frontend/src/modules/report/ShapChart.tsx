@@ -60,11 +60,6 @@ export function ShapChart({ shap }: ShapChartProps) {
           );
         })}
       </div>
-
-      {/* Formula */}
-      <p className="border-t border-border pt-3 text-[11px] text-text-muted">
-        Formulasi: f(x) = {shap.base_value} + &Sigma;(&phi;<sub>i</sub>) = {shap.final_risk_score}
-      </p>
     </div>
   );
 }
