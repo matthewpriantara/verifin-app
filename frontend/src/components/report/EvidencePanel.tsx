@@ -269,21 +269,6 @@ function MapsLocationCard({ address, details }: { address: string; details: any 
           </div>
         )}
 
-        {/* Map Embed */}
-        {details?.lat && details?.lon && (
-          <div className="mt-3 overflow-hidden rounded-lg border border-border">
-            <iframe
-              src={`https://www.google.com/maps?q=${details.lat.toFixed(6)},${details.lon.toFixed(6)}&z=15&output=embed`}
-              width="100%"
-              height="180"
-              style={{ border: 0 }}
-              loading="lazy"
-              referrerPolicy="no-referrer-when-downgrade"
-              title="Lokasi di Google Maps"
-            />
-          </div>
-        )}
-
         {/* Google Maps link */}
         {details?.google_maps_url && (
           <a

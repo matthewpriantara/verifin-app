@@ -30,7 +30,7 @@ import type { AdminCase } from "@/lib/admin";
 import ReportChart from "@/modules/admin/ReportChart";
 import ModerationTable from "@/modules/admin/ModerationTable";
 
-/* ─── Mock User Input History (Database Logs) ──────────────────────────────── */
+/* ─── User Input History (Database Logs) ─────────────────────────────────── */
 export interface UserInputLog {
   id: string;
   case_id: string;
@@ -43,153 +43,6 @@ export interface UserInputLog {
   created_at: string;
   ip_address: string;
 }
-
-const MOCK_USER_INPUTS: UserInputLog[] = [
-  {
-    id: "input-101",
-    case_id: "a8f912b4",
-    source: "image",
-    raw_input: "poster_lowongan_admin_cs_telegram.png (PaddleOCR 94% text match)",
-    company_name: "PT Sukses Sejahtera Internasional",
-    verdict: "BAHAYA",
-    risk_score: 88,
-    extracted_entities: ["PT Sukses Sejahtera", "0812-9988-7766", "admin@sukses-fake.com", "Rp 8.000.000"],
-    created_at: "2026-08-13 19:40 WIB",
-    ip_address: "182.253.xx.xx",
-  },
-  {
-    id: "input-102",
-    case_id: "b4c219f8",
-    source: "url",
-    raw_input: "https://careers.tokopedia.com/job/senior-frontend-engineer",
-    company_name: "PT Tokopedia",
-    verdict: "AMAN",
-    risk_score: 12,
-    extracted_entities: ["PT Tokopedia", "careers.tokopedia.com", "Jakarta Selatan"],
-    created_at: "2026-08-13 18:15 WIB",
-    ip_address: "114.124.xx.xx",
-  },
-  {
-    id: "input-103",
-    case_id: "c7d341a9",
-    source: "text",
-    raw_input: "Dibutuhkan Staff Data Entry Gaji 7-10 Juta per Bulan Tanpa Syarat Pengalaman, Hubungi WA 0813-1122-3344...",
-    company_name: "Staff Entry Data Mandiri",
-    verdict: "WASPADA",
-    risk_score: 58,
-    extracted_entities: ["0813-1122-3344", "Form Online WA", "Gaji 7-10 Juta"],
-    created_at: "2026-08-13 16:30 WIB",
-    ip_address: "36.72.xx.xx",
-  },
-  {
-    id: "input-104",
-    case_id: "d9e552c1",
-    source: "image",
-    raw_input: "screenshot_flyer_bumn_rekrutmen.webp (PaddleOCR 98%)",
-    company_name: "PT Pertamina (Persero)",
-    verdict: "AMAN",
-    risk_score: 5,
-    extracted_entities: ["PT Pertamina", "rekrutmenbersama.fhcibumn.id"],
-    created_at: "2026-08-13 14:10 WIB",
-    ip_address: "180.244.xx.xx",
-  },
-  {
-    id: "input-105",
-    case_id: "e1f663d2",
-    source: "text",
-    raw_input: "Kerja Part Time Transkrip Suara Komisi Rp 500rb/Hari Wajib Transfer Biaya Pendaftaran Rp 150rb...",
-    company_name: "Freelance Transkrip Fast",
-    verdict: "BAHAYA",
-    risk_score: 94,
-    extracted_entities: ["Deposit 150rb", "Rekening BCA 8830xxxxxx", "BCA a.n Budi"],
-    created_at: "2026-08-13 11:05 WIB",
-    ip_address: "125.160.xx.xx",
-  },
-  {
-    id: "input-106",
-    case_id: "f2a774e3",
-    source: "url",
-    raw_input: "https://shopee-express-recruitment.temp-site.net/form-pendaftaran",
-    company_name: "Shopee Express Palsu",
-    verdict: "BAHAYA",
-    risk_score: 91,
-    extracted_entities: ["Shopee Express", "Domain Gratis Phishing", "Jakarta Barat"],
-    created_at: "2026-08-13 09:20 WIB",
-    ip_address: "110.138.xx.xx",
-  },
-  {
-    id: "input-107",
-    case_id: "g3b885f4",
-    source: "text",
-    raw_input: "Lowongan Driver Operasional Kantor Gaji UMR + Bonus Harian Hubungi 0857-4433-2211...",
-    company_name: "Logistik Bersama Sentosa",
-    verdict: "AMAN",
-    risk_score: 18,
-    extracted_entities: ["0857-4433-2211", "Driver Operasional", "UMR Jakarta"],
-    created_at: "2026-08-12 21:10 WIB",
-    ip_address: "180.252.xx.xx",
-  },
-  {
-    id: "input-108",
-    case_id: "h4c996a5",
-    source: "image",
-    raw_input: "brosur_loker_bca_fake_hotel.jpg (PaddleOCR 91%)",
-    company_name: "BCA Recruitment Travel Trap",
-    verdict: "BAHAYA",
-    risk_score: 96,
-    extracted_entities: ["Travel Agent Wajib", "PT Nusantara Travel", "Biaya 2.5 Juta"],
-    created_at: "2026-08-12 17:45 WIB",
-    ip_address: "202.67.xx.xx",
-  },
-  {
-    id: "input-109",
-    case_id: "i5d007b6",
-    source: "url",
-    raw_input: "https://glints.com/id/opportunities/jobs/ui-ux-designer-remote",
-    company_name: "PT Tech Creative Studio",
-    verdict: "AMAN",
-    risk_score: 8,
-    extracted_entities: ["glints.com", "UI/UX Designer", "Remote Indonesia"],
-    created_at: "2026-08-12 15:30 WIB",
-    ip_address: "118.99.xx.xx",
-  },
-  {
-    id: "input-110",
-    case_id: "j6e118c7",
-    source: "text",
-    raw_input: "Loker Packing Barang Online Shop Dikerjakan di Rumah Gaji Rp 300rb/Hari Wajib Beli Alat Seal...",
-    company_name: "Home Packing Olshop",
-    verdict: "WASPADA",
-    risk_score: 64,
-    extracted_entities: ["Beli Alat 250rb", "Packing Olshop", "WA Admin 0896-1122"],
-    created_at: "2026-08-12 12:00 WIB",
-    ip_address: "36.85.xx.xx",
-  },
-  {
-    id: "input-111",
-    case_id: "k7f229d8",
-    source: "image",
-    raw_input: "pamflet_bumn_pln_palsu.png (PaddleOCR 89%)",
-    company_name: "PT PLN (Persero) Fake Call",
-    verdict: "BAHAYA",
-    risk_score: 89,
-    extracted_entities: ["PT PLN", "Surat Panggilan Palsu", "Travel Bali Express"],
-    created_at: "2026-08-12 09:15 WIB",
-    ip_address: "125.164.xx.xx",
-  },
-  {
-    id: "input-112",
-    case_id: "l8g330e9",
-    source: "url",
-    raw_input: "https://jobstreet.co.id/en/job/full-stack-developer-123456",
-    company_name: "PT Digital Innovation Hub",
-    verdict: "AMAN",
-    risk_score: 10,
-    extracted_entities: ["jobstreet.co.id", "Full Stack Developer", "Jakarta Pusat"],
-    created_at: "2026-08-11 20:00 WIB",
-    ip_address: "114.122.xx.xx",
-  },
-];
 
 /* ─── Login Gate ──────────────────────────────────────────────────────────── */
 function LoginGate({ onAuth }: { onAuth: () => void }) {
@@ -423,7 +276,7 @@ export default function AdminPage() {
   const [activeTab, setActiveTab] = useState<"cases" | "moderation" | "user_inputs">("cases");
 
   // State untuk Tab Riwayat Inputan User (Database)
-  const [userInputs] = useState<UserInputLog[]>(MOCK_USER_INPUTS);
+  const [userInputs, setUserInputs] = useState<UserInputLog[]>([]);
   const [searchQuery, setSearchQuery] = useState("");
   const [verdictFilter, setVerdictFilter] = useState<"ALL" | "BAHAYA" | "WASPADA" | "AMAN">("ALL");
   const [sourceFilter, setSourceFilter] = useState<"ALL" | "text" | "image" | "url">("ALL");
@@ -441,8 +294,31 @@ export default function AdminPage() {
       fetchCases(100),
       fetchAiStatus(),
     ]);
-    if (casesRes.status === "fulfilled") setCases(casesRes.value);
-    else setError(casesRes.reason instanceof Error ? casesRes.reason.message : "Gagal memuat kasus");
+    if (casesRes.status === "fulfilled") {
+      setCases(casesRes.value);
+      // Map cases ke format UserInputLog untuk tab "Riwayat Inputan User"
+      setUserInputs(
+        casesRes.value.map((c): UserInputLog => ({
+          id: c.id,
+          case_id: c.id.slice(0, 8),
+          source: (c.source as UserInputLog["source"]) || "text",
+          raw_input: c.raw_text_preview || "—",
+          company_name: c.company_name || "Tidak diketahui",
+          verdict: (c.verdict as UserInputLog["verdict"]) || "WASPADA",
+          risk_score: c.risk_score,
+          extracted_entities: [
+            ...(c.phones || []),
+            ...(c.emails || []),
+            ...(c.company_name ? [c.company_name] : []),
+          ],
+          created_at: new Date(c.created_at).toLocaleString("id-ID", {
+            dateStyle: "short",
+            timeStyle: "short",
+          }) + " WIB",
+          ip_address: "—",
+        })),
+      );
+    } else setError(casesRes.reason instanceof Error ? casesRes.reason.message : "Gagal memuat kasus");
     if (statusRes.status === "fulfilled") setAiStatus(statusRes.value);
     setLoading(false);
   }

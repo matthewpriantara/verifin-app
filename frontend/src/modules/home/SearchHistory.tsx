@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { motion, AnimatePresence } from "motion/react";
 import {
@@ -11,84 +11,92 @@ import {
   WarningOctagon,
   CaretLeft,
   CaretRight,
+  Trash,
+  FolderOpen,
 } from "@phosphor-icons/react";
-
-export interface HistoryItem {
-  id: string;
-  title: string;
-  verdict: "AMAN" | "WASPADA" | "BAHAYA";
-  risk_score: number;
-  timeAgo: string;
-  entitiesSummary: string;
-}
-
-const DUMMY_HISTORY: HistoryItem[] = [
-  {
-    id: "hist-001",
-    title: "Lowongan Admin Chat Telegram & WA - CS Online PT Sukses Sejahtera",
-    verdict: "BAHAYA",
-    risk_score: 88,
-    timeAgo: "10 menit lalu",
-    entitiesSummary: "PT Sukses Sejahtera • Telegram",
-  },
-  {
-    id: "hist-002",
-    title: "https://careers.tokopedia.com/job/senior-frontend-engineer",
-    verdict: "AMAN",
-    risk_score: 12,
-    timeAgo: "2 jam lalu",
-    entitiesSummary: "PT Tokopedia • Official Portal",
-  },
-  {
-    id: "hist-003",
-    title: "Dibutuhkan Staff Entry Data Input Gaji 7-10 Juta/Bulan Tanpa Pengalaman",
-    verdict: "WASPADA",
-    risk_score: 58,
-    timeAgo: "Kemarin",
-    entitiesSummary: "Staff Entry Data • Form WA",
-  },
-  {
-    id: "hist-004",
-    title: "Lowongan kerja PT Pertamina (Persero) Rekrutmen Bersama BUMN 2026",
-    verdict: "AMAN",
-    risk_score: 5,
-    timeAgo: "2 hari lalu",
-    entitiesSummary: "PT Pertamina • BUMN Official",
-  },
-  {
-    id: "hist-005",
-    title: "Tawaran Kerja Freelance Transkrip Audio Komisi Rp 500rb/Hari deposit awal",
-    verdict: "BAHAYA",
-    risk_score: 92,
-    timeAgo: "3 hari lalu",
-    entitiesSummary: "Deposit Tunai • Rekening Perorangan",
-  },
-  {
-    id: "hist-006",
-    title: "Lowongan Customer Service Shopee Express Jakarta Barat Shift Malam",
-    verdict: "WASPADA",
-    risk_score: 45,
-    timeAgo: "4 hari lalu",
-    entitiesSummary: "Shopee Express • Form Google Forms",
-  },
-];
+import {
+  getHistory,
+  removeHistory,
+  clearHistory,
+  formatTimeAgo,
+  type HistoryItem,
+} from "@/lib/utils";
 
 const ITEMS_PER_PAGE = 3;
 
+const pageVariants = {
+  enter: (dir: number) => ({
+    opacity: 0,
+    x: dir > 0 ? 16 : dir < 0 ? -16 : 0,
+  }),
+  center: {
+    opacity: 1,
+    x: 0,
+  },
+  exit: (dir: number) => ({
+    opacity: 0,
+    x: dir > 0 ? -16 : dir < 0 ? 16 : 0,
+  }),
+};
+
 export function SearchHistory() {
   const router = useRouter();
-  const [history] = useState<HistoryItem[]>(DUMMY_HISTORY);
+  const [history, setHistory] = useState<HistoryItem[]>([]);
   const [currentPage, setCurrentPage] = useState(1);
+  const [direction, setDirection] = useState(0);
 
-  const totalPages = Math.ceil(history.length / ITEMS_PER_PAGE);
+  // Load history dari localStorage saat mount
+  useEffect(() => {
+    setHistory(getHistory());
+
+    // Listen perubahan localStorage (misal: setelah verifikasi baru, tab lain)
+    const handleStorage = () => setHistory(getHistory());
+    window.addEventListener("storage", handleStorage);
+    window.addEventListener("verifin:history-updated", handleStorage);
+
+    return () => {
+      window.removeEventListener("storage", handleStorage);
+      window.removeEventListener("verifin:history-updated", handleStorage);
+    };
+  }, []);
+
+  // Reset ke halaman 1 kalau history berubah
+  useEffect(() => {
+    if (currentPage > 1 && (currentPage - 1) * ITEMS_PER_PAGE >= history.length) {
+      setCurrentPage(1);
+    }
+  }, [history.length, currentPage]);
+
+  const totalPages = Math.max(1, Math.ceil(history.length / ITEMS_PER_PAGE));
 
   const paginatedItems = history.slice(
     (currentPage - 1) * ITEMS_PER_PAGE,
     currentPage * ITEMS_PER_PAGE
   );
 
-  const handleSelectHistory = () => {
-    router.push("/report");
+  const handlePageChange = (newPage: number) => {
+    if (newPage === currentPage) return;
+    setDirection(newPage > currentPage ? 1 : -1);
+    setCurrentPage(newPage);
+  };
+
+  const handleSelectHistory = (item: HistoryItem) => {
+    if (item.case_id) {
+      router.push(`/report/${item.case_id}`);
+    } else {
+      router.push("/report");
+    }
+  };
+
+  const handleRemove = (e: React.MouseEvent, id: string) => {
+    e.stopPropagation();
+    removeHistory(id);
+    setHistory(getHistory());
+  };
+
+  const handleClearAll = () => {
+    clearHistory();
+    setHistory([]);
   };
 
   const getVerdictBadge = (verdict: HistoryItem["verdict"], score: number) => {
@@ -119,7 +127,7 @@ export function SearchHistory() {
 
   return (
     <div className="mt-5 w-full">
-      {/* Header Label di luar box (matching 'Cek risiko lowongan') */}
+      {/* Header Label */}
       <div className="mb-3 flex items-center justify-between">
         <div className="flex items-center gap-2">
           <div className="flex h-5 w-5 items-center justify-center rounded-md bg-text-primary">
@@ -129,51 +137,85 @@ export function SearchHistory() {
             Riwayat verifikasi
           </span>
         </div>
-        <span className="font-mono text-[10px] text-text-muted">
-          {history.length} Total
-        </span>
+        <div className="flex items-center gap-2">
+          <span className="font-mono text-[10px] text-text-muted">
+            {history.length} Total
+          </span>
+          {history.length > 0 && (
+            <button
+              type="button"
+              onClick={handleClearAll}
+              className="flex h-5 w-5 items-center justify-center rounded-md text-text-muted transition-colors hover:bg-bahaya-bg hover:text-bahaya-fg"
+              title="Hapus semua riwayat"
+            >
+              <Trash size={11} weight="bold" />
+            </button>
+          )}
+        </div>
       </div>
 
-      {/* Main Card Box */}
-      <div className="w-full rounded-2xl border border-border bg-bg-elevated p-3">
-        {/* List items compact minimalis (Maksimal 3 per halaman dengan Animasi Transisi) */}
-        <div className="min-h-[160px] overflow-hidden">
-          <AnimatePresence mode="wait">
-            <motion.div
-              key={currentPage}
-              initial={{ opacity: 0, x: 12 }}
-              animate={{ opacity: 1, x: 0 }}
-              exit={{ opacity: 0, x: -12 }}
-              transition={{ duration: 0.22, ease: [0.16, 1, 0.3, 1] }}
-              className="space-y-1.5"
-            >
-              {paginatedItems.map((item) => (
-                <div
-                  key={item.id}
-                  onClick={handleSelectHistory}
-                  className="group flex cursor-pointer items-center justify-between gap-2.5 rounded-xl border border-border/50 bg-bg-subtle/30 px-3 py-2 transition-all hover:border-border-focus hover:bg-bg-subtle"
-                >
-                  <div className="min-w-0 flex-1">
-                    <h5 className="text-[11.5px] font-medium text-text-primary truncate group-hover:text-text-primary">
-                      {item.title}
-                    </h5>
-                    <p className="text-[10px] text-text-muted truncate mt-0.5">
-                      {item.timeAgo} • {item.entitiesSummary}
-                    </p>
-                  </div>
+      {/* Main Card */}
+      <div className="w-full rounded-2xl bg-bg-elevated p-3">
+        <div className="overflow-hidden">
+          {history.length === 0 ? (
+            /* Empty state */
+            <div className="flex flex-col items-center justify-center py-6 text-center">
+              <div className="mb-2 flex h-9 w-9 items-center justify-center rounded-xl bg-bg-subtle">
+                <FolderOpen size={18} weight="bold" className="text-text-muted" />
+              </div>
+              <p className="text-[12px] font-medium text-text-secondary">
+                Belum ada riwayat
+              </p>
+              <p className="mt-0.5 text-[10px] text-text-muted">
+                Verifikasi lowongan untuk mulai melacak
+              </p>
+            </div>
+          ) : (
+            <AnimatePresence mode="wait" custom={direction} initial={false}>
+              <motion.div
+                key={currentPage}
+                custom={direction}
+                variants={pageVariants}
+                initial="enter"
+                animate="center"
+                exit="exit"
+                transition={{ duration: 0.2, ease: [0.16, 1, 0.3, 1] }}
+                className="space-y-1.5"
+              >
+                {paginatedItems.map((item) => (
+                  <div
+                    key={item.id}
+                    onClick={() => handleSelectHistory(item)}
+                    className="group flex cursor-pointer items-center justify-between gap-2.5 rounded-xl border border-border/50 bg-bg-subtle/30 px-3 py-2.5 transition-all hover:border-border-focus hover:bg-bg-subtle hover:shadow-xs active:scale-[0.99]"
+                  >
+                    <div className="min-w-0 flex-1">
+                      <h5 className="text-[11.5px] font-medium text-text-primary truncate group-hover:text-text-primary">
+                        {item.title}
+                      </h5>
+                      <p className="text-[10px] text-text-muted truncate mt-0.5">
+                        {formatTimeAgo(item.timestamp)} • {item.entitiesSummary}
+                      </p>
+                    </div>
 
-                  {/* Indikator Kategori (Rata Kanan) */}
-                  <div className="flex items-center gap-1.5 shrink-0">
-                    {getVerdictBadge(item.verdict, item.risk_score)}
-                    <ArrowUpRight size={12} weight="bold" className="text-text-muted opacity-0 transition-opacity group-hover:opacity-100" />
+                    <div className="flex items-center gap-1.5 shrink-0">
+                      {getVerdictBadge(item.verdict, item.risk_score)}
+                      <button
+                        type="button"
+                        onClick={(e) => handleRemove(e, item.id)}
+                        className="flex h-5 w-5 items-center justify-center rounded-md text-text-muted opacity-0 transition-all hover:bg-bahaya-bg hover:text-bahaya-fg group-hover:opacity-100"
+                        title="Hapus riwayat ini"
+                      >
+                        <Trash size={10} weight="bold" />
+                      </button>
+                      <ArrowUpRight size={12} weight="bold" className="text-text-muted opacity-0 transition-opacity group-hover:opacity-100" />
+                    </div>
                   </div>
-                </div>
-              ))}
-            </motion.div>
-          </AnimatePresence>
+                ))}
+              </motion.div>
+            </AnimatePresence>
+          )}
         </div>
 
-        {/* Footer Pagination Minimalis (3 riwayat per halaman) */}
         {totalPages > 1 && (
           <div className="mt-2.5 flex items-center justify-between border-t border-border/50 pt-2 px-1">
             <span className="font-mono text-[10px] text-text-muted">
@@ -184,7 +226,7 @@ export function SearchHistory() {
               <button
                 type="button"
                 disabled={currentPage === 1}
-                onClick={() => setCurrentPage((p) => Math.max(p - 1, 1))}
+                onClick={() => handlePageChange(Math.max(currentPage - 1, 1))}
                 className="flex h-6 w-6 items-center justify-center rounded-lg border border-border bg-bg-subtle text-text-muted transition-colors hover:border-border-focus hover:text-text-primary disabled:opacity-30 disabled:pointer-events-none active:scale-95"
                 title="Halaman sebelumnya"
               >
@@ -193,7 +235,7 @@ export function SearchHistory() {
               <button
                 type="button"
                 disabled={currentPage === totalPages}
-                onClick={() => setCurrentPage((p) => Math.min(p + 1, totalPages))}
+                onClick={() => handlePageChange(Math.min(currentPage + 1, totalPages))}
                 className="flex h-6 w-6 items-center justify-center rounded-lg border border-border bg-bg-subtle text-text-muted transition-colors hover:border-border-focus hover:text-text-primary disabled:opacity-30 disabled:pointer-events-none active:scale-95"
                 title="Halaman selanjutnya"
               >

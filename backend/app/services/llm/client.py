@@ -1,4 +1,4 @@
-"""Client OpenAI-compatible untuk OpenAgentic (Grok, Claude, dll)."""
+"""Client OpenAI-compatible untuk LLM."""
 
 import asyncio
 import json
@@ -177,7 +177,7 @@ async def chat_completion(
 ) -> str:
     if not LLM_API_KEY:
         raise RuntimeError(
-            "LLM_API_KEY belum diset. Isi backend/.env dengan key OpenAgentic."
+            "LLM_API_KEY belum diset. Isi backend/.env dengan key google-api."
         )
 
     url = f"{LLM_BASE_URL}/chat/completions"
@@ -241,7 +241,7 @@ async def chat_completion(
 async def check_llm_status() -> dict:
     if not LLM_API_KEY:
         return {
-            "provider": "openagentic",
+            "provider": "google-api",
             "configured": False,
             "reachable": False,
             "model": LLM_MODEL,
@@ -256,7 +256,7 @@ async def check_llm_status() -> dict:
             )
             reachable = res.status_code < 500
             return {
-                "provider": "openagentic",
+                "provider": "google-api",
                 "configured": True,
                 "reachable": reachable,
                 "model": LLM_MODEL,
@@ -264,7 +264,7 @@ async def check_llm_status() -> dict:
             }
     except Exception as exc:
         return {
-            "provider": "openagentic",
+            "provider": "google-api",
             "configured": True,
             "reachable": False,
             "model": LLM_MODEL,

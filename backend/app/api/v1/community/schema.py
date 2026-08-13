@@ -14,6 +14,7 @@ class CommunityReportIn(BaseModel):
     report_type: str = Field("penipuan", max_length=24)
     description: Optional[str] = Field(None, max_length=4000)
     reporter_contact: Optional[str] = Field(None, max_length=255)
+    case_id: Optional[str] = Field(None, max_length=64)
 
 
 class CommunityReportOut(BaseModel):
@@ -25,6 +26,8 @@ class CommunityReportOut(BaseModel):
     url: Optional[str]
     description: Optional[str]
     reporter_ip: Optional[str]
+    case_id: Optional[str]
+    evidence_file_url: Optional[str]
     status: str
     reviewer_note: Optional[str]
     reviewed_at: Optional[str]

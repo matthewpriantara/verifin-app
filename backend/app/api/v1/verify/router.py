@@ -21,6 +21,7 @@ from uuid import UUID, uuid4
 from sqlalchemy.orm import Session
 
 from fastapi import APIRouter, Body, File, HTTPException, Query, UploadFile, Depends
+from fastapi.responses import StreamingResponse
 from app.database.postgres_client import get_db
 from app.database.models import JobCase
 
@@ -675,3 +676,158 @@ def get_case_by_id(case_id: UUID, db: Session = Depends(get_db)):
         "osint_failed": db_case.osint_failed,
         "created_at": db_case.created_at.isoformat() if db_case.created_at else None,
     }
+
+
+# ── SSE Streaming Endpoint ──────────────────────────────────────────────
+# Endpoint ini mengirim event real-time per pipeline stage ke frontend,
+# sehingga loading animation di VerifyBox advance berdasarkan progress
+# nyata, bukan timer hardcoded.
+
+def _sse_event(event: str, data: dict) -> str:
+    """Format SSE event: data: {json}\\n\\n"""
+    return f"event: {event}\ndata: {json.dumps(data, ensure_ascii=False)}\n\n"
+
+
+async def _verify_url_stream_generator(url: str, additional_text: str, db_session):
+    """
+    Generator async yang menjalankan pipeline verifikasi dan yield SSE event
+    setelah setiap stage selesai.
+    """
+    request_id = _request_id()
+    started = time.perf_counter()
+
+    yield _sse_event("start", {"request_id": request_id, "message": "Memulai verifikasi..."})
+
+    tmp_paths = []
+    try:
+        # ── Stage 1: URL Fetch ──────────────────────────────────────────
+        yield _sse_event("stage", {"stage": "fetch", "status": "processing", "message": "Mengambil konten dari URL..."})
+        caption_text, tmp_paths = await _fetch_url_content_and_image(url)
+        logger.info("[verify-stream][%s] URL fetch done duration=%.2fs", request_id, time.perf_counter() - started)
+
+        # ── Stage 1b: OCR ───────────────────────────────────────────────
+        yield _sse_event("stage", {"stage": "ocr", "status": "processing", "message": "Mengenali teks dari gambar poster..."})
+        ocr_texts = []
+        for p in tmp_paths:
+            if p and os.path.exists(p):
+                try:
+                    t = await asyncio.to_thread(extract_text_from_image, p)
+                    if t and t.strip():
+                        ocr_texts.append(t.strip())
+                except Exception as exc:
+                    logger.warning("URL OCR Error: %s", exc)
+
+        combined_ocr_text = "\n".join(ocr_texts).strip()
+        text_blocks = [f"URL Target: {url}"]
+        if combined_ocr_text:
+            text_blocks.append(f"[TEKS UTAMA POSTER/GAMBAR LOWONGAN (OCR)]:\n{combined_ocr_text}")
+        if caption_text and caption_text.strip():
+            text_blocks.append(f"[TEKS CAPTION / DESKRIPSI POSTINGAN]:\n{caption_text.strip()}")
+        if additional_text and additional_text.strip():
+            text_blocks.append(f"[UTAS BALASAN / TEKS TAMBAHAN]:\n{additional_text.strip()}")
+
+        full_raw_text = "\n\n".join(text_blocks).strip()
+
+        if not full_raw_text or len(full_raw_text) < 15:
+            yield _sse_event("error", {"message": "Sistem tidak dapat mengambil konten atau teks dari URL tersebut."})
+            return
+
+        # ── Stage 2: NER (Entity Extraction) ────────────────────────────
+        yield _sse_event("stage", {"stage": "ner", "status": "processing", "message": "Mengekstrak entitas (perusahaan, kontak, alamat)..."})
+        entities = await _extract_entities_hybrid(full_raw_text)
+        _log_raw_json(request_id, "ENTITIES", entities)
+        logger.info("[verify-stream][%s] NER done counts=%s duration=%.2fs", request_id, _entity_counts(entities), time.perf_counter() - started)
+        yield _sse_event("stage", {
+            "stage": "ner", "status": "done",
+            "message": f"Ditemukan {len(entities.get('companies', []))} perusahaan, {len(entities.get('phones', []))} kontak",
+            "entities": {k: v for k, v in entities.items() if k != "_ner_meta"}
+        })
+
+        # ── Stage 3: OSINT ──────────────────────────────────────────────
+        yield _sse_event("stage", {"stage": "osint", "status": "processing", "message": "Menjalankan OSINT probes (WHOIS, peta, media sosial)..."})
+        stage_started = time.perf_counter()
+        osint_results = await _run_osint_on_entities(entities)
+        _log_osint_summary(request_id, osint_results)
+        logger.info("[verify-stream][%s] OSINT done duration=%.2fs", request_id, time.perf_counter() - stage_started)
+
+        # OSINT Enrichment
+        entities = await _enrich_entities_from_osint(entities, osint_results)
+        yield _sse_event("stage", {"stage": "osint", "status": "done", "message": "OSINT selesai"})
+
+        # ── Stage 4: Fraud Network ─────────────────────────────────────
+        yield _sse_event("stage", {"stage": "graph", "status": "processing", "message": "Memeriksa jaringan fraud..."})
+        stage_started = time.perf_counter()
+        network_context = await asyncio.to_thread(_check_fraud_network, db_session, entities)
+        logger.info("[verify-stream][%s] fraud-network done duration=%.2fs", request_id, time.perf_counter() - stage_started)
+        yield _sse_event("stage", {"stage": "graph", "status": "done", "message": "Pemeriksaan jaringan selesai"})
+
+        # ── Stage 5: LLM Reasoning ─────────────────────────────────────
+        yield _sse_event("stage", {"stage": "ai", "status": "processing", "message": "AI menganalisis dan menyusun verdict..."})
+        stage_started = time.perf_counter()
+        analysis = await analyze_with_verifin(
+            entities, osint_results, raw_text=full_raw_text
+        )
+        _log_raw_json(request_id, "ANALYSIS", analysis)
+        logger.info("[verify-stream][%s] LLM done verdict=%s score=%s duration=%.2fs", request_id, analysis.get("verdict"), analysis.get("risk_score"), time.perf_counter() - stage_started)
+
+        analysis["network_context"] = network_context
+        response = _to_response(analysis, entities, osint_results)
+        save_status = await asyncio.to_thread(
+            _save_case_to_db,
+            db_session, full_raw_text, analysis, osint_results, entities=entities, source="url"
+        )
+        analysis["case_id"] = save_status.get("case_id")
+        response = _to_response(analysis, entities, osint_results)
+        _log_raw_json(request_id, "RESPONSE", response)
+        if response.osint is not None:
+            response.osint["persistence_status"] = save_status.get("status")
+
+        # ── Final: kirim response lengkap ──────────────────────────────
+        yield _sse_event("done", {
+            "message": "Verifikasi selesai",
+            "case_id": response.case_id,
+            "verdict": response.verdict,
+            "risk_score": response.risk_score,
+            "response": response.model_dump(),
+        })
+        _log_end(request_id, "url-stream", started, response)
+
+    except Exception as e:
+        logger.exception("[verify-stream][%s] ERROR after=%.2fs: %s", request_id, time.perf_counter() - started, e)
+        safe_msg = str(e).encode("ascii", errors="ignore").decode("ascii") or "Terjadi kesalahan internal."
+        yield _sse_event("error", {"message": safe_msg})
+    finally:
+        for p in tmp_paths:
+            if p and os.path.exists(p):
+                try:
+                    os.remove(p)
+                except Exception:
+                    pass
+
+
+@router.post(
+    "/verify/url/stream",
+    summary="Verifikasi URL dengan SSE Streaming (real-time progress)",
+    description=(
+        "Endpoint SSE yang mengirim event real-time per pipeline stage. "
+        "Frontend menggunakan EventSource untuk advance loading animation "
+        "berdasarkan progress nyata dari backend."
+    ),
+)
+async def verify_url_stream(
+    request: UrlVerifyRequest = Body(...),
+    db: Session = Depends(get_db)
+):
+    return StreamingResponse(
+        _verify_url_stream_generator(
+            request.url,
+            request.additional_text or "",
+            db
+        ),
+        media_type="text/event-stream",
+        headers={
+            "Cache-Control": "no-cache",
+            "Connection": "keep-alive",
+            "X-Accel-Buffering": "no",
+        },
+    )
