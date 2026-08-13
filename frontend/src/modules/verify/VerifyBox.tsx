@@ -87,14 +87,15 @@ function LoadingModal({
   dotCount,
   progress,
   steps,
+  onCancel,
 }: {
   stepIndex: number;
   dotCount: number;
   progress: number;
   steps: ReturnType<typeof getSteps>;
+  onCancel?: () => void;
 }) {
   const currentStep = steps[stepIndex];
-  const StepIcon = currentStep?.icon ?? Scan;
 
   useEffect(() => {
     document.body.style.overflow = "hidden";
@@ -125,9 +126,8 @@ function LoadingModal({
                 <CircleNotch size={20} weight="bold" className="animate-spin" />
               </div>
               <div className="min-w-0">
-                <h3 className="text-base font-bold text-text-primary flex items-center gap-2">
+                <h3 className="text-base font-bold text-text-primary">
                   Proses Verifikasi AI
-                  <CircleNotch size={14} weight="bold" className="animate-spin text-text-muted" />
                 </h3>
                 <p className="text-[12px] text-text-muted">
                   Analisis data & bukti OSINT paralel
@@ -145,6 +145,16 @@ function LoadingModal({
                 />
               </div>
               <span className="font-mono text-xl font-bold text-text-primary">{progress}%</span>
+
+              {/* Cancel Button UI */}
+              <button
+                type="button"
+                onClick={onCancel}
+                className="ml-2 flex items-center gap-1.5 rounded-xl border border-bahaya-border bg-bahaya-bg/60 px-3 py-1.5 text-[12px] font-medium text-bahaya-fg transition-colors hover:bg-bahaya-bg hover:border-bahaya-fg/30 active:scale-95 shadow-none outline-none ring-0"
+              >
+                <X size={14} weight="bold" />
+                Batal
+              </button>
             </div>
           </div>
         </div>
@@ -238,16 +248,19 @@ function LoadingModal({
                             scale: 1.02,
                             borderColor: "var(--text-primary)",
                             backgroundColor: "var(--bg-subtle)",
+                            opacity: 1,
                           }
                         : isDone
                         ? {
                             scale: 1,
                             borderColor: "var(--border)",
-                            opacity: 0.85,
+                            backgroundColor: "var(--bg-elevated)",
+                            opacity: 1,
                           }
                         : {
                             scale: 1,
                             borderColor: "var(--border)",
+                            backgroundColor: "var(--bg-elevated)",
                             opacity: 0.5,
                           }
                     }
@@ -472,7 +485,13 @@ export function VerifyBox() {
       {/* Loading modal popup */}
       <AnimatePresence>
         {loading && (
-          <LoadingModal stepIndex={stepIndex} dotCount={dotCount} progress={progress} steps={steps} />
+          <LoadingModal
+            stepIndex={stepIndex}
+            dotCount={dotCount}
+            progress={progress}
+            steps={steps}
+            onCancel={() => setLoading(false)}
+          />
         )}
       </AnimatePresence>
 
@@ -510,7 +529,7 @@ export function VerifyBox() {
                   type="button"
                   onClick={handlePaste}
                   title="Tempel teks atau gambar dari clipboard (Paste)"
-                  className="absolute right-3 bottom-3 z-10 flex items-center justify-center rounded-md border border-border bg-bg-subtle/80 px-2.5 py-1 text-[11px] font-medium text-text-muted transition-all hover:border-border-focus hover:bg-bg-subtle hover:text-text-primary active:scale-95 shadow-sm"
+                  className="absolute right-3 bottom-3 z-10 flex items-center justify-center rounded-md border border-border bg-bg-subtle/80 px-2.5 py-1 text-[11px] font-medium text-text-muted transition-colors hover:border-border-focus hover:bg-bg-subtle hover:text-text-primary active:scale-95 shadow-none outline-none ring-0"
                 >
                   Paste
                 </button>
