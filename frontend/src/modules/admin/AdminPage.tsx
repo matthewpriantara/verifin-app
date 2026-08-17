@@ -26,6 +26,7 @@ import {
   CaretRight,
 } from "@phosphor-icons/react";
 import { cn } from "@/lib/utils";
+import { Skeleton } from "@/components/ui/Skeleton";
 import { fetchCases, fetchAiStatus } from "@/lib/admin";
 import type { AdminCase } from "@/lib/admin";
 import ReportChart from "@/modules/admin/ReportChart";
@@ -173,8 +174,33 @@ function CasesTable({
 }) {
   if (loading) {
     return (
-      <div className="flex items-center justify-center py-16 text-text-muted gap-2 text-[13px]">
-        <CircleNotch size={16} className="animate-spin" /> Memuat kasus...
+      <div className="overflow-x-auto">
+        <table className="w-full text-[13px]">
+          <thead>
+            <tr className="border-b border-border bg-bg-subtle">
+              <th className="px-4 py-3 text-left font-medium text-text-muted">Verdict</th>
+              <th className="px-4 py-3 text-left font-medium text-text-muted">Skor</th>
+              <th className="px-4 py-3 text-left font-medium text-text-muted">Perusahaan</th>
+              <th className="px-4 py-3 text-left font-medium text-text-muted">Preview</th>
+              <th className="px-4 py-3 text-left font-medium text-text-muted">Sumber</th>
+              <th className="px-4 py-3 text-left font-medium text-text-muted">Waktu</th>
+              <th className="px-4 py-3 text-right font-medium text-text-muted">Aksi</th>
+            </tr>
+          </thead>
+          <tbody className="divide-y divide-border">
+            {[1, 2, 3, 4, 5].map((idx) => (
+              <tr key={idx}>
+                <td className="px-4 py-3"><Skeleton className="h-6 w-16" /></td>
+                <td className="px-4 py-3"><Skeleton className="h-5 w-8" /></td>
+                <td className="px-4 py-3"><Skeleton className="h-5 w-32" /></td>
+                <td className="px-4 py-3"><Skeleton className="h-5 w-48" /></td>
+                <td className="px-4 py-3"><Skeleton className="h-5 w-12" /></td>
+                <td className="px-4 py-3"><Skeleton className="h-5 w-24" /></td>
+                <td className="px-4 py-3 text-right"><Skeleton className="h-7 w-20 ml-auto" /></td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
       </div>
     );
   }
@@ -605,7 +631,26 @@ export default function AdminPage() {
 
           {/* Cards Aktivitas Verifikasi Inputan User */}
           <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-            {paginatedUserInputs.length > 0 ? (
+            {loading && userInputs.length === 0 ? (
+              [1, 2, 3, 4].map((i) => (
+                <div key={i} className="rounded-2xl border border-border bg-bg-elevated p-4 space-y-3">
+                  <div className="flex justify-between items-center">
+                    <Skeleton className="h-5 w-24" />
+                    <Skeleton className="h-5 w-16" />
+                  </div>
+                  <Skeleton className="h-5 w-44" />
+                  <Skeleton className="h-12 w-full rounded-xl" />
+                  <div className="flex gap-1.5 pt-2">
+                    <Skeleton className="h-4 w-16" />
+                    <Skeleton className="h-4 w-20" />
+                  </div>
+                  <div className="flex justify-between items-center pt-3 border-t border-border/50">
+                    <Skeleton className="h-4 w-28" />
+                    <Skeleton className="h-7 w-24 rounded-xl" />
+                  </div>
+                </div>
+              ))
+            ) : paginatedUserInputs.length > 0 ? (
               paginatedUserInputs.map((item) => (
                 <motion.div
                   key={item.id}

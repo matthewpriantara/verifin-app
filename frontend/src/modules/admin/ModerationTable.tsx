@@ -18,6 +18,7 @@ import {
   ArrowSquareOut,
 } from "@phosphor-icons/react";
 import { cn } from "@/lib/utils";
+import { Skeleton } from "@/components/ui/Skeleton";
 import type { CommunityReport, ReportStatus, ReportType } from "@/types/admin";
 import { fetchCommunityReports, reviewCommunityReport } from "@/lib/api";
 
@@ -561,7 +562,34 @@ export default function ModerationTable() {
       {/* table */}
       <div className="overflow-hidden rounded-xl border border-border bg-bg-elevated">
         {loading ? (
-          <div className="py-16 text-center text-[13px] text-text-muted">Memuat laporan…</div>
+          <div className="overflow-x-auto">
+            <table className="w-full text-[13px]">
+              <thead>
+                <tr className="border-b border-border bg-bg-subtle">
+                  <th className="px-4 py-3 text-left font-medium text-text-muted">Status</th>
+                  <th className="px-4 py-3 text-left font-medium text-text-muted">Pelapor (IP)</th>
+                  <th className="px-4 py-3 text-left font-medium text-text-muted">Perusahaan</th>
+                  <th className="px-4 py-3 text-left font-medium text-text-muted">Tipe</th>
+                  <th className="px-4 py-3 text-left font-medium text-text-muted">Deskripsi</th>
+                  <th className="px-4 py-3 text-left font-medium text-text-muted">Waktu</th>
+                  <th className="px-4 py-3 text-left font-medium text-text-muted">Aksi</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-border">
+                {[1, 2, 3, 4].map((i) => (
+                  <tr key={i}>
+                    <td className="px-4 py-3"><Skeleton className="h-6 w-20" /></td>
+                    <td className="px-4 py-3"><Skeleton className="h-5 w-24" /></td>
+                    <td className="px-4 py-3"><Skeleton className="h-5 w-32" /></td>
+                    <td className="px-4 py-3"><Skeleton className="h-6 w-28" /></td>
+                    <td className="px-4 py-3"><Skeleton className="h-8 w-44" /></td>
+                    <td className="px-4 py-3"><Skeleton className="h-5 w-24" /></td>
+                    <td className="px-4 py-3"><Skeleton className="h-7 w-28" /></td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
         ) : filtered.length === 0 ? (
           <div className="py-16 text-center text-[13px] text-text-muted">
             <Warning size={20} className="mx-auto mb-2 opacity-40" />
