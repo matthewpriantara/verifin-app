@@ -3,7 +3,7 @@ title Verifin Backend Server (FastAPI)
 color 0A
 echo ===================================================
 echo   [VERIFIN BACKEND] Menjalankan Server Port 8000
-echo   Status : LIVE & LISTENING (0.0.0.0:8000)
+echo   Status : LIVE and LISTENING (0.0.0.0:8000)
 echo   Domain : https://verifin.pempekasliwongkito.my.id
 echo   Docs   : https://verifin.pempekasliwongkito.my.id/docs
 echo ===================================================
