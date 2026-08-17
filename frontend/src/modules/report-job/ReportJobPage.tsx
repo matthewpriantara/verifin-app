@@ -18,6 +18,7 @@ import {
   FolderOpen,
 } from "@phosphor-icons/react";
 import { cn, getHistory, type HistoryItem } from "@/lib/utils";
+import { Skeleton } from "@/components/ui/Skeleton";
 import type { ReportType } from "@/types/admin";
 import { submitCommunityReport } from "@/lib/api";
 
@@ -44,9 +45,41 @@ const REPORT_TYPES: { value: ReportType; label: string; desc: string }[] = [
   },
 ];
 
+function ReportJobSkeleton() {
+  return (
+    <div className="mx-auto w-full max-w-3xl px-4 py-8 sm:px-6 space-y-8 animate-fade-in">
+      <div className="space-y-2">
+        <Skeleton className="h-4 w-28" />
+        <Skeleton className="h-8 w-64" />
+        <Skeleton className="h-4 w-96" />
+      </div>
+      <div className="space-y-3">
+        <Skeleton className="h-4 w-36" />
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+          <Skeleton className="h-20 rounded-2xl" />
+          <Skeleton className="h-20 rounded-2xl" />
+          <Skeleton className="h-20 rounded-2xl" />
+          <Skeleton className="h-20 rounded-2xl" />
+        </div>
+      </div>
+      <div className="rounded-3xl border border-border bg-bg-elevated p-6 space-y-5">
+        <div className="space-y-2">
+          <Skeleton className="h-4 w-32" />
+          <Skeleton className="h-10 w-full rounded-xl" />
+        </div>
+        <div className="space-y-2">
+          <Skeleton className="h-4 w-40" />
+          <Skeleton className="h-28 w-full rounded-2xl" />
+        </div>
+        <Skeleton className="h-12 w-full rounded-xl" />
+      </div>
+    </div>
+  );
+}
+
 export default function ReportJobPage() {
   return (
-    <Suspense fallback={<div className="min-h-[60vh]" />}>
+    <Suspense fallback={<ReportJobSkeleton />}>
       <ReportJobPageInner />
     </Suspense>
   );
