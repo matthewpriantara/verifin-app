@@ -164,17 +164,16 @@ function StatCard({ label, value, color }: { label: string; value: number; color
 function CasesTable({
   cases,
   loading,
-  onViewUserInputs,
+  onViewCase,
 }: {
   cases: AdminCase[];
   loading: boolean;
-  onViewUserInputs: () => void;
+  onViewCase?: (caseId: string) => void;
 }) {
   if (loading) {
     return (
-      <div className="flex items-center justify-center py-16 text-text-muted text-[13px]">
-        <ArrowClockwise size={16} className="mr-2 animate-spin" />
-        Memuat kasus...
+      <div className="flex items-center justify-center py-16 text-text-muted gap-2 text-[13px]">
+        <CircleNotch size={16} className="animate-spin" /> Memuat kasus...
       </div>
     );
   }
@@ -235,8 +234,8 @@ function CasesTable({
               </td>
               <td className="px-4 py-3 text-right">
                 <button
-                  onClick={onViewUserInputs}
-                  className="inline-flex items-center gap-1 rounded-lg border border-border bg-bg-subtle px-2.5 py-1 text-[11px] font-semibold text-text-primary transition-colors hover:border-border-focus hover:bg-bg-elevated active:scale-95"
+                  onClick={() => onViewCase?.(c.id)}
+                  className="inline-flex items-center gap-1 rounded-lg border border-border bg-bg-subtle px-2.5 py-1 text-[11px] font-semibold text-text-primary transition-colors hover:border-border-focus hover:bg-bg-elevated active:scale-95 cursor-pointer"
                 >
                   Lihat Detail
                   <ArrowUpRight size={11} weight="bold" />
@@ -507,7 +506,7 @@ export default function AdminPage() {
                 Daftar Verifikasi Terbaru (Aktivitas Verifikasi)
               </p>
             </div>
-            <CasesTable cases={cases} loading={loading} onViewUserInputs={() => setActiveTab("user_inputs")} />
+            <CasesTable cases={cases} loading={loading} onViewCase={(caseId) => router.push(`/report/${caseId}`)} />
           </div>
         </div>
       )}
@@ -666,7 +665,7 @@ export default function AdminPage() {
 
                     {/* Button Lihat Detail / Lihat Selengkapnya (Pojok Kanan Bawah) */}
                     <button
-                      onClick={() => router.push(`/report/${item.case_id}`)}
+                      onClick={() => router.push(`/report/${item.id}`)}
                       className="inline-flex items-center gap-1.5 rounded-xl border border-border bg-bg-subtle px-3 py-1.5 text-[12px] font-semibold text-text-primary transition-all hover:border-border-focus hover:bg-text-primary hover:text-bg-elevated active:scale-95 cursor-pointer"
                     >
                       Lihat Detail
