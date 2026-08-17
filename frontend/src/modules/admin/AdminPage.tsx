@@ -9,6 +9,7 @@ import {
   ClockCounterClockwise,
   Flag,
   ArrowClockwise,
+  CircleNotch,
   LockKey,
   SignOut,
   XCircle,
