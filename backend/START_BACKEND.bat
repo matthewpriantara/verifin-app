@@ -1,9 +1,17 @@
 @echo off
 title Verifin Backend Server (FastAPI)
+color 0A
 echo ===================================================
-echo   Menjalankan Backend Verifin (Port 8000)...
+echo   [VERIFIN BACKEND] Menjalankan Server Port 8000
+echo   Status : LIVE & LISTENING (0.0.0.0:8000)
+echo   Domain : https://verifin.pempekasliwongkito.my.id
+echo   Docs   : https://verifin.pempekasliwongkito.my.id/docs
 echo ===================================================
+echo.
 cd /d "%~dp0"
+
+set PYTHONUNBUFFERED=1
+set PYTHONIOENCODING=utf-8
 
 if exist "venv\Scripts\activate.bat" (
     call "venv\Scripts\activate.bat"
@@ -11,5 +19,6 @@ if exist "venv\Scripts\activate.bat" (
     echo Virtual environment tidak ditemukan! Mencoba python sistem...
 )
 
-uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
+echo [INFO] Memulai Uvicorn dengan Real-time Debug Logs...
+uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload --log-level debug --access-log
 pause
