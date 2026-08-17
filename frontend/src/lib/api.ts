@@ -243,5 +243,3 @@ export async function reviewCommunityReport(
   });
   if (!res.ok) throw new Error(await parseError(res));
 }
-
-export { API_BASE };
