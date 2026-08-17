@@ -355,7 +355,29 @@ export function VerifyBox() {
   useEffect(() => {
     if (!loading) return;
     const iv = setInterval(() => setDotCount((d) => (d + 1) % 4), 380);
-    return () => clearInterval(iv);
+
+    // Timed step progression for non-SSE requests (text & image)
+    const t1 = setTimeout(() => {
+      setStepIndex((prev) => (prev < 1 ? 1 : prev));
+      setStageMessage("Menjalankan investigasi OSINT paralel (DNS, Whois, Kaspersky, SearXNG)...");
+    }, 3200);
+
+    const t2 = setTimeout(() => {
+      setStepIndex((prev) => (prev < 2 ? 2 : prev));
+      setStageMessage("Menganalisis relasi entitas & pemetaan Fraud Network Graph...");
+    }, 14000);
+
+    const t3 = setTimeout(() => {
+      setStepIndex((prev) => (prev < 3 ? 3 : prev));
+      setStageMessage("Sintesis penalaran Explainable AI & perhitungan skor risiko aditif...");
+    }, 22000);
+
+    return () => {
+      clearInterval(iv);
+      clearTimeout(t1);
+      clearTimeout(t2);
+      clearTimeout(t3);
+    };
   }, [loading]);
 
   // Stage mapping: SSE stage name → step index
@@ -532,11 +554,14 @@ export function VerifyBox() {
 
     try {
       if (file) {
-        // Image: pakai endpoint biasa (belum SSE)
+        // Image: proses OCR & OSINT
         const result = await verifyImage(file);
+        setStepIndex(steps.length);
         _saveToHistory(result, file.name);
         sessionStorage.setItem(REPORT_STORAGE_KEY, JSON.stringify(result));
-        router.push(result.case_id ? `/report/${result.case_id}` : "/report");
+        setTimeout(() => {
+          router.push(result.case_id ? `/report/${result.case_id}` : "/report");
+        }, 350);
       } else if (isPureUrl(trimmed)) {
         // URL: pakai SSE streaming untuk real-time progress
         await verifyUrlStream(
@@ -545,11 +570,14 @@ export function VerifyBox() {
           controller.signal,
         );
       } else {
-        // Text: pakai endpoint biasa (belum SSE)
+        // Text: proses NER, OSINT, & Reasoning
         const result = await verifyText({ text: trimmed, include_raw_text: true });
+        setStepIndex(steps.length);
         _saveToHistory(result, trimmed.slice(0, 80));
         sessionStorage.setItem(REPORT_STORAGE_KEY, JSON.stringify(result));
-        router.push(result.case_id ? `/report/${result.case_id}` : "/report");
+        setTimeout(() => {
+          router.push(result.case_id ? `/report/${result.case_id}` : "/report");
+        }, 350);
       }
     } catch (err) {
       // AbortError = user klik Batal, jangan tampilkan error
