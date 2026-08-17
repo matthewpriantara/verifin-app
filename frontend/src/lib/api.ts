@@ -6,7 +6,7 @@ import type {
 } from "@/types/verify";
 import type { CommunityReport } from "@/types/admin";
 
-const API_BASE =
+export const API_BASE =
   process.env.NEXT_PUBLIC_API_URL?.replace(/\/$/, "") || "https://verifin.pempekasliwongkito.my.id";
 
 async function parseError(res: Response): Promise<string> {
