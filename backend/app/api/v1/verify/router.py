@@ -622,8 +622,19 @@ def lookup_cases_by_entity(
     summary="Ambil detail kasus berdasarkan ID",
     description="Mengembalikan detail lengkap analisis dari database PostgreSQL untuk case_id tertentu."
 )
-def get_case_by_id(case_id: UUID, db: Session = Depends(get_db)):
-    db_case = db.query(JobCase).filter(JobCase.id == case_id).first()
+def get_case_by_id(case_id: str, db: Session = Depends(get_db)):
+    from sqlalchemy import cast, String
+    db_case = None
+    try:
+        uuid_obj = UUID(case_id)
+        db_case = db.query(JobCase).filter(JobCase.id == uuid_obj).first()
+    except (ValueError, AttributeError):
+        db_case = None
+
+    if not db_case:
+        # Prefix lookup (misal: "fdd1b836")
+        db_case = db.query(JobCase).filter(cast(JobCase.id, String).like(f"{case_id}%")).first()
+
     if not db_case:
         raise HTTPException(status_code=404, detail="Kasus tidak ditemukan")
     llm_output = db_case.llm_output or {}
