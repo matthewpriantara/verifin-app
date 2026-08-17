@@ -12,6 +12,8 @@ import time
 # Matikan logging debug dari PaddleOCR
 logging.getLogger("ppocr").setLevel(logging.ERROR)
 
+logger = logging.getLogger(__name__)
+
 ocr_model = None
 ocr_lock = threading.Lock()
 
@@ -27,7 +29,6 @@ def get_ocr_model():
             use_angle_cls=False,
             lang="id",
             enable_mkldnn=False,
-            show_log=False,
             det_db_thresh=0.2,
             det_db_box_thresh=0.4,
             det_db_unclip_ratio=1.8,
