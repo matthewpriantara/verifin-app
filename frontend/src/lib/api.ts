@@ -7,7 +7,7 @@ import type {
 import type { CommunityReport } from "@/types/admin";
 
 const API_BASE =
-  process.env.NEXT_PUBLIC_API_URL?.replace(/\/$/, "") || "http://localhost:8000";
+  process.env.NEXT_PUBLIC_API_URL?.replace(/\/$/, "") || "https://verifin.pempekasliwongkito.my.id";
 
 async function parseError(res: Response): Promise<string> {
   try {
