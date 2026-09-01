@@ -1,0 +1,62 @@
+# Verifin stack — self-hosted di hafidz-server
+# BE: FastAPI 8000 -> verifin.octane.web.id via cloudflared tunnel
+# DB: postgres 16, Redis 7
+# Jalankan: docker compose -f docker-compose.yml up -d --build
+services:
+  verifin-db:
+    image: postgres:16-alpine
+    container_name: verifin-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: verifin
+      POSTGRES_PASSWORD: verifin_secure_pass_change_me
+      POSTGRES_DB: verifin_db
+    volumes:
+      - verifin_pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U verifin -d verifin_db"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  verifin-redis:
+    image: redis:7-alpine
+    container_name: verifin-redis
+    restart: unless-stopped
+    volumes:
+      - verifin_redisdata:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+
+  verifin-backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    image: ghcr.io/matthewpriantara/verifin-app-backend:latest
+    container_name: verifin-backend
+    restart: unless-stopped
+    ports:
+      - "8000:8000"
+    env_file:
+      - ./backend/.env
+    environment:
+      # fallback jika .env tidak set (override oleh env_file jika ada)
+      DATABASE_URL: postgresql://verifin:verifin_secure_pass_change_me@verifin-db:5432/verifin_db
+      REDIS_URL: redis://verifin-redis:6379/0
+      SEARXNG_URL: http://host.docker.internal:8888
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    depends_on:
+      verifin-db:
+        condition: service_healthy
+      verifin-redis:
+        condition: service_healthy
+    # searxng-core sudah jalan di host (hafidz-server), pakai network host bridge
+    # jika butuh lightpanda, uncomment di bawah dan docker run lightpanda di host
+
+volumes:
+  verifin_pgdata:
+  verifin_redisdata:
