@@ -41,7 +41,16 @@ logger = logging.getLogger(__name__)
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    """Warm OCR model di startup agar request pertama tidak cold-load lama."""
+    """Init DB tables + warm OCR model di startup."""
+    # 1. DB init — auto-create verifin tables jika belum ada (idempotent)
+    try:
+        from app.database.postgres_client import Base, engine
+        from app.database import models as _models  # noqa: F401 ensure models registered
+        Base.metadata.create_all(bind=engine, checkfirst=True)
+        logger.info("DB tables ensured (create_all checkfirst)")
+    except Exception as exc:
+        logger.warning("DB init skipped: %s", exc)
+    # 2. OCR warmup agar request pertama tidak cold-load lama
     try:
         from app.services.ocr import get_ocr_model
         get_ocr_model()
