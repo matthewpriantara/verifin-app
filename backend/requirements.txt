@@ -14,6 +14,8 @@ python-whois==0.8.0
 dnspython==2.6.1
 requests==2.31.0
 scrapling[fetchers]>=0.4.11
+beautifulsoup4>=4.12.0
+lxml>=5.0
 SQLAlchemy>=2.0.36
 psycopg2-binary>=2.9.10
 redis==5.0.3
