@@ -45,6 +45,6 @@ async def health_check(db: Session = Depends(get_db)):
             "openstreetmap": "online",
             "kredibel": "online",
             "scrapling": "online",
-            "threads": "online",
+            "social_media": "online",
         }
     }

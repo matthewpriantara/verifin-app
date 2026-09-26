@@ -9,16 +9,14 @@ memahami alasan di balik penilaian kepercayaan yang diberikan.
 Implementasi berdasarkan:
 - Lundberg & Lee (2017) "A Unified Approach to Interpreting Model Predictions"
 - XAI Phishing Detection (IEEE RAICS 2025) — Varsha V G, PA Thomas
-- paper22 Neural Processing Letters (2022) — TF-IDF + behavioral features
 
 Formulasi: f(x) = base_value + sum(phi_i)
 Dimana phi_i = kontribusi Shapley dari fitur ke-i
 
-Berbeda dari versi sebelumnya yang rule-based sederhana, versi ini:
-1. Mengintegrasikan sinyal dari NLP classifier (Layer 1)
-2. Mengintegrasikan sinyal dari OSINT (Layer 3)
-3. Menghitung phi_i dengan bobot proporsional terhadap total trust score
-4. Menghasilkan waterfall chart data yang bisa divisualisasi di FE
+Pendekatan: rule-based additive scoring dengan bobot manual yang dikalibrasi
+berdasarkan pola penipuan lowongan kerja di Indonesia (deposit fee, task scam,
+TPPO, dokumen palsu). Bukan model ML terlatih — bobot diatur berdasarkan
+domain knowledge dan refined melalui user study.
 """
 
 from datetime import datetime, timezone
@@ -33,8 +31,9 @@ def _cs(raw: float, weight: float) -> dict[str, Any]:
             "weighted_contribution": round(raw * weight, 1)}
 
 
-# ─── Feature weight registry — dikalibrasi sesuai paper22 ─────────────────
-# Bobot ini mencerminkan feature importance dari dataset EMSCAD
+# ─── Feature weight registry — dikalibrasi manual (domain knowledge) ──────
+# Bobot berdasarkan pola penipuan loker Indonesia: deposit fee, task scam,
+# TPPO, dokumen palsu. Refined melalui user study, bukan ML training.
 _FEATURE_WEIGHTS: dict[str, float] = {
     # NLP Layer 1 features
     "has_fee_request":       40.0,
@@ -73,6 +72,7 @@ def explain_verification_shap(
     safe_factors: list[str],
     nlp_result: dict[str, Any] | None = None,
     network_context: dict[str, Any] | None = None,
+    entities: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     """
     Hitung Shapley values untuk setiap fitur yang berkontribusi ke risk_score.
@@ -90,6 +90,7 @@ def explain_verification_shap(
         Dict dengan feature_contributions, waterfall_chart, summary
     """
     base_value = 12.0  # Baseline netral — UMKM valid sering 5-15
+    input_addresses = (entities or {}).get("addresses") or []
 
     contributions: list[dict[str, Any]] = []
 
@@ -174,20 +175,37 @@ def explain_verification_shap(
 
     # ── 2. OSINT features ───────────────────────────────────────────────────
     phones = osint_results.get("phones") or []
-    if any(p.get("reported_fraud") for p in phones):
+    if any(
+        p.get("reported_fraud")
+        or p.get("scam_confirmed")
+        or p.get("reputation_status") == "FLAGGED"
+        for p in phones if isinstance(p, dict)
+    ):
         contributions.append(_make_contrib(
             "Nomor HP Dilaporkan Penipuan",
             "kredibel_fraud_flag",
             1,
             _FEATURE_WEIGHTS["kredibel_fraud_flag"],
             "risk",
-            "Nomor WhatsApp/HP terdaftar dalam laporan penipuan di Kredibel.id",
+            "Nomor HP terdeteksi berbahaya/spam di Kaspersky Who Calls",
+        ))
+
+    # Free email saja tanpa domain korporat = sinyal risiko ringan
+    domain_info_pre = osint_results.get("domain") or {}
+    if domain_info_pre.get("skipped") == "free_email":
+        contributions.append(_make_contrib(
+            "Kontak Hanya Email Gratisan",
+            "free_email_only",
+            1,
+            8.0,
+            "risk",
+            "Tidak ada domain korporat — kontak hanya via Gmail/Yahoo tanpa infrastruktur resmi",
         ))
 
     web_data = osint_results.get("web") or {}
     websites = web_data.get("websites") or []
 
-    if any(not w.get("ok") for w in websites):
+    if any(w.get("website_status") != "AVAILABLE" for w in websites):
         contributions.append(_make_contrib(
             "Situs Web Tidak Dapat Diakses",
             "domain_unreachable",
@@ -210,8 +228,11 @@ def explain_verification_shap(
 
     email_sec = osint_results.get("email_security") or {}
     # Hanya flag jika domain korporat (bukan gmail/yahoo)
-    if (not email_sec.get("spf_active") and
-            not email_sec.get("is_free_email", True)):
+    if (
+        not email_sec.get("spf_active")
+        and domain_info_pre.get("skipped") != "free_email"
+        and email_sec.get("skipped") != "free_email"
+    ):
         contributions.append(_make_contrib(
             "Tidak Ada SPF/DMARC pada Domain Korporat",
             "no_spf_corporate",
@@ -249,7 +270,19 @@ def explain_verification_shap(
 
     # Safe OSINT signals
     address_validations = osint_results.get("address_validations") or []
-    if any(a.get("found") for a in address_validations):
+    exact_address = any(
+        (a.get("found") or a.get("address_found"))
+        and (a.get("match_level") or (a.get("address_details") or {}).get("match_level")) == "exact"
+        for a in address_validations
+        if isinstance(a, dict)
+    )
+    has_area_address = any(
+        (a.get("found") or a.get("address_found"))
+        and (a.get("match_level") or (a.get("address_details") or {}).get("match_level")) in {"area", "street"}
+        for a in address_validations
+        if isinstance(a, dict)
+    )
+    if exact_address:
         contributions.append(_make_contrib(
             "Alamat Terverifikasi di OpenStreetMap",
             "address_osm_valid",
@@ -259,15 +292,29 @@ def explain_verification_shap(
             "Alamat fisik ditemukan dan valid di OpenStreetMap — mengurangi risiko loker fiktif",
         ))
 
-    companies = osint_results.get("companies") or []
-    if any(c.get("found") for c in companies):
+    # Tidak ada alamat fisik = sinyal risiko medium
+    if entities is not None and input_addresses and not exact_address:
         contributions.append(_make_contrib(
-            "Jejak Digital Perusahaan Ditemukan",
+            "Alamat Fisik Belum Terverifikasi Exact",
+            "address_not_verified",
+            1,
+            10.0,
+            "risk",
+            "Alamat tercantum, tetapi belum ditemukan kecocokan jalan dan nomor yang exact di peta",
+        ))
+
+    companies = osint_results.get("companies") or []
+    if any(
+        (c.get("stats") or {}).get("public_mentions", 0) > 0 or bool(c.get("safe_flags"))
+        for c in companies if isinstance(c, dict)
+    ):
+        contributions.append(_make_contrib(
+             "Hasil Web Relevan Ditemukan",
             "company_found_web",
             1,
             10.0,
-            "safe",
-            "Nama perusahaan memiliki jejak publik yang dapat diverifikasi",
+             "safe",
+             f"Ditemukan {(web_data.get('evidence_counts') or {}).get('relevant_results', 1)} hasil web relevan dengan nama perusahaan; keterkaitan resmi belum terverifikasi.",
         ))
 
     # ── 3. Fraud network context ────────────────────────────────────────────
@@ -332,7 +379,7 @@ def explain_verification_shap(
         })
         cumulative += delta
 
-    # ── Forensic metadata — dibangun DINAMIS dari data nyata (bukan hardcode) ──
+    # ── Evidence metadata — dibangun dinamis dari data nyata ──
     forensic = _build_forensic_metadata(
         risk_score=risk_score,
         verdict=verdict,
@@ -341,6 +388,7 @@ def explain_verification_shap(
         network_context=network_context,
         risk_contribs=risk_contribs,
         safe_contribs=safe_contribs,
+        entities=entities,
     )
 
     return {
@@ -348,7 +396,11 @@ def explain_verification_shap(
         "base_value": base_value,
         "final_risk_score": risk_score,
         "evidence_confidence": forensic["evidence_confidence"],
+        "decision_confidence": forensic["decision_confidence"],
+        "confidence_method": forensic["confidence_method"],
         "evidence_coverage_percent": forensic["evidence_coverage_percent"],
+        "probe_hit_rate_percent": forensic["probe_hit_rate_percent"],
+        "probe_applicability": forensic["probe_applicability"],
         "decision_path": forensic["decision_path"],
         "consistency_breakdown": forensic["consistency_breakdown"],
         "dns_records": forensic["dns_records"],
@@ -359,9 +411,8 @@ def explain_verification_shap(
         "networkx_graph_analytics": forensic["networkx_graph_analytics"],
         "checked_at": forensic["checked_at"],
         "ethical_safeguards": {
-            "human_appeal_protocol_enabled": True,
+            "human_review_recommended": True,
             "cost_of_error": {"false_positive_fatal_cost": 5.0, "false_negative_cost": 10.0},
-            "appeal_endpoint": "/api/v1/appeal"
         },
         "verdict": verdict,
         "feature_contributions": all_contributions,
@@ -384,6 +435,7 @@ def _build_forensic_metadata(
     network_context: dict[str, Any] | None,
     risk_contribs: list[dict[str, Any]],
     safe_contribs: list[dict[str, Any]],
+    entities: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     """
     Bangun metadata forensik (decision_path, probe timing, coverage, graph, hash)
@@ -400,85 +452,242 @@ def _build_forensic_metadata(
     companies = o.get("companies") or []
     addr = o.get("address_validations") or []
     web = o.get("web") or {}
-    threads = o.get("threads") or {}
+    social = o.get("social") or {}
     domain = o.get("domain") or {}
     email_sec = o.get("email_security") or {}
     fraud_net = o.get("fraud_network") or {}
+    input_addresses = (entities or {}).get("addresses") or []
+    entities_known = entities is not None
 
     # Sinyal boolean nyata --------------------------------------------------
     company_name = (companies[0].get("name") if companies and isinstance(companies[0], dict) else None) or "Tidak terdeteksi"
-    company_found = any(c.get("found") for c in companies if isinstance(c, dict))
-    address_found = any(a.get("found") or a.get("address_found") for a in addr if isinstance(a, dict))
-    phone_checked = len(phones) > 0
-    phone_clean = phone_checked and any(
-        (p.get("reported_fraud") is False) or (p.get("found") and not p.get("reported_fraud"))
+    # "found" tidak ada di company object — pakai public_mentions atau safe_flags sebagai proxy
+    company_found = any(
+        (c.get("stats") or {}).get("public_mentions", 0) > 0
+        or bool(c.get("safe_flags"))
+        for c in companies if isinstance(c, dict)
+    )
+    exact_address = any(
+        (a.get("found") or a.get("address_found"))
+        and (a.get("match_level") or (a.get("address_details") or {}).get("match_level")) == "exact"
+        for a in addr
+        if isinstance(a, dict)
+    )
+    has_area_address = any(
+        (a.get("found") or a.get("address_found"))
+        and (a.get("match_level") or (a.get("address_details") or {}).get("match_level")) in {"area", "street"}
+        for a in addr
+        if isinstance(a, dict)
+    )
+    address_found = any(
+        (a.get("found") or a.get("address_found"))
+        and (a.get("match_level") or (a.get("address_details") or {}).get("match_level")) == "exact"
+        for a in addr
+        if isinstance(a, dict)
+    )
+    phone_checked = any(
+        p.get("probe_status") == "COMPLETED" or (
+            p.get("checked") is True and p.get("reputation_status") in {"CLEAN", "SUSPICIOUS", "FLAGGED"}
+        )
         for p in phones if isinstance(p, dict)
     )
-    phone_flagged = any(p.get("reported_fraud") for p in phones if isinstance(p, dict))
-    web_hit = bool((web.get("websites") or []) or (web.get("searches") or []) or (web.get("safe_flags") or []))
-    social_hit = bool((threads.get("posts") or []) or (threads.get("profiles") or []))
-    is_free_email = any(
-        "@" in e and e.split("@")[-1].lower() in FREE_EMAIL_DOMAINS
-        for e in (osint_results.get("emails") or [])
+    phone_probe_status = (o.get("phone_probe") or {}).get("status")
+    if not phone_probe_status:
+        phone_probe_statuses = [
+            p.get("probe_status") for p in phones if isinstance(p, dict) and p.get("probe_status")
+        ]
+        if phone_probe_statuses and all(status == "COMPLETED" for status in phone_probe_statuses):
+            phone_probe_status = "COMPLETED"
+        elif phone_probe_statuses and any(status == "COMPLETED" for status in phone_probe_statuses):
+            phone_probe_status = "PARTIAL"
+        elif phone_probe_statuses:
+            phone_probe_status = "UNAVAILABLE"
+    phone_clean = phone_checked and any(
+        # checked=true + tidak ada laporan fraud = CLEAN (Kaspersky berhasil, tidak ada temuan)
+        p.get("probe_status") == "COMPLETED"
+        and p.get("reputation_status") == "CLEAN"
+        and not p.get("reported_fraud")
+        for p in phones if isinstance(p, dict)
     )
-    in_fraud_network = bool((network_context or {}).get("entity_in_fraud_network"))
+    phone_flagged = any(
+        p.get("reported_fraud")
+        or p.get("scam_confirmed")
+        or p.get("reputation_status") == "FLAGGED"
+        for p in phones if isinstance(p, dict)
+    )
+    web_counts = web.get("evidence_counts") or {}
+    web_hit = bool(
+        any(w.get("website_status") == "AVAILABLE" for w in (web.get("websites") or []))
+        or web_counts.get("relevant_results", 0) > 0
+        or any(s.get("relevant_result_count", 0) > 0 for s in (web.get("searches") or []))
+    )
+    search_unknown = bool(
+        web_counts.get("unavailable_searches", 0)
+    ) and not web_hit
+    official_platforms = {"instagram", "threads", "tiktok", "facebook", "x_twitter", "linktree"}
+    social_hit = bool(
+        any(social.get("platform_hits", {}).get(platform) for platform in official_platforms)
+        or any(p.get("is_official") and p.get("platform") in official_platforms for p in (social.get("posts") or []))
+        or social.get("profiles")
+    )
+    # Website presence is a web signal, not a social-media signal.
+    public_footprint = bool(social.get("posts") or social.get("profiles"))
+    is_free_email = (
+        domain.get("skipped") == "free_email"
+        or email_sec.get("skipped") == "free_email"
+        or domain.get("domain", "").lower() in FREE_EMAIL_DOMAINS
+    )
+    network_status = (network_context or {}).get("status")
+    in_fraud_network = network_status != "UNAVAILABLE" and bool(
+        (network_context or {}).get("entity_in_fraud_network")
+    )
 
-    # Coverage: proporsi probe yang berhasil mengembalikan sinyal ------------
-    probe_outcomes = [company_found, address_found, phone_checked, web_hit, bool(email_sec), social_hit]
-    ran = len(probe_outcomes)
-    hits = sum(1 for x in probe_outcomes if x)
-    coverage = round((hits / ran) * 100, 1) if ran else 0.0
-    # Confidence: makin banyak bukti & makin ekstrem skor, makin yakin
-    confidence = min(99.0, round(50.0 + coverage * 0.4 + (10.0 if verdict == "AMAN" else 0.0), 1))
+    # Coverage memakai kontrak probe yang sama untuk backend dan frontend.
+    # `applicable=false` berarti probe memang tidak bisa dijalankan, bukan gagal.
+    address_probe = [a for a in addr if isinstance(a, dict)]
+    address_completed = any(
+        (a.get("address_details") or {}).get("probe_status") == "COMPLETED"
+        for a in address_probe
+    )
+    address_match_level = next(
+        (
+            (a.get("match_level") or (a.get("address_details") or {}).get("match_level"))
+            for a in address_probe
+            if a.get("match_level") or (a.get("address_details") or {}).get("match_level")
+        ),
+        None,
+    )
+    domain_applicable = bool(domain.get("domain")) and domain.get("skipped") != "free_email"
+    domain_hit = domain_applicable and bool(
+        domain.get("age_years") is not None or domain.get("created_at") not in (None, "N/A (free email)")
+    )
+    coverage_probes = [
+        {
+            "name": "whois_domain",
+            "label": "WHOIS/DNS domain",
+            "status": "SKIPPED_FREE_EMAIL" if domain.get("skipped") == "free_email" else "COMPLETED" if domain.get("domain") else "NOT_PROVIDED",
+            "applicable": domain_applicable,
+            "hit": domain_hit,
+        },
+        {
+            "name": "phone_reputation",
+            "label": "Reputasi nomor",
+            "status": phone_probe_status or "NOT_PROVIDED",
+            "applicable": bool(phones),
+            "hit": phone_checked,
+        },
+        {
+            "name": "address_geocoding",
+            "label": "Geocoding alamat",
+            "status": "EXACT" if exact_address else "STREET_LEVEL" if address_match_level == "street" else "AREA_ONLY" if has_area_address else "COMPLETED_NO_MATCH" if address_completed else "NOT_PROVIDED" if not input_addresses else "UNAVAILABLE",
+            "applicable": bool(input_addresses),
+            "hit": address_completed and bool(address_match_level in {"exact", "street", "area"}),
+        },
+        {
+            "name": "web_evidence",
+            "label": "Web evidence",
+            "status": "FOUND" if web_hit else "NO_RELEVANT_RESULTS",
+            "applicable": bool(web.get("enabled")),
+            "hit": web_hit,
+        },
+        {
+            "name": "social_media",
+            "label": "Media sosial",
+            "status": "FOUND" if social_hit else "NO_RELEVANT_RESULTS",
+            "applicable": bool(social.get("enabled")) and bool(companies),
+            "hit": social_hit,
+        },
+        {
+            "name": "legal_registry",
+            "label": "Registri legalitas",
+            "status": "NOT_AVAILABLE",
+            "applicable": False,
+            "hit": False,
+        },
+    ]
+    applicable_probes = [probe for probe in coverage_probes if probe["applicable"]]
+    hits = sum(1 for probe in applicable_probes if probe["hit"])
+    ran = len(applicable_probes)
+    probe_hit_rate = round((hits / ran) * 100, 1) if ran else None
+    decision_confidence = None
 
     # Decision path — langkah nyata berdasarkan entitas & probe aktual -------
     risk_level = "LOW" if risk_score < 35 else ("MEDIUM" if risk_score < 65 else "HIGH")
     risk_label = {"LOW": "Risiko Rendah", "MEDIUM": "Risiko Sedang", "HIGH": "Risiko Tinggi"}[risk_level]
     first_phone = phones[0] if phones and isinstance(phones[0], dict) else {}
     phone_status = (
-        f"{first_phone.get('fraud_reports_count', 0) if first_phone else 0} laporan fraud di Kredibel"
+        f"{first_phone.get('fraud_reports_count', 0) if first_phone else 0} laporan fraud via Kaspersky Who Calls"
         if phone_checked else "Tidak ada nomor HP untuk dicek"
     )
     cluster = fraud_net.get("cluster_id") or ("terhubung ke jaringan fraud" if in_fraud_network else "tidak ada asosiasi fraud publik")
     decision_path = [
         {"step": "1. OCR & Entity Extraction", "status": "PASS",
          "detail": f"Entitas terdeteksi: {company_name}; {len(phones)} no HP, {len(companies)} perusahaan, {len(addr)} alamat."},
-        {"step": "2. Address OSM Geocoding", "status": "PASS" if address_found else "UNKNOWN",
-         "detail": ("Alamat tervalidasi di OpenStreetMap." if address_found else "Alamat tidak ditemukan/tidak dicantumkan.")},
-        {"step": "3. Phone Kredibel Reputation Check", "status": "PASS" if phone_clean else ("FLAG" if phone_flagged else "SKIP"),
-         "detail": phone_status},
-        {"step": "4. Email Domain Infrastructure Check", "status": "PASS",
-         "detail": (f"Free provider ({domain.get('domain', 'email gratis')}); SPF/DMARC tidak relevan." if is_free_email
-                    else f"Domain korporat {domain.get('domain', '?')}; SPF aktif={email_sec.get('spf_active')}, DMARC aktif={email_sec.get('dmarc_active')}.")},
-        {"step": "5. Threat Intelligence Graph Network", "status": "FLAG" if in_fraud_network else "PASS",
-         "detail": f"Status jaringan: {cluster}."},
+        {"step": "2. Address OSM Geocoding", "status": "EXACT" if exact_address else ("AREA_ONLY" if has_area_address else ("NOT_PROVIDED" if entities_known and not input_addresses else "UNKNOWN")),
+         "detail": ("Jalan dan nomor alamat cocok dengan hasil peta." if address_found else ("Wilayah/jalan ditemukan, tetapi titik exact belum terkonfirmasi." if has_area_address else ("Alamat fisik tidak tercantum pada input." if entities_known and not input_addresses else "Alamat tidak tersedia untuk penilaian.")))},
+         {"step": "3. Phone Kaspersky Who Calls Check", "status": "PASS" if (phone_checked and not phone_flagged) else ("FLAG" if phone_flagged else ("NOT_PROVIDED" if phone_probe_status == "NOT_PROVIDED" else "SKIP")),
+          "detail": ("Nomor HP tidak tercantum pada input; pemeriksaan dilewati." if phone_probe_status == "NOT_PROVIDED" else ("Tidak ditemukan laporan penipuan pada Kaspersky Who Calls." if phone_checked and not phone_flagged else phone_status))},
+        {"step": "4. Email Domain Infrastructure Check", "status": "NOT_PROVIDED" if entities_known and not ((entities or {}).get("emails") or []) else "PASS",
+         "detail": ("Email tidak tercantum pada input; pemeriksaan domain dilewati." if entities_known and not ((entities or {}).get("emails") or []) else (f"Free provider ({domain.get('domain', 'email gratis')}); SPF/DMARC tidak relevan." if is_free_email
+                    else f"Domain korporat {domain.get('domain', '?')}; SPF aktif={email_sec.get('spf_active')}, DMARC aktif={email_sec.get('dmarc_active')}."))},
+        {"step": "5. Fraud Network Case Memory", "status": "FLAG" if in_fraud_network else "NO_DATA" if network_status == "NO_DATA" else "UNKNOWN" if network_status == "UNAVAILABLE" else "NO_MATCH",
+          "detail": f"Status jaringan: {cluster}." if network_status != "NO_DATA" else "Belum ada data historis yang cocok."},
         {"step": "6. Final Risk Level Evaluation", "status": risk_level,
-         "detail": f"Skor risiko terkalibrasi: {risk_score} / 100 ({risk_label})."},
+          "detail": f"Skor risiko akhir: {risk_score} / 100 ({risk_label}); bukan probabilitas."},
     ]
 
     # Consistency breakdown — diturunkan dari sinyal nyata --------------------
+    address_breakdown = (
+        {
+            "factor": "address_gis_match",
+            "raw_score": None,
+            "weight": 0.20,
+            "weighted_contribution": 0.0,
+            "status": "NOT_PROVIDED",
+        }
+        if entities_known and not input_addresses
+        else {"factor": "address_gis_match", **_cs(100.0 if address_found else 30.0, 0.20)}
+    )
     consistency_breakdown = [
         {"factor": "company_name_match", **_cs(100.0 if company_found else 40.0, 0.25)},
-        {"factor": "address_gis_match", **_cs(100.0 if address_found else 30.0, 0.20)},
+        address_breakdown,
         {"factor": "phone_reputation", **_cs(0.0 if phone_flagged else (100.0 if phone_clean else 50.0), 0.20)},
         {"factor": "domain_security", **_cs(70.0 if is_free_email else 95.0, 0.15)},
-        {"factor": "social_footprint", **_cs(90.0 if social_hit else (70.0 if web_hit else 40.0), 0.20)},
+        {"factor": "social_footprint", **_cs(90.0 if social_hit else 40.0, 0.20)},
     ]
 
-    # Probe weights — bobot statis (boleh), timing & status DINAMIS -----------
-    per_probe_ms = max(0, osint_ms // 5) if osint_ms else 0
+    # Probe weights — bobot statis, timing dari actual osint_timing kalau ada
+    _timing = osint_results.get("timing") or {}
+    email_applicable = not (entities_known and not ((entities or {}).get("emails") or []))
+    address_applicable = not (entities_known and not input_addresses)
+
+    def _eff(applicable: bool, configured: float) -> float:
+        return configured if applicable else 0.0
+
     probe_weights = [
-        {"probe": "Address Geocoding (OSM GIS)", "weight": 0.25, "execution_time_ms": per_probe_ms,
-         "status": "VALID" if address_found else "NOT_FOUND"},
-        {"probe": "Phone Reputation (Kredibel)", "weight": 0.20, "execution_time_ms": per_probe_ms,
-         "status": "CLEAN" if phone_clean else ("FLAGGED" if phone_flagged else "SKIPPED"),
-         "url": first_phone.get("url")},
-        {"probe": "Web Evidence (SERP)", "weight": 0.20, "execution_time_ms": per_probe_ms,
-         "status": "VALID" if web_hit else "NO_HIT"},
-        {"probe": "Email Security (DNS MX/SPF)", "weight": 0.20, "execution_time_ms": per_probe_ms,
-         "status": "FREE_PROVIDER" if is_free_email else "CORPORATE"},
-        {"probe": "Legal Entity (AHU/OSS)", "weight": 0.15, "execution_time_ms": 0,
-         "status": "UNKNOWN", "note": "Tidak ada API publik otomatis"},
+        {"probe": "Address Geocoding (OSM GIS)", "weight": 0.25, "configured_weight": 0.25,
+         "effective_weight": _eff(address_applicable, 0.25),
+         "execution_time_ms": _timing.get("addr_ms"),  # None = tidak diukur, jujur
+         "status": "EXACT" if address_found else ("AREA_ONLY" if has_area_address else ("NOT_PROVIDED" if entities_known and not input_addresses else "NOT_FOUND")),
+         "applicable": address_applicable},
+        {"probe": "Phone Reputation (Kaspersky Who Calls)", "weight": 0.20, "configured_weight": 0.20,
+         "effective_weight": _eff(bool(phones), 0.20),
+         "execution_time_ms": _timing.get("phone_ms"),
+         "status": "CLEAN" if phone_clean else ("FLAGGED" if phone_flagged else ("NOT_PROVIDED" if phone_probe_status == "NOT_PROVIDED" else "UNAVAILABLE" if phone_probe_status in {"UNAVAILABLE", "PARTIAL"} else "SKIPPED")),
+         "applicable": bool(phones), "url": first_phone.get("url")},
+        {"probe": "Web Evidence (SERP)", "weight": 0.20, "configured_weight": 0.20,
+         "effective_weight": 0.20,
+         "execution_time_ms": _timing.get("web_ms"),
+         "status": "VALID" if web_hit else ("NO_RELEVANT_RESULTS" if web_counts.get("no_relevant_searches", 0) else ("UNKNOWN" if search_unknown else "NO_HIT")),
+         "applicable": True},
+        {"probe": "Email Security (DNS MX/SPF)", "weight": 0.20, "configured_weight": 0.20,
+         "effective_weight": _eff(email_applicable, 0.20),
+         "execution_time_ms": _timing.get("email_ms"),
+         "status": "NOT_PROVIDED" if entities_known and not ((entities or {}).get("emails") or []) else "FREE_PROVIDER" if is_free_email else "CORPORATE",
+         "applicable": email_applicable},
+        {"probe": "Legal Entity (AHU/OSS)", "weight": 0.15, "configured_weight": 0.15,
+         "effective_weight": 0.15, "execution_time_ms": 0,
+         "status": "UNKNOWN", "applicable": True, "note": "Tidak ada API publik otomatis"},
     ]
 
     # Deduplication — jujur: tidak hitung pHash tanpa imagehash lib ----------
@@ -500,8 +709,18 @@ def _build_forensic_metadata(
     }
 
     return {
-        "evidence_confidence": confidence,
-        "evidence_coverage_percent": coverage,
+         "evidence_confidence": None,
+         "decision_confidence": decision_confidence,
+         "confidence_method": "not_calibrated",
+         "evidence_coverage_percent": None,
+         "probe_hit_rate_percent": probe_hit_rate,
+         "probe_applicability": {
+             "applicable": ran,
+             "positive": hits,
+             "outcomes": {probe["name"]: probe["hit"] for probe in coverage_probes if probe["applicable"]},
+             "excluded_not_provided": [probe["name"] for probe in coverage_probes if not probe["applicable"]],
+         },
+         "coverage_probes": coverage_probes,
         "decision_path": decision_path,
         "consistency_breakdown": consistency_breakdown,
         "dns_records": {

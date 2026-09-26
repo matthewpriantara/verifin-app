@@ -7,9 +7,12 @@ import logging
 from paddleocr import PaddleOCR
 import numpy as np
 import threading
+import time
 
 # Matikan logging debug dari PaddleOCR
 logging.getLogger("ppocr").setLevel(logging.ERROR)
+
+logger = logging.getLogger(__name__)
 
 ocr_model = None
 ocr_lock = threading.Lock()
@@ -19,11 +22,13 @@ def get_ocr_model():
     if ocr_model is None:
         # Latency-first: angle cls OFF (mahal di CPU), det threshold tetap longgar
         # agar teks kecil di logo/footer tetap kebaca.
+        # lang="id" → PaddleOCR 2.8.1 memetakan ke model latin PP-OCRv3 rec
+        # (diuji: ~11s vs ~20s lang="en" di poster 1000px, hasil ekstraksi
+        # phone/email/URL identik) — lebih cocok untuk teks Indonesia.
         ocr_model = PaddleOCR(
             use_angle_cls=False,
-            lang="en",
+            lang="id",
             enable_mkldnn=False,
-            show_log=False,
             det_db_thresh=0.2,
             det_db_box_thresh=0.4,
             det_db_unclip_ratio=1.8,
@@ -87,7 +92,9 @@ def preprocess_image(image_path: str) -> np.ndarray:
         h, w = img.shape[:2]
 
     # Downscale poster besar — pertahankan detail teks kecil (no HP, email, alamat) di footer/header poster
-    max_side = 1800
+    # Profiling poster competition: 1000px retained core text while cutting
+    # PaddleOCR CPU inference materially versus 1200–1800px.
+    max_side = 1000
     if max(h, w) > max_side:
         scale = max_side / float(max(h, w))
         img = cv2.resize(
@@ -102,7 +109,7 @@ def preprocess_image(image_path: str) -> np.ndarray:
     )
     return img
 
-def extract_text_from_image(image_path: str) -> str:
+def extract_text_from_image(image_path: str, metrics: dict | None = None) -> str:
     """
     Mengekstrak seluruh teks yang ditemukan di dalam gambar menggunakan PaddleOCR
     dengan preprocessing OpenCV (CLAHE & padding).
@@ -111,10 +118,17 @@ def extract_text_from_image(image_path: str) -> str:
         raise FileNotFoundError(f"File gambar tidak ditemukan di path: {image_path}")
 
     try:
+        started = time.perf_counter()
         with ocr_lock:
+            preprocess_started = time.perf_counter()
             processed_img = preprocess_image(image_path)
+            preprocess_elapsed = time.perf_counter() - preprocess_started
+            model_started = time.perf_counter()
             ocr = get_ocr_model()
+            model_elapsed = time.perf_counter() - model_started
+            inference_started = time.perf_counter()
             result = ocr.ocr(processed_img)
+            inference_elapsed = time.perf_counter() - inference_started
 
             extracted_lines = []
             if result and len(result) > 0:
@@ -133,8 +147,16 @@ def extract_text_from_image(image_path: str) -> str:
                             if len(text.strip()) > 1:
                                 extracted_lines.append(text)
 
+            if metrics is not None:
+                metrics.update({
+                    "preprocess_sec": round(preprocess_elapsed, 3),
+                    "model_init_sec": round(model_elapsed, 3),
+                    "inference_sec": round(inference_elapsed, 3),
+                    "total_sec": round(time.perf_counter() - started, 3),
+                    "image_shape": list(processed_img.shape),
+                    "line_count": len(extracted_lines),
+                })
             return "\n".join(extracted_lines)
     except Exception as e:
         logger.error("[OCR Error] Gagal mengekstrak gambar: %s", e)
         raise e
-

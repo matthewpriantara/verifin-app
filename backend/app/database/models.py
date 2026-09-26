@@ -40,23 +40,6 @@ class JobCase(Base):
         return f"<JobCase(id={self.id}, verdict={self.verdict}, risk_score={self.risk_score})>"
 
 
-class AhuWhitelist(Base):
-    __tablename__ = "ahu_whitelist"
-
-    id = Column(Integer, primary_key=True, autoincrement=True)
-    company_name = Column(String(255), nullable=False, index=True)
-    legal_type = Column(String(10), nullable=False)
-    synced_at = Column(
-        DateTime(timezone=True),
-        server_default=func.now(),
-        onupdate=func.now(),
-        nullable=False,
-    )
-
-    def __repr__(self):
-        return f"<AhuWhitelist(id={self.id}, company_name={self.company_name}, legal_type={self.legal_type})>"
-
-
 class CommunityReport(Base):
     """
     Laporan komunitas — pengguna melaporkan lowongan yang terbukti menipu.
@@ -79,6 +62,12 @@ class CommunityReport(Base):
     report_type = Column(String(24), nullable=False, default="penipuan")  # penipuan | biaya_ilegal | tppo | lainnya
     description = Column(Text, nullable=True)
     reporter_contact = Column(String(255), nullable=True)  # opsional, untuk follow-up
+    reporter_ip = Column(String(45), nullable=True)
+    case_id = Column(String(64), nullable=True, index=True)  # link ke JobCase.id
+    evidence_file_url = Column(String(512), nullable=True)  # path ke bukti gambar yang di-upload
+    status = Column(String(12), nullable=False, default="pending", server_default="pending", index=True)
+    reviewed_at = Column(DateTime(timezone=True), nullable=True)
+    reviewer_note = Column(Text, nullable=True)
 
     # Agregasi sederhana: berapa kali entitas serupa dilaporkan
     created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)

@@ -147,3 +147,14 @@ async def check_phones_kredibel(contacts: list[str], limit: int = 2) -> list[dic
         result = await loop.run_in_executor(None, check_phone_kredibel, ph)
         results.append(result)
     return results
+
+
+async def check_phones_reputation(
+    contacts: list[str],
+    limit: int = 2,
+    company: str = "",
+    web_results: list | None = None,
+    **kwargs,
+) -> list[dict[str, Any]]:
+    """Alias & wrapper untuk runner pipeline OSINT (Kaspersky + SERP fallback)."""
+    return await check_phones_kredibel(contacts, limit=limit)
