@@ -1,15 +1,37 @@
 import logging
+import os
 import sys
 
 from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.staticfiles import StaticFiles
+
+
+# Ensure stream handler is explicitly writing to sys.stdout with flush
+handler = logging.StreamHandler(sys.stdout)
+handler.setLevel(logging.DEBUG)
+formatter = logging.Formatter("%(asctime)s %(levelname)s [%(name)s] %(message)s")
+handler.setFormatter(formatter)
+
+root_logger = logging.getLogger()
+root_logger.setLevel(logging.DEBUG)
+root_logger.handlers = [handler]
+
+logging.getLogger("httpx").setLevel(logging.WARNING)
+logging.getLogger("httpcore").setLevel(logging.WARNING)
+logging.getLogger("ppocr").setLevel(logging.WARNING)
+logging.getLogger("app").setLevel(logging.DEBUG)
+logging.getLogger("uvicorn").setLevel(logging.INFO)
+logging.getLogger("uvicorn.access").setLevel(logging.INFO)
+logging.getLogger("scrapling").propagate = False
 
 if hasattr(sys.stdout, "reconfigure"):
     sys.stdout.reconfigure(encoding="utf-8")
 if hasattr(sys.stderr, "reconfigure"):
     sys.stderr.reconfigure(encoding="utf-8")
 
+from fastapi import Request
 from app.api.v1.verify.router import router as verify_router
 from app.api.v1.health.router import router as health_router
 from app.api.v1.community.router import router as community_router
@@ -19,7 +41,16 @@ logger = logging.getLogger(__name__)
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    """Warm OCR model di startup agar request pertama tidak cold-load lama."""
+    """Init DB tables + warm OCR model di startup."""
+    # 1. DB init — auto-create verifin tables jika belum ada (idempotent)
+    try:
+        from app.database.postgres_client import Base, engine
+        from app.database import models as _models  # noqa: F401 ensure models registered
+        Base.metadata.create_all(bind=engine, checkfirst=True)
+        logger.info("DB tables ensured (create_all checkfirst)")
+    except Exception as exc:
+        logger.warning("DB init skipped: %s", exc)
+    # 2. OCR warmup agar request pertama tidak cold-load lama
     try:
         from app.services.ocr import get_ocr_model
         get_ocr_model()
@@ -29,7 +60,20 @@ async def lifespan(app: FastAPI):
     yield
 
 
-app = FastAPI(title="Verifin OSINT API", version="0.1.0", lifespan=lifespan)
+app = FastAPI(
+    title="Verifin API",
+    version="1.0.0",
+    description=(
+        "API verifikasi lowongan kerja berbasis OSINT multi-layer.\n\n"
+        "**Pipeline:** OCR → NER → LLM Entity Extraction → OSINT Paralel "
+        "(Kaspersky, SERP, Address, Company, WHOIS, Social Media, Web Evidence) "
+        "→ Fraud Network → SHAP XAI → Response\n\n"
+        "**Sumber data:** Kaspersky Who Calls ID, Kredibel SERP, DDG/Yahoo/Bing, "
+        "Nominatim/Overpass GIS, AHU/OSS SERP, WHOIS, Community Reports (DB)\n\n"
+        "**LLM:** Kimi K3 via OpenAgentic"
+    ),
+    lifespan=lifespan,
+)
 
 app.add_middleware(
     CORSMiddleware,
@@ -38,10 +82,28 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+@app.middleware("http")
+async def log_requests(request: Request, call_next):
+    import time
+    start_time = time.perf_counter()
+    logger.info("[HTTP INCOMING] %s %s", request.method, request.url.path)
+    try:
+        response = await call_next(request)
+        elapsed = (time.perf_counter() - start_time) * 1000
+        logger.info("[HTTP COMPLETED] %s %s -> status=%d (%.1fms)", request.method, request.url.path, response.status_code, elapsed)
+        return response
+    except Exception as exc:
+        elapsed = (time.perf_counter() - start_time) * 1000
+        logger.error("[HTTP FAILED] %s %s -> ERROR: %s (%.1fms)", request.method, request.url.path, exc, elapsed)
+        raise exc
 app.include_router(verify_router, prefix="/api/v1")
 app.include_router(health_router, prefix="/api/v1")
 app.include_router(community_router, prefix="/api/v1")
 
+# Serve bukti gambar yang di-upload komunitas
+UPLOAD_DIR = os.path.join(os.path.dirname(os.path.dirname(__file__)), "uploads", "evidence")
+os.makedirs(UPLOAD_DIR, exist_ok=True)
+app.mount("/uploads", StaticFiles(directory=UPLOAD_DIR), name="uploads")
 
 if __name__ == "__main__":
     import uvicorn

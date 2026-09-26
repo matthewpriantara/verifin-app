@@ -2,8 +2,9 @@
 Pydantic schema request dan response untuk endpoint verifikasi Verifin.
 """
 
-from pydantic import BaseModel, Field, ConfigDict
+from pydantic import BaseModel, Field, ConfigDict, field_validator
 from typing import List, Optional, Dict, Any
+from app.services.url_guard import validate_public_http_url
 
 
 class TextVerifyRequest(BaseModel):
@@ -34,6 +35,11 @@ class UrlVerifyRequest(BaseModel):
         examples=["Tugas lo ngapain aja? Handle trouble hardware... Daftar di link resmi ini: loker.staffinc.co/NEV7M"]
     )
 
+    @field_validator("url")
+    @classmethod
+    def validate_url(cls, value: str) -> str:
+        return validate_public_http_url(value)
+
 
 class ExtractedEntities(BaseModel):
     """Entitas yang berhasil diekstrak dari teks/gambar."""
@@ -42,6 +48,9 @@ class ExtractedEntities(BaseModel):
     emails: List[str] = Field(default=[], description="Alamat email.")
     urls: List[str] = Field(default=[], description="URL/website yang ditemukan.")
     addresses: List[str] = Field(default=[], description="Alamat fisik.")
+    location_candidates: List[str] = Field(
+        default=[], description="Wilayah atau cabang yang disebutkan tanpa alamat fisik exact."
+    )
     salaries: List[str] = Field(default=[], description="Informasi gaji jika ada.")
 
 
@@ -56,6 +65,10 @@ class VerifyResponse(BaseModel):
         description="Skor risiko penipuan dari 0 (sangat aman) hingga 100 (sangat berbahaya).",
         ge=0,
         le=100
+    )
+    case_id: Optional[str] = Field(
+        default=None,
+        description="ID persisten laporan; dapat dipakai untuk membuka ulang /report/{case_id}.",
     )
     summary: str = Field(
         description="Ringkasan singkat alasan mengapa verdict ini diberikan."

@@ -30,6 +30,7 @@ npm-debug.log*
 # --- Data besar & model hasil latih (lokal) ---
 dataset/
 backend/app/services/nlp/model/
+backend/app/debug_json/
 
 # --- LaTeX build artifacts ---
 *.aux

@@ -1,4 +1,4 @@
-"""Client OpenAI-compatible untuk OpenAgentic (Grok, Claude, dll)."""
+"""Client OpenAI-compatible untuk LLM."""
 
 import asyncio
 import json
@@ -50,26 +50,56 @@ def _parse_json_value(text: str) -> Any:
 
 def _repair_truncated_json(text: str) -> str:
     t = text.strip()
-    # Hapus trailing code fence jika ada
-    t = re.sub(r"```(?:json)?\s*$", "", t).strip()
+    # Hapus trailing code fence
+    t = re.sub(r"```(?:json)?\s*", "", t).strip()
 
-    # Hapus koma atau titik dua gantung di paling akhir
-    t = re.sub(r",\s*$", "", t)
+    # Temukan posisi aman terakhir dengan mini JSON state machine
+    # safe_end = posisi setelah field lengkap (key+value) atau setelah ] / }
+    safe_end = -1
+    in_str = False
+    escape = False
+    after_colon = False  # sudah lewat ":" — berarti sedang di posisi value
+    depth = 0
+
+    for i, ch in enumerate(t):
+        if escape:
+            escape = False
+            continue
+        if ch == '\\' and in_str:
+            escape = True
+            continue
+        if ch == '"':
+            if in_str:
+                in_str = False
+                # Baru tutup string — aman hanya kalau ini value (setelah colon)
+                if after_colon:
+                    safe_end = i
+                    after_colon = False
+            else:
+                in_str = True
+        elif not in_str:
+            if ch == ':':
+                after_colon = True
+            elif ch in ('{', '['):
+                depth += 1
+            elif ch in ('}', ']'):
+                depth -= 1
+                safe_end = i
+                after_colon = False
+            elif ch == ',' :
+                after_colon = False
+
+    # Kalau masih di dalam string (terpotong) → potong di safe_end terakhir
+    if in_str and safe_end >= 0:
+        t = t[:safe_end + 1]
+
+    # Hapus trailing koma atau titik dua gantung
+    t = re.sub(r",\s*$", "", t.rstrip())
     t = re.sub(r":\s*$", ': ""', t)
 
-    # Hitung petik ganda yang tidak di-escape
-    quotes = re.findall(r'(?<!\\)"', t)
-    if len(quotes) % 2 != 0:
-        t += '"'
-
-    # Hapus koma gantung setelah penutupan petik
-    t = re.sub(r",\s*$", "", t)
-
-    # Seimbangkan kurung siku dan kurawal
-    open_brackets = t.count("[") - t.count("]")
-    open_braces = t.count("{") - t.count("}")
-    t += "]" * max(0, open_brackets)
-    t += "}" * max(0, open_braces)
+    # Seimbangkan kurung
+    t += "]" * max(0, t.count("[") - t.count("]"))
+    t += "}" * max(0, t.count("{") - t.count("}"))
     return t
 
 
@@ -147,7 +177,7 @@ async def chat_completion(
 ) -> str:
     if not LLM_API_KEY:
         raise RuntimeError(
-            "LLM_API_KEY belum diset. Isi backend/.env dengan key OpenAgentic."
+            "LLM_API_KEY belum diset. Isi backend/.env dengan key google-api."
         )
 
     url = f"{LLM_BASE_URL}/chat/completions"
@@ -185,7 +215,22 @@ async def chat_completion(
                 raise RuntimeError(f"Format respons LLM tidak dikenali: {type(data)}")
 
             try:
-                content = data["choices"][0]["message"]["content"]
+                msg = data["choices"][0].get("message") or {}
+                content = msg.get("content")
+                # Fallback reasoning_content jika content kosong (model xhigh habis di thinking)
+                if not isinstance(content, str) or not content.strip():
+                    rc = msg.get("reasoning_content") or msg.get("reasoning") or data["choices"][0].get("reasoning_content") or ""
+                    if isinstance(rc, str) and rc.strip():
+                        if "{" in rc and "}" in rc:
+                            content = rc
+                        else:
+                            logger.warning("LLM returned empty content but reasoning_content present (%d chars) — using reasoning fallback", len(rc))
+                            content = rc
+                finish_reason = data["choices"][0].get("finish_reason", "")
+                if finish_reason == "length":
+                    logger.warning("LLM response terpotong (finish_reason=length) — repair akan dicoba")
+                if content is None:
+                    content = ""
                 return content if isinstance(content, str) else json.dumps(content)
             except (KeyError, IndexError, TypeError) as exc:
                 raise RuntimeError(f"Format respons LLM tidak dikenali: {data}") from exc
@@ -207,7 +252,7 @@ async def chat_completion(
 async def check_llm_status() -> dict:
     if not LLM_API_KEY:
         return {
-            "provider": "openagentic",
+            "provider": "google-api",
             "configured": False,
             "reachable": False,
             "model": LLM_MODEL,
@@ -222,7 +267,7 @@ async def check_llm_status() -> dict:
             )
             reachable = res.status_code < 500
             return {
-                "provider": "openagentic",
+                "provider": "google-api",
                 "configured": True,
                 "reachable": reachable,
                 "model": LLM_MODEL,
@@ -230,7 +275,7 @@ async def check_llm_status() -> dict:
             }
     except Exception as exc:
         return {
-            "provider": "openagentic",
+            "provider": "google-api",
             "configured": True,
             "reachable": False,
             "model": LLM_MODEL,

@@ -6,10 +6,18 @@ import logging
 from sqlalchemy.orm import Session
 
 from app.api.v1.verify.schema import VerifyResponse
+from app.config import LLM_MODEL
 from app.database.models import JobCase
 from app.services.hasher import compute_content_sha256
+from app.api.v1.verify.pipeline import _build_osint_summary, _to_response
 
 logger = logging.getLogger(__name__)
+CACHE_SCHEMA_VERSION = 7
+
+
+def _case_hash(raw_input: str) -> str:
+    """Hash input + model aktif — ganti LLM_MODEL otomatis invalidasi cache lama."""
+    return compute_content_sha256(f"{raw_input}\nmodel:{LLM_MODEL}")
 
 def _save_case_to_db(
     db: Session,
@@ -18,12 +26,15 @@ def _save_case_to_db(
     osint_results: dict | None,
     entities: dict | None = None,
     source: str = "text",
-) -> None:
-    """Simpan case + entities lengkap (fondasi exact-match memory)."""
+) -> dict:
+    """Simpan case + entities lengkap dan kembalikan status serta case_id."""
     from sqlalchemy.exc import IntegrityError
 
+    if db is None:
+        return {"status": "SKIPPED", "case_id": None}
+
     try:
-        text_hash = compute_content_sha256(raw_text)
+        text_hash = _case_hash(raw_text)
         ent = entities or analysis.get("entities_analyzed") or {}
         companies = list(ent.get("companies") or [])
         phones = list(ent.get("phones") or [])
@@ -39,6 +50,7 @@ def _save_case_to_db(
             "recommendations": analysis.get("recommendations") or [],
             "model_used": analysis.get("model_used"),
             "corrected_company_name": analysis.get("corrected_company_name"),
+            "shap_explanation": analysis.get("shap_explanation"),
         }
 
         osint_failed = False
@@ -66,7 +78,7 @@ def _save_case_to_db(
             existing.verdict = analysis.get("verdict", "ERROR")
             existing.risk_score = int(analysis.get("risk_score") or 0)
             existing.llm_output = llm_payload
-            existing.osint_summary = _build_osint_summary(osint_results)
+            existing.osint_summary = _cache_osint_payload(osint_results)
             existing.osint_failed = osint_failed
         else:
             db_case = JobCase(
@@ -84,14 +96,17 @@ def _save_case_to_db(
                 verdict=analysis.get("verdict", "ERROR"),
                 risk_score=int(analysis.get("risk_score") or 0),
                 llm_output=llm_payload,
-                osint_summary=_build_osint_summary(osint_results),
+                osint_summary=_cache_osint_payload(osint_results),
                 osint_failed=osint_failed,
             )
             db.add(db_case)
         db.commit()
+        case_id = existing.id if existing else db_case.id
+        return {"status": "SAVED", "case_id": str(case_id)}
     except Exception as e:
         db.rollback()
         logger.warning("Error saving job case to database: %s", e)
+        return {"status": "FAILED", "case_id": None}
 
 
 def _get_cached_case_from_db(db: Session, raw_input_str: str) -> VerifyResponse | None:
@@ -99,7 +114,7 @@ def _get_cached_case_from_db(db: Session, raw_input_str: str) -> VerifyResponse 
     if not raw_input_str or not raw_input_str.strip():
         return None
     try:
-        text_hash = compute_content_sha256(raw_input_str)
+        text_hash = _case_hash(raw_input_str)
         cached = db.query(JobCase).filter(JobCase.raw_text_hash == text_hash).first()
         if cached and cached.verdict and cached.verdict != "ERROR":
             llm_payload = cached.llm_output or {}
@@ -109,9 +124,11 @@ def _get_cached_case_from_db(db: Session, raw_input_str: str) -> VerifyResponse 
                 "emails": cached.emails or [],
                 "urls": cached.urls or [],
                 "addresses": cached.addresses or [],
+                "location_candidates": (cached.entities or {}).get("location_candidates", []),
                 "salaries": cached.salaries or [],
             }
             analysis = {
+                "case_id": str(cached.id),
                 "verdict": cached.verdict,
                 "risk_score": cached.risk_score,
                 "summary": llm_payload.get("summary", ""),
@@ -120,8 +137,22 @@ def _get_cached_case_from_db(db: Session, raw_input_str: str) -> VerifyResponse 
                 "recommendations": llm_payload.get("recommendations", []),
                 "model_used": f"{llm_payload.get('model_used', 'unknown')} (DB Cache Hit)",
                 "corrected_company_name": llm_payload.get("corrected_company_name"),
+                "shap_explanation": llm_payload.get("shap_explanation"),
             }
-            osint = cached.osint_summary or {}
+            cached_osint = cached.osint_summary or {}
+            if cached_osint.get("cache_schema_version") != CACHE_SCHEMA_VERSION:
+                logger.info("[DB Cache Skip] stale cache schema: %s", text_hash[:10])
+                return None
+            osint = cached_osint.get("response_osint")
+            if not isinstance(osint, dict):
+                logger.info("[DB Cache Skip] legacy/incomplete OSINT payload: %s", text_hash[:10])
+                return None
+            # Cache sebelum rename menyimpan agregat seluruh platform sebagai
+            # `threads`; normalisasi saat baca agar kontrak response sekarang
+            # tetap `social` tanpa mengulang probe eksternal.
+            if "social" not in osint and isinstance(osint.get("threads"), dict):
+                osint = {**osint, "social": osint["threads"]}
+                osint.pop("threads", None)
             logger.debug("[DB Cache Hit] hash: %s", text_hash[:10])
             return _to_response(analysis, ent, osint)
     except Exception as e:
@@ -129,3 +160,13 @@ def _get_cached_case_from_db(db: Session, raw_input_str: str) -> VerifyResponse 
     return None
 
 
+def _cache_osint_payload(osint_results: dict | None) -> dict | None:
+    """Simpan evidence response lengkap agar cache tidak menghasilkan SHAP palsu."""
+    if not isinstance(osint_results, dict):
+        return None
+    summary = _build_osint_summary(osint_results) or {}
+    return {
+        **summary,
+        "cache_schema_version": CACHE_SCHEMA_VERSION,
+        "response_osint": osint_results,
+    }

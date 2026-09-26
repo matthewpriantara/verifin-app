@@ -8,37 +8,98 @@ import whois
 logger = logging.getLogger(__name__)
 
 
+def _rdap_first_seen(domain: str) -> datetime | None:
+    """Fallback 1: tanya RDAP API untuk registration date."""
+    try:
+        from curl_cffi import requests as cffi_req
+        r = cffi_req.get(f"https://rdap.org/domain/{domain}", impersonate="chrome120", timeout=8)
+    except ImportError:
+        import requests as _stdlib_req
+        r = _stdlib_req.get(f"https://rdap.org/domain/{domain}", timeout=8,
+            headers={"User-Agent": "Mozilla/5.0"})
+    if r.status_code != 200:
+        return None
+    data = r.json()
+    # RDAP events: registration date ada di events array
+    for event in data.get("events", []):
+        if event.get("eventAction") == "registration":
+            date_str = event.get("eventDate", "")
+            # Format: "2020-01-15T10:30:00Z"
+            return datetime.fromisoformat(date_str.replace("Z", "+00:00"))
+    return None
+
+
+def _wayback_first_seen(domain: str) -> datetime | None:
+    """Fallback 2: tanya Wayback Machine CDX API kapan domain pertama kali di-crawl."""
+    try:
+        url = (
+            f"https://web.archive.org/cdx/search/cdx"
+            f"?url={domain}&output=json&limit=1&fl=timestamp&from=2000&filter=statuscode:200"
+        )
+        try:
+            from curl_cffi import requests as cffi_req
+            r = cffi_req.get(url, impersonate="chrome120", timeout=6)
+        except ImportError:
+            import requests as _stdlib_req
+            r = _stdlib_req.get(url, timeout=6,
+                headers={"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.1"})
+        if r.status_code != 200:
+            return None
+        data = r.json()
+        # data[0] = header row ["timestamp"], data[1] = first result
+        if len(data) >= 2 and data[1]:
+            ts = data[1][0]  # format: "20250317144540"
+            return datetime.strptime(ts, "%Y%m%d%H%M%S").replace(tzinfo=timezone.utc)
+    except Exception as e:
+        logger.debug("Wayback CDX fallback gagal untuk %s: %s", domain, e)
+    return None
+
+
 def check_domain_age(domain: str) -> dict:
-    """Cek umur domain dari data WHOIS."""
+    """Cek umur domain dari WHOIS, fallback ke RDAP lalu Wayback Machine CDX."""
     logger.debug("Mengecek umur domain: %s", domain)
+    creation_date = None
+    source = "whois"
+
     try:
         w = whois.whois(domain)
-        creation_date = w.creation_date
-
-        if isinstance(creation_date, list):
-            creation_date = creation_date[0]
-
-        if not creation_date:
-            return {"age_days": -1, "age_years": None, "is_new": True, "created_at": "Unknown"}
-
-        # Samakan timezone-aware vs naive
-        if getattr(creation_date, "tzinfo", None) is not None:
-            now = datetime.now(timezone.utc)
-            creation_date = creation_date.replace(tzinfo=timezone.utc) if creation_date.tzinfo is None \
-                else creation_date.astimezone(timezone.utc)
-        else:
-            now = datetime.now()
-
-        age_days = (now - creation_date).days
-        return {
-            "age_days": age_days,
-            "age_years": round(age_days / 365, 2) if age_days >= 0 else None,
-            "is_new": age_days < 90,
-            "created_at": creation_date.strftime("%Y-%m-%d"),
-        }
+        cd = w.creation_date
+        if isinstance(cd, list):
+            cd = cd[0]
+        if cd:
+            creation_date = cd
     except Exception as e:
-        logger.warning("WHOIS lookup gagal untuk %s: %s", domain, e)
-        return {"error": str(e), "is_new": True, "age_days": -1, "age_years": None, "created_at": "Unknown"}
+        logger.debug("WHOIS lookup gagal untuk %s: %s", domain, e)
+
+    # Fallback 1: RDAP API
+    if not creation_date:
+        creation_date = _rdap_first_seen(domain)
+        if creation_date:
+            source = "rdap"
+
+    # Fallback 2: Wayback Machine CDX
+    if not creation_date:
+        creation_date = _wayback_first_seen(domain)
+        source = "wayback_cdx"
+
+    if not creation_date:
+        return {"age_days": -1, "age_years": None, "is_new": None, "created_at": "Unknown", "source": source}
+
+    # Normalize ke UTC
+    now = datetime.now(timezone.utc)
+    if getattr(creation_date, "tzinfo", None) is None:
+        creation_date = creation_date.replace(tzinfo=timezone.utc)
+    else:
+        creation_date = creation_date.astimezone(timezone.utc)
+
+    age_days = (now - creation_date).days
+    return {
+        "age_days": age_days,
+        "age_years": round(age_days / 365, 2) if age_days >= 0 else None,
+        "is_new": age_days < 90,
+        "created_at": creation_date.strftime("%Y-%m-%d"),
+        "source": source,
+    }
 
 
 def check_email_security(domain: str) -> dict:
@@ -70,43 +131,3 @@ def check_email_security(domain: str) -> dict:
     return results
 
 
-async def scan_email_osint(email: str, categories: list = None) -> list:
-    """Scan email footprint (opsional — butuh paket user-scanner)."""
-    try:
-        from user_scanner.core import engine
-    except ImportError:
-        return []
-
-    if not categories:
-        categories = ["social", "dev", "jobs", "shopping"]
-
-    results = []
-    for cat in categories:
-        try:
-            cat_results = await engine.check_category(cat, email, is_email=True)
-            results.extend(cat_results)
-        except Exception as e:
-            logger.warning("Gagal scan email kategori %s: %s", cat, e)
-
-    return [r.to_dict() for r in results if r.is_found()]
-
-
-async def scan_username_osint(username: str, categories: list = None) -> list:
-    """Scan username footprint (opsional — butuh paket user-scanner)."""
-    try:
-        from user_scanner.core import engine
-    except ImportError:
-        return []
-
-    if not categories:
-        categories = ["social", "dev", "finance", "community"]
-
-    results = []
-    for cat in categories:
-        try:
-            cat_results = await engine.check_category(cat, username, is_email=False)
-            results.extend(cat_results)
-        except Exception as e:
-            logger.warning("Gagal scan username kategori %s: %s", cat, e)
-
-    return [r.to_dict() for r in results if r.is_found()]
