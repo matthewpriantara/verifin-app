@@ -13,6 +13,11 @@ LLM_API_KEY = os.getenv("LLM_API_KEY", "")
 LLM_MODEL = os.getenv("LLM_MODEL", "")
 LLM_VISION_MODEL = os.getenv("LLM_VISION_MODEL") or LLM_MODEL
 LLM_TIMEOUT = float(os.getenv("LLM_TIMEOUT", "120"))
+# Validator/extractor pakai model ringan (non-xhigh) — hemat token, tidak habis di reasoning_content
+# ot/muse-spark-1.2(minimal) terbukti stabil 4-5 detik; fb/* sering timeout 35s (Cloudflare 502)
+# fb/gpt-5.6-luna juga OK tapi lebih lambat (12s) — jadi fallback kedua
+LLM_VALIDATOR_MODEL = os.getenv("LLM_VALIDATOR_MODEL", "ot/muse-spark-1.2(minimal)")
+LLM_EXTRACTOR_MODEL = os.getenv("LLM_EXTRACTOR_MODEL", "ot/muse-spark-1.2(minimal)")
 
 # PostgreSQL — wajib set DATABASE_URL di .env
 DATABASE_URL = os.getenv("DATABASE_URL", "")

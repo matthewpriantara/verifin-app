@@ -21,7 +21,7 @@ import logging
 import re
 from typing import Any
 
-from app.config import LLM_API_KEY, LLM_MODEL, LLM_TIMEOUT
+from app.config import LLM_API_KEY, LLM_MODEL, LLM_TIMEOUT, LLM_VALIDATOR_MODEL
 from app.services.llm.client import chat_completion, extract_json_from_response
 
 logger = logging.getLogger(__name__)
@@ -175,9 +175,9 @@ async def validate_entities_llm(
         raw = await asyncio.wait_for(
             chat_completion(
                 messages,
-                model=LLM_MODEL,
+                model=LLM_VALIDATOR_MODEL,
                 temperature=0.0,
-                max_tokens=800,
+                max_tokens=1500,
                 max_retries=1,
             ),
             timeout=_VALIDATE_TIMEOUT,
@@ -189,6 +189,10 @@ async def validate_entities_llm(
         logger.warning(f"[llm_validator] LLM validation gagal ({type(exc).__name__}: {exc}) → fallback regex.")
         return None
 
+    if not raw or not raw.strip():
+        logger.warning("[llm_validator] LLM returned empty content (reasoning model habis di thinking) → fallback regex.")
+        return None
+
     try:
         data = extract_json_from_response(raw)
     except Exception as exc:
@@ -196,6 +200,11 @@ async def validate_entities_llm(
         return None
 
     if not isinstance(data, dict):
+        return None
+
+    # Guard: jika extract_json fallback ke verdict:ERROR → anggap gagal, fallback ke regex (jangan hapus semua phones)
+    if data.get("verdict") == "ERROR":
+        logger.warning("[llm_validator] extract_json returned ERROR verdict → fallback regex (jangan hapus entities).")
         return None
 
     # Process phones

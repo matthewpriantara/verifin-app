@@ -215,11 +215,22 @@ async def chat_completion(
                 raise RuntimeError(f"Format respons LLM tidak dikenali: {type(data)}")
 
             try:
-                content = data["choices"][0]["message"]["content"]
-                # Deteksi truncation dari provider — log warning agar visible di server log
+                msg = data["choices"][0].get("message") or {}
+                content = msg.get("content")
+                # Fallback reasoning_content jika content kosong (model xhigh habis di thinking)
+                if not isinstance(content, str) or not content.strip():
+                    rc = msg.get("reasoning_content") or msg.get("reasoning") or data["choices"][0].get("reasoning_content") or ""
+                    if isinstance(rc, str) and rc.strip():
+                        if "{" in rc and "}" in rc:
+                            content = rc
+                        else:
+                            logger.warning("LLM returned empty content but reasoning_content present (%d chars) — using reasoning fallback", len(rc))
+                            content = rc
                 finish_reason = data["choices"][0].get("finish_reason", "")
                 if finish_reason == "length":
                     logger.warning("LLM response terpotong (finish_reason=length) — repair akan dicoba")
+                if content is None:
+                    content = ""
                 return content if isinstance(content, str) else json.dumps(content)
             except (KeyError, IndexError, TypeError) as exc:
                 raise RuntimeError(f"Format respons LLM tidak dikenali: {data}") from exc

@@ -7,6 +7,8 @@ services:
     image: postgres:16-alpine
     container_name: verifin-postgres
     restart: unless-stopped
+    mem_limit: 256m
+    memswap_limit: 256m
     environment:
       POSTGRES_USER: verifin
       POSTGRES_PASSWORD: verifin_secure_pass_change_me
@@ -38,13 +40,15 @@ services:
     image: ghcr.io/matthewpriantara/verifin-app-backend:latest
     container_name: verifin-backend
     restart: unless-stopped
+    mem_limit: 1536m
+    memswap_limit: 1536m
     ports:
-      - "8000:8000"
+      - "127.0.0.1:8000:8000"
     env_file:
       - ./backend/.env
     environment:
       # fallback jika .env tidak set (override oleh env_file jika ada)
-      DATABASE_URL: postgresql://verifin:verifin_secure_pass_change_me@verifin-db:5432/verifin_db
+      DATABASE_URL: postgresql+psycopg2://verifin:verifin_secure_pass_change_me@verifin-db:5432/verifin_db
       REDIS_URL: redis://verifin-redis:6379/0
       SEARXNG_URL: http://host.docker.internal:8888
     extra_hosts:
