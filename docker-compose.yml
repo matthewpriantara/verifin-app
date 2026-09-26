@@ -1,0 +1,66 @@
+services:
+  verifin-redis:
+    image: redis:7-alpine
+    container_name: verifin-redis
+    restart: unless-stopped
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+
+  verifin-backend:
+    image: ghcr.io/matthewpriantara/verifin-app-backend:latest
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: verifin-backend
+    restart: unless-stopped
+    ports:
+      - "8000:8000"
+    env_file:
+      - ./backend/.env
+    environment:
+      REDIS_URL: redis://verifin-redis:6379/0
+    volumes:
+      - ./backend/uploads:/app/uploads/evidence
+    depends_on:
+      verifin-redis:
+        condition: service_healthy
+
+  verifin-frontend:
+    image: ghcr.io/matthewpriantara/verifin-app-frontend:latest
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+      args:
+        NEXT_PUBLIC_API_URL: https://verifin.octane.web.id
+    container_name: verifin-frontend
+    restart: unless-stopped
+    ports:
+      - "3000:3000"
+    environment:
+      - NODE_ENV=production
+    depends_on:
+      - verifin-backend
+
+  # Auto-update container ketika ada image baru di GHCR
+  watchtower:
+    image: containrrr/watchtower
+    container_name: verifin-watchtower
+    restart: unless-stopped
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+      - ~/.docker/config.json:/config.json:ro
+    environment:
+      - WATCHTOWER_CLEANUP=true
+      - WATCHTOWER_POLL_INTERVAL=60
+      - WATCHTOWER_INCLUDE_RESTARTING=true
+    command: verifin-backend verifin-frontend
+
+volumes:
+  redis_data:
