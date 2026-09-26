@@ -71,10 +71,10 @@ export function RiskMeter({ score, verdict }: RiskMeterProps) {
           <motion.div
             className={cn(
               "h-full rounded-full",
-              v === "AMAN"    && "bg-aman-fg",
+              v === "AMAN" && "bg-aman-fg",
               v === "WASPADA" && "bg-waspada-fg",
-              v === "BAHAYA"  && "bg-bahaya-fg",
-              v === "ERROR"   && "bg-text-muted",
+              v === "BAHAYA" && "bg-bahaya-fg",
+              v === "ERROR" && "bg-text-muted",
             )}
             initial={{ width: "0%" }}
             animate={{ width: `${clamped}%` }}
@@ -83,8 +83,8 @@ export function RiskMeter({ score, verdict }: RiskMeterProps) {
         </div>
         <div className="mt-2 flex justify-between font-mono text-[10px] uppercase tracking-wide text-text-muted">
           <span>0 · Aman</span>
-          <span>45 · Waspada</span>
-          <span>80+ · Bahaya</span>
+          <span>40 · Waspada</span>
+          <span>75+ · Bahaya</span>
         </div>
       </div>
     </motion.div>

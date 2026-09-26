@@ -26,7 +26,7 @@ import logging
 import re
 from typing import Any
 
-from app.config import LLM_API_KEY, LLM_MODEL, LLM_TIMEOUT
+from app.config import LLM_API_KEY, LLM_EXTRACTOR_MODEL, LLM_TIMEOUT
 from app.services.llm.client import chat_completion, extract_json_from_response
 
 logger = logging.getLogger(__name__)
@@ -112,15 +112,19 @@ async def extract_entities_llm(text: str) -> dict[str, Any] | None:
         raw = await asyncio.wait_for(
             chat_completion(
                 messages,
-                model=LLM_MODEL,
+                model=LLM_EXTRACTOR_MODEL,
                 temperature=0.0,   # deterministik untuk extraction
-                max_tokens=800,    # extraction tidak butuh panjang
+                max_tokens=1500,   # minimal thinking butuh headroom
                 max_retries=2,     # extraction jangan retry lama — cepat fallback
             ),
             timeout=_EXTRACT_TIMEOUT,
         )
     except (asyncio.TimeoutError, Exception) as exc:  # noqa: BLE001 — fallback by design
         logger.warning("[llm_ner] LLM extraction gagal (%s) → fallback regex.", exc)
+        return None
+
+    if not raw or not raw.strip():
+        logger.warning("[llm_ner] LLM returned empty content → fallback regex.")
         return None
 
     try:
@@ -130,6 +134,10 @@ async def extract_entities_llm(text: str) -> dict[str, Any] | None:
         return None
 
     if not isinstance(data, dict):
+        return None
+
+    if data.get("verdict") == "ERROR":
+        logger.warning("[llm_ner] extract_json returned ERROR verdict → fallback regex.")
         return None
 
     return {
