@@ -118,40 +118,6 @@ def _profile_only_url(url: str) -> str | None:
         return urlunsplit(("https", host, f"/{segments[0]}", "", ""))
     return None
 
-
-def _slug_candidates(company: str) -> list[str]:
-    raw = company.strip()
-
-    explicit_handles = re.findall(r"@([A-Za-z0-9._]{3,30})", raw)
-    out: list[str] = []
-    for h in explicit_handles:
-        h_clean = h.lower().strip(".")
-        if h_clean and h_clean not in out:
-            out.append(h_clean)
-
-    cleaned = re.sub(r"\([^)]*\)", "", raw)
-    cleaned = re.sub(r"^(pt|cv|ud)\.?\s+", "", cleaned, flags=re.I)
-    cleaned = re.sub(
-        r"\b(saat|ini|membuka|lowongan|rekrutmen|hiring|posisi|sebagai|grup|group)\b",
-        "",
-        cleaned,
-        flags=re.I,
-    )
-    cleaned = re.sub(r"[^A-Za-z0-9\s]", " ", cleaned).strip()
-
-    words = [w for w in cleaned.split() if len(w) > 1][:4]
-    if words:
-        joined = "".join(words).lower()
-        underscored = "_".join(w.lower() for w in words)
-        first_word = words[0].lower()
-
-        for s in (joined, underscored, first_word):
-            if s and s not in out and len(s) >= 3:
-                out.append(s)
-
-    return out[:4]
-
-
 def run_social_osint(
     entities: dict,
     web_evidence: dict | None = None,

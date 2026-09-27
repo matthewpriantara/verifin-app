@@ -620,6 +620,7 @@ def collect_web_evidence(entities: dict) -> dict[str, Any]:
 
     searches: list[dict[str, Any]] = []
     intelligence_signals: dict[str, Any] = {}
+    cached_si_results: list[dict[str, Any]] | None = None
     if companies or emails:
         from app.services.osint.search_intelligence import intelligent_search
 
@@ -632,6 +633,7 @@ def collect_web_evidence(entities: dict) -> dict[str, Any]:
             max_results=10,
         )
         if si_result.get("ok") and si_result.get("results"):
+            cached_si_results = si_result.get("results")
             intelligence_signals = si_result.get("signals", {})
             searches.append({
                 "type": "search",
@@ -674,7 +676,7 @@ def collect_web_evidence(entities: dict) -> dict[str, Any]:
         if addresses:
             loc = addresses[0] if isinstance(addresses[0], str) else str(addresses[0])
         try:
-            platform_evidence = collect_all_platform_evidence(company_name, loc)
+            platform_evidence = collect_all_platform_evidence(company_name, loc, search_results=cached_si_results)
         except Exception as exc:
             logger.warning("[Platform Evidence] gagal: %s", exc)
             platform_evidence = {"ok": False, "error": str(exc)}

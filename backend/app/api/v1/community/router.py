@@ -15,28 +15,9 @@ from app.database.models import CommunityReport
 from app.database.postgres_client import Base, engine, get_db
 from app.services.ner import clean_indonesian_phone
 from app.api.v1.community.schema import CommunityReportIn, CommunityReportOut, ModerationUpdate
-
+from app.config import UPLOAD_DIR, MAX_UPLOAD_SIZE_BYTES
 logger = logging.getLogger(__name__)
 router = APIRouter()
-try:
-    Base.metadata.create_all(bind=engine, tables=[CommunityReport.__table__], checkfirst=True)
-except Exception as exc:
-    logger.warning("[community] create_all skipped: %s", exc)
-try:
-    with engine.begin() as conn:
-        for ddl in (
-            'ALTER TABLE community_reports ADD COLUMN IF NOT EXISTS status VARCHAR(12) NOT NULL DEFAULT \'pending\'',
-            'ALTER TABLE community_reports ADD COLUMN IF NOT EXISTS reporter_ip VARCHAR(45)',
-            'ALTER TABLE community_reports ADD COLUMN IF NOT EXISTS reviewed_at TIMESTAMPTZ',
-            'ALTER TABLE community_reports ADD COLUMN IF NOT EXISTS reviewer_note TEXT',
-            'ALTER TABLE community_reports ADD COLUMN IF NOT EXISTS case_id VARCHAR(64)',
-            'ALTER TABLE community_reports ADD COLUMN IF NOT EXISTS evidence_file_url VARCHAR(512)',
-            'CREATE INDEX IF NOT EXISTS ix_community_reports_status ON community_reports (status)',
-        ):
-            conn.execute(text(ddl))
-except Exception as exc:
-    logger.warning("[community] migration skipped: %s", exc)
-
 
 @router.post("/community/report", status_code=201, summary="Kirim Laporan Penipuan Komunitas")
 async def submit_report(
@@ -67,18 +48,19 @@ async def submit_report(
                 detail="Format file tidak didukung. Gunakan JPG, PNG, atau WebP.",
             )
         contents = await evidence_file.read()
-        if len(contents) > 5 * 1024 * 1024:
+        if len(contents) > MAX_UPLOAD_SIZE_BYTES:
             raise HTTPException(
                 status_code=422,
-                detail="Ukuran file terlalu besar. Maksimal 5MB.",
+                detail=f"Ukuran file terlalu besar. Maksimal {MAX_UPLOAD_SIZE_BYTES // (1024 * 1024)}MB.",
             )
 
         import uuid as _uuid
-        ext = os.path.splitext(evidence_file.filename)[1].lower() or ".jpg"
+        raw_ext = os.path.splitext(evidence_file.filename)[1].lower()
+        ext = raw_ext if raw_ext in {".jpg", ".jpeg", ".png", ".webp"} else ".jpg"
         filename = f"{_uuid.uuid4().hex}{ext}"
-        upload_dir = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))), "uploads", "evidence")
-        os.makedirs(upload_dir, exist_ok=True)
-        filepath = os.path.join(upload_dir, filename)
+        upload_path = str(UPLOAD_DIR)
+        os.makedirs(upload_path, exist_ok=True)
+        filepath = os.path.join(upload_path, filename)
         with open(filepath, "wb") as f:
             f.write(contents)
         evidence_file_url = f"/uploads/evidence/{filename}"
@@ -119,7 +101,6 @@ def check_entity(
     url: Optional[str] = Query(None),
     db: Session = Depends(get_db),
 ):
-    """Kembalikan berapa kali entitas dilaporkan — dipakai Fraud Network."""
     if not any([company_name, phone, email, url]):
         raise HTTPException(status_code=422, detail="Sertakan minimal satu parameter entitas.")
 

@@ -148,100 +148,12 @@ async def ai_extract_and_rank(
             "error": str(exc),
         }
 
-
-async def ai_extract_from_page(
-    url: str,
-    page_content: str,
-    query: str,
-    *,
-    max_tokens: int = 4096,
-) -> dict[str, Any]:
-    max_content = 8000
-    truncated = page_content[:max_content]
-    if len(page_content) > max_content:
-        truncated += "\n... [konten dipotong]"
-
-    system_prompt = """\
-Kamu adalah extractor data terstruktur dari halaman web yang sudah di-render.
-Ekstrak informasi bisnis/personal dari konten halaman.
-
-Output JSON:
-{
-  "url": "<url>",
-  "page_type": "instagram_profile | facebook_page | google_maps | website | job_portal | other",
-  "extracted_data": {
-    "name": "...",
-    "address": "...",
-    "phone": "...",
-    "email": "...",
-    "social_links": [],
-    "website": "...",
-    "followers": "...",
-    "rating": null,
-    "reviews_count": null,
-    "business_category": "...",
-    "description": "...",
-    "extra_notes": "..."
-  },
-  "is_business_verified": false,
-  "confidence_score": 0
-}"""
-
-    user_prompt = f"""URL: {url}
-Query konteks: {query}
-
-Konten halaman (HTML/Markdown yang sudah di-render):
----
-{truncated}
----
-
-Ekstrak semua data terstruktur yang tersedia."""
-
-    try:
-        raw_response = await chat_completion(
-            messages=[
-                {"role": "system", "content": system_prompt},
-                {"role": "user", "content": user_prompt},
-            ],
-            temperature=0.0,
-            max_tokens=max_tokens,
-        )
-
-        parsed = extract_json_from_response(raw_response)
-        return {
-            "ok": True,
-            "url": url,
-            "page_type": parsed.get("page_type", "other"),
-            "extracted_data": parsed.get("extracted_data", {}),
-            "is_business_verified": parsed.get("is_business_verified", False),
-            "confidence_score": parsed.get("confidence_score", 0),
-            "error": None,
-        }
-    except Exception as exc:
-        logger.error("[AI Page Extract] gagal untuk %s: %s", url, exc)
-        return {
-            "ok": False,
-            "url": url,
-            "page_type": "other",
-            "extracted_data": {},
-            "is_business_verified": False,
-            "confidence_score": 0,
-            "error": str(exc),
-        }
-
-
 def merge_extracted_evidence(
     search_extraction: dict[str, Any],
     page_extractions: list[dict[str, Any]],
 ) -> dict[str, Any]:
-    """
-    Gabungkan hasil AI extraction dari search results + individual page fetches.
-
-    Dedup berdasarkan URL dan nama entitas.
-    """
     merged_results: list[dict[str, Any]] = list(search_extraction.get("results", []))
 
-    # Index by URL untuk dedup
     url_index: dict[str, int] = {}
     for i, r in enumerate(merged_results):
         url = (r.get("url") or "").lower().rstrip("/")
@@ -255,19 +167,15 @@ def merge_extracted_evidence(
         page_data = pe.get("extracted_data", {})
 
         if url in url_index:
-            # Merge ke result yang sudah ada
             idx = url_index[url]
             existing = merged_results[idx].get("extracted_data", {})
-            # Fill missing fields
             for key, val in page_data.items():
                 if not existing.get(key) and val:
                     existing[key] = val
             merged_results[idx]["extracted_data"] = existing
-            # Update page_type
             if pe.get("page_type") and pe["page_type"] != "other":
                 merged_results[idx]["result_type"] = pe["page_type"]
         else:
-            # Tambah sebagai result baru
             merged_results.append({
                 "title": page_data.get("name", ""),
                 "url": pe.get("url", ""),
@@ -280,7 +188,6 @@ def merge_extracted_evidence(
                 "is_verification": pe.get("is_business_verified", False),
             })
 
-    # Sort by relevance
     merged_results.sort(key=lambda x: x.get("relevance_score", 0), reverse=True)
 
     return {

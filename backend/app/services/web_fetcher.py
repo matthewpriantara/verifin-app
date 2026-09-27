@@ -282,10 +282,6 @@ def _sync_scrapling_fetch(url: str) -> tuple[str, list[str]]:
     return combined_caption_text, dedup_images[:3]
 
 async def _fetch_url_content_and_image(url: str) -> tuple[str, list[str]]:
-    """
-    Scrape teks (caption/description) & daftar image URL poster (termasuk carousel slides) dari URL.
-    Returns: (extracted_text, temp_image_paths_list)
-    """
     validate_public_http_url(url)
     loop = asyncio.get_running_loop()
     combined_caption_text, image_urls = await loop.run_in_executor(None, _sync_scrapling_fetch, url)

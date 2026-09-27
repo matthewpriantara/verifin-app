@@ -2,12 +2,11 @@ import re
 import httpx
 from urllib.parse import quote_plus, unquote
 from app.services.status_contract import COMPLETED, FOUND, NO_RESULTS, UNAVAILABLE
+from app.config import NOMINATIM_URL, OSINT_TIMEOUT_SEC, OSINT_USER_AGENT
 
-NOMINATIM_URL = "https://nominatim.openstreetmap.org/search"
-REQUEST_TIMEOUT = 15.0
-
+REQUEST_TIMEOUT = OSINT_TIMEOUT_SEC
 NOMINATIM_HEADERS = {
-    "User-Agent": "Verifin-OSINT-App/1.0 (gemastik-competition; contact@verifin.app)"
+    "User-Agent": OSINT_USER_AGENT
 }
 
 async def _geocode_single(address: str, client: httpx.AsyncClient) -> dict | None:

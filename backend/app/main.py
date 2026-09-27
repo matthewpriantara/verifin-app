@@ -6,7 +6,7 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
-
+from app.config import CORS_ORIGINS
 handler = logging.StreamHandler(sys.stdout)
 handler.setLevel(logging.DEBUG)
 formatter = logging.Formatter("%(asctime)s %(levelname)s [%(name)s] %(message)s")
@@ -42,7 +42,19 @@ async def lifespan(app: FastAPI):
     try:
         from app.database.postgres_client import Base, engine
         from app.database import models as _models
+        from sqlalchemy import text
         Base.metadata.create_all(bind=engine, checkfirst=True)
+        with engine.begin() as conn:
+            for ddl in (
+                'ALTER TABLE community_reports ADD COLUMN IF NOT EXISTS status VARCHAR(12) NOT NULL DEFAULT \'pending\'',
+                'ALTER TABLE community_reports ADD COLUMN IF NOT EXISTS reporter_ip VARCHAR(45)',
+                'ALTER TABLE community_reports ADD COLUMN IF NOT EXISTS reviewed_at TIMESTAMPTZ',
+                'ALTER TABLE community_reports ADD COLUMN IF NOT EXISTS reviewer_note TEXT',
+                'ALTER TABLE community_reports ADD COLUMN IF NOT EXISTS case_id VARCHAR(64)',
+                'ALTER TABLE community_reports ADD COLUMN IF NOT EXISTS evidence_file_url VARCHAR(512)',
+                'CREATE INDEX IF NOT EXISTS ix_community_reports_status ON community_reports (status)',
+            ):
+                conn.execute(text(ddl))
         logger.info("DB tables ensured (create_all checkfirst)")
     except Exception as exc:
         logger.warning("DB init skipped: %s", exc)
@@ -63,7 +75,7 @@ app = FastAPI(
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=CORS_ORIGINS,
     allow_methods=["*"],
     allow_headers=["*"],
 )
