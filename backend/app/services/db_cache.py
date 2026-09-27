@@ -2,7 +2,10 @@
 from __future__ import annotations  # noqa: F401 — stdlib compat shim, harmless
 
 import logging
+import re
+from urllib.parse import urlparse, urlunparse
 
+from sqlalchemy import or_
 from sqlalchemy.orm import Session
 
 from app.api.v1.verify.schema import VerifyResponse
@@ -43,6 +46,13 @@ def _save_case_to_db(
         addresses = list(ent.get("addresses") or [])
         salaries = list(ent.get("salaries") or [])
 
+        if source == "url" and not urls:
+            match_target = re.search(r"^URL Target:\s*(\S+)", raw_text or "", re.M)
+            if match_target:
+                target_url = match_target.group(1).strip()
+                urls.append(target_url)
+                if isinstance(ent, dict):
+                    ent["urls"] = list(urls)
         llm_payload = {
             "summary": analysis.get("summary", ""),
             "risk_factors": analysis.get("risk_factors") or [],
@@ -109,6 +119,49 @@ def _save_case_to_db(
         return {"status": "FAILED", "case_id": None}
 
 
+def _job_case_to_response(cached: JobCase) -> VerifyResponse | None:
+    """Konversi JobCase dari DB menjadi VerifyResponse."""
+    if not cached or not cached.verdict or cached.verdict == "ERROR":
+        return None
+    llm_payload = cached.llm_output or {}
+    ent = cached.entities or {
+        "companies": cached.companies or [],
+        "phones": cached.phones or [],
+        "emails": cached.emails or [],
+        "urls": cached.urls or [],
+        "addresses": cached.addresses or [],
+        "location_candidates": (cached.entities or {}).get("location_candidates", []),
+        "salaries": cached.salaries or [],
+    }
+    analysis = {
+        "case_id": str(cached.id),
+        "verdict": cached.verdict,
+        "risk_score": cached.risk_score,
+        "summary": llm_payload.get("summary", ""),
+        "risk_factors": llm_payload.get("risk_factors", []),
+        "safe_factors": llm_payload.get("safe_factors", []),
+        "recommendations": llm_payload.get("recommendations", []),
+        "model_used": f"{llm_payload.get('model_used', 'unknown')} (DB Cache Hit)",
+        "corrected_company_name": llm_payload.get("corrected_company_name"),
+        "shap_explanation": llm_payload.get("shap_explanation"),
+    }
+    cached_osint = cached.osint_summary or {}
+    if cached_osint.get("cache_schema_version") != CACHE_SCHEMA_VERSION:
+        logger.info("[DB Cache Skip] stale cache schema: %s", str(cached.id)[:8])
+        return None
+    osint = cached_osint.get("response_osint")
+    if not isinstance(osint, dict):
+        logger.info("[DB Cache Skip] legacy/incomplete OSINT payload: %s", str(cached.id)[:8])
+        return None
+    # Cache sebelum rename menyimpan agregat seluruh platform sebagai
+    # `threads`; normalisasi saat baca agar kontrak response sekarang
+    # tetap `social` tanpa mengulang probe eksternal.
+    if "social" not in osint and isinstance(osint.get("threads"), dict):
+        osint = {**osint, "social": osint["threads"]}
+        osint.pop("threads", None)
+    return _to_response(analysis, ent, osint)
+
+
 def _get_cached_case_from_db(db: Session, raw_input_str: str) -> VerifyResponse | None:
     """Cek apakah lowongan/URL/gambar ini sudah pernah dianalisa (exact DB cache hit)."""
     if not raw_input_str or not raw_input_str.strip():
@@ -116,47 +169,75 @@ def _get_cached_case_from_db(db: Session, raw_input_str: str) -> VerifyResponse 
     try:
         text_hash = _case_hash(raw_input_str)
         cached = db.query(JobCase).filter(JobCase.raw_text_hash == text_hash).first()
-        if cached and cached.verdict and cached.verdict != "ERROR":
-            llm_payload = cached.llm_output or {}
-            ent = cached.entities or {
-                "companies": cached.companies or [],
-                "phones": cached.phones or [],
-                "emails": cached.emails or [],
-                "urls": cached.urls or [],
-                "addresses": cached.addresses or [],
-                "location_candidates": (cached.entities or {}).get("location_candidates", []),
-                "salaries": cached.salaries or [],
-            }
-            analysis = {
-                "case_id": str(cached.id),
-                "verdict": cached.verdict,
-                "risk_score": cached.risk_score,
-                "summary": llm_payload.get("summary", ""),
-                "risk_factors": llm_payload.get("risk_factors", []),
-                "safe_factors": llm_payload.get("safe_factors", []),
-                "recommendations": llm_payload.get("recommendations", []),
-                "model_used": f"{llm_payload.get('model_used', 'unknown')} (DB Cache Hit)",
-                "corrected_company_name": llm_payload.get("corrected_company_name"),
-                "shap_explanation": llm_payload.get("shap_explanation"),
-            }
-            cached_osint = cached.osint_summary or {}
-            if cached_osint.get("cache_schema_version") != CACHE_SCHEMA_VERSION:
-                logger.info("[DB Cache Skip] stale cache schema: %s", text_hash[:10])
-                return None
-            osint = cached_osint.get("response_osint")
-            if not isinstance(osint, dict):
-                logger.info("[DB Cache Skip] legacy/incomplete OSINT payload: %s", text_hash[:10])
-                return None
-            # Cache sebelum rename menyimpan agregat seluruh platform sebagai
-            # `threads`; normalisasi saat baca agar kontrak response sekarang
-            # tetap `social` tanpa mengulang probe eksternal.
-            if "social" not in osint and isinstance(osint.get("threads"), dict):
-                osint = {**osint, "social": osint["threads"]}
-                osint.pop("threads", None)
-            logger.debug("[DB Cache Hit] hash: %s", text_hash[:10])
-            return _to_response(analysis, ent, osint)
+        if cached:
+            resp = _job_case_to_response(cached)
+            if resp:
+                logger.debug("[DB Cache Hit] hash: %s", text_hash[:10])
+                return resp
+
+        # Fallback bila input adalah URL (karena JobCase URL disimpan dengan full_raw_text)
+        if re.match(r"^https?://", raw_input_str.strip(), re.I):
+            return _get_cached_case_by_url(db, raw_input_str)
     except Exception as e:
         logger.warning("[DB Cache Lookup] %s", e)
+    return None
+
+
+def _normalize_url_variants(raw_url: str) -> list[str]:
+    """Hasilkan variasi representasi URL (trailing slash, www, tracking params) untuk lookup cache."""
+    u = (raw_url or "").strip()
+    if not u:
+        return []
+    variants = {u, u.rstrip("/"), u.rstrip("/") + "/"}
+    try:
+        parsed = urlparse(u)
+        clean = urlunparse((parsed.scheme, parsed.netloc, parsed.path, "", "", ""))
+        variants.add(clean)
+        variants.add(clean.rstrip("/"))
+        variants.add(clean.rstrip("/") + "/")
+        if parsed.netloc.startswith("www."):
+            no_www = urlunparse((parsed.scheme, parsed.netloc[4:], parsed.path, "", "", ""))
+            variants.add(no_www)
+            variants.add(no_www.rstrip("/"))
+            variants.add(no_www.rstrip("/") + "/")
+        else:
+            with_www = urlunparse((parsed.scheme, f"www.{parsed.netloc}", parsed.path, "", "", ""))
+            variants.add(with_www)
+            variants.add(with_www.rstrip("/"))
+            variants.add(with_www.rstrip("/") + "/")
+    except Exception:
+        pass
+    return sorted(list(variants))
+
+
+def _get_cached_case_by_url(db: Session, raw_url: str) -> VerifyResponse | None:
+    """Cari JobCase yang sudah pernah menganalisis URL yang sama (exact atau varian)."""
+    if not raw_url or not raw_url.strip():
+        return None
+    try:
+        variants = _normalize_url_variants(raw_url)
+        conditions = []
+        for v in variants:
+            conditions.append(JobCase.urls.contains([v]))
+            conditions.append(JobCase.raw_text_preview.like(f"URL Target: {v}%"))
+
+        cached = (
+            db.query(JobCase)
+            .filter(
+                JobCase.verdict.isnot(None),
+                JobCase.verdict != "ERROR",
+                or_(*conditions),
+            )
+            .order_by(JobCase.created_at.desc())
+            .first()
+        )
+        if cached:
+            resp = _job_case_to_response(cached)
+            if resp:
+                logger.info("[DB Cache Hit] url: %s -> case_id: %s", raw_url[:60], cached.id)
+                return resp
+    except Exception as e:
+        logger.warning("[DB Cache URL Lookup] %s", e)
     return None
 
 

@@ -20,6 +20,7 @@ services:
       dockerfile: Dockerfile
     container_name: verifin-backend
     restart: unless-stopped
+    stop_grace_period: 30s
     ports:
       - "8000:8000"
     env_file:
@@ -66,7 +67,7 @@ services:
       - ~/.docker/config.json:/config.json:ro
     environment:
       - WATCHTOWER_CLEANUP=true
-      - WATCHTOWER_POLL_INTERVAL=60
+      - WATCHTOWER_POLL_INTERVAL=300
       - WATCHTOWER_INCLUDE_RESTARTING=true
       - DOCKER_API_VERSION=1.44
     command: verifin-backend verifin-frontend
