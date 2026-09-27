@@ -85,6 +85,14 @@ _COMPANY_STOP = (
     r"RT\b|RW\b|Alamat|Lokasi|Email|WA|WhatsApp|Hubungi|Gaji|Syarat|"
     r"Kontak|Telp|Phone|HP|No\.?\s*HP|Lamar|Info|Membuka|Lowongan"
 )
+_BRAND_STOP = (
+    r"hiring|lowongan|posisi|syarat|kualifikasi|gaji|email|wa|whatsapp|"
+    r"hubungi|loker|info|join|team|crew|outlet|dibutuhkan|segera|"
+    r"ringkasan|deskripsi|benefit|fasilitas|pendidikan|pengalaman|umur|gender|"
+    r"jam\s+kerja|shift|libur|bonus|reward|gaji|"
+    r"jl|jln|jalan|gg|gang|alamat|lokasi|no|rt|rw|profesional|pelamar|karyawan|pegawai|staff|admin|"
+    r"penempatan|wilayah|area|kota|provinsi|kecamatan|kelurahan"
+)
 
 
 _SOCIAL_UI_NOISE_PATTERNS = [
@@ -581,6 +589,17 @@ def _extract_companies(text: str) -> list[str]:
         brand = re.sub(r"\s+", " ", m.group(1)).strip()
         if len(brand) >= 3 and not re.search(r"\b(?:lowongan|pekerjaan|syarat)\b", brand, re.I):
             companies.append(brand)
+    # 2b) Frasa "X is hiring / are hiring / membuka lowongan / sedang merekrut"
+    for m in re.finditer(
+        r"(?:^|[\n\r]|[\.\!\?]\s*)(?:@)?([A-Za-z0-9&'.-]+(?:\s+[A-Za-z0-9&'.-]+){0,3})\s+(?:is\s+hiring|are\s+hiring|membuka\s+lowongan|sedang\s+merekrut|sedang\s+membuka)\b",
+        text,
+        flags=re.I,
+    ):
+        cand = m.group(1).strip()
+        cand = re.sub(r"^@+", "", cand).strip()
+        if len(cand) >= 3 and not re.search(rf"\b(?:{_BRAND_STOP}|kami|kita|we|they|our|the)\b", cand, re.I):
+            companies.append(_normalize_company_name(cand))
+
 
     # 3) Label eksplisit
     for m in re.finditer(
@@ -630,14 +649,6 @@ def _extract_companies(text: str) -> list[str]:
 
     # 6) Brand ALLCAPS berdiri sendiri (OCR poster): "SUSHI YAY!", "INDONESIA COLLEGE"
     #    Minimal 2 kata, max 5 kata, tidak ada stopword lowongan
-    _BRAND_STOP = (
-        r"hiring|lowongan|posisi|syarat|kualifikasi|gaji|email|wa|whatsapp|"
-        r"hubungi|loker|info|join|team|crew|outlet|dibutuhkan|segera|"
-        r"ringkasan|deskripsi|benefit|fasilitas|pendidikan|pengalaman|umur|gender|"
-        r"jam\s+kerja|shift|libur|bonus|reward|gaji|"
-        r"jl|jln|jalan|gg|gang|alamat|lokasi|no|rt|rw|profesional|pelamar|karyawan|pegawai|staff|admin|"
-        r"penempatan|wilayah|area|kota|provinsi|kecamatan|kelurahan"
-    )
     for line in lines:
         ln = line.strip().rstrip("!*")
         # baris harus ALLCAPS atau Title Case multiword
@@ -712,12 +723,19 @@ def _extract_companies(text: str) -> list[str]:
     clean_companies = []
     for comp in companies:
         c = re.sub(r"^(?:\[.*?\]\s*|===.*?===\s*)", "", comp).strip()
-        if c and not re.search(r"^(?:TEKS UTAMA|POSTER/GAMBAR|DESKRIPSI POSTINGAN|URL Target)", c, re.I):
+        if (
+            c
+            and not re.search(r"^(?:TEKS UTAMA|POSTER/GAMBAR|DESKRIPSI POSTINGAN|URL Target)", c, re.I)
+            and c.upper() != "OCR"
+            and not re.match(r"^OCR\b", c, re.I)
+        ):
             clean_companies.append(c)
 
     # Simpan alias eksplisit dalam kurung sebagai entitas terpisah agar layer
     # pencarian dapat membuat probe brand tanpa hardcode nama usaha tertentu.
     for line in lines:
+        if re.search(r"^(?:\[|===|URL Target|TEKS|DESKRIPSI)", line, re.I):
+            continue
         if not re.search(r"\b(?:PT|CV|UD|Yayasan|Koperasi)\b|\bmembuka\b|\blowongan\b", line, re.I):
             continue
         for alias in re.findall(r"\(([^()]{3,80})\)", line):
@@ -725,10 +743,10 @@ def _extract_companies(text: str) -> list[str]:
             if (
                 len(alias) >= 3
                 and len(alias.split()) <= 8
-                and not re.search(r"\b(?:lowongan|posisi|syarat|gaji|alamat|email|lokasi)\b", alias, re.I)
+                and not re.search(r"\b(?:lowongan|posisi|syarat|gaji|alamat|email|lokasi|ocr)\b", alias, re.I)
+                and alias.upper() != "OCR"
             ):
                 clean_companies.append(alias)
-
     return clean_companies
 
 
