@@ -296,7 +296,7 @@ def collect_all_platform_evidence(
     ig_results = [r for r in general_results if "instagram.com" in (r.get("url") or "").lower()]
     fb_results = [r for r in general_results if "facebook.com" in (r.get("url") or "").lower()]
     tiktok_results = [r for r in general_results if "tiktok.com" in (r.get("url") or "").lower()]
-    twitter_results = [r for r in general_results if "twitter.com" in (r.get("url") or "").lower() or "x.com" in (r.get("url") or "").lower()]
+    twitter_results = [r for r in general_results if "twitter.com" in (r.get("url") or "").lower() or re.search(r"(?:^|[\/\.])x\.com(?:\/|$)", (r.get("url") or "").lower())]
     loker_results = [r for r in general_results if any(p in (r.get("url") or "").lower() for p in ("lokerjogja", "loker.id", "karir", "jobstreet", "glints"))]
     other_results = [r for r in general_results if r not in maps_results + ig_results + fb_results + tiktok_results + twitter_results + loker_results]
 

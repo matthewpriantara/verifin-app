@@ -62,16 +62,27 @@ def _token_in_blob(token: str, blob: str) -> bool:
 
 
 def _classify_platform(url: str, default: str = "social_media") -> str:
-    """Klasifikasi platform dari URL domain."""
-    u = url.lower()
-    if "instagram.com" in u: return "instagram"
-    if "threads.net" in u or "threads.com" in u: return "threads"
-    if "tiktok.com" in u: return "tiktok"
-    if "facebook.com" in u: return "facebook"
-    if "twitter.com" in u or "x.com" in u: return "x_twitter"
-    if "linktr.ee" in u: return "linktree"
+    """Klasifikasi platform dari URL domain secara presisi."""
+    try:
+        from urllib.parse import urlparse
+        host = urlparse(url or "").netloc.lower().removeprefix("www.")
+        if host == "instagram.com" or host.endswith(".instagram.com"):
+            return "instagram"
+        if host in {"threads.net", "threads.com"} or host.endswith(".threads.net"):
+            return "threads"
+        if host == "tiktok.com" or host.endswith(".tiktok.com"):
+            return "tiktok"
+        if host in {"facebook.com", "fb.com"} or host.endswith(".facebook.com"):
+            return "facebook"
+        if host in {"twitter.com", "x.com"} or host.endswith(".twitter.com") or host.endswith(".x.com"):
+            return "x_twitter"
+        if host == "linktr.ee" or host.endswith(".linktr.ee"):
+            return "linktree"
+        if host == "linkedin.com" or host.endswith(".linkedin.com"):
+            return "linkedin"
+    except Exception:
+        pass
     return default
-
 
 def _is_aggregator_post(post: dict[str, str]) -> bool:
     url_title = " ".join((post.get("url") or "", post.get("title") or "")).lower()

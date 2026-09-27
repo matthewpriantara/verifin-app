@@ -40,6 +40,14 @@ _SOCIAL_PLATFORM_DOMAINS = {
     "x_twitter": ("x.com", "twitter.com"),
 }
 
+def _url_matches_domains(url: str, target_domains: tuple[str, ...] | list[str]) -> bool:
+    try:
+        from urllib.parse import urlparse
+        host = urlparse(url or "").netloc.lower().removeprefix("www.")
+        return any(host == d or host.endswith("." + d) for d in target_domains)
+    except Exception:
+        return False
+
 
 def _public_source_type(url: str, title: str = "", snippet: str = "") -> str:
     url_title = f"{url} {title}".lower()
@@ -49,10 +57,9 @@ def _public_source_type(url: str, title: str = "", snippet: str = "") -> str:
         return "job_portal"
     if any(token in url_title for token in _SOCIAL_AGGREGATOR_TOKENS):
         return "social_aggregator"
-    if any(domain in url.lower() for domain in ("instagram.com", "facebook.com", "tiktok.com", "threads.net", "x.com", "twitter.com")):
+    if _url_matches_domains(url, ("instagram.com", "facebook.com", "tiktok.com", "threads.net", "threads.com", "x.com", "twitter.com")):
         return "social_platform"
     return "web"
-
 
 def _result_matches_query(query: str, url: str, title: str, snippet: str) -> bool:
     """Return True bila result (url+title+snippet) menyebutkan entitas dari query.
@@ -551,7 +558,7 @@ def _collect_social_searches(entities: dict, searches: list[dict[str, Any]] | No
     for platform, domains in _SOCIAL_PLATFORM_DOMAINS.items():
         domain_filtered = [
             item for item in all_results
-            if any(domain in (item.get("url") or "").lower() for domain in domains)
+            if _url_matches_domains(item.get("url") or "", domains)
         ]
         platform_results = rerank_results(
             domain_filtered, _entity, _loc_tokens, max_results=15,
@@ -670,7 +677,8 @@ def collect_web_evidence(entities: dict) -> dict[str, Any]:
             # jangan masukkan host-nya ke website/domain probe.
             if is_gform_url(clean_url):
                 continue
-            if clean_host and clean_host not in domains and clean_host not in _FREE_WEB_DOMAINS:
+            _ALL_SOCIAL_HOSTS = {"instagram.com", "facebook.com", "fb.com", "tiktok.com", "threads.net", "threads.com", "x.com", "twitter.com", "linkedin.com", "youtube.com"}
+            if clean_host and clean_host not in domains and clean_host not in _FREE_WEB_DOMAINS and clean_host not in _ALL_SOCIAL_HOSTS:
                 domains.append(clean_host)
             website_checks.append(fetch_company_website(clean_url))
 
