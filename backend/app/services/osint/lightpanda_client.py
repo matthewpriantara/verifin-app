@@ -53,96 +53,6 @@ def _lightpanda_fetch_via_docker(url: str, *, dump: str = "markdown", wait_ms: i
         return ""
 
 
-def _lightpanda_fetch_via_http(url: str, *, wait_ms: int = 3000) -> str:
-    import asyncio
-
-    cdp_host = _LIGHTPANDA_CDP_URL.split(":")[1].strip("/")
-    cdp_port = _LIGHTPANDA_CDP_URL.rsplit(":", 1)[-1]
-
-    try:
-        with httpx.Client(timeout=_LIGHTPANDA_TIMEOUT) as client:
-            resp = client.get(f"http://{cdp_host}:{cdp_port}/json")
-            if resp.status_code != 200:
-                return ""
-            targets = resp.json()
-            browser_ws_url = None
-            for t in targets:
-                if t.get("type") == "browser":
-                    browser_ws_url = t.get("webSocketDebuggerUrl")
-                    break
-            if not browser_ws_url and targets:
-                browser_ws_url = targets[0].get("webSocketDebuggerUrl")
-            if not browser_ws_url:
-                return ""
-
-        return _cdp_fetch_via_websocket(browser_ws_url, url, wait_ms)
-    except Exception as exc:
-        logger.warning("[Lightpanda HTTP] gagal: %s", exc)
-        return ""
-
-
-def _cdp_fetch_via_websocket(ws_url: str, target_url: str, wait_ms: int) -> str:
-    import asyncio
-    import json as _json
-
-    try:
-        import websockets
-    except ImportError:
-        logger.warning("[Lightpanda CDP] websockets tidak terinstall, skip CDP fetch")
-        return ""
-
-    async def _fetch():
-        async with websockets.connect(ws_url, max_size=50 * 1024 * 1024) as ws:
-            msg_id = 1
-
-            async def send_cmd(method: str, params: dict | None = None) -> dict:
-                nonlocal msg_id
-                cmd = {"id": msg_id, "method": method}
-                if params:
-                    cmd["params"] = params
-                await ws.send(_json.dumps(cmd))
-                while True:
-                    raw = await asyncio.wait_for(ws.recv(), timeout=_LIGHTPANDA_TIMEOUT)
-                    data = _json.loads(raw)
-                    if data.get("id") == msg_id:
-                        msg_id += 1
-                        return data
-
-            result = await send_cmd("Target.createTarget", {"url": target_url})
-            target_id = result.get("result", {}).get("targetId", "")
-            if not target_id:
-                return ""
-
-            result = await send_cmd("Target.attachToTarget", {
-                "targetId": target_id, "flatten": True,
-            })
-            session_id = result.get("result", {}).get("sessionId", "")
-            if not session_id:
-                return ""
-
-            await asyncio.sleep(wait_ms / 1000)
-
-            cmd = {
-                "id": msg_id,
-                "method": "Runtime.evaluate",
-                "params": {
-                    "expression": "document.documentElement.outerHTML",
-                    "returnByValue": True,
-                },
-                "sessionId": session_id,
-            }
-            msg_id += 1
-            await ws.send(_json.dumps(cmd))
-            while True:
-                raw = await asyncio.wait_for(ws.recv(), timeout=_LIGHTPANDA_TIMEOUT)
-                data = _json.loads(raw)
-                if data.get("id") == msg_id - 1:
-                    value = data.get("result", {}).get("result", {}).get("value", "")
-                    return value
-
-    return asyncio.run(_fetch())
-
-
 def lightpanda_fetch(
     url: str,
     *,
@@ -206,7 +116,6 @@ def lightpanda_search(
     else:
         search_url = _DDG_HTML_URL.format(query=quote_plus(q))
 
-    # Fetch search page via Lightpanda (render JS)
     fetch_result = lightpanda_fetch(search_url, output="html", wait_ms=2000)
     if not fetch_result["ok"]:
         return {
@@ -320,75 +229,6 @@ def _html_to_markdown(html: str) -> str:
             else:
                 lines.append(text)
     return "\n\n".join(lines)
-
-
-def lightpanda_fetch_instagram(url: str) -> dict[str, Any]:
-    try:
-        url = validate_public_http_url(url)
-    except ValueError as exc:
-        return {"ok": False, "url": url, "username": "", "content": "", "title": "", "error": str(exc)}
-
-    username = ""
-    parsed = urlparse(url)
-    if "instagram.com" in parsed.netloc:
-        parts = [p for p in parsed.path.strip("/").split("/") if p]
-        if parts and parts[0] not in ("p", "reel", "reels", "stories", "explore", "accounts"):
-            username = parts[0]
-
-    result = lightpanda_fetch(url, output="html", wait_ms=5000)
-    if not result["ok"]:
-        return {**result, "username": username}
-
-    content = result["content"]
-    soup = BeautifulSoup(content, "html.parser")
-
-    title = ""
-    desc = ""
-    for meta in soup.find_all("meta"):
-        prop = meta.get("property", meta.get("name", ""))
-        if prop == "og:title":
-            title = meta.get("content", "")
-        elif prop == "og:description":
-            desc = meta.get("content", "")
-
-    if title:
-        result["title"] = title
-
-    for tag in soup(["script", "style", "nav", "footer"]):
-        tag.decompose()
-    body_text = soup.get_text(separator=" ", strip=True)
-    body_text = re.sub(r"\s+", " ", body_text).strip()
-
-    result["content"] = f"{title}\n\n{desc}\n\n{body_text}".strip()
-    result["username"] = username
-
-    return result
-
-
-def lightpanda_fetch_facebook(url: str) -> dict[str, Any]:
-    try:
-        url = validate_public_http_url(url)
-    except ValueError as exc:
-        return {"ok": False, "url": url, "content": "", "title": "", "error": str(exc)}
-
-    result = lightpanda_fetch(url, output="html", wait_ms=5000)
-    if not result["ok"]:
-        return result
-
-    soup = BeautifulSoup(result["content"], "html.parser")
-    for meta in soup.find_all("meta"):
-        prop = meta.get("property", meta.get("name", ""))
-        if prop == "og:title":
-            result["title"] = meta.get("content", "")
-        elif prop == "og:description":
-            result["content"] = meta.get("content", "")
-
-    if not result["content"]:
-        for tag in soup(["script", "style", "nav", "footer"]):
-            tag.decompose()
-        result["content"] = soup.get_text(separator=" ", strip=True)[:2000]
-
-    return result
 
 
 def is_lightpanda_available() -> bool:

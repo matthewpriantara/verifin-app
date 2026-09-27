@@ -9,19 +9,18 @@ from urllib.parse import quote_plus
 
 import httpx
 
-from app.config import SEARXNG_URL
-
+from app.config import SEARXNG_URL, SEARXNG_TIMEOUT, SEARXNG_CACHE_TTL, SEARXNG_MIN_INTERVAL
 logger = logging.getLogger(__name__)
 
 _SEARXNG_BASE = SEARXNG_URL or "http://localhost:8888"
-_SEARXNG_TIMEOUT = 15
+_SEARXNG_TIMEOUT = SEARXNG_TIMEOUT
 _QUERY_CACHE: dict[str, tuple[float, dict[str, Any]]] = {}
 _CACHE_LOCK = threading.Lock()
-_CACHE_TTL_SECONDS = 600
+_CACHE_TTL_SECONDS = SEARXNG_CACHE_TTL
 _CACHE_MAX_ENTRIES = 512
 _REQUEST_LOCK = threading.Lock()
 _LAST_REQUEST_TIME: float = 0.0
-_MIN_REQUEST_INTERVAL: float = 0.8
+_MIN_REQUEST_INTERVAL: float = SEARXNG_MIN_INTERVAL
 _RATE_LIMIT_UNTIL: float = 0.0
 _AVAILABILITY_CACHE: tuple[float, bool] = (0.0, False)
 _AVAILABILITY_TTL: float = 30.0
@@ -46,7 +45,6 @@ def _cache_get(key: str) -> dict[str, Any] | None:
 def _cache_set(key: str, value: dict[str, Any]) -> None:
     with _CACHE_LOCK:
         if len(_QUERY_CACHE) >= _CACHE_MAX_ENTRIES:
-            # Evict entri terlama
             oldest = min(_QUERY_CACHE.items(), key=lambda kv: kv[1][0])[0]
             _QUERY_CACHE.pop(oldest, None)
         _QUERY_CACHE[key] = (time.monotonic(), value)
@@ -219,12 +217,6 @@ def searxng_search_multi(
     max_results: int = 10,
     engine_groups: list[str] | None = None,
 ) -> dict[str, Any]:
-    """
-    Search dengan multiple engine groups — untuk recall maksimal.
-
-    Jalankan search dengan beberapa konfigurasi engine berbeda,
-    lalu gabungkan hasilnya (dedup by URL).
-    """
     if engine_groups is None:
         engine_groups = [
             None,

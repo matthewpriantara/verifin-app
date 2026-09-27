@@ -3,7 +3,7 @@ from datetime import datetime, timezone
 
 import dns.resolver
 import whois
-
+from app.services.constants import DOMAIN_NEW_THRESHOLD_DAYS
 logger = logging.getLogger(__name__)
 
 
@@ -86,7 +86,7 @@ def check_domain_age(domain: str) -> dict:
     return {
         "age_days": age_days,
         "age_years": round(age_days / 365, 2) if age_days >= 0 else None,
-        "is_new": age_days < 90,
+        "is_new": age_days < DOMAIN_NEW_THRESHOLD_DAYS,
         "created_at": creation_date.strftime("%Y-%m-%d"),
         "source": source,
     }
@@ -95,22 +95,24 @@ def check_domain_age(domain: str) -> dict:
 def check_email_security(domain: str) -> dict:
     logger.debug("Memeriksa keamanan email untuk domain: %s", domain)
     results = {"spf_active": False, "dmarc_active": False, "mx_active": False, "mx_provider": None}
+    resolver = dns.resolver.Resolver()
+    resolver.lifetime = 4.0
     try:
-        for rdata in dns.resolver.resolve(domain, "TXT"):
+        for rdata in resolver.resolve(domain, "TXT"):
             if "v=spf1" in str(rdata):
                 results["spf_active"] = True
     except Exception:
         pass
 
     try:
-        for rdata in dns.resolver.resolve(f"_dmarc.{domain}", "TXT"):
+        for rdata in resolver.resolve(f"_dmarc.{domain}", "TXT"):
             if "v=DMARC1" in str(rdata):
                 results["dmarc_active"] = True
     except Exception:
         pass
 
     try:
-        mx_records = list(dns.resolver.resolve(domain, "MX"))
+        mx_records = list(resolver.resolve(domain, "MX"))
         if mx_records:
             results["mx_active"] = True
             results["mx_provider"] = str(mx_records[0].exchange).rstrip(".")

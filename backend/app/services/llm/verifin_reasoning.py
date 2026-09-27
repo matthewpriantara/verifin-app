@@ -126,36 +126,66 @@ def _has_corrupt_text(
     return len(words) == 1 and len(text) > 15
 
 
-def _fallback_analysis(entities: dict, osint_results: dict) -> dict:
-    company = (entities.get("companies") or ["Perusahaan"])[0]
-    phones = osint_results.get("phones") or []
-    hard_risk = _has_hard_risk_evidence(entities, osint_results)
-    address_exact = any(
+def _fallback_analysis(entities: dict, osint_results: dict, reason: str = "") -> dict:
+    comp_name = (entities.get("companies") or ["Perusahaan"])[0]
+    has_fraud_phone = any(
+        p.get("reported_fraud")
+        or p.get("scam_confirmed")
+        or p.get("reputation_status") == "FLAGGED"
+        for p in (osint_results.get("phones") or [])
+        if isinstance(p, dict)
+    )
+    has_free_email = any(
+        "@" in e and e.split("@")[-1].lower() in FREE_EMAIL_DOMAINS
+        for e in (entities.get("emails") or [])
+    )
+    has_address = any(
         (item.get("address_found") or item.get("found"))
         and (item.get("match_level") or (item.get("address_details") or {}).get("match_level")) == "exact"
         for item in (osint_results.get("address_validations") or [])
         if isinstance(item, dict)
     )
-    if hard_risk:
-        verdict, score = "BAHAYA", 80
+
+    risk_score = 12
+    risk_factors = []
+    safe_factors = []
+
+    if has_fraud_phone:
+        risk_score += 65
+        risk_factors.append("Nomor telepon kontak terdaftar dalam aduan penipuan publik.")
     else:
-        verdict, score = "AMAN", 28
-    risks = []
-    if entities.get("addresses") and not address_exact:
-        risks.append("Alamat fisik belum terverifikasi exact")
-    elif not entities.get("addresses"):
-        risks.append("Alamat fisik tidak tercantum")
-    if not phones:
-        risks.append("Nomor HP tidak tercantum")
+        safe_factors.append("Tidak ditemukan laporan penipuan pada Kaspersky Who Calls.")
+
+    if has_free_email:
+        risk_score += 10
+        risk_factors.append(f"Email kontak ({entities.get('emails', [''])[0]}) menggunakan domain publik gratisan.")
+
+    if has_address:
+        safe_factors.append("Jalan dan nomor alamat cocok dengan hasil peta.")
+
+    verdict = "AMAN" if risk_score < 40 else "WASPADA" if risk_score < 75 else "BAHAYA"
+    verdict_label = {"AMAN": "berisiko rendah", "WASPADA": "perlu diperiksa lebih lanjut", "BAHAYA": "berisiko tinggi"}[verdict]
+    summary_parts = [f"Berdasarkan pemeriksaan bukti publik independen, lowongan {comp_name} dinilai {verdict_label}."]
+    if has_address:
+        summary_parts.append("Jalan/area ditemukan di OpenStreetMap; kecocokan nomor bergantung pada level match.")
+    if has_fraud_phone:
+        summary_parts.append("Ditemukan laporan penipuan pada nomor kontak.")
+    elif not has_fraud_phone and osint_results.get("phones"):
+        summary_parts.append("Tidak ditemukan laporan penipuan pada Kaspersky Who Calls.")
+    summary = " ".join(summary_parts)
+
     return {
         "verdict": verdict,
-        "risk_score": score,
+        "risk_score": risk_score,
         "corrected_company_name": None,
-        "summary": f"Analisis evidence-only untuk {company}; hasil bahasa model tidak digunakan.",
-        "risk_factors": risks[:3],
-        "safe_factors": [],
-        "recommendations": ["Verifikasi kanal dan alamat sebelum melamar"],
-        "model_used": f"{LLM_MODEL} (Evidence Fallback)",
+        "summary": summary,
+        "risk_factors": risk_factors,
+        "safe_factors": safe_factors,
+        "recommendations": [
+            "Pastikan wawancara diadakan di lokasi resmi perusahaan.",
+            "TIDAK AKAN membayar biaya registrasi, seragam, atau pelatihan."
+        ],
+        "model_used": f"{LLM_MODEL} (Rule-Based Fallback)",
         "entities_analyzed": entities,
     }
 
@@ -373,66 +403,8 @@ async def analyze_with_verifin(
         return parsed
 
     except Exception as exc:
-        comp_name = (entities.get("companies") or ["Perusahaan"])[0]
-        has_fraud_phone = any(
-            p.get("reported_fraud")
-            or p.get("scam_confirmed")
-            or p.get("reputation_status") == "FLAGGED"
-            for p in (osint_results.get("phones") or [])
-            if isinstance(p, dict)
-        )
-        has_free_email = any(
-            "@" in e and e.split("@")[-1].lower() in FREE_EMAIL_DOMAINS
-            for e in (entities.get("emails") or [])
-        )
-        has_address = any(
-            (item.get("address_found") or item.get("found"))
-            and (item.get("match_level") or (item.get("address_details") or {}).get("match_level")) == "exact"
-            for item in (osint_results.get("address_validations") or [])
-            if isinstance(item, dict)
-        )
-
-        risk_score = 12
-        risk_factors = []
-        safe_factors = []
-
-        if has_fraud_phone:
-            risk_score += 65
-            risk_factors.append("Nomor telepon kontak terdaftar dalam aduan penipuan publik.")
-        else:
-            safe_factors.append("Tidak ditemukan laporan penipuan pada Kaspersky Who Calls.")
-
-        if has_free_email:
-            risk_score += 10
-            risk_factors.append(f"Email kontak ({entities.get('emails', [''])[0]}) menggunakan domain publik gratisan.")
-
-        if has_address:
-            safe_factors.append("Jalan dan nomor alamat cocok dengan hasil peta.")
-
-        verdict = "AMAN" if risk_score < 40 else "WASPADA" if risk_score < 75 else "BAHAYA"
-        verdict_label = {"AMAN": "berisiko rendah", "WASPADA": "perlu diperiksa lebih lanjut", "BAHAYA": "berisiko tinggi"}[verdict]
-        summary_parts = [f"Berdasarkan pemeriksaan bukti publik independen, lowongan {comp_name} dinilai {verdict_label}."]
-        if has_address:
-            summary_parts.append("Jalan/area ditemukan di OpenStreetMap; kecocokan nomor bergantung pada level match.")
-        if has_fraud_phone:
-            summary_parts.append("Ditemukan laporan penipuan pada nomor kontak.")
-        elif not has_fraud_phone and osint_results.get("phones"):
-            summary_parts.append("Tidak ditemukan laporan penipuan pada Kaspersky Who Calls.")
-        summary = " ".join(summary_parts)
-
-        return {
-            "verdict": verdict,
-            "risk_score": risk_score,
-            "summary": summary,
-            "risk_factors": risk_factors,
-            "safe_factors": safe_factors,
-            "recommendations": [
-                "Pastikan wawancara diadakan di lokasi resmi perusahaan.",
-                "TIDAK AKAN membayar biaya registrasi, seragam, atau pelatihan."
-            ],
-            "model_used": f"{LLM_MODEL} (Evidence Reasoning)",
-            "entities_analyzed": entities,
-        }
+        logger.exception("LLM reasoning gagal: %s — beralih ke fallback rule-based", exc)
+        return _fallback_analysis(entities, osint_results, reason=str(exc))
 
 
 async def check_ai_status() -> dict:

@@ -230,7 +230,6 @@ def _build_web_osint_section(web: dict) -> str:
 
 
 def _build_social_osint_section(social: dict) -> str:
-    """Format hasil OSINT Social Media untuk prompt reasoner — ringkas."""
     if not social:
         return "- Tidak ada data media sosial."
     if not social.get("enabled"):
@@ -271,10 +270,6 @@ def _build_social_osint_section(social: dict) -> str:
 
 
 def _build_address_osint_section(address_validations: list) -> str:
-    """
-    Membangun teks section hasil validasi alamat dari OpenStreetMap
-    untuk disisipkan ke dalam prompt LLM.
-    """
     if not address_validations:
         return "- Tidak ada alamat yang berhasil divalidasi."
 
@@ -497,14 +492,8 @@ Skor vs verdict:
 
 
 def build_text_verify_prompt(raw_text: str, entities: dict, osint_results: dict) -> str:
-    """
-    Versi prompt yang juga menyertakan teks kasar asli dari OCR
-    sebagai konteks tambahan untuk LLM.
-    """
     base_prompt = build_verify_prompt(entities, osint_results)
 
-    # Kurangi batas raw_text agar prompt tidak terlalu panjang
-    # Prompt besar = response terpotong = JSON error
     MAX_RAW = 600
     raw_section = f"""
 

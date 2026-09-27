@@ -6,7 +6,7 @@ from app.services.osint.web_evidence import _result_matches_query
 
 _COMP_GENERIC_TOKENS = frozenset({
     "center", "management", "group", "utama", "persada", "pt", "cv",
-    "badan", "nasional", "gizi", "sppg", "indonesia", "instansi", "dinas",
+    "badan", "nasional", "indonesia", "instansi", "dinas",
 })
 
 _GENERAL_NEWS_KEYWORDS = frozenset({
@@ -175,6 +175,3 @@ async def validate_companies(
         result = validate_company_public(name, entities, web_evidence)
         out.append(result)
     return out
-
-async def validate_company(name: str) -> dict:
-    return validate_company_public(name, {})

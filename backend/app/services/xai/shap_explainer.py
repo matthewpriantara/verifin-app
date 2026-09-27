@@ -5,7 +5,6 @@ from app.services.constants import FREE_EMAIL_DOMAINS
 
 
 def _cs(raw: float, weight: float) -> dict[str, Any]:
-    """Consistency score helper — raw score * weight."""
     return {"raw_score": round(raw, 1), "weight": weight,
             "weighted_contribution": round(raw * weight, 1)}
 

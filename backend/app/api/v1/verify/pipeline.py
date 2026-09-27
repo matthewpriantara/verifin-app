@@ -8,7 +8,6 @@ from app.services.hasher import detect_identity_syndicate
 from app.api.v1.verify.schema import VerifyResponse, ExtractedEntities
 from app.database.models import JobCase
 from app.services.llm.entity_extraction import extract_entities_llm
-from app.services.llm.entity_validator import validate_entities_llm
 from app.services.ner import (
     extract_entities_from_text,
     _is_plausible_address,
@@ -134,29 +133,15 @@ def _clean_text_for_ner(text: str) -> str:
 async def _extract_entities_hybrid(text: str) -> dict:
     clean_text = _clean_text_for_ner(text) or text
 
-    regex_entities = await asyncio.to_thread(extract_entities_from_text, text)
+    regex_entities = await asyncio.to_thread(extract_entities_from_text, clean_text)
 
-    llm_extracted, llm_validated = await asyncio.gather(
-        _run_llm_ner(clean_text),
-        _run_llm_validation(clean_text, regex_entities),
-    )
-    if llm_validated:
-        if llm_validated.get("phones") is not None:
-            regex_entities["phones"] = llm_validated["phones"]
-        if llm_validated.get("emails") is not None:
-            regex_entities["emails"] = llm_validated["emails"]
-        if llm_validated.get("urls") is not None:
-            regex_entities["urls"] = llm_validated["urls"]
-        if llm_validated.get("addresses") is not None:
-            regex_entities["addresses"] = llm_validated["addresses"]
-        if llm_validated.get("location_candidates") is not None:
-            regex_entities["location_candidates"] = llm_validated["location_candidates"]
+    llm_extracted = await _run_llm_ner(clean_text)
 
     if llm_extracted is None:
         regex_entities["_ner_meta"] = {
-            "used": bool(llm_validated),
-            "source": "regex_validated" if llm_validated else "regex",
-            "validation_applied": bool(llm_validated),
+            "used": False,
+            "source": "regex_fallback",
+            "validation_applied": False,
         }
         return regex_entities
 
@@ -167,18 +152,9 @@ async def _extract_entities_hybrid(text: str) -> dict:
 
     llm_companies = llm_extracted.get("companies") or []
     if llm_companies:
-        regex_companies = merged.get("companies") or []
-        new_companies: list[str] = list(llm_companies)
-        for rc in regex_companies:
-            if any(_fuzzy_contains(rc, lc) for lc in llm_companies):
-                if not any(_fuzzy_contains(rc, e) for e in new_companies):
-                    new_companies.append(rc)
-            else:
-                cleaned["companies"] += 1
-        if len(new_companies) > len(regex_companies):
-            added["companies"] = True
-            any_added = True
-        merged["companies"] = new_companies
+        merged["companies"] = list(llm_companies)
+        added["companies"] = True
+        any_added = True
 
     for key in ("addresses", "location_candidates", "salaries"):
         llm_vals = llm_extracted.get(key) or []
@@ -209,10 +185,10 @@ async def _extract_entities_hybrid(text: str) -> dict:
 
     merged["_ner_meta"] = {
         "used": True,
-        "source": "hybrid_llm_validated" if llm_validated else ("hybrid_llm_regex" if any_added else "llm_no_new"),
+        "source": "hybrid_llm_regex" if any_added else "llm_no_new",
         "added": added,
         "cleaned_false_positive_companies": cleaned["companies"],
-        "validation_applied": bool(llm_validated),
+        "validation_applied": False,
     }
     return merged
 
@@ -226,28 +202,6 @@ def _fuzzy_contains(a: str, b: str) -> bool:
     if len(na) < 4 or len(nb) < 4:
         return na == nb
     return na in nb or nb in na
-
-
-async def _run_llm_validation(text: str, regex_entities: dict) -> dict | None:
-    try:
-        phones = regex_entities.get("phones") or []
-        emails = regex_entities.get("emails") or []
-        urls = regex_entities.get("urls") or []
-        addresses = regex_entities.get("addresses") or []
-        location_candidates = regex_entities.get("location_candidates") or []
-
-        if not phones and not emails and not urls and not addresses and not location_candidates:
-            return None
-
-        result = await validate_entities_llm(
-            text, phones, emails, urls, addresses, location_candidates
-        )
-        return result
-    except Exception as e:
-        import logging
-        logging.getLogger(__name__).warning(f"[llm_validation] Error: {e}")
-        return None
-
 
 
 async def _run_llm_ner(text: str) -> dict | None:
@@ -309,7 +263,6 @@ async def _enrich_entities_from_osint(entities: dict, osint_results: dict) -> di
         street_pattern = re.compile(r"\b(?:jl\.?|jln\.?|jalan)\b", re.I)
 
         def _addr_priority(addr: str) -> int:
-            """Skor prioritas: 2=ada nama jalan, 1=lebih panjang dari NER, 0=lainnya."""
             score = 0
             if street_pattern.search(addr):
                 score += 2
@@ -388,43 +341,6 @@ async def _enrich_entities_from_osint(entities: dict, osint_results: dict) -> di
         )
 
     return entities
-
-
-def _merge_entities(primary: dict, secondary: dict) -> dict:
-
-    keys = ["companies", "phones", "emails", "urls", "addresses", "location_candidates", "salaries"]
-    out = {}
-    for key in keys:
-        combined = list(primary.get(key) or []) + list(secondary.get(key) or [])
-        if key == "phones":
-            std = []
-            for ph in combined:
-                c_ph = clean_indonesian_phone(ph)
-                if c_ph:
-                    std.append(c_ph)
-            out[key] = _uniq(std)
-        elif key == "emails":
-            out[key] = _uniq([fix_email_ocr_typos(e) for e in combined if e])
-        elif key == "urls":
-            clean_urls = [
-                u for u in combined
-                if u and not re.search(r"^(?:[a-zA-Z]\.com|gmail|yahoo|gmai|gamil)\.", u, re.I)
-                and not re.search(r"[A-Za-z0-9_.+-]+@[A-Za-z0-9-]+\.[A-Za-z0-9.-]+", u)
-            ]
-            out[key] = _uniq(clean_urls)
-        elif key == "addresses":
-            comp_lows = {c.strip().lower() for c in out.get("companies", [])}
-            clean_addrs = [
-                a for a in combined
-                if a and a.strip().lower() not in comp_lows
-                and not any(a.strip().lower() in c or c in a.strip().lower() for c in comp_lows if len(c) >= 6)
-            ]
-            out[key] = _uniq(clean_addrs)
-        elif key == "location_candidates":
-            out[key] = _uniq(combined)
-        else:
-            out[key] = _uniq(combined)
-    return out
 
 
 def _to_response(
@@ -509,7 +425,6 @@ def _to_response(
 
 
 def _build_osint_summary(osint_results: dict | None) -> dict | None:
-    """Snapshot ringan untuk audit/case-memory (hindari raw HTML besar)."""
     if not osint_results:
         return None
     phones = osint_results.get("phones") or []

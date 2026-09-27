@@ -22,11 +22,26 @@ def detect_identity_syndicate(
     cases = historical_cases or []
     current_company_norm = (current_company or "").strip().lower()
 
+    def _canon_phone(v: str) -> str:
+        d = "".join(ch for ch in str(v or "") if ch.isdigit())
+        if d.startswith("0"):
+            d = "62" + d[1:]
+        elif d.startswith("8"):
+            d = "62" + d
+        return d
+
     def _companies_using(key: str, value: str) -> set[str]:
         names: set[str] = set()
+        target = _canon_phone(value) if key == "phone" else str(value or "").strip().lower()
+        if not target:
+            return names
         for c in cases:
-            pool = (c.get("phones") or []) if key == "phone" else (c.get("emails") or [])
-            if value in pool:
+            raw_pool = (c.get("phones") or []) if key == "phone" else (c.get("emails") or [])
+            if key == "phone":
+                pool = {_canon_phone(p) for p in raw_pool if p}
+            else:
+                pool = {str(e).strip().lower() for e in raw_pool if e}
+            if target in pool:
                 nm = (c.get("company_name") or "").strip().lower()
                 if nm and nm != current_company_norm:
                     names.add(nm)

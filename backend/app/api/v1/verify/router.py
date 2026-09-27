@@ -21,7 +21,6 @@ from app.api.v1.verify.schema import (
     VerifyResponse,
 )
 from app.services.llm.verifin_reasoning import analyze_with_verifin, check_ai_status
-from app.services.nlp.classifier import classify_text
 from app.services.ocr import extract_text_from_image
 from app.services.osint.whois_handler import (
     check_domain_age,
@@ -34,7 +33,6 @@ from app.api.v1.verify.pipeline import (
     _run_osint_on_entities,
     _enrich_entities_from_osint,
     _to_response,
-    _build_osint_summary,
 )
 from app.services.db_cache import _save_case_to_db, _get_cached_case_from_db, _get_cached_case_by_url
 from app.services.web_fetcher import _fetch_url_content_and_image
@@ -169,14 +167,6 @@ async def verify_from_text(
             return cached_resp
 
         stage_started = time.perf_counter()
-        nlp_result = classify_text(request.text)
-        logger.info(
-            "[verify][%s] NLP skipped status=%s enabled=%s duration=%.2fs",
-            request_id, nlp_result.get("status"), nlp_result.get("enabled"),
-            time.perf_counter() - stage_started,
-        )
-
-        stage_started = time.perf_counter()
         entities = await _extract_entities_hybrid(request.text)
         _log_raw_json(request_id, "ENTITIES", entities)
         logger.info("[verify][%s] NER done counts=%s meta=%s duration=%.2fs", request_id, _entity_counts(entities), entities.get("_ner_meta"), time.perf_counter() - stage_started)
@@ -198,10 +188,7 @@ async def verify_from_text(
         _log_raw_json(request_id, "ANALYSIS", analysis)
         logger.info("[verify][%s] LLM done verdict=%s score=%s model=%s duration=%.2fs", request_id, analysis.get("verdict"), analysis.get("risk_score"), analysis.get("model_used"), time.perf_counter() - stage_started)
 
-        analysis["nlp_result"] = nlp_result
         analysis["network_context"] = network_context
-
-        response = _to_response(analysis, entities, osint_results)
         save_status = await asyncio.to_thread(
             _save_case_to_db,
             db, request.text, analysis, osint_results, entities=entities, source="text"
@@ -279,10 +266,6 @@ async def verify_from_image(
         logger.info("[verify][%s] NER done counts=%s meta=%s duration=%.2fs", request_id, _entity_counts(entities), entities.get("_ner_meta"), time.perf_counter() - stage_started)
 
         stage_started = time.perf_counter()
-        nlp_result = classify_text(raw_text)
-        logger.info("[verify][%s] NLP skipped status=%s enabled=%s duration=%.2fs", request_id, nlp_result.get("status"), nlp_result.get("enabled"), time.perf_counter() - stage_started)
-
-        stage_started = time.perf_counter()
         osint_results = await _run_osint_on_entities(entities)
         _log_osint_summary(request_id, osint_results)
         logger.info("[verify][%s] OSINT duration=%.2fs", request_id, time.perf_counter() - stage_started)
@@ -299,10 +282,7 @@ async def verify_from_image(
         )
         _log_raw_json(request_id, "ANALYSIS", analysis)
         logger.info("[verify][%s] LLM done verdict=%s score=%s model=%s duration=%.2fs", request_id, analysis.get("verdict"), analysis.get("risk_score"), analysis.get("model_used"), time.perf_counter() - stage_started)
-        analysis["nlp_result"] = nlp_result
         analysis["network_context"] = network_context
-
-        response = _to_response(analysis, entities, osint_results)
         save_status = await asyncio.to_thread(
             _save_case_to_db,
             db, raw_text, analysis, osint_results, entities=entities, source="image"
@@ -419,7 +399,6 @@ async def verify_from_url(
                 entities["urls"] = [request.url]
             elif request.url not in entities["urls"]:
                 entities["urls"].insert(0, request.url)
-        response = _to_response(analysis, entities, osint_results)
         save_status = await asyncio.to_thread(
             _save_case_to_db,
             db, full_raw_text, analysis, osint_results, entities=entities, source="url"
@@ -546,38 +525,32 @@ def lookup_cases_by_entity(
             status_code=400, detail="Sertakan minimal satu: phone, email, atau company"
         )
     try:
-        from sqlalchemy import text as sa_text
-        filters = []
-        params: dict = {"limit": limit}
+        from sqlalchemy import func, or_, cast, String
+        query = db.query(JobCase)
+        conditions = []
 
         if phone:
-            filters.append("phones @> :phone_json::jsonb")
-            params["phone_json"] = f'["{phone.strip()}"]'
+            digits = "".join(c for c in phone if c.isdigit())
+            canon = digits[2:] if digits.startswith("62") else (digits[1:] if digits.startswith("0") else digits)
+            conditions.append(cast(JobCase.phones, String).like(f"%{canon or phone.strip()}%"))
         if email:
-            filters.append("emails @> :email_json::jsonb")
-            params["email_json"] = f'["{email.strip().lower()}"]'
+            conditions.append(cast(JobCase.emails, String).like(f"%{email.strip().lower()}%"))
         if company:
-            filters.append("LOWER(company_name) LIKE :company_pat")
-            params["company_pat"] = f"%{company.strip().lower()}%"
+            conditions.append(func.lower(JobCase.company_name).like(f"%{company.strip().lower()}%"))
 
-        where = f"WHERE {' OR '.join(filters)}" if filters else ""
-        sql = sa_text(f"""
-            SELECT id, company_name, phones, emails, verdict, risk_score, created_at
-            FROM job_cases
-            {where}
-            ORDER BY created_at DESC
-            LIMIT :limit
-        """)
-        rows = db.execute(sql, params).mappings().all()
+        if conditions:
+            query = query.filter(or_(*conditions))
+
+        rows = query.order_by(JobCase.created_at.desc()).limit(limit).all()
         hits = [
             {
-                "id": str(r["id"]),
-                "company_name": r["company_name"],
-                "phones": r["phones"],
-                "emails": r["emails"],
-                "verdict": r["verdict"],
-                "risk_score": r["risk_score"],
-                "created_at": r["created_at"].isoformat() if r["created_at"] else None,
+                "id": str(r.id),
+                "company_name": r.company_name,
+                "phones": r.phones,
+                "emails": r.emails,
+                "verdict": r.verdict,
+                "risk_score": r.risk_score,
+                "created_at": r.created_at.isoformat() if r.created_at else None,
             }
             for r in rows
         ]
@@ -601,7 +574,6 @@ def get_case_by_id(case_id: str, db: Session = Depends(get_db)):
         db_case = None
 
     if not db_case:
-        # Prefix lookup (misal: "fdd1b836")
         db_case = db.query(JobCase).filter(cast(JobCase.id, String).like(f"{case_id}%")).first()
 
     if not db_case:
@@ -640,7 +612,6 @@ def get_case_by_id(case_id: str, db: Session = Depends(get_db)):
         "urls": db_case.urls,
         "addresses": db_case.addresses,
         "salaries": db_case.salaries,
-        "entities": db_case.entities,
         "verdict": db_case.verdict,
         "risk_score": db_case.risk_score,
         "summary": llm_output.get("summary", ""),
@@ -658,21 +629,11 @@ def get_case_by_id(case_id: str, db: Session = Depends(get_db)):
     }
 
 
-# ── SSE Streaming Endpoint ──────────────────────────────────────────────
-# Endpoint ini mengirim event real-time per pipeline stage ke frontend,
-# sehingga loading animation di VerifyBox advance berdasarkan progress
-# nyata, bukan timer hardcoded.
-
 def _sse_event(event: str, data: dict) -> str:
-    """Format SSE event: data: {json}\\n\\n"""
     return f"event: {event}\ndata: {json.dumps(data, ensure_ascii=False)}\n\n"
 
 
 async def _verify_url_stream_generator(url: str, additional_text: str, db_session):
-    """
-    Generator async yang menjalankan pipeline verifikasi dan yield SSE event
-    setelah setiap stage selesai.
-    """
     request_id = _request_id()
     started = time.perf_counter()
 
@@ -702,12 +663,10 @@ async def _verify_url_stream_generator(url: str, additional_text: str, db_sessio
 
     tmp_paths = []
     try:
-        # ── Stage 1: URL Fetch ──────────────────────────────────────────
         yield _sse_event("stage", {"stage": "fetch", "status": "processing", "message": "Mengambil konten dari URL..."})
         caption_text, tmp_paths = await _fetch_url_content_and_image(url)
         logger.info("[verify-stream][%s] URL fetch done duration=%.2fs", request_id, time.perf_counter() - started)
 
-        # ── Stage 1b: OCR ───────────────────────────────────────────────
         yield _sse_event("stage", {"stage": "ocr", "status": "processing", "message": "Mengenali teks dari gambar poster..."})
         ocr_texts = []
         for p in tmp_paths:
@@ -752,7 +711,6 @@ async def _verify_url_stream_generator(url: str, additional_text: str, db_sessio
             yield _sse_event("error", {"message": "Sistem tidak dapat mengambil konten atau teks dari URL tersebut."})
             return
 
-        # ── Stage 2: NER (Entity Extraction) ────────────────────────────
         yield _sse_event("stage", {"stage": "ner", "status": "processing", "message": "Mengekstrak entitas (perusahaan, kontak, alamat)..."})
         entities = await _extract_entities_hybrid(full_raw_text)
         _log_raw_json(request_id, "ENTITIES", entities)
@@ -762,8 +720,6 @@ async def _verify_url_stream_generator(url: str, additional_text: str, db_sessio
             "message": f"Ditemukan {len(entities.get('companies', []))} perusahaan, {len(entities.get('phones', []))} kontak",
             "entities": {k: v for k, v in entities.items() if k != "_ner_meta"}
         })
-
-        # ── Stage 3: OSINT ──────────────────────────────────────────────
         yield _sse_event("stage", {"stage": "osint", "status": "processing", "message": "Menjalankan OSINT probes (WHOIS, peta, media sosial)..."})
         stage_started = time.perf_counter()
         osint_task = asyncio.create_task(_run_osint_on_entities(entities))
@@ -773,20 +729,15 @@ async def _verify_url_stream_generator(url: str, additional_text: str, db_sessio
                 break
             yield ": keepalive\n\n"
         osint_results = osint_task.result()
-        _log_osint_summary(request_id, osint_results)
-        logger.info("[verify-stream][%s] OSINT done duration=%.2fs", request_id, time.perf_counter() - stage_started)
-        # OSINT Enrichment
         entities = await _enrich_entities_from_osint(entities, osint_results)
         yield _sse_event("stage", {"stage": "osint", "status": "done", "message": "OSINT selesai"})
 
-        # ── Stage 4: Fraud Network ─────────────────────────────────────
         yield _sse_event("stage", {"stage": "graph", "status": "processing", "message": "Memeriksa jaringan fraud..."})
         stage_started = time.perf_counter()
         network_context = await asyncio.to_thread(_check_fraud_network, db_session, entities)
         logger.info("[verify-stream][%s] fraud-network done duration=%.2fs", request_id, time.perf_counter() - stage_started)
         yield _sse_event("stage", {"stage": "graph", "status": "done", "message": "Pemeriksaan jaringan selesai"})
 
-        # ── Stage 5: LLM Reasoning ─────────────────────────────────────
         yield _sse_event("stage", {"stage": "ai", "status": "processing", "message": "AI menganalisis dan menyusun verdict..."})
         stage_started = time.perf_counter()
         llm_task = asyncio.create_task(analyze_with_verifin(
@@ -807,7 +758,6 @@ async def _verify_url_stream_generator(url: str, additional_text: str, db_sessio
                 entities["urls"] = [url]
             elif url not in entities["urls"]:
                 entities["urls"].insert(0, url)
-        response = _to_response(analysis, entities, osint_results)
         save_status = await asyncio.to_thread(
             _save_case_to_db,
             db_session, full_raw_text, analysis, osint_results, entities=entities, source="url"
@@ -818,7 +768,6 @@ async def _verify_url_stream_generator(url: str, additional_text: str, db_sessio
         if response.osint is not None:
             response.osint["persistence_status"] = save_status.get("status")
 
-        # ── Final: kirim response lengkap ──────────────────────────────
         yield _sse_event("done", {
             "message": "Verifikasi selesai",
             "case_id": response.case_id,
