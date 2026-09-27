@@ -40,17 +40,17 @@ type InputSource = "text" | "image" | "url";
 function getSteps(source: InputSource) {
   const firstStep = source === "image"
     ? {
-        id: "ocr",
-        label: "OCR + Ekstraksi Entitas",
-        detail: "PaddleOCR membaca gambar untuk mengekstrak nama perusahaan, HP, email, URL, dan alamat",
-      }
+      id: "ocr",
+      label: "OCR + Ekstraksi Entitas",
+      detail: "PaddleOCR membaca gambar untuk mengekstrak nama perusahaan, HP, email, URL, dan alamat",
+    }
     : source === "url"
-    ? {
+      ? {
         id: "fetch",
         label: "Ambil Konten + Ekstraksi Entitas",
         detail: "Konten link diambil; OCR berjalan bila ditemukan gambar poster, lalu entitas diekstrak",
       }
-    : {
+      : {
         id: "extract",
         label: "Ekstraksi Entitas",
         detail: "Teks diproses langsung untuk mengekstrak nama perusahaan, HP, email, URL, dan alamat",
@@ -188,8 +188,8 @@ function LoadingModal({
                             isDone
                               ? "bg-aman-fg"
                               : isActive
-                              ? "bg-gradient-to-r from-text-primary via-text-primary/50 to-transparent"
-                              : "bg-transparent"
+                                ? "bg-gradient-to-r from-text-primary via-text-primary/50 to-transparent"
+                                : "bg-transparent"
                           )}
                           initial={{ scaleX: 0 }}
                           animate={{ scaleX: isDone ? 1 : isActive ? 0.7 : 0 }}
@@ -212,13 +212,13 @@ function LoadingModal({
                         animate={
                           isActive
                             ? {
-                                scale: [1, 1.12, 1],
-                                boxShadow: [
-                                  "0 0 0px rgba(0,0,0,0)",
-                                  "0 0 16px rgba(59,130,246,0.35)",
-                                  "0 0 0px rgba(0,0,0,0)",
-                                ],
-                              }
+                              scale: [1, 1.12, 1],
+                              boxShadow: [
+                                "0 0 0px rgba(0,0,0,0)",
+                                "0 0 16px rgba(59,130,246,0.35)",
+                                "0 0 0px rgba(0,0,0,0)",
+                              ],
+                            }
                             : { scale: 1 }
                         }
                         transition={
@@ -250,19 +250,19 @@ function LoadingModal({
                     animate={
                       isActive
                         ? {
-                            scale: 1.02,
-                            borderColor: "var(--text-primary)",
-                            backgroundColor: "var(--bg-subtle)",
-                            opacity: 1,
-                          }
+                          scale: 1.02,
+                          borderColor: "var(--text-primary)",
+                          backgroundColor: "var(--bg-subtle)",
+                          opacity: 1,
+                        }
                         : isDone
-                        ? {
+                          ? {
                             scale: 1,
                             borderColor: "var(--border)",
                             backgroundColor: "var(--bg-elevated)",
                             opacity: 1,
                           }
-                        : {
+                          : {
                             scale: 1,
                             borderColor: "var(--border)",
                             backgroundColor: "var(--bg-elevated)",
@@ -344,8 +344,8 @@ export function VerifyBox() {
   const inputSource: InputSource = file
     ? "image"
     : isPureUrl(text)
-    ? "url"
-    : "text";
+      ? "url"
+      : "text";
   const steps = getSteps(inputSource);
 
   useEffect(() => {
@@ -584,7 +584,12 @@ export function VerifyBox() {
       if (err instanceof DOMException && err.name === "AbortError") {
         // silent — sudah di-handle oleh handleCancel
       } else {
-        setError(err instanceof Error ? err.message : "Terjadi kesalahan saat memproses.");
+        const rawMsg = err instanceof Error ? err.message : "Terjadi kesalahan saat memproses.";
+        const displayMsg =
+          rawMsg === "Failed to fetch" || rawMsg.includes("Failed to fetch")
+            ? "Gagal terhubung ke server verifikasi. Periksa koneksi internet Anda atau coba beberapa saat lagi."
+            : rawMsg;
+        setError(displayMsg);
       }
     } finally {
       abortControllerRef.current = null;

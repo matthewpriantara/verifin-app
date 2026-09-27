@@ -49,7 +49,7 @@ from app.api.v1.verify.pipeline import (
     _to_response,
     _build_osint_summary,
 )
-from app.services.db_cache import _save_case_to_db, _get_cached_case_from_db
+from app.services.db_cache import _save_case_to_db, _get_cached_case_from_db, _get_cached_case_by_url
 from app.services.web_fetcher import _fetch_url_content_and_image
 from app.config import VERIFIN_DEBUG_RAW_JSON
 
@@ -374,7 +374,9 @@ async def verify_from_url(
     request_id = _request_id()
     started = time.perf_counter()
     logger.info("[verify][%s] START source=url chars=%d", request_id, len(request.url or ""))
-    cached_resp = await asyncio.to_thread(_get_cached_case_from_db, db, request.url)
+    cached_resp = await asyncio.to_thread(_get_cached_case_by_url, db, request.url)
+    if not cached_resp:
+        cached_resp = await asyncio.to_thread(_get_cached_case_from_db, db, request.url)
     if cached_resp:
         logger.info("[verify][%s] cache hit source=url", request_id)
         logger.info("[verify][%s] CACHE_HIT source=url", request_id)
@@ -443,6 +445,11 @@ async def verify_from_url(
         _log_raw_json(request_id, "ANALYSIS", analysis)
         logger.info("[verify][%s] LLM done verdict=%s score=%s model=%s duration=%.2fs", request_id, analysis.get("verdict"), analysis.get("risk_score"), analysis.get("model_used"), time.perf_counter() - stage_started)
         analysis["network_context"] = network_context
+        if request.url:
+            if "urls" not in entities or not isinstance(entities["urls"], list):
+                entities["urls"] = [request.url]
+            elif request.url not in entities["urls"]:
+                entities["urls"].insert(0, request.url)
         response = _to_response(analysis, entities, osint_results)
         save_status = await asyncio.to_thread(
             _save_case_to_db,
@@ -707,6 +714,28 @@ async def _verify_url_stream_generator(url: str, additional_text: str, db_sessio
     request_id = _request_id()
     started = time.perf_counter()
 
+    if not (additional_text and additional_text.strip()):
+        cached_resp = await asyncio.to_thread(_get_cached_case_by_url, db_session, url)
+        if not cached_resp:
+            cached_resp = await asyncio.to_thread(_get_cached_case_from_db, db_session, url)
+        if cached_resp:
+            logger.info("[verify-stream][%s] CACHE_HIT source=url case_id=%s", request_id, cached_resp.case_id)
+            yield _sse_event("start", {"request_id": request_id, "message": "Memeriksa riwayat verifikasi..."})
+            yield _sse_event("stage", {
+                "stage": "ai",
+                "status": "done",
+                "message": "Ditemukan di riwayat verifikasi (Cache Hit)",
+            })
+            yield _sse_event("done", {
+                "message": "Verifikasi selesai (dari cache)",
+                "case_id": cached_resp.case_id,
+                "verdict": cached_resp.verdict,
+                "risk_score": cached_resp.risk_score,
+                "response": cached_resp.model_dump(),
+            })
+            _log_end(request_id, "url-stream-cache", started, cached_resp)
+            return
+
     yield _sse_event("start", {"request_id": request_id, "message": "Memulai verifikasi..."})
 
     tmp_paths = []
@@ -738,6 +767,24 @@ async def _verify_url_stream_generator(url: str, additional_text: str, db_sessio
             text_blocks.append(f"[UTAS BALASAN / TEKS TAMBAHAN]:\n{additional_text.strip()}")
 
         full_raw_text = "\n\n".join(text_blocks).strip()
+
+        cached_resp_full = await asyncio.to_thread(_get_cached_case_from_db, db_session, full_raw_text)
+        if cached_resp_full:
+            logger.info("[verify-stream][%s] CACHE_HIT source=url-content case_id=%s", request_id, cached_resp_full.case_id)
+            yield _sse_event("stage", {
+                "stage": "ai",
+                "status": "done",
+                "message": "Konten poster/deskripsi cocok dengan riwayat verifikasi...",
+            })
+            yield _sse_event("done", {
+                "message": "Verifikasi selesai (dari cache)",
+                "case_id": cached_resp_full.case_id,
+                "verdict": cached_resp_full.verdict,
+                "risk_score": cached_resp_full.risk_score,
+                "response": cached_resp_full.model_dump(),
+            })
+            _log_end(request_id, "url-stream-cache", started, cached_resp_full)
+            return
 
         if not full_raw_text or len(full_raw_text) < 15:
             yield _sse_event("error", {"message": "Sistem tidak dapat mengambil konten atau teks dari URL tersebut."})
@@ -782,6 +829,11 @@ async def _verify_url_stream_generator(url: str, additional_text: str, db_sessio
         logger.info("[verify-stream][%s] LLM done verdict=%s score=%s duration=%.2fs", request_id, analysis.get("verdict"), analysis.get("risk_score"), time.perf_counter() - stage_started)
 
         analysis["network_context"] = network_context
+        if url:
+            if "urls" not in entities or not isinstance(entities["urls"], list):
+                entities["urls"] = [url]
+            elif url not in entities["urls"]:
+                entities["urls"].insert(0, url)
         response = _to_response(analysis, entities, osint_results)
         save_status = await asyncio.to_thread(
             _save_case_to_db,
