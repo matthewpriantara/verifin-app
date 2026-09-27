@@ -1,22 +1,9 @@
-"""
-Prompt Builder untuk Verifin AI Reasoning Engine.
-Mengubah data OSINT & NER yang sudah diekstrak menjadi prompt terstruktur
-yang siap dikirim ke LLM untuk analisis risiko penipuan.
-"""
-
-# Domain gratisan yang umum digunakan — tidak perlu dicek WHOIS/SPF/DMARC
 import re
 
 from app.services.constants import FREE_EMAIL_DOMAINS
 
 
 def _build_domain_osint_section(emails: list, domain_info: dict, email_security: dict) -> str:
-    """
-    Membangun teks section OSINT domain secara kondisional:
-    - Jika tidak ada email: tampilkan pesan 'tidak ada email'.
-    - Jika email adalah domain gratisan (gmail, yahoo, dll): hanya tampilkan info domain gratisan.
-    - Jika email adalah domain korporat: tampilkan info WHOIS + SPF/DMARC lengkap.
-    """
     if not emails:
         return "- Tidak ada email yang terdeteksi pada lowongan ini. Abaikan faktor keamanan domain dalam analisis."
 
@@ -32,7 +19,6 @@ def _build_domain_osint_section(emails: list, domain_info: dict, email_security:
             "- JANGAN jadikan Gmail satu-satunya alasan skor tinggi atau WASPADA."
         )
 
-    # Domain korporat — tampilkan data OSINT lengkap
     domain_age = domain_info.get("age_years", "Tidak diketahui")
     domain_created = domain_info.get("created_at", "Tidak diketahui")
     domain_is_new = domain_info.get("is_new", False)
@@ -60,7 +46,6 @@ def _build_phone_osint_section(phones: list) -> str:
         serp = p.get("serp_fallback") or {}
         serp_risk = serp.get("risk_flags") or []
         if has_error:
-            # Kredibel gagal — tampilkan status SERP fallback agar LLM tidak mengarang
             if serp_risk:
                 lines.append(
                     f"- `{phone}`: Kaspersky Who Calls gagal dicek ({p.get('error')}), "
@@ -96,7 +81,6 @@ def _build_phone_osint_section(phones: list) -> str:
             lines.append(f"  → [info] {n}")
         if p.get("summary"):
             lines.append(f"  → ringkas: {p.get('summary')}")
-        # Sertakan juga SERP fallback jika ada flag tambahan
         for rf in serp_risk:
             lines.append(f"  → [SERP] {rf}")
     return "\n".join(lines) if lines else "- Tidak ada data telepon."
@@ -111,7 +95,6 @@ def _build_company_osint_section(companies: list) -> str:
         name = c.get("name") or "?"
         lines.append(f"- Nama: `{name}` | method={c.get('method', 'public_web_only')}")
         reg = c.get("registry") or {}
-        # registry field hanya ada kalau company_validator melakukan probe AHU — umumnya kosong
         if reg.get("pt_registry_verified") is not None:
             lines.append(
                 f"  → Legalitas AHU/OSS: "
@@ -217,7 +200,6 @@ def _build_web_osint_section(web: dict) -> str:
             f"NO_RELEVANT_RESULTS={counts.get('no_relevant_searches', 0)}; "
             f"UNAVAILABLE={counts.get('unavailable_searches', 0)}."
         )
-        # Search Intelligence Layer — digital footprint verdict
         footprint = counts.get("digital_footprint", "unknown")
         if footprint != "unknown":
             footprint_label = {
@@ -320,16 +302,13 @@ def _build_address_osint_section(address_validations: list) -> str:
             elif match_level == "street":
                 lines.append(f"- `{addr}`: ℹ️ Nama jalan ditemukan, tetapi nomor bangunan belum cocok ({display}...).")
             else:
-                # Cek apakah alamat input mengandung nama jalan
                 addr_has_street = bool(re.search(r"\b(?:jl\.?|jln\.?|jalan)\b", addr, re.I))
-                # Cek apakah display_name dari OSM mengandung nama jalan
                 display_has_street = bool(re.search(r"\b(?:jl\.?|jln\.?|jalan|jalan)\b", display, re.I))
                 if addr_has_street or display_has_street:
                     lines.append(f"- `{addr}`: ✅ Nama jalan ditemukan di peta ({display}...). Wilayah sekitar terkonfirmasi.")
                 else:
                     lines.append(f"- `{addr}`: ℹ️ Wilayah sekitar ditemukan di peta ({display}...). Titik exact belum terkonfirmasi.")
 
-        # Catatan netral dari pencarian bisnis
         neutral_notes = av.get("neutral_notes", [])
         for note in neutral_notes:
             lines.append(f"  → ℹ️ {note}")
@@ -354,28 +333,16 @@ def _build_address_osint_section(address_validations: list) -> str:
 
 
 def build_verify_prompt(entities: dict, osint_results: dict) -> str:
-    """
-    Membangun prompt lengkap untuk analisis penipuan loker kerja.
-    
-    Args:
-        entities: Dict hasil ekstraksi NER (companies, contacts, emails, addresses, salaries).
-        osint_results: Dict hasil pengecekan OSINT (domain_age, email_security, whois, dll).
-        
-    Returns:
-        String prompt terstruktur yang siap dikirim ke LLM.
-    """
-    
     companies = entities.get("companies", [])
     contacts = entities.get("contacts") or entities.get("phones") or []
     emails = entities.get("emails", [])
     urls = entities.get("urls", [])
     addresses = entities.get("addresses", [])
     salaries = entities.get("salaries", [])
-    
+
     domain_info = osint_results.get("domain", {})
     email_security = osint_results.get("email_security", {})
-    
-    # Format data entitas ke dalam teks yang mudah dibaca LLM
+
     company_str = ", ".join(companies) if companies else "Tidak disebutkan"
     contact_str = ", ".join(contacts) if contacts else "Tidak disebutkan"
     email_str = ", ".join(emails) if emails else "Tidak ada email yang terdeteksi"
@@ -387,7 +354,7 @@ def build_verify_prompt(entities: dict, osint_results: dict) -> str:
         if not addresses
         else "Alamat fisik tercantum pada input; bedakan alamat exact, street, dan area dari hasil OSM."
     )
-    
+
     prompt = f"""Kamu adalah sistem AI bernama Verifin yang bertugas menganalisis kecurigaan penipuan lowongan kerja di Indonesia.
 
 Kamu akan diberikan data hasil ekstraksi dari poster/iklan lowongan kerja, beserta hasil pengecekan OSINT (Open Source Intelligence).
@@ -395,7 +362,6 @@ Analisis secara mendalam, formal, dan berbasis evidence. Berikan keputusan apaka
 
 ---
 
-## DATA LOWONGAN KERJA
 
 **Nama Perusahaan:**
 {company_str}
@@ -418,7 +384,6 @@ Analisis secara mendalam, formal, dan berbasis evidence. Berikan keputusan apaka
 
 ---
 
-## HASIL PENGECEKAN OSINT
 
 **Domain Email:**
 {_build_domain_osint_section(emails, domain_info, email_security)}
@@ -443,7 +408,6 @@ Analisis secara mendalam, formal, dan berbasis evidence. Berikan keputusan apaka
 
 ---
 
-## ATURAN KERAS (ANTI-HALUSINASI & KALIBRASI SKOR)
 
 1. HANYA pakai FAKTA di OSINT / TEKS ASLI. Dilarang mengarang AHU/OSS, medsos, atau rating Kaspersky.
 2. EMAIL GMAIL/YAHOO: Email gratisan umum di UMKM dan perusahaan kecil Indonesia — BUKAN indikator penipuan tunggal. Hanya masukkan sebagai risk_factor jika dikombinasikan dengan sinyal lain (tidak ada alamat, tidak ada website, tidak ada jejak AHU).
@@ -460,7 +424,6 @@ Analisis secara mendalam, formal, dan berbasis evidence. Berikan keputusan apaka
 10. STATUS NOMOR: Bedakan `probe_status` dari `found`. `probe_status=COMPLETED` berarti pemeriksaan berhasil; `reputation_status=CLEAN` dan `reported_fraud=false` berarti tidak ada laporan fraud/spam yang ditemukan. `found=false` hanya berarti bukti scam tidak ditemukan, BUKAN pemeriksaan gagal atau reputasi belum terkonfirmasi.
 11. KREDIBEL GAGAL DIAKSES: Jika nomor HP tercatat "Kaspersky Who Calls tidak dapat diakses" DAN "Pencarian SERP publik tidak menemukan laporan penipuan", artinya TIDAK ADA BUKTI PENIPUAN terkait nomor tersebut. DILARANG memasukkan ini sebagai risk_factor. Ini harus masuk sebagai safe_factor atau diabaikan sama sekali.
 
-## PANDUAN SKOR (WAJIB DIIKUTI — JANGAN PARKIR DI 25-35 TANPA ALASAN)
 
 **AMAN (0–39)** — pecah band:
 - **0–10 (sangat aman):** alamat `match_level=exact` + HP bersih Kaspersky Who Calls + tidak minta biaya +
@@ -479,7 +442,6 @@ Analisis secara mendalam, formal, dan berbasis evidence. Berikan keputusan apaka
 - WAJIB ada bukti keras: permintaan biaya/transfer/KTP/rekening, ATAU HP reported_fraud Kaspersky Who Calls,
   ATAU phishing form, ATAU laporan penipuan spesifik yang terbukti menargetkan nomor/perusahaan ini.
 
-## VALUASI UMKM VALID (PRIORITAS)
 Jika SEMUA ini terpenuhi:
 - alamat fisik `match_level=exact`, DAN
 - HP tidak reported_fraud di Kaspersky Who Calls, DAN
@@ -496,7 +458,6 @@ Jika TIDAK ADA alamat OSM tapi SEMUA ini terpenuhi:
 ➔ verdict **AMAN**, risk_score **20–35** (aman dengan catatan — zero footprint UMKM normal).
 Jangan naikkan ke WASPADA hanya karena tidak ada alamat/PT/website — itu normal untuk UMKM kecil.
 
-## INSTRUKSI ANALISIS
 1. Red flag keras dulu: biaya, fraud HP, phishing form, scam SERP.
 2. Bedakan alamat exact dari area-only; hanya `match_level=exact` yang boleh disebut titik alamat terverifikasi.
 3. Medsos/toko/web evidence?
@@ -510,7 +471,6 @@ Jangan naikkan ke WASPADA hanya karena tidak ada alamat/PT/website — itu norma
 
 ---
 
-## FORMAT OUTPUT (WAJIB JSON saja — ringkas, padat, tidak bertele-tele)
 
 Batas per field:
 - `summary`: 1 kalimat saja (max 25 kata)
@@ -547,7 +507,6 @@ def build_text_verify_prompt(raw_text: str, entities: dict, osint_results: dict)
     # Prompt besar = response terpotong = JSON error
     MAX_RAW = 600
     raw_section = f"""
-## TEKS ASLI LOWONGAN (Hasil OCR / Input Manual)
 
 ```
 {raw_text[:MAX_RAW]}{"...(terpotong)" if len(raw_text) > MAX_RAW else ""}

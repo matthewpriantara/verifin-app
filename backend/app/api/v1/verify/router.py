@@ -1,15 +1,3 @@
-"""
-Router verifikasi Verifin — Job Trust Infrastructure.
-
-Tiga kanal input: teks, gambar (OCR), URL postingan.
-    Pipeline: NER → OSINT → LLM → Fraud Network → Evidence Attribution response.
-
-Modular:
-  pipeline.py   — entity extraction, OSINT runner, fraud network, response builder
-  db_cache.py   — simpan & ambil JobCase dari PostgreSQL
-  web_fetcher.py — Scrapling + Instagram/Threads scraper
-"""
-
 import logging
 import os
 import asyncio
@@ -40,7 +28,6 @@ from app.services.osint.whois_handler import (
     check_email_security,
 )
 
-# Import helpers dari modul terpisah
 from app.api.v1.verify.pipeline import (
     _check_fraud_network,
     _extract_entities_hybrid,
@@ -70,7 +57,6 @@ def _entity_counts(entities: dict) -> dict[str, int]:
 
 
 def _address_probe_status(addresses: list[dict]) -> str:
-    """Map nested address evidence to an honest aggregate log status."""
     if not addresses:
         return "NOT_PROVIDED"
 
@@ -132,7 +118,6 @@ def _log_end(request_id: str, source: str, started: float, response: VerifyRespo
 
 
 def _log_raw_json(request_id: str, label: str, payload: object) -> None:
-    """Dump payload pipeline saat debug lokal diaktifkan; payload dapat berisi PII."""
     if not VERIFIN_DEBUG_RAW_JSON:
         return
     try:
@@ -142,7 +127,6 @@ def _log_raw_json(request_id: str, label: str, payload: object) -> None:
             indent=2,
             default=str,
         )
-        # Simpan ke file di root backend folder
         import os
         from datetime import datetime
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
@@ -162,7 +146,7 @@ def _log_raw_json(request_id: str, label: str, payload: object) -> None:
     summary="Verifikasi Lowongan Kerja dari Teks",
 )
 async def verify_from_text(
-    request: TextVerifyRequest = Body(...), 
+    request: TextVerifyRequest = Body(...),
     db: Session = Depends(get_db)
 ):
     request_id = _request_id()
@@ -184,8 +168,6 @@ async def verify_from_text(
             _log_end(request_id, "text-cache", started, cached_resp)
             return cached_resp
 
-        # NLP classifier belum aktif; simpan metadata STUB tanpa menganggapnya
-        # sebagai tahap analisis yang menghasilkan sinyal risiko.
         stage_started = time.perf_counter()
         nlp_result = classify_text(request.text)
         logger.info(
@@ -204,10 +186,8 @@ async def verify_from_text(
         _log_osint_summary(request_id, osint_results)
         logger.info("[verify][%s] OSINT duration=%.2fs", request_id, time.perf_counter() - stage_started)
 
-        # OSINT Enrichment: lengkapi entities dengan alamat dari hasil search
         entities = await _enrich_entities_from_osint(entities, osint_results)
 
-        # Layer 5: Fraud Network — case memory (exact-match entity linking)
         stage_started = time.perf_counter()
         network_context = await asyncio.to_thread(_check_fraud_network, db, entities)
         logger.info("[verify][%s] fraud-network done status=%s in_network=%s reports=%s duration=%.2fs", request_id, network_context.get("status"), network_context.get("entity_in_fraud_network"), (network_context.get("community_reports") or {}).get("report_count"), time.perf_counter() - stage_started)
@@ -218,7 +198,6 @@ async def verify_from_text(
         _log_raw_json(request_id, "ANALYSIS", analysis)
         logger.info("[verify][%s] LLM done verdict=%s score=%s model=%s duration=%.2fs", request_id, analysis.get("verdict"), analysis.get("risk_score"), analysis.get("model_used"), time.perf_counter() - stage_started)
 
-        # Attach NLP + network context untuk SHAP explainer
         analysis["nlp_result"] = nlp_result
         analysis["network_context"] = network_context
 
@@ -277,9 +256,6 @@ async def verify_from_image(
 
     try:
         ocr_metrics: dict = {}
-        # ponytail: request sinkron (tanpa background job) — cukup untuk demo;
-        # upgrade ke FastAPI BackgroundTasks + polling job_id kalau latency
-        # OSINT/LLM (>2 mnt) butuh progress sejati di FE.
         raw_text = await asyncio.to_thread(extract_text_from_image, tmp_path, ocr_metrics)
         if not raw_text or not raw_text.strip():
             raise HTTPException(
@@ -289,7 +265,6 @@ async def verify_from_image(
         logger.info("[OCR] image metrics=%s", ocr_metrics)
         logger.info("[verify][%s] OCR done chars=%d metrics=%s duration=%.2fs", request_id, len(raw_text), ocr_metrics, time.perf_counter() - started)
 
-        # Cache-check dari hash teks OCR — gambar identik = hasil identik
         cached_resp = await asyncio.to_thread(_get_cached_case_from_db, db, raw_text)
         if cached_resp:
             logger.info("[verify][%s] cache hit source=image", request_id)
@@ -303,7 +278,6 @@ async def verify_from_image(
         _log_raw_json(request_id, "ENTITIES", entities)
         logger.info("[verify][%s] NER done counts=%s meta=%s duration=%.2fs", request_id, _entity_counts(entities), entities.get("_ner_meta"), time.perf_counter() - stage_started)
 
-        # NLP classifier belum aktif; hanya ekspos metadata STUB.
         stage_started = time.perf_counter()
         nlp_result = classify_text(raw_text)
         logger.info("[verify][%s] NLP skipped status=%s enabled=%s duration=%.2fs", request_id, nlp_result.get("status"), nlp_result.get("enabled"), time.perf_counter() - stage_started)
@@ -313,10 +287,8 @@ async def verify_from_image(
         _log_osint_summary(request_id, osint_results)
         logger.info("[verify][%s] OSINT duration=%.2fs", request_id, time.perf_counter() - stage_started)
 
-        # OSINT Enrichment: lengkapi entities dengan alamat dari hasil search
         entities = await _enrich_entities_from_osint(entities, osint_results)
 
-        # Layer 5: Fraud Network Check
         stage_started = time.perf_counter()
         network_context = await asyncio.to_thread(_check_fraud_network, db, entities)
         logger.info("[verify][%s] fraud-network done status=%s in_network=%s reports=%s duration=%.2fs", request_id, network_context.get("status"), network_context.get("entity_in_fraud_network"), (network_context.get("community_reports") or {}).get("report_count"), time.perf_counter() - stage_started)
@@ -388,7 +360,7 @@ async def verify_from_url(
     try:
         caption_text, tmp_paths = await _fetch_url_content_and_image(request.url)
         logger.info("[verify][%s] URL fetch done caption_chars=%d images=%d duration=%.2fs", request_id, len(caption_text or ""), len(tmp_paths), time.perf_counter() - started)
-        
+
         ocr_texts = []
         for p in tmp_paths:
             if p and os.path.exists(p):
@@ -401,7 +373,6 @@ async def verify_from_url(
 
         combined_ocr_text = "\n".join(ocr_texts).strip()
 
-        # Prioritaskan teks OCR poster di posisi paling atas
         text_blocks = [f"URL Target: {request.url}"]
         if combined_ocr_text:
             text_blocks.append(f"[TEKS UTAMA POSTER/GAMBAR LOWONGAN (OCR)]:\n{combined_ocr_text}")
@@ -415,7 +386,7 @@ async def verify_from_url(
         cached_resp_full = await asyncio.to_thread(_get_cached_case_from_db, db, full_raw_text)
         if cached_resp_full:
             return cached_resp_full
-        
+
         if not full_raw_text or len(full_raw_text) < 15:
             raise HTTPException(
                 status_code=422,
@@ -430,10 +401,8 @@ async def verify_from_url(
         _log_osint_summary(request_id, osint_results)
         logger.info("[verify][%s] OSINT duration=%.2fs", request_id, time.perf_counter() - stage_started)
 
-        # OSINT Enrichment: lengkapi entities dengan alamat dari hasil search
         entities = await _enrich_entities_from_osint(entities, osint_results)
 
-        # Layer 5: Fraud Network Check (case memory + community reports)
         stage_started = time.perf_counter()
         network_context = await asyncio.to_thread(_check_fraud_network, db, entities)
         logger.info("[verify][%s] fraud-network done status=%s in_network=%s reports=%s duration=%.2fs", request_id, network_context.get("status"), network_context.get("entity_in_fraud_network"), (network_context.get("community_reports") or {}).get("report_count"), time.perf_counter() - stage_started)
@@ -527,11 +496,6 @@ def verify_domain(
         "details": {"age": age_info, "security": security_info},
     }
 
-
-# ─────────────────────────────────────────────────────────────────────────────
-# DATABASE ACCESS ENDPOINTS
-# ─────────────────────────────────────────────────────────────────────────────
-
 @router.get(
     "/cases",
     summary="Ambil semua daftar kasus",
@@ -593,12 +557,10 @@ def lookup_cases_by_entity(
             filters.append("emails @> :email_json::jsonb")
             params["email_json"] = f'["{email.strip().lower()}"]'
         if company:
-            # company_name exact-ish: ILIKE (substring ok untuk partial match)
             filters.append("LOWER(company_name) LIKE :company_pat")
             params["company_pat"] = f"%{company.strip().lower()}%"
 
         where = f"WHERE {' OR '.join(filters)}" if filters else ""
-        # ponytail: O(n) scan pada JSONB @> tanpa GIN index; tambah GIN index pada phones/emails kalau > 10k kasus
         sql = sa_text(f"""
             SELECT id, company_name, phones, emails, verdict, risk_score, created_at
             FROM job_cases

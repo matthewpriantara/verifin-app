@@ -1,15 +1,3 @@
-"""
-SearXNG Client — multi-engine search aggregator sebagai backbone Search Intelligence Layer.
-
-SearXNG instance: http://localhost:8888 (self-hosted via Docker)
-Engines aktif: Bing, Brave, Wikipedia
-Format: JSON
-
-Fitur:
-1. Multi-engine search via SearXNG (aggregasi hasil dari banyak engine)
-2. Engine stats — pantau engine mana yang aktif/gagal
-3. Fallback ke Lightpanda bila SearXNG down
-"""
 from __future__ import annotations
 
 import logging
@@ -26,27 +14,17 @@ from app.config import SEARXNG_URL
 logger = logging.getLogger(__name__)
 
 _SEARXNG_BASE = SEARXNG_URL or "http://localhost:8888"
-_SEARXNG_TIMEOUT = 15  # detik
-
-# ── Query result cache (in-memory, TTL) ──────────────────────────────────────
-# Satu verifikasi dapat menembak query yang SAMA berkali-kali dari banyak modul
-# (web evidence, social search, platform providers, phone/address validator).
-# Engine publik (Brave/DDG/Startpage/Mojeek) cepat kena captcha/rate-limit bila
-# dibanjiri query identik. Cache ini memastikan query yang sama hanya memanggil
-# SearXNG SEKALI dalam window TTL — generik, tidak terikat jenis lowongan.
+_SEARXNG_TIMEOUT = 15
 _QUERY_CACHE: dict[str, tuple[float, dict[str, Any]]] = {}
 _CACHE_LOCK = threading.Lock()
-_CACHE_TTL_SECONDS = 600  # 10 menit — cukup untuk satu siklus verifikasi
+_CACHE_TTL_SECONDS = 600
 _CACHE_MAX_ENTRIES = 512
-
-# ── Anti-Burst / Pacing (Anti "Serangan Fajar") ───────────────────────────────
-# Mencegah banjir request simultan ke SearXNG yang memicu 429 / captcha engine publik.
 _REQUEST_LOCK = threading.Lock()
 _LAST_REQUEST_TIME: float = 0.0
-_MIN_REQUEST_INTERVAL: float = 0.8  # Jeda minimal 800ms antar outbound query ke SearXNG
-_RATE_LIMIT_UNTIL: float = 0.0      # Timestamp cooldown saat terkena 429
+_MIN_REQUEST_INTERVAL: float = 0.8
+_RATE_LIMIT_UNTIL: float = 0.0
 _AVAILABILITY_CACHE: tuple[float, bool] = (0.0, False)
-_AVAILABILITY_TTL: float = 30.0     # Cache availability status 30 detik
+_AVAILABILITY_TTL: float = 30.0
 
 
 def _cache_key(query: str, max_results: int, engines: str | None, language: str) -> str:
@@ -75,7 +53,6 @@ def _cache_set(key: str, value: dict[str, Any]) -> None:
 
 
 def is_searxng_available() -> bool:
-    """Cek apakah SearXNG instance tersedia (dengan cache 30s untuk kurangi beban)."""
     global _AVAILABILITY_CACHE
     now = time.monotonic()
     last_check, is_avail = _AVAILABILITY_CACHE
@@ -107,27 +84,6 @@ def searxng_search(
     engines: str | None = None,
     language: str = "id",
 ) -> dict[str, Any]:
-    """
-    Search via SearXNG — aggregasi multi-engine.
-
-    Args:
-        query: Query pencarian
-        max_results: Maks hasil
-        engines: Engine spesifik (misal "bing,brave"), None = semua
-        language: Bahasa hasil pencarian
-
-    Returns:
-        {
-            "ok": bool,
-            "query": str,
-            "engine": "searxng",
-            "results": [{"title", "url", "snippet", "engines", "score"}],
-            "raw_result_count": int,
-            "engine_stats": {"bing": 3, "brave": 2, ...},
-            "unresponsive_engines": [...],
-            "error": str | None,
-        }
-    """
     q = (query or "").strip()
     if not q:
         return {
@@ -144,7 +100,6 @@ def searxng_search(
         logger.debug("[SearXNG] cache hit untuk query: %s", q[:60])
         return {**cached, "cached": True}
 
-    # Cek apakah sedang dalam cooldown akibat rate limit (429)
     now = time.monotonic()
     if now < _RATE_LIMIT_UNTIL:
         remain = round(_RATE_LIMIT_UNTIL - now, 1)
@@ -163,10 +118,8 @@ def searxng_search(
     if engines:
         params["engines"] = engines
 
-    # ── Anti-burst Lock: serialisasi request ke SearXNG dengan jeda minimal ────
     try:
         with _REQUEST_LOCK:
-            # In-flight deduplication: cek cache lagi setelah antrean lock selesai
             cached_after_lock = _cache_get(cache_key)
             if cached_after_lock is not None:
                 logger.debug("[SearXNG] in-flight cache hit untuk query: %s", q[:60])
@@ -182,7 +135,7 @@ def searxng_search(
                 _LAST_REQUEST_TIME = time.monotonic()
 
                 if resp.status_code == 429:
-                    _RATE_LIMIT_UNTIL = time.monotonic() + 30.0  # Cooldown 30 detik
+                    _RATE_LIMIT_UNTIL = time.monotonic() + 30.0
                     logger.warning("[SearXNG] Rate limited (429). Cooldown aktif 30 detik.")
                     return {
                         "ok": False, "query": q, "engine": "searxng", "results": [],
@@ -200,8 +153,6 @@ def searxng_search(
             data = resp.json()
             raw_results = data.get("results", [])
             unresponsive = data.get("unresponsive_engines", [])
-
-            # Parse results
             results: list[dict[str, Any]] = []
             engine_stats: dict[str, int] = {}
             for r in raw_results:
@@ -226,7 +177,6 @@ def searxng_search(
                     "published_date": r.get("publishedDate"),
                 })
 
-            # Sort by SearXNG score (descending)
             results.sort(key=lambda x: x.get("score", 0), reverse=True)
 
             response = {
@@ -243,8 +193,6 @@ def searxng_search(
                 "suggestions": data.get("suggestions", []),
                 "error": None if results else "Tidak ada hasil.",
             }
-            # Hanya cache hasil yang ada isinya — hasil kosong/error tidak di-cache
-            # agar retry setelah engine pulih tetap bisa mencoba ulang.
             if results:
                 _cache_set(cache_key, response)
             return response
@@ -279,8 +227,8 @@ def searxng_search_multi(
     """
     if engine_groups is None:
         engine_groups = [
-            None,  # semua engine aktif
-            "bing,brave",  # western engines
+            None,
+            "bing,brave",
         ]
 
     all_results: list[dict[str, Any]] = []
@@ -299,8 +247,6 @@ def searxng_search_multi(
             for eng, count in result.get("engine_stats", {}).items():
                 combined_stats[eng] = combined_stats.get(eng, 0) + count
         all_unresponsive.extend(result.get("unresponsive_engines", []))
-
-    # Re-sort by score
     all_results.sort(key=lambda x: x.get("score", 0), reverse=True)
 
     return {

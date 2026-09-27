@@ -1,5 +1,3 @@
-"""Client OpenAI-compatible untuk LLM."""
-
 import asyncio
 import json
 import re
@@ -14,19 +12,14 @@ logger = logging.getLogger(__name__)
 
 
 def _parse_json_value(text: str) -> Any:
-    """Parse JSON; tahan trailing text / NDJSON ganda."""
     cleaned = (text or "").strip()
     if not cleaned:
         raise json.JSONDecodeError("empty", cleaned, 0)
-
-    # Ambil baris/object pertama yang valid
     try:
         obj, _ = json.JSONDecoder().raw_decode(cleaned)
         return obj
     except json.JSONDecodeError:
         pass
-
-    # Coba tiap baris (NDJSON)
     for line in cleaned.splitlines():
         line = line.strip()
         if not line:
@@ -50,15 +43,11 @@ def _parse_json_value(text: str) -> Any:
 
 def _repair_truncated_json(text: str) -> str:
     t = text.strip()
-    # Hapus trailing code fence
     t = re.sub(r"```(?:json)?\s*", "", t).strip()
-
-    # Temukan posisi aman terakhir dengan mini JSON state machine
-    # safe_end = posisi setelah field lengkap (key+value) atau setelah ] / }
     safe_end = -1
     in_str = False
     escape = False
-    after_colon = False  # sudah lewat ":" — berarti sedang di posisi value
+    after_colon = False
     depth = 0
 
     for i, ch in enumerate(t):
@@ -71,7 +60,6 @@ def _repair_truncated_json(text: str) -> str:
         if ch == '"':
             if in_str:
                 in_str = False
-                # Baru tutup string — aman hanya kalau ini value (setelah colon)
                 if after_colon:
                     safe_end = i
                     after_colon = False
@@ -89,15 +77,12 @@ def _repair_truncated_json(text: str) -> str:
             elif ch == ',' :
                 after_colon = False
 
-    # Kalau masih di dalam string (terpotong) → potong di safe_end terakhir
     if in_str and safe_end >= 0:
         t = t[:safe_end + 1]
 
-    # Hapus trailing koma atau titik dua gantung
     t = re.sub(r",\s*$", "", t.rstrip())
     t = re.sub(r":\s*$", ': ""', t)
 
-    # Seimbangkan kurung
     t += "]" * max(0, t.count("[") - t.count("]"))
     t += "}" * max(0, t.count("{") - t.count("}"))
     return t
@@ -105,10 +90,7 @@ def _repair_truncated_json(text: str) -> str:
 
 def extract_json_from_response(text: str) -> dict:
     cleaned = (text or "").strip()
-    # 1. Hapus tag <think>...</think> jika ada (reasoning model / DeepSeek / Grok thinking)
     cleaned = re.sub(r"<think>[\s\S]*?</think>", "", cleaned).strip()
-
-    # 2. Ekstrak dari blok kode markdown ```json ... ``` lengkap
     match_code = re.search(r"```(?:json)?\s*(\{[\s\S]*?\})\s*```", cleaned)
     if match_code:
         try:
@@ -118,22 +100,18 @@ def extract_json_from_response(text: str) -> dict:
         except Exception:
             pass
 
-    # 3. Bersihkan pembuka ```json jika ada
     if cleaned.startswith("```"):
         cleaned_fence = re.sub(r"^```(?:json)?\s*", "", cleaned)
         cleaned_fence = re.sub(r"\s*```$", "", cleaned_fence).strip()
     else:
         cleaned_fence = cleaned
 
-    # 4. Coba parsing langsung dari cleaned_fence
     try:
         obj = _parse_json_value(cleaned_fence)
         if isinstance(obj, dict):
             return obj
     except json.JSONDecodeError:
         pass
-
-    # 5. Cari objek JSON terluar {...} lengkap di mana saja
     match_braces = re.search(r"(\{[\s\S]*\})", cleaned)
     if match_braces:
         try:
@@ -143,7 +121,6 @@ def extract_json_from_response(text: str) -> dict:
         except Exception:
             pass
 
-    # 6. Coba perbaiki jika JSON terpotong di akhir (truncation repair)
     for candidate in [cleaned_fence, cleaned]:
         try:
             repaired = _repair_truncated_json(candidate)
@@ -184,13 +161,10 @@ async def chat_completion(
     payload = {
         "model": model or LLM_MODEL,
         "messages": messages,
-        # temperature=0 + seed tetap → output deterministik (penting untuk audit/forensik).
         "temperature": temperature,
         "max_tokens": max_tokens,
         "stream": False,
     }
-    # Beberapa penyedia (OpenAI-compatible) mendukung seed untuk reprodusibilitas.
-    # Dikirim hanya bila di-set agar tidak merusak provider yang menolak field asing.
     if seed is not None:
         payload["seed"] = seed
     headers = {
@@ -217,7 +191,6 @@ async def chat_completion(
             try:
                 msg = data["choices"][0].get("message") or {}
                 content = msg.get("content")
-                # Fallback reasoning_content jika content kosong (model xhigh habis di thinking)
                 if not isinstance(content, str) or not content.strip():
                     rc = msg.get("reasoning_content") or msg.get("reasoning") or data["choices"][0].get("reasoning_content") or ""
                     if isinstance(rc, str) and rc.strip():
@@ -238,11 +211,10 @@ async def chat_completion(
         except (httpx.HTTPStatusError, httpx.ConnectError, httpx.TimeoutException) as exc:
             last_exc = exc
             status = getattr(exc.response, "status_code", None) if isinstance(exc, httpx.HTTPStatusError) else None
-            # Retry hanya untuk 5xx / rate limit / network error
             retryable = status is None or status >= 500 or status == 429
             if not retryable or attempt >= max_retries:
                 raise
-            wait = 2 ** attempt  # 2, 4, 8 detik
+            wait = 2 ** attempt
             logger.warning("attempt %d gagal (%s), retry dalam %ds...", attempt, status or exc, wait)
             await asyncio.sleep(wait)
 

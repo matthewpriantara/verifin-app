@@ -1,26 +1,3 @@
-"""
-Hybrid NER — LLM-based Entity Extraction (Layer 1 suplemen).
-
-Melengkapi `app/services/ner.py` (regex) dengan extraction pass berbasis LLM
-untuk entitas SEMANTIK yang sulit ditangkap pola deterministik:
-- companies : nama perusahaan/PT (regex rapuh pada brand tanpa legal form,
-  false positive pada frasa umum seperti "dan cekatan", "INDONESIA COLLEGE")
-- addresses : alamat fisik (semantik — paham konteks, bukan sekadar pola jalan)
-- salaries  : nominal gaji/upah dalam bentuk apapun (Rp, juta, per bulan, dsb.)
-
-Desain HYBRID (sesuai keputusan arsitektur):
-- Entitas STRUKTURAL (HP/email/URL) TETAP regex — pola stabil, cepat, murah.
-- Entitas SEMANTIK (companies/addresses/salaries) via LLM — paham konteks.
-- LLM extraction berjalan PARALEL dengan OSINT probe di router (tidak menambah
-  critical path latency).
-- Jika LLM down/timeout/JSON rusak → FALLBACK penuh ke hasil regex. Regex
-  adalah safety net, bukan sumber utama untuk entitas semantik.
-
-Kejujuran teknis: LLM di sini HANYA melakukan extraction (NER), terpisah dari
-LLM reasoning (Layer 4, verdict). Ini memperkuat proposal — 2 peran LLM yang
-jelas dan dapat diaudit. Output di-cache oleh router via raw_text_hash.
-"""
-
 import asyncio
 import logging
 import re
@@ -31,7 +8,6 @@ from app.services.llm.client import chat_completion, extract_json_from_response
 
 logger = logging.getLogger(__name__)
 
-# Timeout khusus extraction — lebih pendek dari reasoning agar fallback cepat.
 _EXTRACT_TIMEOUT = float(LLM_TIMEOUT) if LLM_TIMEOUT else 45.0
 
 _SYSTEM_PROMPT = """Kamu adalah mesin Named Entity Recognition (NER) untuk teks lowongan kerja berbahasa Indonesia, termasuk hasil OCR poster yang berantakan.
@@ -64,7 +40,6 @@ Kembalikan HANYA JSON sesuai skema."""
 
 
 def _clean_str_list(value: Any, *, max_items: int = 10, max_len: int = 200) -> list[str]:
-    """Normalisasi output LLM → list[str] unik, bersih, terbatas."""
     if not isinstance(value, list):
         return []
     seen: set[str] = set()
@@ -86,13 +61,6 @@ def _clean_str_list(value: Any, *, max_items: int = 10, max_len: int = 200) -> l
 
 
 async def extract_entities_llm(text: str) -> dict[str, Any] | None:
-    """
-    Panggil LLM untuk mengekstrak companies/addresses/salaries.
-
-    Returns:
-        dict {"companies": [...], "addresses": [...], "salaries": [...]}
-        atau None jika LLM tidak tersedia/gagal (→ caller pakai regex).
-    """
     if not LLM_API_KEY:
         logger.info("[llm_ner] LLM_API_KEY kosong → skip LLM extraction (fallback regex).")
         return None
@@ -100,7 +68,6 @@ async def extract_entities_llm(text: str) -> dict[str, Any] | None:
     snippet = (text or "").strip()
     if not snippet:
         return None
-    # Batasi panjang agar hemat token & cepat (poster OCR bisa sangat panjang).
     snippet = snippet[:4000]
 
     messages = [
@@ -113,13 +80,13 @@ async def extract_entities_llm(text: str) -> dict[str, Any] | None:
             chat_completion(
                 messages,
                 model=LLM_EXTRACTOR_MODEL,
-                temperature=0.0,   # deterministik untuk extraction
-                max_tokens=1500,   # minimal thinking butuh headroom
-                max_retries=2,     # extraction jangan retry lama — cepat fallback
+                temperature=0.0,
+                max_tokens=1500,
+                max_retries=2,
             ),
             timeout=_EXTRACT_TIMEOUT,
         )
-    except (asyncio.TimeoutError, Exception) as exc:  # noqa: BLE001 — fallback by design
+    except (asyncio.TimeoutError, Exception) as exc:
         logger.warning("[llm_ner] LLM extraction gagal (%s) → fallback regex.", exc)
         return None
 
@@ -129,7 +96,7 @@ async def extract_entities_llm(text: str) -> dict[str, Any] | None:
 
     try:
         data = extract_json_from_response(raw)
-    except Exception as exc:  # noqa: BLE001
+    except Exception as exc:
         logger.warning("[llm_ner] JSON LLM tidak valid (%s) → fallback regex.", exc)
         return None
 

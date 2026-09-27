@@ -1,10 +1,3 @@
-"""
-Google Form Inspector Module for Verifin OSINT.
-Memfollow redirect shortlink (bit.ly, forms.gle), mengekstrak pertanyaan Google Form,
-dan menganalisis indikator pertanyaan phishing / sensitif (No Rekening, PIN, KTP, Biaya Transfer).
-"""
-
-
 import json
 import re
 from typing import Any
@@ -13,7 +6,6 @@ from urllib.parse import unquote, urlparse
 from scrapling.fetchers import Fetcher
 from app.services.status_contract import COMPLETED, LOGIN_REQUIRED, PARSE_FAILED, UNAVAILABLE
 
-# Kata kunci berisiko tinggi pada pertanyaan Google Form (Phishing / Keuangan / E-KTP)
 PHISHING_KEYWORDS = {
     "rekening",
     "nomor rekening",
@@ -39,7 +31,6 @@ PHISHING_KEYWORDS = {
     "kata sandi",
 }
 
-# Kata kunci normal formulir lamaran kerja
 NORMAL_JOB_KEYWORDS = {
     "nama",
     "pendidikan",
@@ -57,7 +48,6 @@ NORMAL_JOB_KEYWORDS = {
 
 
 def is_gform_url(url: str) -> bool:
-    """Mengecek apakah URL merupakan Google Form atau shortlink loker umum."""
     u = (url or "").lower()
     return any(
         k in u
@@ -76,10 +66,6 @@ import httpx
 
 
 def inspect_gform(url: str) -> dict[str, Any]:
-    """
-    Mengunjungi URL Google Form / Shortlink, mem-parse judul, deskripsi & pertanyaan,
-    lalu mendeteksi indikator risiko phishing / keuangan.
-    """
     if not url:
         return {"is_gform": False, "risk_flags": [], "safe_flags": []}
 
@@ -99,14 +85,11 @@ def inspect_gform(url: str) -> dict[str, Any]:
         final_url = target_url
 
         def _resolve(u: str) -> tuple[str, int, str]:
-            """Ikuti redirect; bila forms.gle menampilkan halaman interstitial
-            Firebase Dynamic Links (proxy.link.app), ulangi dengan ?_imcp=1."""
             try:
                 r0 = httpx.get(u, headers=headers, follow_redirects=False, timeout=5.0)
                 loc = r0.headers.get("location")
                 if loc:
                     return loc, r0.status_code, r0.text
-                # Interstitial: status 200 tapi host proxy.link.app tanpa konten form
                 if "proxy.link.app" in r0.text and "forms.gle" in u:
                     sep = "&" if "?" in u else "?"
                     u2 = f"{u}{sep}_imcp=1"
@@ -127,7 +110,6 @@ def inspect_gform(url: str) -> dict[str, Any]:
         final_url = str(r.url)
         html = r.text
         http_status = r.status_code
-        # Check if bitly page html contains forms.gle
         match_gle = re.search(r"forms\.gle/[a-zA-Z0-9_-]+", html)
         if match_gle:
             gle_url = "https://" + match_gle.group(0)
@@ -139,7 +121,6 @@ def inspect_gform(url: str) -> dict[str, Any]:
             except Exception:
                 pass
 
-        # Jika shortlink mengarahkan ke Google Form via URL login
         landed_on_login = "accounts.google.com" in final_url.lower()
         if "accounts.google.com" in html or landed_on_login:
             match_continue = re.search(
@@ -150,7 +131,6 @@ def inspect_gform(url: str) -> dict[str, Any]:
                 if "forms" in target_form_url:
                     final_url = target_form_url
 
-        # Parse FB_PUBLIC_LOAD_DATA_ dari Google Form
         form_title = ""
         form_desc = ""
         questions: list[str] = []
@@ -173,7 +153,6 @@ def inspect_gform(url: str) -> dict[str, Any]:
             except Exception:
                 pass
 
-        # Jika parsing JS state gagal, coba ekstraksi teks kasar
         if not form_title:
             title_match = re.search(r"<title[^>]*>(.*?)</title>", html, re.I | re.S)
             form_title = re.sub(r"\s+", " ", title_match.group(1)).strip() if title_match else ""
@@ -183,17 +162,13 @@ def inspect_gform(url: str) -> dict[str, Any]:
         final_url_lower = final_url.lower()
         invalid_dynamic_link = "invalid dynamic link" in form_title.lower()
 
-        # Form yang mewajibkan login Google: server me-redirect ke
-        # accounts.google.com (halaman "Google Formulir: Login") ATAU mengembalikan
-        # HTTP 401. Isi form tidak dapat dibaca tanpa kredensial — laporkan jujur,
-        # jangan salah-klaim PARSE_FAILED.
         login_required = landed_on_login or http_status == 401
 
         valid_form_target = (
             (
                 "docs.google.com/forms" in final_url_lower
                 or "forms.google.com" in final_url_lower
-                or login_required  # final_url login tapi target asli adalah form
+                or login_required
             )
             and not invalid_dynamic_link
         )
@@ -204,7 +179,6 @@ def inspect_gform(url: str) -> dict[str, Any]:
             else (LOGIN_REQUIRED if login_required else "UNVERIFIED")
         )
 
-        # Form title/redirect alone is not enough to assess phishing content.
         combined_text = (form_desc + " " + " ".join(questions)).lower()
         detected_phishing_terms = (
             [

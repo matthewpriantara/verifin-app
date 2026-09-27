@@ -7,16 +7,11 @@ from app.database.postgres_client import Base
 
 
 class JobCase(Base):
-    """
-    Riwayat verifikasi lowongan — fondasi case memory (exact-match HP/email/PT).
-    Vector/graph (pgvector, Neo4j) ditunda ke fase berikutnya.
-    """
-
     __tablename__ = "job_cases"
 
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     raw_text_hash = Column(String(64), unique=True, nullable=False, index=True)
-    source = Column(String(16), nullable=True)  # text | image
+    source = Column(String(16), nullable=True)
     raw_text_preview = Column(Text, nullable=True)
 
     company_name = Column(String(255), nullable=True, index=True)
@@ -41,35 +36,23 @@ class JobCase(Base):
 
 
 class CommunityReport(Base):
-    """
-    Laporan komunitas — pengguna melaporkan lowongan yang terbukti menipu.
-
-    Mendukung Fraud Network (Layer 5): entitas yang berulang kali dilaporkan
-    menjadi sinyal risiko kuat lintas kasus, melengkapi case-memory JobCase.
-    Satu entitas (HP/email/PT/URL) bisa dilaporkan banyak pengguna → agregasi
-    menunjukkan seberapa luas jaringan penipuan.
-    """
-
     __tablename__ = "community_reports"
 
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
-    # Entitas yang dilaporkan — salah satu biasanya terisi
     company_name = Column(String(255), nullable=True, index=True)
     phone = Column(String(32), nullable=True, index=True)
     email = Column(String(255), nullable=True, index=True)
     url = Column(String(512), nullable=True, index=True)
 
-    report_type = Column(String(24), nullable=False, default="penipuan")  # penipuan | biaya_ilegal | tppo | lainnya
+    report_type = Column(String(24), nullable=False, default="penipuan")
     description = Column(Text, nullable=True)
-    reporter_contact = Column(String(255), nullable=True)  # opsional, untuk follow-up
+    reporter_contact = Column(String(255), nullable=True)
     reporter_ip = Column(String(45), nullable=True)
-    case_id = Column(String(64), nullable=True, index=True)  # link ke JobCase.id
-    evidence_file_url = Column(String(512), nullable=True)  # path ke bukti gambar yang di-upload
+    case_id = Column(String(64), nullable=True, index=True)
+    evidence_file_url = Column(String(512), nullable=True)
     status = Column(String(12), nullable=False, default="pending", server_default="pending", index=True)
     reviewed_at = Column(DateTime(timezone=True), nullable=True)
     reviewer_note = Column(Text, nullable=True)
-
-    # Agregasi sederhana: berapa kali entitas serupa dilaporkan
     created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
 
     def __repr__(self):

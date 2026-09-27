@@ -1,4 +1,3 @@
-"""WHOIS + DNS checker — umur domain dan rekaman keamanan email (SPF/DMARC/MX)."""
 import logging
 from datetime import datetime, timezone
 
@@ -9,7 +8,6 @@ logger = logging.getLogger(__name__)
 
 
 def _rdap_first_seen(domain: str) -> datetime | None:
-    """Fallback 1: tanya RDAP API untuk registration date."""
     try:
         from curl_cffi import requests as cffi_req
         r = cffi_req.get(f"https://rdap.org/domain/{domain}", impersonate="chrome120", timeout=8)
@@ -20,17 +18,14 @@ def _rdap_first_seen(domain: str) -> datetime | None:
     if r.status_code != 200:
         return None
     data = r.json()
-    # RDAP events: registration date ada di events array
     for event in data.get("events", []):
         if event.get("eventAction") == "registration":
             date_str = event.get("eventDate", "")
-            # Format: "2020-01-15T10:30:00Z"
             return datetime.fromisoformat(date_str.replace("Z", "+00:00"))
     return None
 
 
 def _wayback_first_seen(domain: str) -> datetime | None:
-    """Fallback 2: tanya Wayback Machine CDX API kapan domain pertama kali di-crawl."""
     try:
         url = (
             f"https://web.archive.org/cdx/search/cdx"
@@ -46,9 +41,8 @@ def _wayback_first_seen(domain: str) -> datetime | None:
         if r.status_code != 200:
             return None
         data = r.json()
-        # data[0] = header row ["timestamp"], data[1] = first result
         if len(data) >= 2 and data[1]:
-            ts = data[1][0]  # format: "20250317144540"
+            ts = data[1][0]
             return datetime.strptime(ts, "%Y%m%d%H%M%S").replace(tzinfo=timezone.utc)
     except Exception as e:
         logger.debug("Wayback CDX fallback gagal untuk %s: %s", domain, e)
@@ -56,7 +50,6 @@ def _wayback_first_seen(domain: str) -> datetime | None:
 
 
 def check_domain_age(domain: str) -> dict:
-    """Cek umur domain dari WHOIS, fallback ke RDAP lalu Wayback Machine CDX."""
     logger.debug("Mengecek umur domain: %s", domain)
     creation_date = None
     source = "whois"
@@ -71,13 +64,11 @@ def check_domain_age(domain: str) -> dict:
     except Exception as e:
         logger.debug("WHOIS lookup gagal untuk %s: %s", domain, e)
 
-    # Fallback 1: RDAP API
     if not creation_date:
         creation_date = _rdap_first_seen(domain)
         if creation_date:
             source = "rdap"
 
-    # Fallback 2: Wayback Machine CDX
     if not creation_date:
         creation_date = _wayback_first_seen(domain)
         source = "wayback_cdx"
@@ -85,7 +76,6 @@ def check_domain_age(domain: str) -> dict:
     if not creation_date:
         return {"age_days": -1, "age_years": None, "is_new": None, "created_at": "Unknown", "source": source}
 
-    # Normalize ke UTC
     now = datetime.now(timezone.utc)
     if getattr(creation_date, "tzinfo", None) is None:
         creation_date = creation_date.replace(tzinfo=timezone.utc)
@@ -103,7 +93,6 @@ def check_domain_age(domain: str) -> dict:
 
 
 def check_email_security(domain: str) -> dict:
-    """Cek rekaman SPF, DMARC, dan MX pada DNS domain."""
     logger.debug("Memeriksa keamanan email untuk domain: %s", domain)
     results = {"spf_active": False, "dmarc_active": False, "mx_active": False, "mx_provider": None}
     try:

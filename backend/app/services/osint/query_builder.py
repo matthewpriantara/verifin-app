@@ -1,5 +1,3 @@
-"""Build generic search fallbacks from extracted job entities."""
-
 import re
 
 from app.services.constants import FREE_EMAIL_DOMAINS
@@ -60,7 +58,6 @@ def _location_phrase(address: str, brand: str | None = None) -> str | None:
 
 
 def build_search_queries(entities: dict, *, include_email: bool = True) -> list[dict[str, str]]:
-    """Return ordered, deduplicated fallback queries with their source kind."""
     companies = [str(c) for c in (entities.get("companies") or []) if str(c).strip()]
     addresses = [str(a) for a in (entities.get("addresses") or []) if str(a).strip()]
     locations = [str(a) for a in (entities.get("location_candidates") or []) if str(a).strip()]

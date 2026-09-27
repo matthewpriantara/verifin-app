@@ -1,5 +1,3 @@
-"""Validation for user-supplied URLs before server-side fetching."""
-
 import ipaddress
 import socket
 from urllib.parse import urlparse

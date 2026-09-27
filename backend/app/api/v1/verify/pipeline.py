@@ -1,4 +1,3 @@
-"""Pipeline helpers — fraud network, NER hybrid, OSINT paralel, response builder."""
 import asyncio
 import copy
 import logging
@@ -26,9 +25,7 @@ from app.services.graph.fraud_network import (
 from app.services.status_contract import COMPLETED, NOT_PROVIDED, UNAVAILABLE
 
 def _check_fraud_network(db: Session, entities: dict) -> dict:
-    """Cek entitas lowongan ke fraud graph NetworkX (exact-match, 500 kasus terakhir)."""
     try:
-        # Ambil kasus terbaru dari DB untuk membangun graf
         cases = db.query(JobCase).order_by(
             JobCase.created_at.desc()
         ).limit(500).all()
@@ -36,7 +33,6 @@ def _check_fraud_network(db: Session, entities: dict) -> dict:
         if not cases:
             return {"status": "NO_DATA", "entity_in_fraud_network": False, "total_case_count": 0}
 
-        # Konversi SQLAlchemy objects ke dict
         cases_data = [
             {
                 "id": str(c.id),
@@ -51,15 +47,11 @@ def _check_fraud_network(db: Session, entities: dict) -> dict:
             for c in cases
         ]
 
-        # Build in-memory graph
         G = build_fraud_network(cases_data)
 
-        # Cek entitas baru terhadap graf
         network_ctx = check_entity_in_network(G, entities)
 
-        # Syndicate: deteksi reuse no HP/email lintas perusahaan berbeda
         try:
-            # siapkan company_name per kasus agar reuse lintas perusahaan terdeteksi
             hist = [
                 {
                     "phones": cd.get("phones") or [],
@@ -80,12 +72,10 @@ def _check_fraud_network(db: Session, entities: dict) -> dict:
                 "note": f"analisis sindikat dilewati: {_syn_exc}",
             }
 
-        # Community reports — laporan berulang pada entitas = sinyal risiko
         community = _community_report_signal(db, entities)
         network_ctx["community_reports"] = community
         if community.get("status") == COMPLETED and community.get("report_count", 0) > 0:
             network_ctx["entity_in_fraud_network"] = True
-            # Eskalasi threat_level bila belum tinggi
             if community["report_count"] >= 3:
                 network_ctx["threat_level"] = "HIGH"
             elif network_ctx.get("threat_level") not in ("HIGH",):
@@ -99,7 +89,6 @@ def _check_fraud_network(db: Session, entities: dict) -> dict:
 
 
 def _community_report_signal(db: Session, entities: dict) -> dict:
-    """Hitung berapa kali entitas lowongan ini dilaporkan komunitas."""
     from app.database.models import CommunityReport
     from sqlalchemy import func, or_
 
@@ -122,7 +111,7 @@ def _community_report_signal(db: Session, entities: dict) -> dict:
 
     try:
         count = db.query(func.count(CommunityReport.id)).filter(or_(*conditions)).scalar() or 0
-    except Exception:  # noqa: BLE001
+    except Exception:
         return {"status": UNAVAILABLE, "report_count": None, "reported_by_community": None}
 
     return {
@@ -133,7 +122,6 @@ def _community_report_signal(db: Session, entities: dict) -> dict:
     }
 
 def _clean_text_for_ner(text: str) -> str:
-    """Bersihkan label internal perancah sistem sebelum diproses LLM agar tidak mencemari ekstraksi."""
     if not text:
         return ""
     cleaned = re.sub(r"^\[TEKS\s+UTAMA[^\]]*\]:\s*", "", text, flags=re.I | re.M)
@@ -144,47 +132,26 @@ def _clean_text_for_ner(text: str) -> str:
 
 
 async def _extract_entities_hybrid(text: str) -> dict:
-    """
-    Hybrid NER: regex (entitas struktural) + LLM extraction (entitas semantik)
-    + LLM validation (guard untuk semua entitas).
-
-    Pipeline:
-    1. Regex extraction (semua entitas) — instan
-    2. LLM extraction (companies/addresses/salaries) — paralel
-    3. LLM validation (phones/emails/urls) — paralel, filter false positive
-    4. Merge dengan strategi per-kategori
-
-    Metadata extraction disimpan di entities["_ner_meta"] untuk observability.
-    """
     clean_text = _clean_text_for_ner(text) or text
 
-    # Step 1: Regex extraction (instan) — jalankan dulu untuk dapatkan candidates
     regex_entities = await asyncio.to_thread(extract_entities_from_text, text)
 
-    # Step 2 & 3: LLM extraction + validation (paralel) menggunakan teks bersih
     llm_extracted, llm_validated = await asyncio.gather(
         _run_llm_ner(clean_text),
         _run_llm_validation(clean_text, regex_entities),
     )
-    # Apply LLM validation jika ada (filter false positive)
     if llm_validated:
-        # Phones: hanya pakai yang divalidasi LLM (termasuk list kosong = semua dihapus)
         if llm_validated.get("phones") is not None:
             regex_entities["phones"] = llm_validated["phones"]
-        # Emails: hanya pakai yang divalidasi LLM
         if llm_validated.get("emails") is not None:
             regex_entities["emails"] = llm_validated["emails"]
-        # URLs: hanya pakai yang divalidasi LLM
         if llm_validated.get("urls") is not None:
             regex_entities["urls"] = llm_validated["urls"]
-        # Addresses: hanya pakai yang divalidasi LLM
         if llm_validated.get("addresses") is not None:
             regex_entities["addresses"] = llm_validated["addresses"]
-        # Location candidates: hanya pakai yang divalidasi LLM (list kosong = semua dihapus)
         if llm_validated.get("location_candidates") is not None:
             regex_entities["location_candidates"] = llm_validated["location_candidates"]
 
-    # Jika LLM extraction gagal, return regex (sudah divalidasi jika ada)
     if llm_extracted is None:
         regex_entities["_ner_meta"] = {
             "used": bool(llm_validated),
@@ -193,13 +160,11 @@ async def _extract_entities_hybrid(text: str) -> dict:
         }
         return regex_entities
 
-    # Merge dengan strategi per-kategori:
     merged = copy.deepcopy(regex_entities)
     added = {"companies": False, "addresses": False, "salaries": False, "location_candidates": False}
     cleaned = {"companies": 0}
     any_added = False
 
-    # ── companies: LLM otoritatif ──────────────────────────────────────────
     llm_companies = llm_extracted.get("companies") or []
     if llm_companies:
         regex_companies = merged.get("companies") or []
@@ -215,7 +180,6 @@ async def _extract_entities_hybrid(text: str) -> dict:
             any_added = True
         merged["companies"] = new_companies
 
-    # ── addresses, location_candidates & salaries: merge-additive ─────────
     for key in ("addresses", "location_candidates", "salaries"):
         llm_vals = llm_extracted.get(key) or []
         if not llm_vals:
@@ -231,7 +195,6 @@ async def _extract_entities_hybrid(text: str) -> dict:
                 added[key] = True
                 any_added = True
 
-    # Dedup dan bersihkan hasil merge
     if merged.get("emails"):
         merged["emails"] = _uniq([fix_email_ocr_typos(e) for e in merged["emails"] if e])
     if merged.get("urls"):
@@ -255,12 +218,10 @@ async def _extract_entities_hybrid(text: str) -> dict:
 
 
 def _norm(s: str) -> str:
-    """Normalize string untuk perbandingan."""
     return re.sub(r"[^a-z0-9 ]", "", s.lower()).strip()
 
 
 def _fuzzy_contains(a: str, b: str) -> bool:
-    """True bila salah satu normalized string mengandung yang lain (min 4 char)."""
     na, nb = _norm(a), _norm(b)
     if len(na) < 4 or len(nb) < 4:
         return na == nb
@@ -268,7 +229,6 @@ def _fuzzy_contains(a: str, b: str) -> bool:
 
 
 async def _run_llm_validation(text: str, regex_entities: dict) -> dict | None:
-    """Jalankan LLM validation untuk phones/emails/urls/addresses/location_candidates."""
     try:
         phones = regex_entities.get("phones") or []
         emails = regex_entities.get("emails") or []
@@ -276,7 +236,6 @@ async def _run_llm_validation(text: str, regex_entities: dict) -> dict | None:
         addresses = regex_entities.get("addresses") or []
         location_candidates = regex_entities.get("location_candidates") or []
 
-        # Skip jika tidak ada yang divalidasi
         if not phones and not emails and not urls and not addresses and not location_candidates:
             return None
 
@@ -285,7 +244,6 @@ async def _run_llm_validation(text: str, regex_entities: dict) -> dict | None:
         )
         return result
     except Exception as e:
-        # Log error untuk debugging tapi tetap return None untuk fallback
         import logging
         logging.getLogger(__name__).warning(f"[llm_validation] Error: {e}")
         return None
@@ -293,33 +251,17 @@ async def _run_llm_validation(text: str, regex_entities: dict) -> dict | None:
 
 
 async def _run_llm_ner(text: str) -> dict | None:
-    """Jalankan LLM extraction terisolasi; return None jika gagal/tidak aktif."""
     try:
         return await extract_entities_llm(text)
-    except Exception:  # noqa: BLE001 — fallback by design
+    except Exception:
         return None
 
 
 async def _run_osint_on_entities(entities: dict) -> dict:
-    """Thin wrapper — eksekusi OSINT paralel dipindah ke services.osint.runner."""
     return await run_osint_probes(entities)
 
 
 async def _enrich_entities_from_osint(entities: dict, osint_results: dict) -> dict:
-    """
-    Enrich entities dengan data alamat dari hasil OSINT (web evidence).
-
-    Setelah OSINT selesai, alamat dari extracted_data hasil search (Instagram,
-    Facebook, Google Maps, dll) di-feed back ke entities jika:
-    - entities.addresses kosong ATAU alamat OSINT lebih lengkap
-    - alamat OSINT berasal dari platform kredibel (Maps, IG, FB official)
-
-    Jika alamat OSINT lebih spesifik dari alamat NER, jalankan re-validasi
-    Nominatim agar match_level naik dari "area" ke "street"/"exact".
-
-    Ini memastikan alamat yang dipakai untuk analisis adalah yang paling akurat,
-    bukan hanya dari teks poster yang mungkin tidak lengkap.
-    """
     if not osint_results:
         return entities
 
@@ -333,23 +275,17 @@ async def _enrich_entities_from_osint(entities: dict, osint_results: dict) -> di
         extracted = r.get("extracted_data") or {}
         addr = extracted.get("address")
         if addr and isinstance(addr, str) and len(addr) > 5:
-            # Hanya ambil alamat yang mengandung nama tempat/kota (bukan null/placeholder)
             if not re.search(r"^(?:null|none|n/a|-|tdk ada)$", addr, re.I):
                 osint_addresses.append(addr.strip())
 
     if not osint_addresses:
         return entities
 
-    # Dedup
     osint_addresses = _uniq(osint_addresses)
 
     existing_addresses = entities.get("addresses") or []
     existing_locations = entities.get("location_candidates") or []
 
-    # Jika entities belum punya alamat DAN belum punya location_candidates,
-    # pakai alamat dari OSINT. Tapi jika sudah ada location_candidates (lokasi
-    # kerja dari poster), jangan override dengan alamat kantor dari OSINT —
-    # lokasi kerja dari poster lebih relevan.
     if not existing_addresses and not existing_locations and osint_addresses:
         entities["addresses"] = osint_addresses
         entities["_ner_meta"] = entities.get("_ner_meta") or {}
@@ -359,23 +295,17 @@ async def _enrich_entities_from_osint(entities: dict, osint_results: dict) -> di
             "[osint_enrich] Addresses enriched from OSINT: %s", osint_addresses
         )
 
-    # Jika entities belum punya location_candidates, pakai alamat OSINT juga
     if not existing_locations and osint_addresses:
-        entities["location_candidates"] = osint_addresses[:2]  # max 2
+        entities["location_candidates"] = osint_addresses[:2]
         logging.getLogger(__name__).info(
             "[osint_enrich] Location candidates enriched from OSINT: %s", osint_addresses[:2]
         )
 
-    # ── Re-validasi Nominatim jika alamat OSINT lebih spesifik ────────────
-    # Jika alamat dari OSINT lebih panjang/lengkap dari alamat NER, kirim ke
-    # Nominatim lagi untuk dapat match_level yang lebih baik (street/exact).
     addr_validations = osint_results.get("address_validations") or []
     needs_revalidation = False
     best_osint_addr = None
 
     if existing_addresses and osint_addresses:
-        # Prioritaskan alamat OSINT yang mengandung nama jalan (Jl/Jalan)
-        # karena lebih mungkin dapat match_level "street"/"exact" di Nominatim.
         street_pattern = re.compile(r"\b(?:jl\.?|jln\.?|jalan)\b", re.I)
 
         def _addr_priority(addr: str) -> int:
@@ -387,13 +317,11 @@ async def _enrich_entities_from_osint(entities: dict, osint_results: dict) -> di
                 score += 1
             return score
 
-        # Sort by priority descending — alamat dengan jalan diutamakan
         sorted_osint = sorted(osint_addresses, key=_addr_priority, reverse=True)
 
         for osint_addr in sorted_osint:
             for ner_addr in existing_addresses:
                 ner_first = ner_addr.lower().split(",")[0].strip()
-                # Jika OSINT addr lebih panjang dan mengandung token pertama NER
                 if (len(osint_addr) > len(ner_addr) and
                     ner_first in osint_addr.lower()):
                     best_osint_addr = osint_addr
@@ -402,13 +330,11 @@ async def _enrich_entities_from_osint(entities: dict, osint_results: dict) -> di
             if needs_revalidation:
                 break
 
-    # Jika tidak ada alamat NER tapi ada alamat OSINT, validasi yang OSINT
     if not needs_revalidation and not existing_addresses and osint_addresses:
         best_osint_addr = osint_addresses[0]
         needs_revalidation = True
 
     if needs_revalidation and best_osint_addr:
-        # Cek apakah validasi sebelumnya match_level-nya "area" (belum exact)
         prev_match = ""
         if addr_validations:
             prev_match = (addr_validations[0].get("address_details") or {}).get("match_level", "")
@@ -431,7 +357,6 @@ async def _enrich_entities_from_osint(entities: dict, osint_results: dict) -> di
                 new_validation = await validate_address_and_business(
                     best_osint_addr, company, web_results
                 )
-                # Hanya update jika hasilnya lebih baik dari sebelumnya
                 new_match = (new_validation.get("address_details") or {}).get("match_level", "")
                 logging.getLogger(__name__).info(
                     "[osint_enrich] Re-validation result: %s → match_level=%s",
@@ -440,7 +365,6 @@ async def _enrich_entities_from_osint(entities: dict, osint_results: dict) -> di
                 if new_match in ("exact", "street") or (new_match == "area" and not addr_validations):
                     addr_validations.insert(0, new_validation)
                     osint_results["address_validations"] = addr_validations
-                    # Update entities addresses ke alamat yang lebih spesifik
                     entities["addresses"] = [best_osint_addr] + [
                         a for a in existing_addresses if a != best_osint_addr
                     ]
@@ -482,7 +406,6 @@ def _merge_entities(primary: dict, secondary: dict) -> dict:
         elif key == "emails":
             out[key] = _uniq([fix_email_ocr_typos(e) for e in combined if e])
         elif key == "urls":
-            # Filter artifact domain satu huruf seperti L.com / gmai.com
             clean_urls = [
                 u for u in combined
                 if u and not re.search(r"^(?:[a-zA-Z]\.com|gmail|yahoo|gmai|gamil)\.", u, re.I)
@@ -509,14 +432,10 @@ def _to_response(
     entities: dict,
     osint_results: dict | None = None,
 ) -> VerifyResponse:
-    # Nama dari NER adalah canonical evidence. LLM boleh mengusulkan koreksi
-    # hanya saat NER tidak menemukan nama sama sekali; typo LLM tidak boleh
-    # menimpa entitas yang sudah dipakai OSINT dan fraud graph.
     corrected = analysis.get("corrected_company_name")
     if not entities.get("companies") and corrected and corrected not in (None, "null", ""):
         entities = {**entities, "companies": [str(corrected)]}
 
-    # Normalisasi kunci entities sesuai schema
     safe_entities = {
         "companies": entities.get("companies") or [],
         "contacts": entities.get("phones") or [],
@@ -552,7 +471,6 @@ def _to_response(
         shap_explanation = None
     analysis["shap_explanation"] = shap_explanation
 
-    # Ekspos status layer NLP jujur (STUB saat ini) — jangan sampai FE mengira aktif
     nlp_meta = analysis.get("nlp_result") or {}
     if osint_results is not None and nlp_meta.get("status"):
         osint_results["nlp"] = {
@@ -561,13 +479,11 @@ def _to_response(
             "reason": nlp_meta.get("reason"),
         }
 
-    # Ekspos network_context ke response agar FE bisa tampilkan sinyal Fraud Network
     network_ctx = analysis.get("network_context")
     if network_ctx and osint_results is not None:
         existing_fn = osint_results.get("fraud_network") or {}
         existing_fn.update(network_ctx)
         osint_results["fraud_network"] = existing_fn
-        # Pakai syndicate dari _check_fraud_network (dihitung dari DB nyata)
         if network_ctx.get("syndicate_analysis"):
             osint_results["syndicate_analysis"] = network_ctx["syndicate_analysis"]
         elif "syndicate_analysis" not in osint_results:

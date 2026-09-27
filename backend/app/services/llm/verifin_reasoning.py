@@ -1,11 +1,3 @@
-"""
-Reasoning engine Verifin via OpenAgentic (default: grok-4.5).
-
-Bagian dari Job Trust Infrastructure — sistem di balik platform pendamping
-pencari kerja Verifin yang menggabungkan OSINT, analisis bukti, dan
-pemantauan komunitas untuk menilai tingkat kepercayaan suatu lowongan.
-"""
-
 from app.services.llm.client import chat_completion, check_llm_status, extract_json_from_response
 from app.services.llm.prompt_builder import build_text_verify_prompt, build_verify_prompt
 from app.config import LLM_MODEL
@@ -57,7 +49,6 @@ def _has_public_evidence(osint_results: dict) -> bool:
 
 
 def _phone_reputation_state(osint_results: dict) -> str:
-    """Return the canonical phone state without overloading legacy `found`."""
     phones = osint_results.get("phones") or []
     if any(
         p.get("reported_fraud")
@@ -86,7 +77,6 @@ def _phone_reputation_state(osint_results: dict) -> str:
 
 
 def _calibrate_unknown_search_output(parsed: dict, entities: dict, osint_results: dict) -> dict:
-    """Prevent unavailable/empty search from becoming a fabricated risk signal."""
     if not _search_has_only_unknown(osint_results) or _has_public_evidence(osint_results) or _has_hard_risk_evidence(entities, osint_results):
         return parsed
     if parsed.get("verdict") == "BAHAYA" or float(parsed.get("risk_score") or 0) >= 40:
@@ -111,7 +101,6 @@ def _has_corrupt_text(
     entities: dict | None = None,
     allowed_tokens: set[str] | None = None,
 ) -> bool:
-    """Detect malformed token joins without guessing a replacement word."""
     if not isinstance(text, str) or not text.strip():
         return True
     if "�" in text or _re.search(r"[\x00-\x08\x0b\x0c\x0e-\x1f]", text):
@@ -138,7 +127,6 @@ def _has_corrupt_text(
 
 
 def _fallback_analysis(entities: dict, osint_results: dict) -> dict:
-    """Evidence-only fallback; no language repair or inferred facts."""
     company = (entities.get("companies") or ["Perusahaan"])[0]
     phones = osint_results.get("phones") or []
     hard_risk = _has_hard_risk_evidence(entities, osint_results)
@@ -157,8 +145,6 @@ def _fallback_analysis(entities: dict, osint_results: dict) -> dict:
         risks.append("Alamat fisik belum terverifikasi exact")
     elif not entities.get("addresses"):
         risks.append("Alamat fisik tidak tercantum")
-    # Email gratisan (Gmail/Yahoo) = NETRAL untuk UMKM, bukan risk factor
-    # Hanya jadi risk jika digabung dengan red flag lain (sudah di-handle di hard_risk check)
     if not phones:
         risks.append("Nomor HP tidak tercantum")
     return {
@@ -179,7 +165,6 @@ def _is_valid_llm_output(
     entities: dict | None = None,
     allowed_tokens: set[str] | None = None,
 ) -> bool:
-    """Validasi semantik output LLM — deteksi truncation dan field rusak."""
     if parsed.get("verdict") not in ("AMAN", "WASPADA", "BAHAYA"):
         return False
     if not isinstance(parsed.get("risk_score"), (int, float)):
@@ -197,7 +182,6 @@ def _is_valid_llm_output(
             if not isinstance(t, str):
                 continue
             words = t.split()
-            # String panjang tanpa spasi = terpotong
             if len(words) == 1 and len(t) > 15:
                 return False
             if _has_corrupt_text(t, entities, allowed_tokens):
@@ -211,7 +195,6 @@ def _sanitize_llm_output(
     osint_results: dict,
     allowed_tokens: set[str] | None = None,
 ) -> dict:
-    """Jaga klaim output tetap selaras dengan fakta service layer."""
     canonical_company = (entities.get("companies") or [None])[0]
     corrected = parsed.get("corrected_company_name")
     if canonical_company:
@@ -297,8 +280,6 @@ def _sanitize_llm_output(
                         _re.I,
                     )
                 ]
-        # Ketiadaan laporan dari satu sumber adalah fakta pemeriksaan, bukan
-        # faktor aman yang menurunkan risiko.
         parsed["safe_factors"] = [
             item for item in (parsed.get("safe_factors") or [])
             if isinstance(item, str)
@@ -306,7 +287,6 @@ def _sanitize_llm_output(
             and "tidak ditemukan laporan" not in item.lower()
         ][:3]
 
-    # Gmail/free email is never an official corporate channel by itself.
     if canonical_company:
         parsed["corrected_company_name"] = None
     return parsed
@@ -358,7 +338,6 @@ async def analyze_with_verifin(
 
     try:
         parsed = None
-        # ponytail: max 3 retry — cukup untuk truncation, tidak waste token budget provider
         for attempt in range(3):
             raw = await chat_completion(
                 messages=messages,
@@ -370,7 +349,6 @@ async def analyze_with_verifin(
             parsed = extract_json_from_response(raw)
             parsed = _sanitize_llm_output(parsed, entities, osint_results, allowed_tokens)
             parsed = _calibrate_unknown_search_output(parsed, entities, osint_results)
-            # Sanitize field list — buang item <= 3 karakter (artifact truncation)
             for field in ("risk_factors", "safe_factors", "recommendations"):
                 items = parsed.get(field) or []
                 parsed[field] = [s for s in items if isinstance(s, str) and len(s) > 3]
@@ -395,7 +373,6 @@ async def analyze_with_verifin(
         return parsed
 
     except Exception as exc:
-        # Rule-based fallback engine if LLM API is unavailable
         comp_name = (entities.get("companies") or ["Perusahaan"])[0]
         has_fraud_phone = any(
             p.get("reported_fraud")

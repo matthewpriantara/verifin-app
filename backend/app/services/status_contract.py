@@ -1,4 +1,3 @@
-"""Shared status vocabulary for probes and evidence."""
 
 NOT_PROVIDED = "NOT_PROVIDED"
 COMPLETED = "COMPLETED"

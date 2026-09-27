@@ -7,8 +7,6 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 
-
-# Ensure stream handler is explicitly writing to sys.stdout with flush
 handler = logging.StreamHandler(sys.stdout)
 handler.setLevel(logging.DEBUG)
 formatter = logging.Formatter("%(asctime)s %(levelname)s [%(name)s] %(message)s")
@@ -41,16 +39,13 @@ logger = logging.getLogger(__name__)
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    """Init DB tables + warm OCR model di startup."""
-    # 1. DB init — auto-create verifin tables jika belum ada (idempotent)
     try:
         from app.database.postgres_client import Base, engine
-        from app.database import models as _models  # noqa: F401 ensure models registered
+        from app.database import models as _models
         Base.metadata.create_all(bind=engine, checkfirst=True)
         logger.info("DB tables ensured (create_all checkfirst)")
     except Exception as exc:
         logger.warning("DB init skipped: %s", exc)
-    # 2. OCR warmup agar request pertama tidak cold-load lama
     try:
         from app.services.ocr import get_ocr_model
         get_ocr_model()
@@ -63,15 +58,6 @@ async def lifespan(app: FastAPI):
 app = FastAPI(
     title="Verifin API",
     version="1.0.0",
-    description=(
-        "API verifikasi lowongan kerja berbasis OSINT multi-layer.\n\n"
-        "**Pipeline:** OCR → NER → LLM Entity Extraction → OSINT Paralel "
-        "(Kaspersky, SERP, Address, Company, WHOIS, Social Media, Web Evidence) "
-        "→ Fraud Network → SHAP XAI → Response\n\n"
-        "**Sumber data:** Kaspersky Who Calls ID, Kredibel SERP, DDG/Yahoo/Bing, "
-        "Nominatim/Overpass GIS, AHU/OSS SERP, WHOIS, Community Reports (DB)\n\n"
-        "**LLM:** Kimi K3 via OpenAgentic"
-    ),
     lifespan=lifespan,
 )
 
@@ -100,7 +86,6 @@ app.include_router(verify_router, prefix="/api/v1")
 app.include_router(health_router, prefix="/api/v1")
 app.include_router(community_router, prefix="/api/v1")
 
-# Serve bukti gambar yang di-upload komunitas
 UPLOAD_DIR = os.path.join(os.path.dirname(os.path.dirname(__file__)), "uploads", "evidence")
 os.makedirs(UPLOAD_DIR, exist_ok=True)
 app.mount("/uploads", StaticFiles(directory=UPLOAD_DIR), name="uploads")

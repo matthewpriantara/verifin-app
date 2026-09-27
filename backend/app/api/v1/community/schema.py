@@ -1,7 +1,3 @@
-"""
-Pydantic schema request dan response untuk endpoint community Verifin.
-"""
-
 from typing import Literal, Optional
 from pydantic import BaseModel, Field
 
