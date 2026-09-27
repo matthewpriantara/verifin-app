@@ -36,8 +36,17 @@ _SEARXNG_TIMEOUT = 15  # detik
 # SearXNG SEKALI dalam window TTL — generik, tidak terikat jenis lowongan.
 _QUERY_CACHE: dict[str, tuple[float, dict[str, Any]]] = {}
 _CACHE_LOCK = threading.Lock()
-_CACHE_TTL_SECONDS = 300  # 5 menit — cukup untuk satu siklus verifikasi
-_CACHE_MAX_ENTRIES = 256
+_CACHE_TTL_SECONDS = 600  # 10 menit — cukup untuk satu siklus verifikasi
+_CACHE_MAX_ENTRIES = 512
+
+# ── Anti-Burst / Pacing (Anti "Serangan Fajar") ───────────────────────────────
+# Mencegah banjir request simultan ke SearXNG yang memicu 429 / captcha engine publik.
+_REQUEST_LOCK = threading.Lock()
+_LAST_REQUEST_TIME: float = 0.0
+_MIN_REQUEST_INTERVAL: float = 0.8  # Jeda minimal 800ms antar outbound query ke SearXNG
+_RATE_LIMIT_UNTIL: float = 0.0      # Timestamp cooldown saat terkena 429
+_AVAILABILITY_CACHE: tuple[float, bool] = (0.0, False)
+_AVAILABILITY_TTL: float = 30.0     # Cache availability status 30 detik
 
 
 def _cache_key(query: str, max_results: int, engines: str | None, language: str) -> str:
@@ -66,22 +75,30 @@ def _cache_set(key: str, value: dict[str, Any]) -> None:
 
 
 def is_searxng_available() -> bool:
-    """Cek apakah SearXNG instance tersedia."""
+    """Cek apakah SearXNG instance tersedia (dengan cache 30s untuk kurangi beban)."""
+    global _AVAILABILITY_CACHE
+    now = time.monotonic()
+    last_check, is_avail = _AVAILABILITY_CACHE
+    if now - last_check < _AVAILABILITY_TTL:
+        return is_avail
+
+    available = False
     try:
-        resp = httpx.get(f"{_SEARXNG_BASE}/healthz", timeout=5)
-        return resp.status_code == 200
+        resp = httpx.get(f"{_SEARXNG_BASE}/healthz", timeout=3)
+        available = resp.status_code == 200
     except Exception:
-        # Coba endpoint search langsung
         try:
             resp = httpx.get(
                 f"{_SEARXNG_BASE}/search",
                 params={"q": "test", "format": "json"},
-                timeout=5,
+                timeout=4,
             )
-            return resp.status_code == 200
+            available = resp.status_code == 200
         except Exception:
-            return False
+            available = False
 
+    _AVAILABILITY_CACHE = (now, available)
+    return available
 
 def searxng_search(
     query: str,
@@ -119,11 +136,24 @@ def searxng_search(
             "unresponsive_engines": [], "error": "Query kosong.",
         }
 
+    global _LAST_REQUEST_TIME, _RATE_LIMIT_UNTIL
+
     cache_key = _cache_key(q, max_results, engines, language)
     cached = _cache_get(cache_key)
     if cached is not None:
         logger.debug("[SearXNG] cache hit untuk query: %s", q[:60])
         return {**cached, "cached": True}
+
+    # Cek apakah sedang dalam cooldown akibat rate limit (429)
+    now = time.monotonic()
+    if now < _RATE_LIMIT_UNTIL:
+        remain = round(_RATE_LIMIT_UNTIL - now, 1)
+        logger.warning("[SearXNG Cooldown] Melewati query '%s' karena masih cooldown rate-limit (%ss tersisa)", q[:40], remain)
+        return {
+            "ok": False, "query": q, "engine": "searxng", "results": [],
+            "raw_result_count": 0, "engine_stats": {},
+            "unresponsive_engines": [], "error": f"Rate limited. Cooldown {remain}s.",
+        }
 
     params: dict[str, str] = {
         "q": q,
@@ -133,24 +163,39 @@ def searxng_search(
     if engines:
         params["engines"] = engines
 
+    # ── Anti-burst Lock: serialisasi request ke SearXNG dengan jeda minimal ────
     try:
-        with httpx.Client(timeout=_SEARXNG_TIMEOUT) as client:
-            resp = client.get(f"{_SEARXNG_BASE}/search", params=params)
+        with _REQUEST_LOCK:
+            # In-flight deduplication: cek cache lagi setelah antrean lock selesai
+            cached_after_lock = _cache_get(cache_key)
+            if cached_after_lock is not None:
+                logger.debug("[SearXNG] in-flight cache hit untuk query: %s", q[:60])
+                return {**cached_after_lock, "cached": True}
 
-            if resp.status_code == 429:
-                logger.warning("[SearXNG] Rate limited (429)")
-                return {
-                    "ok": False, "query": q, "engine": "searxng", "results": [],
-                    "raw_result_count": 0, "engine_stats": {},
-                    "unresponsive_engines": [], "error": "Rate limited.",
-                }
-            if resp.status_code != 200:
-                return {
-                    "ok": False, "query": q, "engine": "searxng", "results": [],
-                    "raw_result_count": 0, "engine_stats": {},
-                    "unresponsive_engines": [],
-                    "error": f"HTTP {resp.status_code}",
-                }
+            now = time.monotonic()
+            elapsed = now - _LAST_REQUEST_TIME
+            if elapsed < _MIN_REQUEST_INTERVAL:
+                time.sleep(_MIN_REQUEST_INTERVAL - elapsed)
+
+            with httpx.Client(timeout=_SEARXNG_TIMEOUT) as client:
+                resp = client.get(f"{_SEARXNG_BASE}/search", params=params)
+                _LAST_REQUEST_TIME = time.monotonic()
+
+                if resp.status_code == 429:
+                    _RATE_LIMIT_UNTIL = time.monotonic() + 30.0  # Cooldown 30 detik
+                    logger.warning("[SearXNG] Rate limited (429). Cooldown aktif 30 detik.")
+                    return {
+                        "ok": False, "query": q, "engine": "searxng", "results": [],
+                        "raw_result_count": 0, "engine_stats": {},
+                        "unresponsive_engines": [], "error": "Rate limited.",
+                    }
+                if resp.status_code != 200:
+                    return {
+                        "ok": False, "query": q, "engine": "searxng", "results": [],
+                        "raw_result_count": 0, "engine_stats": {},
+                        "unresponsive_engines": [],
+                        "error": f"HTTP {resp.status_code}",
+                    }
 
             data = resp.json()
             raw_results = data.get("results", [])

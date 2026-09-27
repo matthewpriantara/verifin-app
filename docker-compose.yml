@@ -31,6 +31,9 @@ services:
       - "host.docker.internal:host-gateway"
     volumes:
       - ./backend/uploads:/app/uploads/evidence
+    networks:
+      - default
+      - searxng_default
     depends_on:
       verifin-redis:
         condition: service_healthy
@@ -74,3 +77,8 @@ services:
 
 volumes:
   redis_data:
+
+networks:
+  default:
+  searxng_default:
+    external: true

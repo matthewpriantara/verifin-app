@@ -41,9 +41,9 @@ import type { VerifyResponse, ExtractedEntities } from "@/types/verify";
 /* ─── helpers ──────────────────────────────────────────────────────────── */
 function VerdictIcon({ verdict, size = 40 }: { verdict: string; size?: number }) {
   const v = normalizeVerdict(verdict);
-  if (v === "AMAN")    return <ShieldCheck   size={size} weight="fill" />;
+  if (v === "AMAN") return <ShieldCheck size={size} weight="fill" />;
   if (v === "WASPADA") return <ShieldWarning size={size} weight="fill" />;
-  if (v === "BAHAYA")  return <ShieldSlash   size={size} weight="fill" />;
+  if (v === "BAHAYA") return <ShieldSlash size={size} weight="fill" />;
   return <Warning size={size} weight="fill" />;
 }
 function vLabel(v: string) {
@@ -52,25 +52,25 @@ function vLabel(v: string) {
 }
 function riskLevelLabel(verdict: string) {
   const n = normalizeVerdict(verdict);
-  if (n === "AMAN")    return "Risiko rendah";
+  if (n === "AMAN") return "Risiko rendah";
   if (n === "WASPADA") return "Risiko sedang";
-  if (n === "BAHAYA")  return "Risiko tinggi";
+  if (n === "BAHAYA") return "Risiko tinggi";
   return "Tidak dapat dinilai";
 }
 function verdictStroke(verdict: string): string {
   const n = normalizeVerdict(verdict);
-  if (n === "AMAN")    return "#2f5c34";
+  if (n === "AMAN") return "#2f5c34";
   if (n === "WASPADA") return "#7a5500";
-  if (n === "BAHAYA")  return "#8f2f2d";
+  if (n === "BAHAYA") return "#8f2f2d";
   return "#8a8279";
 }
 const ENTITY_FIELDS: { key: keyof ExtractedEntities; label: string; icon: React.ElementType }[] = [
   { key: "companies", label: "Perusahaan", icon: Buildings },
-  { key: "contacts",  label: "Kontak/HP",  icon: Phone },
-  { key: "emails",    label: "Email",       icon: EnvelopeSimple },
-  { key: "urls",      label: "URL",         icon: LinkSimple },
-  { key: "addresses", label: "Alamat",      icon: MapPin },
-  { key: "salaries",  label: "Gaji",        icon: Money },
+  { key: "contacts", label: "Kontak/HP", icon: Phone },
+  { key: "emails", label: "Email", icon: EnvelopeSimple },
+  { key: "urls", label: "URL", icon: LinkSimple },
+  { key: "addresses", label: "Alamat", icon: MapPin },
+  { key: "salaries", label: "Gaji", icon: Money },
 ];
 
 /* ─── Animated Score Gauge ─────────────────────────────────────────────────── */
@@ -163,13 +163,23 @@ function SocialPlatformIcon({ platform }: { platform: string }) {
 }
 
 function detectPlatform(url: string): string {
-  const u = url.toLowerCase();
-  if (u.includes("instagram.com")) return "Instagram";
-  if (u.includes("facebook.com")) return "Facebook";
-  if (u.includes("linkedin.com")) return "LinkedIn";
-  if (u.includes("tiktok.com")) return "TikTok";
-  if (u.includes("threads.net") || u.includes("threads.com")) return "Threads";
-  if (u.includes("twitter.com") || u.includes("x.com")) return "X";
+  try {
+    const host = new URL(url).hostname.toLowerCase().replace(/^www\./, "");
+    if (host === "instagram.com" || host.endsWith(".instagram.com")) return "Instagram";
+    if (host === "facebook.com" || host === "fb.com" || host.endsWith(".facebook.com")) return "Facebook";
+    if (host === "linkedin.com" || host.endsWith(".linkedin.com")) return "LinkedIn";
+    if (host === "tiktok.com" || host.endsWith(".tiktok.com")) return "TikTok";
+    if (host === "threads.net" || host === "threads.com") return "Threads";
+    if (host === "twitter.com" || host === "x.com" || host.endsWith(".twitter.com") || host.endsWith(".x.com")) return "X";
+  } catch {
+    const u = url.toLowerCase();
+    if (u.includes("instagram.com")) return "Instagram";
+    if (u.includes("facebook.com")) return "Facebook";
+    if (u.includes("linkedin.com")) return "LinkedIn";
+    if (u.includes("tiktok.com")) return "TikTok";
+    if (u.includes("threads.net") || u.includes("threads.com")) return "Threads";
+    if (u.includes("twitter.com") || /(?:^|[\/\.])x\.com(?:\/|$)/.test(u)) return "X";
+  }
   return "Web";
 }
 
@@ -302,11 +312,11 @@ export default function ReportPage() {
     </div>
   );
 
-  const tone    = verdictTone(report.verdict);
+  const tone = verdictTone(report.verdict);
   const clamped = Math.max(0, Math.min(100, report.risk_score));
   const entities = report.entities;
-  const osint   = report.osint;
-  const shap    = report.shap_explanation;
+  const osint = report.osint;
+  const shap = report.shap_explanation;
 
   const addrs = (osint?.address_validations as Record<string, unknown>[] | undefined) || [];
   const phones = osint?.phones || [];
@@ -326,7 +336,7 @@ export default function ReportPage() {
   const socialWebResults = webResults
     .filter((r) => {
       const url = (r.url ?? "").toLowerCase();
-      return ["instagram.com","facebook.com","linkedin.com","tiktok.com","threads.net","threads.com","twitter.com","x.com"].some((d) => url.includes(d));
+      return ["instagram.com", "facebook.com", "linkedin.com", "tiktok.com", "threads.net", "threads.com", "twitter.com", "x.com"].some((d) => url.includes(d));
     })
     .slice(0, 6);
   const officialWebsites = (osint?.web?.websites ?? []).filter((w) => w.ok && w.url);
@@ -584,23 +594,38 @@ export default function ReportPage() {
                   <ArrowSquareOut size={15} className="shrink-0 text-text-muted transition-colors group-hover:text-text-primary" />
                 </a>
               ))}
-              {/* Website resmi */}
-              {officialWebsites.map((w, i) => (
-                <a
-                  key={`site-${i}`}
-                  href={w.url}
-                  target="_blank"
-                  rel="noreferrer"
-                  className="group flex items-center gap-3 rounded-2xl border border-border bg-bg-subtle/50 px-4 py-3.5 transition-all hover:border-border-focus hover:bg-bg-subtle"
-                >
-                  <LinkSimple size={18} weight="bold" className="shrink-0 text-text-muted" />
-                  <div className="min-w-0 flex-1">
-                    <p className="truncate text-sm font-semibold text-text-primary">{w.title ?? w.url}</p>
-                    <p className="truncate text-xs text-text-muted">Situs resmi</p>
-                  </div>
-                  <ArrowSquareOut size={15} className="shrink-0 text-text-muted transition-colors group-hover:text-text-primary" />
-                </a>
-              ))}
+              {/* Website resmi & tautan publik */}
+              {officialWebsites.map((w, i) => {
+                const platform = detectPlatform(w.url ?? "");
+                const isSocial = platform !== "Web";
+                const isPost = /\/(p|post|reel|tv|status)\//i.test(w.url ?? "");
+                const label = isSocial
+                  ? isPost
+                    ? `Postingan ${platform}`
+                    : `Kanal ${platform}`
+                  : "Situs resmi";
+
+                return (
+                  <a
+                    key={`site-${i}`}
+                    href={w.url}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="group flex items-center gap-3 rounded-2xl border border-border bg-bg-subtle/50 px-4 py-3.5 transition-all hover:border-border-focus hover:bg-bg-subtle"
+                  >
+                    {isSocial ? (
+                      <SocialPlatformIcon platform={platform} />
+                    ) : (
+                      <LinkSimple size={18} weight="bold" className="shrink-0 text-text-muted" />
+                    )}
+                    <div className="min-w-0 flex-1">
+                      <p className="truncate text-sm font-semibold text-text-primary">{w.title ?? w.url}</p>
+                      <p className="truncate text-xs text-text-muted">{label}</p>
+                    </div>
+                    <ArrowSquareOut size={15} className="shrink-0 text-text-muted transition-colors group-hover:text-text-primary" />
+                  </a>
+                );
+              })}
             </div>
           </Section>
         </div>
