@@ -1,5 +1,4 @@
-"""DB cache — simpan dan ambil JobCase berdasarkan hash teks (exact-match memory)."""
-from __future__ import annotations  
+from __future__ import annotations
 
 import logging
 import re
@@ -19,7 +18,6 @@ CACHE_SCHEMA_VERSION = 7
 
 
 def _case_hash(raw_input: str) -> str:
-    """Hash input + model aktif — ganti LLM_MODEL otomatis invalidasi cache lama."""
     return compute_content_sha256(f"{raw_input}\nmodel:{LLM_MODEL}")
 
 def _save_case_to_db(
@@ -30,7 +28,6 @@ def _save_case_to_db(
     entities: dict | None = None,
     source: str = "text",
 ) -> dict:
-    """Simpan case + entities lengkap dan kembalikan status serta case_id."""
     from sqlalchemy.exc import IntegrityError
 
     if db is None:
@@ -120,7 +117,6 @@ def _save_case_to_db(
 
 
 def _job_case_to_response(cached: JobCase) -> VerifyResponse | None:
-    """Konversi JobCase dari DB menjadi VerifyResponse."""
     if not cached or not cached.verdict or cached.verdict == "ERROR":
         return None
     llm_payload = cached.llm_output or {}
@@ -153,9 +149,6 @@ def _job_case_to_response(cached: JobCase) -> VerifyResponse | None:
     if not isinstance(osint, dict):
         logger.info("[DB Cache Skip] legacy/incomplete OSINT payload: %s", str(cached.id)[:8])
         return None
-    # Cache sebelum rename menyimpan agregat seluruh platform sebagai
-    # `threads`; normalisasi saat baca agar kontrak response sekarang
-    # tetap `social` tanpa mengulang probe eksternal.
     if "social" not in osint and isinstance(osint.get("threads"), dict):
         osint = {**osint, "social": osint["threads"]}
         osint.pop("threads", None)
@@ -163,7 +156,6 @@ def _job_case_to_response(cached: JobCase) -> VerifyResponse | None:
 
 
 def _get_cached_case_from_db(db: Session, raw_input_str: str) -> VerifyResponse | None:
-    """Cek apakah lowongan/URL/gambar ini sudah pernah dianalisa (exact DB cache hit)."""
     if not raw_input_str or not raw_input_str.strip():
         return None
     try:
@@ -174,8 +166,6 @@ def _get_cached_case_from_db(db: Session, raw_input_str: str) -> VerifyResponse 
             if resp:
                 logger.debug("[DB Cache Hit] hash: %s", text_hash[:10])
                 return resp
-
-        # Fallback bila input adalah URL (karena JobCase URL disimpan dengan full_raw_text)
         if re.match(r"^https?://", raw_input_str.strip(), re.I):
             return _get_cached_case_by_url(db, raw_input_str)
     except Exception as e:
@@ -184,7 +174,6 @@ def _get_cached_case_from_db(db: Session, raw_input_str: str) -> VerifyResponse 
 
 
 def _normalize_url_variants(raw_url: str) -> list[str]:
-    """Hasilkan variasi representasi URL (trailing slash, www, tracking params) untuk lookup cache."""
     u = (raw_url or "").strip()
     if not u:
         return []
@@ -211,7 +200,6 @@ def _normalize_url_variants(raw_url: str) -> list[str]:
 
 
 def _get_cached_case_by_url(db: Session, raw_url: str) -> VerifyResponse | None:
-    """Cari JobCase yang sudah pernah menganalisis URL yang sama (exact atau varian)."""
     if not raw_url or not raw_url.strip():
         return None
     try:
@@ -242,7 +230,6 @@ def _get_cached_case_by_url(db: Session, raw_url: str) -> VerifyResponse | None:
 
 
 def _cache_osint_payload(osint_results: dict | None) -> dict | None:
-    """Simpan evidence response lengkap agar cache tidak menghasilkan SHAP palsu."""
     if not isinstance(osint_results, dict):
         return None
     summary = _build_osint_summary(osint_results) or {}

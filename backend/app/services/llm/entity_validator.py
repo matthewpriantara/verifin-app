@@ -1,21 +1,3 @@
-"""
-LLM-based Entity Validation — Guard AI untuk semua entitas hasil regex.
-
-Melengkapi `entity_extraction.py` (yang hanya untuk semantic entities) dengan
-validation pass untuk STRUCTURAL entities yang selama ini hanya regex:
-- phones              : validasi apakah benar nomor kontak atau angka acak dari URL/ID
-- emails              : validasi apakah benar email kontak atau placeholder/contoh
-- urls                : validasi apakah benar URL lowongan/sosmed atau link tracking/iklan
-- addresses           : validasi apakah benar alamat fisik atau frasa non-alamat
-- location_candidates : validasi apakah benar lokasi kerja atau frasa admin/OCR corruption
-
-Desain:
-- Dipanggil SETELAH regex extraction, SEBELUM merge dengan LLM extraction
-- Jika LLM down/timeout → fallback penuh ke hasil regex (safety net)
-- Temperature=0 untuk deterministik
-- Hanya filter, tidak menambah entitas baru (kecuali typo correction)
-"""
-
 import asyncio
 import logging
 import re
@@ -85,15 +67,12 @@ Kembalikan HANYA JSON sesuai skema."""
 
 
 def _clean_phone_list(phones: list[str]) -> list[str]:
-    """Normalisasi list nomor telepon."""
     seen = set()
     out = []
     for p in phones:
-        # Standardize: hapus spasi, dash, titik
         clean = re.sub(r"[\s\-\.]", "", str(p))
         if not clean or len(clean) < 9 or len(clean) > 16:
             continue
-        # Pastikan format +62 atau 08
         if clean.startswith("0"):
             clean = "+62" + clean[1:]
         elif clean.startswith("62") and not clean.startswith("+"):
@@ -107,7 +86,6 @@ def _clean_phone_list(phones: list[str]) -> list[str]:
 
 
 def _clean_str_list(items: list[str], *, max_items: int = 10, max_len: int = 200) -> list[str]:
-    """Normalisasi list string unik, bersih, terbatas."""
     seen: set[str] = set()
     out: list[str] = []
     for item in items:
@@ -134,13 +112,6 @@ async def validate_entities_llm(
     addresses: list[str] | None = None,
     location_candidates: list[str] | None = None,
 ) -> dict[str, Any] | None:
-    """
-    Validasi entitas structural via LLM.
-
-    Returns:
-        dict dengan key "phones", "emails", "urls", "addresses", "location_candidates"
-        yang sudah divalidasi, atau None jika LLM gagal/tidak tersedia (→ caller pakai regex).
-    """
     if not LLM_API_KEY:
         logger.info("[llm_validator] LLM_API_KEY kosong → skip validation (fallback regex).")
         return None
@@ -148,12 +119,11 @@ async def validate_entities_llm(
     addresses = addresses or []
     location_candidates = location_candidates or []
 
-    # Skip jika tidak ada yang divalidasi
     if not phones and not emails and not urls and not addresses and not location_candidates:
         logger.info("[llm_validator] Tidak ada entities untuk divalidasi.")
         return None
 
-    snippet = (text or "").strip()[:3000]  # Batasi untuk hemat token
+    snippet = (text or "").strip()[:3000]
     logger.info(
         f"[llm_validator] Validating {len(phones)} phones, {len(emails)} emails, "
         f"{len(urls)} urls, {len(addresses)} addresses, {len(location_candidates)} location_candidates"
@@ -202,12 +172,10 @@ async def validate_entities_llm(
     if not isinstance(data, dict):
         return None
 
-    # Guard: jika extract_json fallback ke verdict:ERROR → anggap gagal, fallback ke regex (jangan hapus semua phones)
     if data.get("verdict") == "ERROR":
         logger.warning("[llm_validator] extract_json returned ERROR verdict → fallback regex (jangan hapus entities).")
         return None
 
-    # Process phones
     validated_phones = []
     phone_data = data.get("phones", {})
     if isinstance(phone_data, dict):
@@ -216,7 +184,6 @@ async def validate_entities_llm(
     elif isinstance(phone_data, list):
         validated_phones = _clean_phone_list(phone_data)
 
-    # Process emails
     validated_emails = []
     email_data = data.get("emails", {})
     if isinstance(email_data, dict):
@@ -225,7 +192,6 @@ async def validate_entities_llm(
     elif isinstance(email_data, list):
         validated_emails = [e.strip().lower() for e in email_data if isinstance(e, str) and "@" in e]
 
-    # Process urls
     validated_urls = []
     url_data = data.get("urls", {})
     if isinstance(url_data, dict):
@@ -234,7 +200,6 @@ async def validate_entities_llm(
     elif isinstance(url_data, list):
         validated_urls = [u.strip() for u in url_data if isinstance(u, str) and u.startswith(("http", "www."))]
 
-    # Process addresses
     validated_addresses = []
     addr_data = data.get("addresses", {})
     if isinstance(addr_data, dict):
@@ -243,7 +208,6 @@ async def validate_entities_llm(
     elif isinstance(addr_data, list):
         validated_addresses = _clean_str_list(addr_data)
 
-    # Process location_candidates
     validated_locations = []
     loc_data = data.get("location_candidates", {})
     if isinstance(loc_data, dict):

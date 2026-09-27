@@ -1,8 +1,3 @@
-"""
-Cek reputasi nomor HP via Kaspersky Who Calls Indonesia.
-URL: https://whocalls.id.kaspersky.com/info/{e164_digits} — scrape web, tanpa login.
-"""
-
 import asyncio
 import re
 from typing import Any
@@ -23,10 +18,6 @@ def normalize_phone_id(phone: str) -> dict[str, str]:
 
 
 def _check_kaspersky(phone_meta: dict[str, str]) -> dict[str, Any]:
-    """
-    Cek reputasi via Kaspersky Who Calls Indonesia (scrape web, tanpa login).
-    URL: https://whocalls.id.kaspersky.com/info/{e164_digits}
-    """
     digits = phone_meta["e164"].lstrip("+")
     url = f"https://whocalls.id.kaspersky.com/info/{digits}"
     risk_flags: list[str] = []
@@ -112,7 +103,6 @@ def _search_phone_public_serp(phone_meta: dict[str, str]) -> dict[str, Any]:
 
 
 def check_phone_kredibel(phone: str) -> dict[str, Any]:
-    """Cek reputasi nomor HP via Kaspersky → SERP fallback."""
     meta = normalize_phone_id(phone)
     if not meta["local"] or len(meta["local"]) < 8:
         return {
@@ -124,8 +114,6 @@ def check_phone_kredibel(phone: str) -> dict[str, Any]:
         }
 
     kaspersky = _check_kaspersky(meta)
-
-    # SERP fallback kalau Kaspersky tidak dapat hasil atau nomor aman
     serp = _search_phone_public_serp(meta)
 
     all_risk_flags = kaspersky.get("risk_flags", []) + serp.get("risk_flags", [])
@@ -156,5 +144,4 @@ async def check_phones_reputation(
     web_results: list | None = None,
     **kwargs,
 ) -> list[dict[str, Any]]:
-    """Alias & wrapper untuk runner pipeline OSINT (Kaspersky + SERP fallback)."""
     return await check_phones_kredibel(contacts, limit=limit)

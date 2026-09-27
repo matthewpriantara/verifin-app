@@ -1,24 +1,3 @@
-"""
-SHAP-Inspired Additive Feature Explainer untuk Verifin.
-
-Komponen explainability dari Job Trust Infrastructure — menguraikan setiap
-sinyal bukti yang berkontribusi pada trust assessment suatu lowongan kerja,
-bukan sekadar risk scoring. Output dirancang agar pencari kerja dapat
-memahami alasan di balik penilaian kepercayaan yang diberikan.
-
-Implementasi berdasarkan:
-- Lundberg & Lee (2017) "A Unified Approach to Interpreting Model Predictions"
-- XAI Phishing Detection (IEEE RAICS 2025) — Varsha V G, PA Thomas
-
-Formulasi: f(x) = base_value + sum(phi_i)
-Dimana phi_i = kontribusi Shapley dari fitur ke-i
-
-Pendekatan: rule-based additive scoring dengan bobot manual yang dikalibrasi
-berdasarkan pola penipuan lowongan kerja di Indonesia (deposit fee, task scam,
-TPPO, dokumen palsu). Bukan model ML terlatih — bobot diatur berdasarkan
-domain knowledge dan refined melalui user study.
-"""
-
 from datetime import datetime, timezone
 from typing import Any
 
@@ -30,23 +9,16 @@ def _cs(raw: float, weight: float) -> dict[str, Any]:
     return {"raw_score": round(raw, 1), "weight": weight,
             "weighted_contribution": round(raw * weight, 1)}
 
-
-# ─── Feature weight registry — dikalibrasi manual (domain knowledge) ──────
-# Bobot berdasarkan pola penipuan loker Indonesia: deposit fee, task scam,
-# TPPO, dokumen palsu. Refined melalui user study, bukan ML training.
 _FEATURE_WEIGHTS: dict[str, float] = {
-    # NLP Layer 1 features
     "has_fee_request":       40.0,
     "has_foreign_work":      25.0,
     "has_whatsapp_apply":    20.0,
-    "fraud_keyword_count":    8.0,  # per unit
+    "fraud_keyword_count":    8.0,
     "fee_no_company":        15.0,
     "salary_no_company":      8.0,
     "has_company":           -8.0,
     "has_address":           -6.0,
-    "safe_keyword_count":    -5.0,  # per unit
-
-    # OSINT Layer 2 features
+    "safe_keyword_count":    -5.0,
     "kredibel_fraud_flag":   35.0,
     "domain_unreachable":    28.0,
     "domain_new":            15.0,
@@ -57,8 +29,6 @@ _FEATURE_WEIGHTS: dict[str, float] = {
     "company_not_found_web": 12.0,
     "scam_serp_result":      25.0,
     "social_risk_flag":      10.0,
-
-    # Case memory — fraud network
     "entity_in_fraud_network": 30.0,
     "entity_seen_multiple_cases": 15.0,
 }
@@ -74,27 +44,10 @@ def explain_verification_shap(
     network_context: dict[str, Any] | None = None,
     entities: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
-    """
-    Hitung Shapley values untuk setiap fitur yang berkontribusi ke risk_score.
-
-    Args:
-        risk_score: Skor akhir dari LLM (0-100)
-        verdict: AMAN | WASPADA | BAHAYA
-        osint_results: Raw OSINT payload
-        risk_factors: List faktor risiko dari LLM
-        safe_factors: List faktor aman dari LLM
-        nlp_result: Output dari NLP classifier Layer 1 (opsional)
-        network_context: Output dari fraud network check (opsional)
-
-    Returns:
-        Dict dengan feature_contributions, waterfall_chart, summary
-    """
-    base_value = 12.0  # Baseline netral — UMKM valid sering 5-15
+    base_value = 12.0
     input_addresses = (entities or {}).get("addresses") or []
 
     contributions: list[dict[str, Any]] = []
-
-    # ── 1. NLP Layer 1 features ─────────────────────────────────────────────
     if nlp_result and nlp_result.get("behavioral_features"):
         bf = nlp_result["behavioral_features"]
 
@@ -150,7 +103,6 @@ def explain_verification_shap(
                 "Kombinasi berbahaya: permintaan uang tanpa nama perusahaan yang jelas",
             ))
 
-        # Safe signals dari NLP
         if bf.get("has_company") and bf.get("has_address"):
             contributions.append(_make_contrib(
                 "Ada Nama PT + Alamat Fisik",
@@ -173,7 +125,6 @@ def explain_verification_shap(
                 "Terdapat sinyal legalitas: NIB, BPJS, OJK, atau proses lamaran resmi",
             ))
 
-    # ── 2. OSINT features ───────────────────────────────────────────────────
     phones = osint_results.get("phones") or []
     if any(
         p.get("reported_fraud")
@@ -190,7 +141,6 @@ def explain_verification_shap(
             "Nomor HP terdeteksi berbahaya/spam di Kaspersky Who Calls",
         ))
 
-    # Free email saja tanpa domain korporat = sinyal risiko ringan
     domain_info_pre = osint_results.get("domain") or {}
     if domain_info_pre.get("skipped") == "free_email":
         contributions.append(_make_contrib(
@@ -227,7 +177,6 @@ def explain_verification_shap(
         ))
 
     email_sec = osint_results.get("email_security") or {}
-    # Hanya flag jika domain korporat (bukan gmail/yahoo)
     if (
         not email_sec.get("spf_active")
         and domain_info_pre.get("skipped") != "free_email"
@@ -268,7 +217,6 @@ def explain_verification_shap(
             ))
             break
 
-    # Safe OSINT signals
     address_validations = osint_results.get("address_validations") or []
     exact_address = any(
         (a.get("found") or a.get("address_found"))
@@ -292,7 +240,6 @@ def explain_verification_shap(
             "Alamat fisik ditemukan dan valid di OpenStreetMap — mengurangi risiko loker fiktif",
         ))
 
-    # Tidak ada alamat fisik = sinyal risiko medium
     if entities is not None and input_addresses and not exact_address:
         contributions.append(_make_contrib(
             "Alamat Fisik Belum Terverifikasi Exact",
@@ -317,7 +264,6 @@ def explain_verification_shap(
              f"Ditemukan {(web_data.get('evidence_counts') or {}).get('relevant_results', 1)} hasil web relevan dengan nama perusahaan; keterkaitan resmi belum terverifikasi.",
         ))
 
-    # ── 3. Fraud network context ────────────────────────────────────────────
     if network_context:
         if network_context.get("entity_in_fraud_network"):
             contributions.append(_make_contrib(
@@ -338,14 +284,12 @@ def explain_verification_shap(
                 f"Entitas ini sebelumnya terdeteksi di {network_context.get('total_case_count', '?')} verifikasi lain",
             ))
 
-    # ── Normalize kontribusi agar total sesuai risk_score ──────────────────
     risk_contribs = [c for c in contributions if c["impact"] == "risk"]
     safe_contribs = [c for c in contributions if c["impact"] == "safe"]
 
     raw_risk_sum = sum(c["contribution"] for c in risk_contribs)
     raw_safe_sum = sum(c["contribution"] for c in safe_contribs)
 
-    # Scale ke actual risk_score
     effective_score = risk_score - base_value
     if effective_score > 0 and raw_risk_sum > 0:
         scale = effective_score / raw_risk_sum
@@ -358,14 +302,12 @@ def explain_verification_shap(
             c["contribution"] = round(c["contribution"] * scale, 2)
             c["delta"] = -c["contribution"]
 
-    # Sort by absolute contribution
     all_contributions = sorted(
         risk_contribs + safe_contribs,
         key=lambda x: abs(x["contribution"]),
         reverse=True,
     )
 
-    # ── Waterfall chart data untuk FE visualization ─────────────────────────
     waterfall = []
     cumulative = base_value
     for c in all_contributions:
@@ -379,7 +321,6 @@ def explain_verification_shap(
         })
         cumulative += delta
 
-    # ── Evidence metadata — dibangun dinamis dari data nyata ──
     forensic = _build_forensic_metadata(
         risk_score=risk_score,
         verdict=verdict,
@@ -437,13 +378,6 @@ def _build_forensic_metadata(
     safe_contribs: list[dict[str, Any]],
     entities: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
-    """
-    Bangun metadata forensik (decision_path, probe timing, coverage, graph, hash)
-    secara DINAMIS dari hasil OSINT nyata — menggantikan versi lama yang hardcoded.
-
-    Semua angka/string di sini diturunkan dari `osint_results` aktual sehingga
-    berbeda antar-kasus dan bisa dipertanggungjawabkan di depan juri.
-    """
     o = osint_results or {}
     timing = o.get("timing") or {}
     osint_ms = int(round(float(timing.get("osint_parallel_sec", 0.0)) * 1000))
@@ -459,9 +393,7 @@ def _build_forensic_metadata(
     input_addresses = (entities or {}).get("addresses") or []
     entities_known = entities is not None
 
-    # Sinyal boolean nyata --------------------------------------------------
     company_name = (companies[0].get("name") if companies and isinstance(companies[0], dict) else None) or "Tidak terdeteksi"
-    # "found" tidak ada di company object — pakai public_mentions atau safe_flags sebagai proxy
     company_found = any(
         (c.get("stats") or {}).get("public_mentions", 0) > 0
         or bool(c.get("safe_flags"))
@@ -503,7 +435,6 @@ def _build_forensic_metadata(
         elif phone_probe_statuses:
             phone_probe_status = "UNAVAILABLE"
     phone_clean = phone_checked and any(
-        # checked=true + tidak ada laporan fraud = CLEAN (Kaspersky berhasil, tidak ada temuan)
         p.get("probe_status") == "COMPLETED"
         and p.get("reputation_status") == "CLEAN"
         and not p.get("reported_fraud")
@@ -530,7 +461,6 @@ def _build_forensic_metadata(
         or any(p.get("is_official") and p.get("platform") in official_platforms for p in (social.get("posts") or []))
         or social.get("profiles")
     )
-    # Website presence is a web signal, not a social-media signal.
     public_footprint = bool(social.get("posts") or social.get("profiles"))
     is_free_email = (
         domain.get("skipped") == "free_email"
@@ -542,8 +472,6 @@ def _build_forensic_metadata(
         (network_context or {}).get("entity_in_fraud_network")
     )
 
-    # Coverage memakai kontrak probe yang sama untuk backend dan frontend.
-    # `applicable=false` berarti probe memang tidak bisa dijalankan, bukan gagal.
     address_probe = [a for a in addr if isinstance(a, dict)]
     address_completed = any(
         (a.get("address_details") or {}).get("probe_status") == "COMPLETED"
@@ -610,8 +538,6 @@ def _build_forensic_metadata(
     ran = len(applicable_probes)
     probe_hit_rate = round((hits / ran) * 100, 1) if ran else None
     decision_confidence = None
-
-    # Decision path — langkah nyata berdasarkan entitas & probe aktual -------
     risk_level = "LOW" if risk_score < 35 else ("MEDIUM" if risk_score < 65 else "HIGH")
     risk_label = {"LOW": "Risiko Rendah", "MEDIUM": "Risiko Sedang", "HIGH": "Risiko Tinggi"}[risk_level]
     first_phone = phones[0] if phones and isinstance(phones[0], dict) else {}
@@ -636,7 +562,6 @@ def _build_forensic_metadata(
           "detail": f"Skor risiko akhir: {risk_score} / 100 ({risk_label}); bukan probabilitas."},
     ]
 
-    # Consistency breakdown — diturunkan dari sinyal nyata --------------------
     address_breakdown = (
         {
             "factor": "address_gis_match",
@@ -656,7 +581,6 @@ def _build_forensic_metadata(
         {"factor": "social_footprint", **_cs(90.0 if social_hit else 40.0, 0.20)},
     ]
 
-    # Probe weights — bobot statis, timing dari actual osint_timing kalau ada
     _timing = osint_results.get("timing") or {}
     email_applicable = not (entities_known and not ((entities or {}).get("emails") or []))
     address_applicable = not (entities_known and not input_addresses)
@@ -667,7 +591,7 @@ def _build_forensic_metadata(
     probe_weights = [
         {"probe": "Address Geocoding (OSM GIS)", "weight": 0.25, "configured_weight": 0.25,
          "effective_weight": _eff(address_applicable, 0.25),
-         "execution_time_ms": _timing.get("addr_ms"),  # None = tidak diukur, jujur
+         "execution_time_ms": _timing.get("addr_ms"),
          "status": "EXACT" if address_found else ("AREA_ONLY" if has_area_address else ("NOT_PROVIDED" if entities_known and not input_addresses else "NOT_FOUND")),
          "applicable": address_applicable},
         {"probe": "Phone Reputation (Kaspersky Who Calls)", "weight": 0.20, "configured_weight": 0.20,
@@ -690,14 +614,11 @@ def _build_forensic_metadata(
          "status": "UNKNOWN", "applicable": True, "note": "Tidak ada API publik otomatis"},
     ]
 
-    # Deduplication — jujur: tidak hitung pHash tanpa imagehash lib ----------
     dedup = {
         "sha256_text_hash": "n/a (dihitung di layer router/cache)",
         "perceptual_hash_phash": "n/a (memerlukan imagehash; tidak dihitung di explainer)",
         "crop_compression_invariant": False,
     }
-
-    # Graph analytics — dari fraud_network nyata ------------------------------
     nodes = fraud_net.get("nodes") or []
     graph_analytics = {
         "algorithm": "Connected Component Subgraph Analysis (nx.connected_components)",

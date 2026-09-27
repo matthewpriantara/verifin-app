@@ -1,32 +1,16 @@
-"""
-Address Validator untuk Verifin OSINT Engine.
-Memverifikasi alamat fisik dari lowongan kerja menggunakan Nominatim (OpenStreetMap)
-"""
-
 import re
 import httpx
 from urllib.parse import quote_plus, unquote
 from app.services.status_contract import COMPLETED, FOUND, NO_RESULTS, UNAVAILABLE
 
-# ─────────────────────────────────────────────────────────────────────────────
-# Konfigurasi
-# ─────────────────────────────────────────────────────────────────────────────
-
 NOMINATIM_URL = "https://nominatim.openstreetmap.org/search"
 REQUEST_TIMEOUT = 15.0
 
-# Header wajib diisi untuk menggunakan Nominatim sesuai kebijakan penggunaan
 NOMINATIM_HEADERS = {
     "User-Agent": "Verifin-OSINT-App/1.0 (gemastik-competition; contact@verifin.app)"
 }
 
-
-# ─────────────────────────────────────────────────────────────────────────────
-# Step 1: Geocoding Alamat via Nominatim
-# ─────────────────────────────────────────────────────────────────────────────
-
 async def _geocode_single(address: str, client: httpx.AsyncClient) -> dict | None:
-    """Jalankan satu query Nominatim, return None jika tidak ditemukan."""
     params = {
         "q": address,
         "format": "json",
@@ -91,26 +75,20 @@ def _classify_geocode_match(address: str, result: dict) -> dict:
     }
 
 
-# Peta koreksi OCR typo umum pada nama wilayah Indonesia
 _OCR_ADDR_FIXES: list[tuple[str, str]] = [
-    # 'l' terbaca sebagai huruf kapital 'I' (atau sebaliknya)
     (r"\blstimewa\b", "Istimewa"),
     (r"\blndonesia\b", "Indonesia"),
     (r"\bJakarta\s+lndonesia\b", "Jakarta Indonesia"),
-    # JI. / JI (tanpa titik) -> Jl. (OCR salah baca 'l' sebagai 'I')
     (r"\bJI\.\s*", "Jl. "),
     (r"\bJI\s+(?=[A-Z])", "Jl. "),
-    # Kec./Kab./Kel. tanpa spasi setelahnya (OCR nempel)
     (r"\b(Kec|Kab|Kel|Desa|Ds)\.([A-Z])", r"\1. \2"),
 ]
 
 
 def _normalize_ocr_address(addr: str) -> str:
-    """Koreksi OCR typo umum pada string alamat sebelum dikirim ke Nominatim."""
     a = addr
     for pattern, replacement in _OCR_ADDR_FIXES:
         a = re.sub(pattern, replacement, a)
-    # Tambahkan spasi setelah koma jika langsung disambung huruf ("Sleman,Yogyakarta" → "Sleman, Yogyakarta")
     a = re.sub(r",([^\s])", r", \1", a)
     return a
 
@@ -133,28 +111,17 @@ def _clean_address_input(addr: str) -> str:
 
 
 def _build_fallback_queries(address: str) -> list[str]:
-    """
-    Membangun daftar query fallback dari yang paling spesifik ke yang paling umum.
-    Contoh: 'Penempatan:Jl. perumnas mundusaren, Caturtunggal, Depok, Sleman, Yogyakarta Send your'
-    → ['Jl. perumnas mundusaren, Caturtunggal, Depok, Sleman, Yogyakarta',
-       'Jl. perumnas, Caturtunggal, Depok, Sleman, Yogyakarta, Indonesia',
-       'Caturtunggal, Depok, Sleman, Yogyakarta, Indonesia']
-    """
     addr = _clean_address_input(address)
-    addr_norm = _normalize_ocr_address(addr)  # versi setelah koreksi OCR typo
+    addr_norm = _normalize_ocr_address(addr)
     queries = [addr]
     if addr_norm != addr:
         queries.append(addr_norm)
     queries += [f"{addr_norm}, Indonesia", f"{addr}, Indonesia"]
-
-    # Hapus nomor rumah (No.XX, No XX, RT/RW, dll.)
     stripped = re.sub(r"\bNo\.?\s*\d+\b", "", addr, flags=re.IGNORECASE)
     stripped = re.sub(r"\bRT\s*\d+\s*(RW\s*\d+)?\b", "", stripped, flags=re.IGNORECASE)
     stripped = re.sub(r"\bRW\s*\d+\b", "", stripped, flags=re.IGNORECASE)
     if stripped != addr:
         queries.append(f"{stripped.strip(' ,')}, Indonesia")
-
-    # Hapus prefix "Jl." / "Jalan"
     stripped_no_prefix = re.sub(
         r"^(?:Jl\.?|Jalan|Jln\.?)\s+", "", stripped.strip(), flags=re.IGNORECASE
     )
@@ -163,7 +130,6 @@ def _build_fallback_queries(address: str) -> list[str]:
 
     parts = [p.strip() for p in addr_norm.split(",") if p.strip()]
     if len(parts) >= 2:
-        # Strip "Kec.", "Kab.", "Kel.", "Desa", "Daerah" prefix dari setiap part
         def _strip_admin_prefix(s: str) -> str:
             return re.sub(
                 r"^(?:Kecamatan|Kabupaten|Kelurahan|Kec\.?\s*|Kab\.?\s*|Kel\.?\s*|Desa\s+|Ds\.?\s*|Kota\s+|Daerah\s+)\s*",
@@ -180,17 +146,13 @@ def _build_fallback_queries(address: str) -> list[str]:
             rest_parts = ", ".join(clean_parts[1:])
             queries.append(f"{short_street}, {rest_parts}, Indonesia")
 
-        # Versi tanpa part pertama (tanpa nama jalan)
         queries.append(f"{', '.join(clean_parts[1:])}, Indonesia")
         queries.append(f"{', '.join(clean_parts[-2:])}, Indonesia")
 
-        # Versi asli (sebelum strip)
         old_parts = [p.strip() for p in addr_norm.split(",") if p.strip()]
         if old_parts != clean_parts:
             queries.append(f"{', '.join(old_parts[1:])}, Indonesia")
     else:
-        # Untuk alamat tanpa koma (misal "Jl. Klaseman No.15 Ngabean Wetan Ngaglik Sleman"):
-        # Strip street & house number
         stripped_head = re.sub(
             r"^(?:Jl\.?|Jalan|Jln\.?)\s+[A-Za-z0-9\.\'-]+\s*(?:No\.?\s*\d+)?\s*",
             "", addr_norm, flags=re.IGNORECASE,
@@ -198,7 +160,6 @@ def _build_fallback_queries(address: str) -> list[str]:
         if stripped_head and stripped_head != addr_norm:
             queries.append(f"{stripped_head}, Indonesia")
 
-        # Ambil 2-3 kata terakhir sebagai hirarki wilayah (Kecamatan, Kabupaten)
         clean_words = [
             w for w in re.sub(r"\bNo\.?\s*\d+\b", "", addr_norm, flags=re.IGNORECASE).split()
             if len(w) >= 3 and not re.match(r"^(?:Jl\.?|Jalan|Jln\.?)$", w, re.IGNORECASE)
@@ -221,13 +182,6 @@ def _build_fallback_queries(address: str) -> list[str]:
 
 
 async def geocode_address(address: str, company_name: str | None = None) -> dict:
-    """
-    Mengkonversi alamat teks menjadi koordinat lat/lon menggunakan Nominatim.
-    Mencoba beberapa variasi query (fallback) jika query utama tidak ditemukan.
-
-    Returns:
-        dict berisi: found (bool), lat, lon, display_name, country, confidence_score
-    """
     try:
         async with httpx.AsyncClient(timeout=REQUEST_TIMEOUT, headers=NOMINATIM_HEADERS) as client:
             queries = _build_fallback_queries(address)
@@ -294,20 +248,10 @@ async def geocode_address(address: str, company_name: str | None = None) -> dict
     except Exception as e:
         return {"found": False, "probe_status": UNAVAILABLE, "evidence_status": UNAVAILABLE, "error": str(e), "lat": None, "lon": None}
 
-
-# ─────────────────────────────────────────────────────────────────────────────
-# Fungsi Utama: Validasi Lengkap Alamat + Keberadaan Bisnis
-# ─────────────────────────────────────────────────────────────────────────────
-
-# Stop words yang tidak bermakna untuk address matching
 _ADDR_STOP_WORDS = {"jl", "no", "rt", "rw", "kec", "kab", "kel", "desa", "indonesia", "jalan", "gang", "gg"}
 
 
 def _verify_address_via_web(address: str, company_name: str, web_results: list[dict] | None = None) -> dict:
-    """Verifikasi keberadaan perusahaan dari hasil pencarian yang SUDAH ADA
-    (1 query perusahaan), BUKAN menembak query baru. Cocokkan token alamat
-    poster dengan snippet hasil pencarian.
-    """
     results = web_results or []
     if not results:
         return {"found": False, "method": "web_search", "match_score": 0.0}
@@ -329,7 +273,6 @@ def _verify_address_via_web(address: str, company_name: str, web_results: list[d
     best_house_number_match = False
 
     def _maps_coordinates(url: str) -> tuple[float, float] | None:
-        """Extract coordinates from Google Maps @lat,lon or !3dlat!4dlon URLs."""
         patterns = (
             r"@(-?\d{1,3}\.\d+),(-?\d{1,3}\.\d+)",
             r"!3d(-?\d{1,3}\.\d+)!4d(-?\d{1,3}\.\d+)",
@@ -400,19 +343,6 @@ def _verify_address_via_web(address: str, company_name: str, web_results: list[d
 
 
 async def validate_address_and_business(address: str, company_name: str = None, web_results: list[dict] | None = None) -> dict:
-    """
-    Fungsi utama yang menggabungkan geocoding + pencarian bisnis menjadi
-    satu hasil analisis OSINT yang lengkap.
-
-    Args:
-        address: Alamat fisik dari hasil NER.
-        company_name: Nama perusahaan dari hasil NER (opsional).
-        web_results: hasil 1 pencarian perusahaan (dibagikan) — dipakai untuk
-            konfirmasi keberadaan bisnis tanpa menembak query baru.
-
-    Returns:
-        dict berisi semua hasil validasi alamat dan keberadaan bisnis.
-    """
     result = {
         "address_input": address,
         "company_name_input": company_name,
@@ -423,7 +353,6 @@ async def validate_address_and_business(address: str, company_name: str = None, 
         "neutral_notes": [],
     }
 
-    # Step 1: Geocode alamat
     geo = await geocode_address(address, company_name)
     result["address_details"] = geo
 
@@ -443,7 +372,6 @@ async def validate_address_and_business(address: str, company_name: str = None, 
                 "Nama jalan ditemukan, tetapi nomor bangunan belum cocok dengan hasil peta."
             )
         else:
-            # Cek apakah alamat input mengandung nama jalan
             addr_has_street = bool(re.search(r"\b(?:jl\.?|jln\.?|jalan)\b", address, re.I))
             if addr_has_street:
                 result["neutral_notes"].append(
@@ -454,7 +382,6 @@ async def validate_address_and_business(address: str, company_name: str = None, 
                     "Peta menemukan wilayah sekitar; titik exact belum terkonfirmasi."
                 )
 
-    # Step 2: Konfirmasi keberadaan bisnis dari hasil pencarian yang SUDAH ADA
     if company_name:
         web = _verify_address_via_web(address, company_name, web_results)
         result["web_verification"] = web

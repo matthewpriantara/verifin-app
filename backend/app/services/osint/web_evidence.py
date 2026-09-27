@@ -1,11 +1,3 @@
-"""
-Web evidence via SearXNG (primary) + Lightpanda Browser (fallback) + Scrapling:
-1) Fetch website dari domain email / URL di loker (Lightpanda render JS penuh)
-2) Search evidence lewat SearXNG multi-engine (Bing/Brave/Wikipedia)
-   Fallback ke Lightpanda (render DuckDuckGo/Google HTML) jika SearXNG down
-3) Search Intelligence Layer untuk query planning + entity resolution + re-ranking
-"""
-
 import base64
 import re
 import asyncio
@@ -62,19 +54,11 @@ def _public_source_type(url: str, title: str = "", snippet: str = "") -> str:
     return "web"
 
 def _result_matches_query(query: str, url: str, title: str, snippet: str) -> bool:
-    """Return True bila result (url+title+snippet) menyebutkan entitas dari query.
-
-    Query tanpa quote: ekstrak token identitas (≥3 char, bukan stopword).
-    Butuh ≥2 token match (atau 1 token yang eksplisit di URL/handle) untuk
-    menghindari false positive dari snippet ambigu.
-    """
     hay = re.sub(r"[^a-z0-9]+", " ", f"{url} {title} {snippet}".lower()).strip()
     hay_compact = hay.replace(" ", "")
     emails = re.findall(r"[\w.+-]+@[\w.-]+\.[a-z]{2,}", query.lower())
     if emails:
         return any(email in f"{url} {title} {snippet}".lower() for email in emails)
-
-    # Ekstrak phrase dari quote (legacy) ATAU gunakan query natural sebagai phrase
     quoted = re.findall(r'"([^"]+)"', query or "")
     phrases = list(quoted) if quoted else []
     if not phrases:
@@ -98,14 +82,10 @@ def _result_matches_query(query: str, url: str, title: str, snippet: str) -> boo
             return True
         matched = {token for token in set(tokens) if token in hay.split()}
         if len(tokens) == 1 and len(matched) == 1:
-            # Single token hanya valid bila eksplisit di URL/handle (domain,
-            # subdomain, atau segmen path) — bukan sekadar muncul di snippet
-            # global yang ambigu ("Bangor", nama brand umum).
             if re.search(rf"(?:^|[./@_-]){re.escape(tokens[0])}(?:$|[./@_-])", url.lower()):
                 return True
             continue
         if len(tokens) >= 2 and len(matched) >= 2:
-            # Dua token identitas cukup; satu token ("Bangor") tidak.
             return True
     return False
 
@@ -181,7 +161,6 @@ def _snippet_from_page(page, max_len: int = 500) -> str:
 
 
 def _snippet_from_soup(soup, max_len: int = 500) -> str:
-    """Extract snippet dari BeautifulSoup soup (untuk output Lightpanda HTML)."""
     try:
         for tag in soup(["script", "style", "nav", "footer", "header", "noscript", "template", "iframe"]):
             tag.decompose()
@@ -202,7 +181,6 @@ def _check_social_profile_fallback(domain_or_handle: str) -> dict[str, Any]:
     results = res.get("results") or []
     if results:
         top = results[0]
-        # Hasil pertama aggregator/artikel global bukan bukti profil terkait.
         if _result_matches_query(q, top.get("url", ""), top.get("title", ""), top.get("snippet", "")):
             title = top.get("title", "")
             profile_url = top.get("url", "")
@@ -233,7 +211,6 @@ def fetch_company_website(url_or_domain: str) -> dict[str, Any]:
     try:
         from app.services.osint.lightpanda_client import lightpanda_fetch, is_lightpanda_available
         if is_lightpanda_available():
-            # Pakai Lightpanda — render JS penuh
             lp_result = lightpanda_fetch(url, output="html", wait_ms=3000)
             if lp_result.get("ok") and lp_result.get("content"):
                 soup_page = __import__("bs4").BeautifulSoup(lp_result["content"], "html.parser")
@@ -262,8 +239,6 @@ def fetch_company_website(url_or_domain: str) -> dict[str, Any]:
                     "safe_flags": safe_flags,
                     "engine": "lightpanda",
                 }
-            # Lightpanda gagal, fallback ke Scrapling
-        # Fallback: Scrapling Fetcher
         page = Fetcher.get(url, stealthy_headers=True)
         status = getattr(page, "status", None) or getattr(page, "status_code", None)
         title = ""
@@ -343,15 +318,6 @@ def search_web_evidence(
     *,
     skip_relevance_filter: bool = False,
 ) -> dict[str, Any]:
-    """Search web evidence — SearXNG (primary) → Lightpanda (fallback).
-
-    Args:
-        query: Query pencarian
-        max_results: Maksimal hasil yang dikembalikan
-        skip_relevance_filter: True untuk social search — ambil semua hasil
-            tanpa filter _result_matches_query (terlalu strict untuk platform
-            search yang butuh semua hasil untuk domain filtering)
-    """
     from app.services.osint.lightpanda_client import lightpanda_search, is_lightpanda_available
 
     q = (query or "").strip()
@@ -366,8 +332,6 @@ def search_web_evidence(
     engine_used = "none"
     search_status = "UNAVAILABLE"
     search_error = None
-
-    # ── Primary: SearXNG (multi-engine aggregator) ──
     if is_searxng_available():
         sx_result = searxng_search(q, max_results=max_results * 2)
         if sx_result.get("ok") and sx_result.get("results"):
@@ -383,10 +347,6 @@ def search_web_evidence(
                         "snippet": snippet[:240],
                         "source_type": _public_source_type(url, title, snippet),
                     })
-            # Relevance guard (generik, bukan hardcode domain): bila engine
-            # degraded (mis. hanya Bing yang aktif dan mengembalikan hasil tak
-            # relevan), jangan terima mentah — filter dulu. Bila tersisa terlalu
-            # sedikit, jatuh ke Lightpanda fallback di bawah.
             if skip_relevance_filter:
                 relevant = candidate
             else:
@@ -399,16 +359,12 @@ def search_web_evidence(
                 search_status = FOUND
                 results = relevant[:max_results]
             elif candidate:
-                # Ada hasil tapi 0 relevan → engine degraded; biarkan kosong agar
-                # fallback Lightpanda di bawah mencoba.
                 search_error = (
                     f"SearXNG mengembalikan {len(candidate)} hasil tetapi 0 relevan "
                     "dengan query — kemungkinan engine degraded."
                 )
         else:
             search_error = sx_result.get("error", "SearXNG tidak ada hasil.")
-
-    # ── Fallback: Lightpanda (render DuckDuckGo/Bing/Google) ──
     if not results:
         if not is_lightpanda_available():
             search_error = "Lightpanda container tidak running. Jalankan: docker run -d --name lightpanda -p 127.0.0.1:9222:9222 lightpanda/browser:nightly"
@@ -435,7 +391,6 @@ def search_web_evidence(
                     search_error = search_result.get("error", "Tidak ada hasil.")
 
     risk_flags = []
-    # Extract target entity keywords from query (e.g. '"Kedai Nonggo"' -> ['kedai', 'nonggo'])
     quoted = re.findall(r'"([^"]+)"', q)
     target_words: list[str] = []
     if quoted:
@@ -446,8 +401,6 @@ def search_web_evidence(
     relevant_results = []
     for r in results:
         t_s = f"{r.get('title', '')} {r.get('snippet', '')}".lower()
-        # Untuk social search: skip relevance filter — ambil semua hasil
-        # karena platform filtering dilakukan di caller (_collect_social_searches)
         if not skip_relevance_filter:
             if not _result_matches_query(q, r.get("url", ""), r.get("title", ""), r.get("snippet", "")):
                 continue
@@ -467,7 +420,6 @@ def search_web_evidence(
             adv in t_s for adv in (
                 "cara cek", "tips", "mengenali penipuan", "menghindari",
                 "ciri-ciri", "10 ciri", "8 tips", "seputar",
-                # boilerplate disclaimer portal loker — bukan laporan nyata
                 "waspada terhadap segala penipuan",
                 "hati hati juga apabila ada penawaran",
                 "jangan memberikan jaminan uang berapapun",
@@ -520,14 +472,6 @@ def _search_with_fallbacks(
 
 
 def _collect_social_searches(entities: dict, searches: list[dict[str, Any]] | None = None) -> list[dict[str, Any]]:
-    """Klasifikasikan hasil intelligent_search (web.searches) yang SUDAH ADA
-    menjadi bucket per-platform — TANPA request tambahan.
-
-    Ini meniru cara pencarian manual: 1 query nama → langsung dapat IG/FB/Maps
-    sekaligus. Versi lama menembak (5 platform × N query) ke SearXNG, yang
-    memicu rate-limit/captcha engine. Karena intelligent_search sudah menemukan
-    URL sosial dalam satu pencarian, kita cukup memfilternya di sini.
-    """
     if not (entities.get("companies") or entities.get("emails")):
         return []
 
@@ -543,8 +487,6 @@ def _collect_social_searches(entities: dict, searches: list[dict[str, Any]] | No
     primary_address = str(addresses[0]) if addresses else ""
     _entity = resolve_entity(primary_company) if primary_company else {}
     _loc_tokens = extract_location_tokens(primary_address) if primary_address else []
-
-    # Kumpulkan semua hasil dari searches yang sudah ada (intelligent_search).
     all_results: list[dict[str, Any]] = []
     source_query = ""
     for s in searches or []:
@@ -587,11 +529,10 @@ def _collect_social_searches(entities: dict, searches: list[dict[str, Any]] | No
     return searches_out
 
 
-_FREE_WEB_DOMAINS = FREE_EMAIL_DOMAINS  
+_FREE_WEB_DOMAINS = FREE_EMAIL_DOMAINS
 
 
 def _entity_tokens(companies: list, domains: list) -> list[str]:
-    """Bangun token unik dari nama perusahaan + domain untuk relevance filter."""
     toks: set[str] = set()
     for comp in companies:
         c = (comp or "").strip()
@@ -616,7 +557,6 @@ def _entity_tokens(companies: list, domains: list) -> list[str]:
 
 
 def _is_generic_social_url(url: str) -> bool:
-    """True jika URL adalah halaman generik platform (login/home), bukan profil spesifik."""
     ul = url.lower()
     generic_bits = ("/signin", "/signup", "/login", "/accounts/", "/home",
                     "/explore/", "/p/signin", "/?hl=", "sharer", "/share")
@@ -624,7 +564,6 @@ def _is_generic_social_url(url: str) -> bool:
 
 
 def _is_relevant(url: str, text: str, ent_tokens: list[str]) -> bool:
-    """True jika hasil SERP relevan dengan entitas."""
     if not ent_tokens:
         return True
     hay = f"{url} {text}".lower().replace("-", "").replace("_", "").replace(".", "").replace(" ", "")
@@ -636,7 +575,6 @@ def _is_relevant(url: str, text: str, ent_tokens: list[str]) -> bool:
 
 
 def _has_maps_evidence(platform_evidence: dict) -> bool:
-    """True jika platform_evidence mengandung hasil Google Maps."""
     if not platform_evidence or not platform_evidence.get("ok"):
         return False
     maps_data = platform_evidence.get("platforms", {}).get("google_maps", {})
@@ -644,11 +582,6 @@ def _has_maps_evidence(platform_evidence: dict) -> bool:
 
 
 def collect_web_evidence(entities: dict) -> dict[str, Any]:
-    """
-    Web evidence (Multi-engine) — dipangkas untuk latency:
-    - skip fetch website domain gratisan (gmail.com dll)
-    - max 3 query search (company presence + scam + email scam)
-    """
     emails = entities.get("emails") or []
     urls = entities.get("urls") or []
     companies = entities.get("companies") or []
@@ -658,8 +591,6 @@ def collect_web_evidence(entities: dict) -> dict[str, Any]:
     domains: list[str] = []
 
     seen_urls = set()
-    # Hanya domain dari URL website nyata / email korporat (bukan Gmail).
-    # URL form dan shortlink ditangani khusus oleh gform_inspections.
     for em in emails[:1]:
         d = _domain_from_email(em)
         if d and d not in _FREE_WEB_DOMAINS and d not in domains:
@@ -673,8 +604,6 @@ def collect_web_evidence(entities: dict) -> dict[str, Any]:
             if clean_url in seen_urls:
                 continue
             seen_urls.add(clean_url)
-            # Form/shortlink hanya diproses oleh gform_inspections di bawah;
-            # jangan masukkan host-nya ke website/domain probe.
             if is_gform_url(clean_url):
                 continue
             _ALL_SOCIAL_HOSTS = {"instagram.com", "facebook.com", "fb.com", "tiktok.com", "threads.net", "threads.com", "x.com", "twitter.com", "linkedin.com", "youtube.com"}
@@ -692,10 +621,6 @@ def collect_web_evidence(entities: dict) -> dict[str, Any]:
     searches: list[dict[str, Any]] = []
     intelligence_signals: dict[str, Any] = {}
     if companies or emails:
-        # ── Search Intelligence Layer: SATU pencarian pintar ────────────────
-        # Hanya SATU query ditembak ke SearXNG (brand + lokasi). Hasilnya
-        # dipakai bersama oleh web evidence, social, platform, dan deteksi scam
-        # (via keyword di snippet) — menghindari rate-limit engine publik.
         from app.services.osint.search_intelligence import intelligent_search
 
         primary_company = str(companies[0]) if companies else ""
@@ -734,28 +659,17 @@ def collect_web_evidence(entities: dict) -> dict[str, Any]:
                 "fallback_index": 0,
             })
         else:
-            # Fallback ke query_builder loop hanya bila pencarian pintar gagal total
             searches.extend(_search_with_fallbacks(entities, "", include_email=False))
 
-        # Catatan: query scam/email terpisah DIHILANGKAN untuk meminimalkan
-        # request. Indikasi scam dideteksi dari snippet hasil pencarian pintar
-        # (keyword "penipuan/scam/penipu") oleh risk-analyzer di prompt layer.
     elif domains:
         searches.append(search_web_evidence(f"{domains[0]} penipuan OR scam"))
 
-    # Email: 1 query scam (cukup); skip local-part medsos (lambat + noise)
-    # Email scam search dihilangkan — meminimalkan request ke SearXNG.
-    # Indikasi scam pada email terdeteksi dari snippet pencarian pintar.
-
     social_searches = _collect_social_searches(entities, searches)
 
-    # ── AI-powered platform evidence (Google Maps, Instagram, Facebook) ──
-    # Mirip pencarian manual Google: cari nama bisnis → ketemu Maps, IG, FB, website
     platform_evidence: dict[str, Any] = {}
     if companies:
         from app.services.osint.platform_providers import collect_all_platform_evidence
         company_name = companies[0] if isinstance(companies[0], str) else str(companies[0])
-        # Ambil lokasi dari alamat jika ada
         loc = ""
         if addresses:
             loc = addresses[0] if isinstance(addresses[0], str) else str(addresses[0])
@@ -793,14 +707,12 @@ def collect_web_evidence(entities: dict) -> dict[str, Any]:
     for s in searches:
         risk_flags.extend(s.get("risk_flags") or [])
 
-    # Deteksi akun medsos & cross-reference lokasi dari hasil pencarian web
     found_social: list[str] = []
     total_public_results = 0
     source_counts: dict[str, int] = {}
     addresses = entities.get("addresses") or []
     companies = entities.get("companies") or []
 
-    # ── Relevance filter: bangun token entitas ─────────
     _ENT_TOKENS = _entity_tokens(companies, domains)
 
     for s in searches:
@@ -809,18 +721,12 @@ def collect_web_evidence(entities: dict) -> dict[str, Any]:
             title = r.get("title") or ""
             snippet = r.get("snippet") or ""
             combined_text = f"{title} {snippet}".lower()
-
-            # Hanya hitung jejak digital yang RELEVAN dengan entitas — buang
-            # hasil SERP acak/iklan yang tidak mengandung token entitas.
             if not _is_relevant(u, combined_text, _ENT_TOKENS):
                 continue
             total_public_results += 1
             source_type = r.get("source_type") or _public_source_type(u, title, snippet)
             source_counts[source_type] = source_counts.get(source_type, 0) + 1
-
-            # Cross-reference alamat: Cek apakah nama kota/jalan dari loker muncul di snippet pencarian bisnis
             for addr in addresses:
-                # Ambil keyword lokasi kunci (misal: Kaliurang, Sleman, Umbulharjo, Yogyakarta)
                 loc_words = [
                     w for w in re.split(r"[^\w]+", addr.lower())
                     if len(w) > 3 and w not in ("jalan", "gang", "nomor", "penempatan", "burger", "bangor")
@@ -856,8 +762,6 @@ def collect_web_evidence(entities: dict) -> dict[str, Any]:
     }
     for source_type, count in source_counts.items():
         safe_flags.append(f"Ditemukan {count} {source_labels.get(source_type, 'jejak publik')}.")
-
-    # Gabungkan signals dari Search Intelligence Layer (jika ada)
     if intelligence_signals:
         risk_flags.extend(intelligence_signals.get("risk_flags") or [])
         safe_flags.extend(intelligence_signals.get("safe_flags") or [])
@@ -867,8 +771,6 @@ def collect_web_evidence(entities: dict) -> dict[str, Any]:
 
     return {
         "enabled": True,
-        # SearXNG multi-engine (primary) → Lightpanda headless browser (fallback)
-        # Lightpanda render JS penuh untuk fetch website; Scrapling fallback terakhir.
         "engine": "searxng + lightpanda fallback",
         "websites": website_checks,
         "probe_status": "COMPLETED",
@@ -882,7 +784,6 @@ def collect_web_evidence(entities: dict) -> dict[str, Any]:
             "empty_searches": sum(1 for s in searches if s.get("status") == "NO_RESULTS"),
             "no_relevant_searches": sum(1 for s in searches if s.get("status") == "NO_RELEVANT_RESULTS"),
             "unavailable_searches": sum(1 for s in searches if s.get("status") == "UNAVAILABLE"),
-            # Search Intelligence Layer signals
             "digital_footprint": intelligence_signals.get("digital_footprint", "unknown"),
             "official_presence": intelligence_signals.get("official_presence", False),
             "marketplace_presence": intelligence_signals.get("marketplace_presence", False),
@@ -892,9 +793,7 @@ def collect_web_evidence(entities: dict) -> dict[str, Any]:
         "risk_flags": uniq(risk_flags),
         "safe_flags": uniq(safe_flags),
         "neutral_notes": uniq(neutral_notes),
-        # AI-powered platform evidence (Google Maps, Instagram, Facebook, dll)
         "platform_evidence": platform_evidence,
-        # Search Intelligence Layer full signals (untuk prompt_builder & observability)
         "search_intelligence": intelligence_signals,
     }
 

@@ -1,34 +1,3 @@
-"""
-Fraud Network Analyzer — Layer 5 dari Job Trust Infrastructure Verifin.
-
-Komponen Case Memory Graph yang memantau jaringan entitas penipuan secara
-berkelanjutan, sebagai bagian dari platform pendamping pencari kerja Verifin.
-
-Implementasi (JUJUR — exact-match entity linking, BUKAN GNN terlatih):
-    Case-Memory Entity Graph dengan entity linking berbasis exact-match:
-    membangun graph NetworkX dari entitas (HP, email, PT, URL) lintas job_cases,
-    lalu memeriksa apakah entitas baru terhubung ke kasus BAHAYA/WASPADA
-    sebelumnya. Belum ada Graph Neural Network / learned embedding —
-    itu roadmap lanjutan.
-- Proposal FR-4: Network Risk Propagator
-
-Arsitektur:
-- PostgreSQL (Supabase) menyimpan semua job_cases yang sudah diverifikasi
-- NetworkX membangun in-memory graph dari entitas (HP, email, PT, URL)
-- Query: apakah entitas baru terhubung ke kasus BAHAYA/WASPADA sebelumnya?
-- Output: fraud_network_context yang dimasukkan ke SHAP explainer
-
-Node types (sesuai skema Graf Heterogen di proposal):
-- JobCase: node lowongan
-- Phone: node nomor HP/WA
-- Email: node alamat email
-- Company: node nama PT/perusahaan
-- URL: node domain/URL
-
-Edge types:
-- USES_PHONE, USES_EMAIL, MENTIONS_COMPANY, LINKS_TO
-"""
-
 import logging
 import re
 from typing import Any
@@ -48,15 +17,6 @@ def _canonical_phone(value: Any) -> str:
 
 
 def build_fraud_network(job_cases: list[dict[str, Any]]) -> nx.MultiDiGraph:
-    """
-    Bangun heterogeneous graph dari riwayat job_cases.
-
-    Args:
-        job_cases: List dict dari tabel job_cases (phones, emails, companies, verdict)
-
-    Returns:
-        NetworkX MultiDiGraph dengan node entitas dan edge relasi
-    """
     G = nx.MultiDiGraph()
 
     for case in job_cases:
@@ -64,7 +24,6 @@ def build_fraud_network(job_cases: list[dict[str, Any]]) -> nx.MultiDiGraph:
         verdict = case.get("verdict", "AMAN")
         risk_score = case.get("risk_score", 0)
 
-        # Node: JobCase
         G.add_node(
             f"case:{case_id}",
             node_type="JobCase",
@@ -73,7 +32,6 @@ def build_fraud_network(job_cases: list[dict[str, Any]]) -> nx.MultiDiGraph:
             created_at=str(case.get("created_at", "")),
         )
 
-        # Edges: USES_PHONE
         for phone in (case.get("phones") or []):
             phone = _canonical_phone(phone)
             if not phone:
@@ -87,7 +45,6 @@ def build_fraud_network(job_cases: list[dict[str, Any]]) -> nx.MultiDiGraph:
                 verdict=verdict,
             )
 
-        # Edges: USES_EMAIL
         for email in (case.get("emails") or []):
             email = str(email).strip().lower()
             if not email:
@@ -101,7 +58,6 @@ def build_fraud_network(job_cases: list[dict[str, Any]]) -> nx.MultiDiGraph:
                 verdict=verdict,
             )
 
-        # Edges: MENTIONS_COMPANY
         for company in (case.get("companies") or []):
             co_name = company.upper().strip() if isinstance(company, str) else ""
             if co_name:
@@ -114,9 +70,7 @@ def build_fraud_network(job_cases: list[dict[str, Any]]) -> nx.MultiDiGraph:
                     verdict=verdict,
                 )
 
-        # Edges: LINKS_TO (URL/domain)
         for url in (case.get("urls") or []):
-            # Normalize ke domain saja
             domain = _extract_domain(url)
             if domain:
                 url_node = f"url:{domain}"
@@ -135,29 +89,10 @@ def check_entity_in_network(
     G: nx.MultiDiGraph,
     entities: dict[str, Any],
 ) -> dict[str, Any]:
-    """
-    Periksa apakah entitas dari lowongan baru terhubung ke jaringan penipuan.
-
-    Args:
-        G: Graf fraud network dari riwayat kasus
-        entities: Dict entitas yang diekstrak dari lowongan baru
-                  (phones, emails, companies, urls)
-
-    Returns:
-        {
-            "entity_in_fraud_network": bool,
-            "entity_seen_multiple_cases": bool,
-            "fraud_case_count": int,
-            "total_case_count": int,
-            "matched_entities": list[dict],
-            "network_graph_summary": dict,
-        }
-    """
     matched_entities: list[dict[str, Any]] = []
     fraud_case_count = 0
     total_case_count = 0
 
-    # Cek tiap tipe entitas
     checks = [
         ("phones",    "phone",   [_canonical_phone(p) for p in (entities.get("phones") or []) if _canonical_phone(p)]),
         ("emails",    "email",   [str(e).strip().lower() for e in (entities.get("emails") or []) if str(e).strip()]),
@@ -171,7 +106,6 @@ def check_entity_in_network(
             if not G.has_node(node_id):
                 continue
 
-            # Temukan semua kasus yang menggunakan entitas ini
             predecessor_cases = [
                 (n, G.nodes[n])
                 for n in G.predecessors(node_id)
@@ -222,20 +156,9 @@ def get_network_graph_data(
     G: nx.MultiDiGraph,
     max_nodes: int = 50,
 ) -> dict[str, Any]:
-    """
-    Export graph data untuk visualisasi di FE (format: nodes + edges).
-
-    Args:
-        G: Fraud network graph
-        max_nodes: Batas node untuk export (hindari payload terlalu besar)
-
-    Returns:
-        {"nodes": [...], "edges": [...]} untuk D3.js / cytoscape.js
-    """
     nodes = []
     edges = []
 
-    # Prioritaskan node yang terhubung ke kasus fraud
     fraud_related = set()
     for n, d in G.nodes(data=True):
         if d.get("node_type") == "JobCase" and d.get("verdict") in ("BAHAYA", "WASPADA"):
@@ -272,16 +195,11 @@ def get_network_graph_data(
 
 
 def _extract_domain(url: str) -> str | None:
-    """Extract domain dari URL."""
     if not url:
         return None
-    # Hapus protocol
     url = re.sub(r"^https?://", "", url.lower().strip())
-    # Ambil bagian sebelum path
     domain = url.split("/")[0].split("?")[0]
-    # Hapus www.
     domain = re.sub(r"^www\.", "", domain)
-    # Validasi minimal ada titik
     if "." in domain and len(domain) > 3:
         return domain
     return None

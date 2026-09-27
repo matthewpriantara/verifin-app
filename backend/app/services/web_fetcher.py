@@ -1,4 +1,3 @@
-"""Web/social fetcher — Lightpanda + Scrapling + IG embed untuk URL OSINT."""
 from __future__ import annotations
 
 import asyncio
@@ -12,7 +11,6 @@ from app.services.url_guard import validate_public_http_url
 
 logger = logging.getLogger(__name__)
 
-# Noise pattern footer Instagram/Threads — break saat ketemu baris ini
 _IG_NOISE_PATTERNS = [
     r"Jangan pernah lewatkan postingan",
     r"Daftar Instagram untuk tetap tahu",
@@ -76,7 +74,6 @@ def _clean_text_lines(text: str) -> str:
 
 
 def _sync_scrapling_fetch(url: str) -> tuple[str, list[str]]:
-    """Scrape teks + image URLs dari URL (Lightpanda → IG embed → oEmbed → proxy → Scrapling → HTTPX fallback)."""
     validate_public_http_url(url)
 
     combined_caption_text = ""
@@ -88,7 +85,6 @@ def _sync_scrapling_fetch(url: str) -> tuple[str, list[str]]:
         "Accept-Language": "id-ID,id;q=0.9,en-US;q=0.8,en;q=0.7",
     }
 
-    # 0. Lightpanda — render JS penuh (prioritas untuk SPA, IG, FB, Threads)
     try:
         from app.services.osint.lightpanda_client import lightpanda_fetch, is_lightpanda_available
         if is_lightpanda_available():
@@ -96,8 +92,6 @@ def _sync_scrapling_fetch(url: str) -> tuple[str, list[str]]:
             if lp_result.get("ok") and lp_result.get("content"):
                 soup = BeautifulSoup(lp_result["content"], "html.parser")
                 text_parts = []
-
-                # Meta tags
                 for prop in ("og:title", "og:description"):
                     meta = soup.find("meta", property=prop)
                     if meta and meta.get("content"):
@@ -105,12 +99,10 @@ def _sync_scrapling_fetch(url: str) -> tuple[str, list[str]]:
                         if not _is_script_or_ad_junk(cont):
                             text_parts.append(cont)
 
-                # Body text
                 for tag in soup(["script", "style", "nav", "footer", "header", "noscript", "template", "iframe"]):
                     tag.decompose()
                 body_text = soup.get_text(separator="\n", strip=True)
                 if body_text:
-                    # Filter noise IG/Threads & JS script junk
                     lines = []
                     for line in body_text.splitlines():
                         if any(re.search(pat, line, re.I) for pat in _IG_NOISE_PATTERNS):
@@ -125,7 +117,6 @@ def _sync_scrapling_fetch(url: str) -> tuple[str, list[str]]:
                 if text_parts:
                     combined_caption_text = "\n".join(text_parts).strip()
 
-                # Images
                 for img in soup.find_all("img"):
                     src = img.get("src") or img.get("data-src")
                     if src and ("scontent" in src or "cdninstagram" in src or "fbcdn" in src):
@@ -140,12 +131,10 @@ def _sync_scrapling_fetch(url: str) -> tuple[str, list[str]]:
     except Exception as exc:
         logger.warning("[Lightpanda Fetch] gagal: %s", exc)
 
-    # Jika Lightpanda sudah dapat konten, skip langkah berikutnya
     if not combined_caption_text:
         ig_match = re.search(r"instagram\.com/(?:p|reel|tv)/([^/?#&]+)", url, re.I)
         if ig_match:
             shortcode = ig_match.group(1)
-            # 1. Coba Halaman Embed Instagram (Sangat efektif mengekstrak poster & caption publik tanpa login)
             embed_url = f"https://www.instagram.com/p/{shortcode}/embed/captioned/"
             try:
                 res = httpx.get(embed_url, headers=headers, follow_redirects=True, timeout=12.0)
@@ -161,7 +150,6 @@ def _sync_scrapling_fetch(url: str) -> tuple[str, list[str]]:
                         if src and ("scontent" in src or "cdninstagram.com" in src):
                             image_urls.append(src)
 
-                    # Ekstrak URL scontent CDN dari script/raw text HTML embed
                     found_scontent = re.findall(r'https://scontent[^"\'\s\\]+', res.text)
                     for s_url in found_scontent:
                         clean = s_url.replace("\\u0026", "&").replace("\\/", "/")
@@ -169,7 +157,6 @@ def _sync_scrapling_fetch(url: str) -> tuple[str, list[str]]:
             except Exception as exc:
                 logger.warning("[Instagram Embed] %s", exc)
 
-            # 2. Jika belum dapat gambar, coba oEmbed API
             if not image_urls:
                 try:
                     oembed_url = f"https://www.instagram.com/api/v1/oembed/?url={url}"
@@ -183,7 +170,6 @@ def _sync_scrapling_fetch(url: str) -> tuple[str, list[str]]:
                 except Exception as exc:
                     logger.warning("[Instagram oEmbed] %s", exc)
 
-            # 3. Jika gambar belum dapat, coba proxy fixer (vxinstagram / ddinstagram)
             if not image_urls:
                 for domain in ["vxinstagram.com", "ddinstagram.com"]:
                     try:
@@ -202,7 +188,6 @@ def _sync_scrapling_fetch(url: str) -> tuple[str, list[str]]:
                     except Exception as exc:
                         logger.warning("[IG Proxy %s] %s", domain, exc)
 
-    # Generic Scrapling/HTTPX fetcher (fallback jika Lightpanda tidak dapat konten)
     if not combined_caption_text:
         try:
             from scrapling.fetchers import Fetcher
@@ -224,7 +209,7 @@ def _sync_scrapling_fetch(url: str) -> tuple[str, list[str]]:
                 text_parts.append(f"Perusahaan/Pengiklan: {company_meta.strip()}")
 
             og_desc = (
-                page.css("meta[property='og:description']::attr(content)").get() 
+                page.css("meta[property='og:description']::attr(content)").get()
                 or page.css("meta[name='description']::attr(content)").get()
             )
             if og_desc and og_desc.strip() and og_desc.strip() not in text_parts:
@@ -250,7 +235,6 @@ def _sync_scrapling_fetch(url: str) -> tuple[str, list[str]]:
 
             combined_caption_text = "\n".join(text_parts).strip()
 
-            # Filter footer noise Instagram/Threads
             lines_clean = []
             for line in (combined_caption_text or "").splitlines():
                 if any(re.search(pat, line, re.I) for pat in _IG_NOISE_PATTERNS):
@@ -288,7 +272,6 @@ def _sync_scrapling_fetch(url: str) -> tuple[str, list[str]]:
         except Exception as exc:
             logger.warning("[HTTPX Scrape Fallback] %s", exc)
 
-    # Deduplicate preserving order
     seen_urls = set()
     dedup_images = []
     for img_u in image_urls:

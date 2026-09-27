@@ -1,14 +1,9 @@
-"""
-Pydantic schema request dan response untuk endpoint verifikasi Verifin.
-"""
-
 from pydantic import BaseModel, Field, ConfigDict, field_validator
 from typing import List, Optional, Dict, Any
 from app.services.url_guard import validate_public_http_url
 
 
 class TextVerifyRequest(BaseModel):
-    """Request body untuk endpoint POST /verify/text"""
     text: str = Field(
         ...,
         description="Teks lowongan kerja yang ingin diverifikasi (bisa berupa teks kasar atau yang sudah diformat).",
@@ -23,7 +18,6 @@ class TextVerifyRequest(BaseModel):
 
 
 class UrlVerifyRequest(BaseModel):
-    """Request body untuk endpoint POST /verify/url"""
     url: str = Field(
         ...,
         description="URL/Link postingan lowongan kerja (misal Instagram, Threads, LinkedIn, JobStreet, Facebook, atau website perusahaan).",
@@ -42,7 +36,6 @@ class UrlVerifyRequest(BaseModel):
 
 
 class ExtractedEntities(BaseModel):
-    """Entitas yang berhasil diekstrak dari teks/gambar."""
     companies: List[str] = Field(default=[], description="Nama perusahaan/instansi.")
     contacts: List[str] = Field(default=[], description="Nomor HP dalam format internasional (+62...).")
     emails: List[str] = Field(default=[], description="Alamat email.")
@@ -55,7 +48,6 @@ class ExtractedEntities(BaseModel):
 
 
 class VerifyResponse(BaseModel):
-    """Response utama untuk semua endpoint verifikasi."""
     model_config = ConfigDict(protected_namespaces=())
     verdict: str = Field(
         description="Keputusan AI: AMAN, WASPADA, BAHAYA, atau ERROR.",
@@ -104,7 +96,6 @@ class VerifyResponse(BaseModel):
 
 
 class LlmStatusResponse(BaseModel):
-    """Response health check LLM (OpenAgentic)."""
     provider: str = "openagentic"
     configured: bool
     reachable: bool

@@ -1,12 +1,3 @@
-"""
-Community Reports — laporan penipuan dari komunitas (suplemen Fraud Network).
-
-Endpoint:
-- POST /community/report   → kirim laporan baru (multipart: JSON fields + optional gambar)
-- GET  /community/check    → cek berapa kali entitas dilaporkan
-- GET  /community/recent   → laporan terbaru (transparansi publik)
-"""
-
 from __future__ import annotations
 
 import json
@@ -18,7 +9,6 @@ from uuid import UUID
 
 from fastapi import APIRouter, Depends, File, Form, HTTPException, Query, Request, UploadFile
 from sqlalchemy import func, or_, text
-from sqlalchemy import func, or_
 from sqlalchemy.orm import Session
 
 from app.database.models import CommunityReport
@@ -28,14 +18,10 @@ from app.api.v1.community.schema import CommunityReportIn, CommunityReportOut, M
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
-
-# Buat tabel bila belum ada (aman: checkfirst=True, tidak menimpa yang ada).
 try:
     Base.metadata.create_all(bind=engine, tables=[CommunityReport.__table__], checkfirst=True)
-except Exception as exc:  # noqa: BLE001 — jangan gagalkan boot bila DB sesaat down
+except Exception as exc:
     logger.warning("[community] create_all skipped: %s", exc)
-
-# Migrasi ringan: tambah kolom moderasi bila tabel sudah ada dari versi lama.
 try:
     with engine.begin() as conn:
         for ddl in (
@@ -48,7 +34,7 @@ try:
             'CREATE INDEX IF NOT EXISTS ix_community_reports_status ON community_reports (status)',
         ):
             conn.execute(text(ddl))
-except Exception as exc:  # noqa: BLE001
+except Exception as exc:
     logger.warning("[community] migration skipped: %s", exc)
 
 
@@ -72,17 +58,14 @@ async def submit_report(
             detail="Isi minimal satu entitas yang dilaporkan: nama perusahaan, nomor HP, email, atau URL.",
         )
 
-    # Simpan gambar bukti jika ada
     evidence_file_url = None
     if evidence_file and evidence_file.filename:
-        # Validasi tipe file (hanya gambar)
         allowed_types = {"image/jpeg", "image/png", "image/webp", "image/jpg"}
         if evidence_file.content_type not in allowed_types:
             raise HTTPException(
                 status_code=422,
                 detail="Format file tidak didukung. Gunakan JPG, PNG, atau WebP.",
             )
-        # Validasi ukuran (max 5MB)
         contents = await evidence_file.read()
         if len(contents) > 5 * 1024 * 1024:
             raise HTTPException(
@@ -117,7 +100,7 @@ async def submit_report(
     try:
         db.commit()
         db.refresh(report)
-    except Exception as exc:  # noqa: BLE001
+    except Exception as exc:
         db.rollback()
         raise HTTPException(status_code=500, detail=f"Gagal menyimpan laporan: {exc}") from exc
 
@@ -152,7 +135,7 @@ def check_entity(
 
     try:
         count = db.query(func.count(CommunityReport.id)).filter(or_(*conditions)).scalar() or 0
-    except Exception as exc:  # noqa: BLE001
+    except Exception as exc:
         raise HTTPException(status_code=500, detail=f"Gagal mengambil data: {exc}") from exc
 
     return {
@@ -175,7 +158,7 @@ def recent_reports(
             .limit(limit)
             .all()
         )
-    except Exception as exc:  # noqa: BLE001
+    except Exception as exc:
         raise HTTPException(status_code=500, detail=f"Gagal mengambil laporan: {exc}") from exc
 
     return {
@@ -214,7 +197,7 @@ def list_reports(
         query = query.filter(CommunityReport.status == status)
     try:
         rows = query.order_by(CommunityReport.created_at.desc()).limit(limit).all()
-    except Exception as exc:  # noqa: BLE001
+    except Exception as exc:
         raise HTTPException(status_code=500, detail=f"Gagal mengambil laporan: {exc}") from exc
 
     return {
@@ -258,7 +241,7 @@ def review_report(
         report.reviewed_at = func.now()
     try:
         db.commit()
-    except Exception as exc:  # noqa: BLE001
+    except Exception as exc:
         db.rollback()
         raise HTTPException(status_code=500, detail=f"Gagal menyimpan review: {exc}") from exc
 

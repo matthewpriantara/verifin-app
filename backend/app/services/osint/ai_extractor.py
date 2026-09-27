@@ -1,15 +1,3 @@
-"""
-AI-powered search evidence extraction & ranking.
-
-Mengambil raw search results dari Lightpanda (DuckDuckGo/Google/Bing render),
-lalu dikirim ke LLM untuk:
-1. Extract data terstruktur (nama, alamat, telepon, Instagram, Facebook, Google Maps, dll)
-2. Ranking relevansi tiap hasil terhadap query
-3. Klasifikasi jenis evidence (social_media, business_listing, news, scam_report, dll)
-4. Dedup cross-source (Instagram + Facebook + Google Maps = satu entity)
-
-Output: structured evidence mirip hasil pencarian manual Google.
-"""
 from __future__ import annotations
 
 import logging
@@ -50,7 +38,6 @@ Dedup: Jika multiple hasil merujuk ke entity yang sama, gabungkan datanya.
 Sort: Urutkan dari relevance_score tertinggi."""
 
 def _build_user_prompt(query: str, results: list[dict[str, Any]]) -> str:
-    """Build prompt dari search results."""
     lines = [f"Query pencarian: {query}", "", "Hasil pencarian mentah:"]
     for i, r in enumerate(results, 1):
         lines.append(f"--- Hasil {i} ---")
@@ -101,21 +88,6 @@ async def ai_extract_and_rank(
     *,
     max_tokens: int = 4096,
 ) -> dict[str, Any]:
-    """
-    Kirim raw search results ke LLM untuk extraction + ranking.
-
-    Returns structured evidence dengan format:
-    {
-        "ok": bool,
-        "query": str,
-        "results": [...],  # ranked & extracted
-        "summary": str,
-        "entities_found": list[str],
-        "has_strong_verification": bool,
-        "has_scam_indicators": bool,
-        "error": str | None,
-    }
-    """
     if not raw_results:
         return {
             "ok": False,
@@ -143,7 +115,6 @@ async def ai_extract_and_rank(
         parsed = extract_json_from_response(raw_response)
 
         results = parsed.get("results", [])
-        # Pastikan relevance_score adalah int dan sort descending
         for r in results:
             try:
                 r["relevance_score"] = int(r.get("relevance_score", 0))
@@ -185,13 +156,6 @@ async def ai_extract_from_page(
     *,
     max_tokens: int = 4096,
 ) -> dict[str, Any]:
-    """
-    Extract structured data dari konten halaman yang sudah di-render Lightpanda.
-
-    Berguna untuk halaman Instagram, Facebook, Google Maps, dll yang
-    kontennya heavy JS dan perlu parsing cerdas.
-    """
-    # Truncate content terlalu panjang
     max_content = 8000
     truncated = page_content[:max_content]
     if len(page_content) > max_content:
