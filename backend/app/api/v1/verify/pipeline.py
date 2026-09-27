@@ -132,6 +132,16 @@ def _community_report_signal(db: Session, entities: dict) -> dict:
         "risk_signal": "HIGH" if count >= 3 else ("MEDIUM" if count == 2 else ("LOW" if count == 1 else "NONE")),
     }
 
+def _clean_text_for_ner(text: str) -> str:
+    """Bersihkan label internal perancah sistem sebelum diproses LLM agar tidak mencemari ekstraksi."""
+    if not text:
+        return ""
+    cleaned = re.sub(r"^\[TEKS\s+UTAMA[^\]]*\]:\s*", "", text, flags=re.I | re.M)
+    cleaned = re.sub(r"^\[TEKS\s+CAPTION[^\]]*\]:\s*", "", cleaned, flags=re.I | re.M)
+    cleaned = re.sub(r"^\[UTAS\s+BALASAN[^\]]*\]:\s*", "", cleaned, flags=re.I | re.M)
+    cleaned = re.sub(r"^URL\s+Target:\s*\S+\s*", "", cleaned, flags=re.I | re.M)
+    return cleaned.strip()
+
 
 async def _extract_entities_hybrid(text: str) -> dict:
     """
@@ -146,15 +156,16 @@ async def _extract_entities_hybrid(text: str) -> dict:
 
     Metadata extraction disimpan di entities["_ner_meta"] untuk observability.
     """
+    clean_text = _clean_text_for_ner(text) or text
+
     # Step 1: Regex extraction (instan) — jalankan dulu untuk dapatkan candidates
     regex_entities = await asyncio.to_thread(extract_entities_from_text, text)
 
-    # Step 2 & 3: LLM extraction + validation (paralel)
+    # Step 2 & 3: LLM extraction + validation (paralel) menggunakan teks bersih
     llm_extracted, llm_validated = await asyncio.gather(
-        _run_llm_ner(text),
-        _run_llm_validation(text, regex_entities),
+        _run_llm_ner(clean_text),
+        _run_llm_validation(clean_text, regex_entities),
     )
-
     # Apply LLM validation jika ada (filter false positive)
     if llm_validated:
         # Phones: hanya pakai yang divalidasi LLM (termasuk list kosong = semua dihapus)
