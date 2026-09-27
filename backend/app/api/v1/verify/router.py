@@ -804,10 +804,15 @@ async def _verify_url_stream_generator(url: str, additional_text: str, db_sessio
         # ── Stage 3: OSINT ──────────────────────────────────────────────
         yield _sse_event("stage", {"stage": "osint", "status": "processing", "message": "Menjalankan OSINT probes (WHOIS, peta, media sosial)..."})
         stage_started = time.perf_counter()
-        osint_results = await _run_osint_on_entities(entities)
+        osint_task = asyncio.create_task(_run_osint_on_entities(entities))
+        while not osint_task.done():
+            done, _ = await asyncio.wait({osint_task}, timeout=3.0)
+            if done:
+                break
+            yield ": keepalive\n\n"
+        osint_results = osint_task.result()
         _log_osint_summary(request_id, osint_results)
         logger.info("[verify-stream][%s] OSINT done duration=%.2fs", request_id, time.perf_counter() - stage_started)
-
         # OSINT Enrichment
         entities = await _enrich_entities_from_osint(entities, osint_results)
         yield _sse_event("stage", {"stage": "osint", "status": "done", "message": "OSINT selesai"})
@@ -822,9 +827,15 @@ async def _verify_url_stream_generator(url: str, additional_text: str, db_sessio
         # ── Stage 5: LLM Reasoning ─────────────────────────────────────
         yield _sse_event("stage", {"stage": "ai", "status": "processing", "message": "AI menganalisis dan menyusun verdict..."})
         stage_started = time.perf_counter()
-        analysis = await analyze_with_verifin(
+        llm_task = asyncio.create_task(analyze_with_verifin(
             entities, osint_results, raw_text=full_raw_text
-        )
+        ))
+        while not llm_task.done():
+            done, _ = await asyncio.wait({llm_task}, timeout=3.0)
+            if done:
+                break
+            yield ": keepalive\n\n"
+        analysis = llm_task.result()
         _log_raw_json(request_id, "ANALYSIS", analysis)
         logger.info("[verify-stream][%s] LLM done verdict=%s score=%s duration=%.2fs", request_id, analysis.get("verdict"), analysis.get("risk_score"), time.perf_counter() - stage_started)
 

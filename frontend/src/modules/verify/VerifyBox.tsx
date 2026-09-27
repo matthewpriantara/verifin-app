@@ -341,6 +341,7 @@ export function VerifyBox() {
   const [stageMessage, setStageMessage] = useState<string>("");
   const [stageStatuses, setStageStatuses] = useState<Record<string, "waiting" | "processing" | "done">>({});
   const abortControllerRef = useRef<AbortController | null>(null);
+  const isDoneRef = useRef(false);
   const inputSource: InputSource = file
     ? "image"
     : isPureUrl(text)
@@ -437,6 +438,7 @@ export function VerifyBox() {
         break;
       }
       case "done": {
+        isDoneRef.current = true;
         const result = event.data.response as VerifyResponse;
         _saveToHistory(result, "URL Lowongan");
         sessionStorage.setItem(REPORT_STORAGE_KEY, JSON.stringify(result));
@@ -543,6 +545,7 @@ export function VerifyBox() {
       setError("Tempel teks lowongan atau lampirkan screenshot terlebih dahulu.");
       return;
     }
+    isDoneRef.current = false;
     setLoading(true);
     setStepIndex(0);
     setStageStatuses({});
@@ -580,6 +583,9 @@ export function VerifyBox() {
         }, 350);
       }
     } catch (err) {
+      if (isDoneRef.current) {
+        return;
+      }
       // AbortError = user klik Batal, jangan tampilkan error
       if (err instanceof DOMException && err.name === "AbortError") {
         // silent — sudah di-handle oleh handleCancel
@@ -593,7 +599,9 @@ export function VerifyBox() {
       }
     } finally {
       abortControllerRef.current = null;
-      setLoading(false);
+      if (!isDoneRef.current) {
+        setLoading(false);
+      }
     }
   }
 
