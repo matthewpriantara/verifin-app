@@ -1,14 +1,14 @@
 name: Build and Push Docker Images to GHCR
 
 on:
-  push:
-    branches:
-      - main
-    paths:
-      - "backend/**"
-      - "frontend/**"
-      - "docker-compose.yml"
-      - ".github/workflows/deploy.yml"
+  # push:
+  #   branches:
+  #     - main
+  #   paths:
+  #     - "backend/**"
+  #     - "frontend/**"
+  #     - "docker-compose.yml"
+  #     - ".github/workflows/deploy.yml"
   workflow_dispatch:
 
 concurrency:
