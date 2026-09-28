@@ -65,27 +65,27 @@ export function formatTimeAgo(timestamp: number): string {
   return new Date(timestamp).toLocaleDateString("id-ID", { day: "numeric", month: "short" });
 }
 
+const EMPTY_HISTORY: HistoryItem[] = [];
 let cachedHistoryRaw: string | null = null;
-let cachedHistoryItems: HistoryItem[] = [];
-const emptyHistoryServerSnapshot: HistoryItem[] = [];
+let cachedHistoryItems: HistoryItem[] = EMPTY_HISTORY;
 
 export function getHistory(): HistoryItem[] {
-  if (typeof window === "undefined") return emptyHistoryServerSnapshot;
+  if (typeof window === "undefined") return EMPTY_HISTORY;
   try {
     const raw = localStorage.getItem(HISTORY_STORAGE_KEY);
     if (!raw) {
       cachedHistoryRaw = null;
-      cachedHistoryItems = [];
-      return cachedHistoryItems;
+      cachedHistoryItems = EMPTY_HISTORY;
+      return EMPTY_HISTORY;
     }
     if (raw === cachedHistoryRaw) {
       return cachedHistoryItems;
     }
+    cachedHistoryRaw = raw;
     const items: HistoryItem[] = JSON.parse(raw);
     if (!Array.isArray(items)) {
-      cachedHistoryRaw = raw;
-      cachedHistoryItems = [];
-      return cachedHistoryItems;
+      cachedHistoryItems = EMPTY_HISTORY;
+      return EMPTY_HISTORY;
     }
     const cutoff = Date.now() - HISTORY_TTL_DAYS * 86400000;
     const fresh = items.filter((item) => item.timestamp > cutoff);
@@ -93,18 +93,17 @@ export function getHistory(): HistoryItem[] {
       const serialized = JSON.stringify(fresh);
       localStorage.setItem(HISTORY_STORAGE_KEY, serialized);
       cachedHistoryRaw = serialized;
-    } else {
-      cachedHistoryRaw = raw;
     }
     cachedHistoryItems = fresh.sort((a, b) => b.timestamp - a.timestamp);
     return cachedHistoryItems;
   } catch {
-    return [];
+    cachedHistoryItems = EMPTY_HISTORY;
+    return EMPTY_HISTORY;
   }
 }
 
 export function getServerHistory(): HistoryItem[] {
-  return emptyHistoryServerSnapshot;
+  return EMPTY_HISTORY;
 }
 
 export function subscribeHistory(callback: () => void): () => void {
