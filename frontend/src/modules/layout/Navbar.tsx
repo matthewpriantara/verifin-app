@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { ShieldCheck, ChatTeardropText, Gauge } from "@phosphor-icons/react";
+import { ShieldCheck, ChatTeardropText } from "@phosphor-icons/react";
 
 export function Navbar() {
   const pathname = usePathname();

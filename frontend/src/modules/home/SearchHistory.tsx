@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useSyncExternalStore } from "react";
 import { useRouter } from "next/navigation";
 import { motion, AnimatePresence } from "motion/react";
 import {
@@ -16,6 +16,8 @@ import {
 } from "@phosphor-icons/react";
 import {
   getHistory,
+  getServerHistory,
+  subscribeHistory,
   removeHistory,
   clearHistory,
   formatTimeAgo,
@@ -41,45 +43,23 @@ const pageVariants = {
 
 export function SearchHistory() {
   const router = useRouter();
-  const [history, setHistory] = useState<HistoryItem[]>([]);
+  const history = useSyncExternalStore(subscribeHistory, getHistory, getServerHistory);
   const [currentPage, setCurrentPage] = useState(1);
   const [direction, setDirection] = useState(0);
 
-  // Load history dari localStorage saat mount
-  useEffect(() => {
-    setHistory(getHistory());
-
-    // Listen perubahan localStorage (misal: setelah verifikasi baru, tab lain)
-    const handleStorage = () => setHistory(getHistory());
-    window.addEventListener("storage", handleStorage);
-    window.addEventListener("verifin:history-updated", handleStorage);
-
-    return () => {
-      window.removeEventListener("storage", handleStorage);
-      window.removeEventListener("verifin:history-updated", handleStorage);
-    };
-  }, []);
-
-  // Reset ke halaman 1 kalau history berubah
-  useEffect(() => {
-    if (currentPage > 1 && (currentPage - 1) * ITEMS_PER_PAGE >= history.length) {
-      setCurrentPage(1);
-    }
-  }, [history.length, currentPage]);
-
   const totalPages = Math.max(1, Math.ceil(history.length / ITEMS_PER_PAGE));
+  const safeCurrentPage = Math.min(Math.max(1, currentPage), totalPages);
 
   const paginatedItems = history.slice(
-    (currentPage - 1) * ITEMS_PER_PAGE,
-    currentPage * ITEMS_PER_PAGE
+    (safeCurrentPage - 1) * ITEMS_PER_PAGE,
+    safeCurrentPage * ITEMS_PER_PAGE
   );
 
   const handlePageChange = (newPage: number) => {
-    if (newPage === currentPage) return;
-    setDirection(newPage > currentPage ? 1 : -1);
+    if (newPage === safeCurrentPage) return;
+    setDirection(newPage > safeCurrentPage ? 1 : -1);
     setCurrentPage(newPage);
   };
-
   const handleSelectHistory = (item: HistoryItem) => {
     if (item.case_id) {
       router.push(`/report/${item.case_id}`);
@@ -91,12 +71,10 @@ export function SearchHistory() {
   const handleRemove = (e: React.MouseEvent, id: string) => {
     e.stopPropagation();
     removeHistory(id);
-    setHistory(getHistory());
   };
 
   const handleClearAll = () => {
     clearHistory();
-    setHistory([]);
   };
 
   const getVerdictBadge = (verdict: HistoryItem["verdict"], score: number) => {

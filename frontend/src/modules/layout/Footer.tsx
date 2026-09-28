@@ -1,7 +1,6 @@
 "use client";
 
 import Link from "next/link";
-import { motion } from "motion/react";
 import { ShieldCheck } from "@phosphor-icons/react";
 
 export function Footer() {
@@ -11,7 +10,7 @@ export function Footer() {
       <div className="relative mx-auto max-w-6xl px-4 sm:px-6">
         {/* Upper Grid Layout */}
         <div className="grid grid-cols-1 gap-10 md:grid-cols-12 pb-8 border-b border-bg/10">
-          
+
           {/* Col 1: Branding & Description */}
           <div className="md:col-span-5 space-y-4">
             <Link href="/" className="inline-flex items-center gap-2 group">
@@ -23,7 +22,7 @@ export function Footer() {
               </span>
             </Link>
             <p className="text-[13px] leading-relaxed text-bg/60 max-w-sm">
-              Platform verifikasi lowongan kerja terintegrasi. Memanfaatkan OSINT, 
+              Platform verifikasi lowongan kerja terintegrasi. Memanfaatkan OSINT,
               graf hubungan (Heterogeneous Graph), dan Explainable AI (Evidence Attribution) untuk menciptakan ekosistem pencarian kerja yang aman.
             </p>
           </div>
@@ -82,7 +81,7 @@ export function Footer() {
             </p>
           </div>
           <p className="text-[11px] md:text-[12px] leading-relaxed text-bg/35 max-w-md md:text-right font-light">
-            Disclaimer: Hasil analisis risiko yang disajikan bersifat indikatif 
+            Disclaimer: Hasil analisis risiko yang disajikan bersifat indikatif
             dan merupakan hasil pemrosesan AI secara otomatis. Bukan merupakan putusan hukum final.
           </p>
         </div>

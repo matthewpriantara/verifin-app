@@ -79,12 +79,6 @@ export async function verifyUrl(url: string): Promise<VerifyResponse> {
  return res.json() as Promise<VerifyResponse>;
 }
 
-// ── SSE Streaming untuk real-time progress ──────────────────────────────
-// Event types yang dikirim backend:
-//   "start"  → { request_id, message }
-//   "stage"  → { stage: "fetch"|"ocr"|"ner"|"osint"|"graph"|"ai", status: "processing"|"done", message }
-//   "done"   → { case_id, verdict, risk_score, response: VerifyResponse }
-//   "error"  → { message }
 
 export type SSEEvent =
  | { event: "start"; data: { request_id: string; message: string } }

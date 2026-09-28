@@ -13,16 +13,13 @@ import {
   CheckCircle,
   CircleNotch,
   ArrowRight,
-  ClipboardText,
 } from "@phosphor-icons/react";
 import { Button } from "@/components/ui/Button";
 import { cn, REPORT_STORAGE_KEY, addHistory, normalizeVerdict } from "@/lib/utils";
-import { verifyImage, verifyText, verifyUrl, verifyUrlStream } from "@/lib/api";
+import { verifyImage, verifyText, verifyUrlStream } from "@/lib/api";
 import type { SSEEvent } from "@/lib/api";
 import type { VerifyResponse } from "@/types/verify";
 
-/* ─── URL detection ─────────────────────────────────────────────────────── */
-// Cocokkan URL dengan/tanpa skema: bit.ly/x, www.foo.com/a, https://foo.com/a
 const URL_RE = /^(?:https?:\/\/)?(?:www\.)?[a-z0-9-]+(?:\.[a-z0-9-]+)+(?:\/[^\s]*)?$/i;
 
 function isPureUrl(s: string): boolean {
@@ -82,7 +79,6 @@ function getSteps(source: InputSource) {
   ];
 }
 
-/* ─── Loading Modal Popup (Horizontal Stepper) ─────────────────────────────── */
 function LoadingModal({
   stepIndex,
   dotCount,
@@ -90,7 +86,6 @@ function LoadingModal({
   steps,
   onCancel,
   stageMessage,
-  stageStatuses,
 }: {
   stepIndex: number;
   dotCount: number;
@@ -98,10 +93,7 @@ function LoadingModal({
   steps: ReturnType<typeof getSteps>;
   onCancel?: () => void;
   stageMessage?: string;
-  stageStatuses?: Record<string, "waiting" | "processing" | "done">;
 }) {
-  const currentStep = steps[stepIndex];
-
   useEffect(() => {
     document.body.style.overflow = "hidden";
     return () => {
@@ -339,7 +331,6 @@ export function VerifyBox() {
   const [stepIndex, setStepIndex] = useState(0);
   const [dotCount, setDotCount] = useState(0);
   const [stageMessage, setStageMessage] = useState<string>("");
-  const [stageStatuses, setStageStatuses] = useState<Record<string, "waiting" | "processing" | "done">>({});
   const abortControllerRef = useRef<AbortController | null>(null);
   const isDoneRef = useRef(false);
   const inputSource: InputSource = file
@@ -422,19 +413,17 @@ export function VerifyBox() {
     });
   };
 
-  const _handleSSEEvent = (event: SSEEvent, steps: ReturnType<typeof getSteps>) => {
+  const _handleSSEEvent = (event: SSEEvent) => {
     switch (event.event) {
       case "start":
         setStepIndex(0);
-        setStageStatuses({});
         setStageMessage(event.data.message || "Memulai...");
         break;
       case "stage": {
-        const { stage, status, message } = event.data;
+        const { stage, message } = event.data;
         const idx = _sseStageToStep(stage);
         setStepIndex(idx);
         setStageMessage(message || "");
-        setStageStatuses((prev) => ({ ...prev, [stage]: status }));
         break;
       }
       case "done": {
@@ -534,7 +523,6 @@ export function VerifyBox() {
     setLoading(false);
     setStepIndex(0);
     setStageMessage("");
-    setStageStatuses({});
   }
 
   async function handleSubmit(e: React.FormEvent) {
@@ -548,7 +536,6 @@ export function VerifyBox() {
     isDoneRef.current = false;
     setLoading(true);
     setStepIndex(0);
-    setStageStatuses({});
     setStageMessage("");
 
     // Buat AbortController untuk SSE stream (bisa di-cancel oleh tombol Batal)
@@ -557,7 +544,6 @@ export function VerifyBox() {
 
     try {
       if (file) {
-        // Image: proses OCR & OSINT
         const result = await verifyImage(file);
         setStepIndex(steps.length);
         _saveToHistory(result, file.name);
@@ -566,14 +552,12 @@ export function VerifyBox() {
           router.push(result.case_id ? `/report/${result.case_id}` : "/report");
         }, 350);
       } else if (isPureUrl(trimmed)) {
-        // URL: pakai SSE streaming untuk real-time progress
         await verifyUrlStream(
           normalizeUrl(trimmed),
-          (event) => { _handleSSEEvent(event, steps); },
+          (event) => { _handleSSEEvent(event); },
           controller.signal,
         );
       } else {
-        // Text: proses NER, OSINT, & Reasoning
         const result = await verifyText({ text: trimmed, include_raw_text: true });
         setStepIndex(steps.length);
         _saveToHistory(result, trimmed.slice(0, 80));
@@ -619,7 +603,6 @@ export function VerifyBox() {
             steps={steps}
             onCancel={() => handleCancel()}
             stageMessage={stageMessage}
-            stageStatuses={stageStatuses}
           />
         )}
       </AnimatePresence>

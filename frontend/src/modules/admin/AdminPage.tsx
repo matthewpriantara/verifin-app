@@ -2,26 +2,20 @@
 
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import { motion, AnimatePresence } from "motion/react";
+import { motion } from "motion/react";
 import {
   Warning,
-  CheckCircle,
   ClockCounterClockwise,
   Flag,
   ArrowClockwise,
-  CircleNotch,
   LockKey,
   SignOut,
-  XCircle,
   Database,
   ImageSquare,
   Link as LinkIcon,
   FileText,
   ArrowUpRight,
   MagnifyingGlass,
-  Funnel,
-  ShieldCheck,
-  WarningOctagon,
   CaretLeft,
   CaretRight,
 } from "@phosphor-icons/react";
@@ -48,9 +42,9 @@ export interface UserInputLog {
 
 /* ─── Login Gate ──────────────────────────────────────────────────────────── */
 function LoginGate({ onAuth }: { onAuth: () => void }) {
-  const [pw, setPw]             = useState("");
-  const [error, setError]       = useState(false);
-  const [shake, setShake]       = useState(false);
+  const [pw, setPw] = useState("");
+  const [error, setError] = useState(false);
+  const [shake, setShake] = useState(false);
   const [submitting, setSubmitting] = useState(false);
 
   async function submit(e: React.FormEvent) {
@@ -141,9 +135,9 @@ function VerdictBadge({ verdict }: { verdict: string }) {
     <span
       className={cn(
         "inline-flex items-center gap-1 rounded-md px-2 py-0.5 text-[11px] font-semibold uppercase tracking-wide",
-        v === "AMAN"    && "bg-aman-bg text-aman-fg border border-aman-border",
+        v === "AMAN" && "bg-aman-bg text-aman-fg border border-aman-border",
         v === "WASPADA" && "bg-waspada-bg text-waspada-fg border border-waspada-border",
-        v === "BAHAYA"  && "bg-bahaya-bg text-bahaya-fg border border-bahaya-border",
+        v === "BAHAYA" && "bg-bahaya-bg text-bahaya-fg border border-bahaya-border",
         !["AMAN", "WASPADA", "BAHAYA"].includes(v) && "bg-bg-subtle text-text-muted border border-border",
       )}
     >
@@ -254,9 +248,9 @@ function CasesTable({
               <td className="px-4 py-3 text-text-muted whitespace-nowrap">
                 {c.created_at
                   ? new Date(c.created_at).toLocaleString("id-ID", {
-                      dateStyle: "short",
-                      timeStyle: "short",
-                    })
+                    dateStyle: "short",
+                    timeStyle: "short",
+                  })
                   : "—"}
               </td>
               <td className="px-4 py-3 text-right">
@@ -281,7 +275,7 @@ export default function AdminPage() {
   const router = useRouter();
 
   /* auth */
-  const [authed, setAuthed]         = useState(false);
+  const [authed, setAuthed] = useState(false);
   const [authChecked, setAuthChecked] = useState(false);
 
   useEffect(() => {
@@ -293,25 +287,19 @@ export default function AdminPage() {
   }, []);
 
   /* data */
-  const [cases, setCases]     = useState<AdminCase[]>([]);
+  const [cases, setCases] = useState<AdminCase[]>([]);
   const [aiStatus, setAiStatus] = useState<Record<string, unknown> | null>(null);
   const [loading, setLoading] = useState(false);
-  const [error, setError]     = useState<string | null>(null);
-  
-  // Total 3 Tabs: "cases" | "moderation" | "user_inputs"
+  const [error, setError] = useState<string | null>(null);
+
   const [activeTab, setActiveTab] = useState<"cases" | "moderation" | "user_inputs">("cases");
 
-  // State untuk Tab Riwayat Inputan User (Database)
   const [userInputs, setUserInputs] = useState<UserInputLog[]>([]);
   const [searchQuery, setSearchQuery] = useState("");
   const [verdictFilter, setVerdictFilter] = useState<"ALL" | "BAHAYA" | "WASPADA" | "AMAN">("ALL");
   const [sourceFilter, setSourceFilter] = useState<"ALL" | "text" | "image" | "url">("ALL");
   const [currentPage, setCurrentPage] = useState(1);
 
-  // Reset ke halaman 1 saat filter atau keyword pencarian berubah
-  useEffect(() => {
-    setCurrentPage(1);
-  }, [searchQuery, verdictFilter, sourceFilter]);
 
   async function load() {
     setLoading(true);
@@ -415,10 +403,10 @@ export default function AdminPage() {
   if (!authed) return <LoginGate onAuth={() => setAuthed(true)} />;
 
   const stats = {
-    total:   cases.length,
-    aman:    cases.filter((c) => c.verdict === "AMAN").length,
+    total: cases.length,
+    aman: cases.filter((c) => c.verdict === "AMAN").length,
     waspada: cases.filter((c) => c.verdict === "WASPADA").length,
-    bahaya:  cases.filter((c) => c.verdict === "BAHAYA").length,
+    bahaya: cases.filter((c) => c.verdict === "BAHAYA").length,
   };
 
   return (
@@ -484,10 +472,10 @@ export default function AdminPage() {
       {/* ── Stat cards dengan Button Lihat Detail di Sebelah Kanan ── */}
       <div className="mb-6 flex flex-col gap-3 sm:flex-row sm:items-stretch">
         <div className="grid flex-1 grid-cols-2 gap-3 sm:grid-cols-4">
-          <StatCard label="Total Kasus"  value={stats.total}   color="text-text-primary" />
-          <StatCard label="Aman"         value={stats.aman}    color="text-aman-fg" />
-          <StatCard label="Waspada"      value={stats.waspada} color="text-waspada-fg" />
-          <StatCard label="Bahaya"       value={stats.bahaya}  color="text-bahaya-fg" />
+          <StatCard label="Total Kasus" value={stats.total} color="text-text-primary" />
+          <StatCard label="Aman" value={stats.aman} color="text-aman-fg" />
+          <StatCard label="Waspada" value={stats.waspada} color="text-waspada-fg" />
+          <StatCard label="Bahaya" value={stats.bahaya} color="text-bahaya-fg" />
         </div>
       </div>
 
@@ -583,7 +571,10 @@ export default function AdminPage() {
               <input
                 type="text"
                 value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
+                onChange={(e) => {
+                  setSearchQuery(e.target.value);
+                  setCurrentPage(1);
+                }}
                 placeholder="Cari perusahaan, teks input, atau Case ID..."
                 className="w-full rounded-lg border border-border bg-bg-subtle pl-9 pr-3 py-1.5 text-[12px] text-text-primary placeholder:text-text-muted outline-none focus:border-border-focus transition-colors"
               />
@@ -596,7 +587,10 @@ export default function AdminPage() {
                 {(["ALL", "BAHAYA", "WASPADA", "AMAN"] as const).map((v) => (
                   <button
                     key={v}
-                    onClick={() => setVerdictFilter(v)}
+                    onClick={() => {
+                      setVerdictFilter(v);
+                      setCurrentPage(1);
+                    }}
                     className={cn(
                       "px-2 py-0.5 text-[10px] font-mono font-semibold rounded transition-colors uppercase",
                       verdictFilter === v
@@ -614,7 +608,10 @@ export default function AdminPage() {
                 {(["ALL", "text", "image", "url"] as const).map((s) => (
                   <button
                     key={s}
-                    onClick={() => setSourceFilter(s)}
+                    onClick={() => {
+                      setSourceFilter(s);
+                      setCurrentPage(1);
+                    }}
                     className={cn(
                       "px-2 py-0.5 text-[10px] font-mono font-semibold rounded transition-colors uppercase",
                       sourceFilter === s

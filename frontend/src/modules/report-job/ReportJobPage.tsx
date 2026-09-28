@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, Suspense, useRef } from "react";
+import { useState, useEffect, Suspense, useRef, useSyncExternalStore } from "react";
 import Link from "next/link";
 import { useSearchParams, useRouter } from "next/navigation";
 import { motion } from "motion/react";
@@ -11,13 +11,12 @@ import {
   Note,
   CheckCircle,
   Warning,
-  Flag,
   UploadSimple,
   X,
   CaretDown,
   FolderOpen,
 } from "@phosphor-icons/react";
-import { cn, getHistory, type HistoryItem } from "@/lib/utils";
+import { cn, getHistory, getServerHistory, subscribeHistory } from "@/lib/utils";
 import { Skeleton } from "@/components/ui/Skeleton";
 import type { ReportType } from "@/types/admin";
 import { submitCommunityReport } from "@/lib/api";
@@ -95,11 +94,11 @@ function ReportJobPageInner() {
   const [selectedMode, setSelectedMode] = useState<"from_history" | "new">(
     urlCaseId ? "from_history" : "new"
   );
-  const [historyItems, setHistoryItems] = useState<HistoryItem[]>([]);
+  const historyItems = useSyncExternalStore(subscribeHistory, getHistory, getServerHistory);
   const [selectedCaseId, setSelectedCaseId] = useState<string | null>(urlCaseId || null);
 
   const [companyName, setCompanyName] = useState("");
-  const [reportType, setReportType]   = useState<ReportType | "">("");
+  const [reportType, setReportType] = useState<ReportType | "">("");
   const [description, setDescription] = useState("");
   const [evidenceUrl, setEvidenceUrl] = useState("");
   const [evidenceFile, setEvidenceFile] = useState<File | null>(null);
@@ -109,30 +108,22 @@ function ReportJobPageInner() {
   const [success, setSuccess] = useState(false);
   const [error, setError] = useState("");
 
-  // Load history dari localStorage
   useEffect(() => {
-    const items = getHistory();
-    setHistoryItems(items);
-
-    // Jika ada caseId dari URL, coba pre-fill dari sessionStorage
-    if (urlCaseId) {
-      setSelectedCaseId(urlCaseId);
-      const raw = sessionStorage.getItem("verifin:last-report");
-      if (raw) {
-        try {
-          const report = JSON.parse(raw);
-          const companies = report?.entities?.companies;
-          if (Array.isArray(companies) && companies.length > 0 && companies[0]) {
-            setCompanyName(companies[0]);
-          }
-          const urls = report?.entities?.urls;
-          if (Array.isArray(urls) && urls.length > 0 && urls[0]) {
-            setEvidenceUrl(urls[0]);
-          }
-        } catch {
-          // ignore
-        }
+    if (!urlCaseId) return;
+    const raw = sessionStorage.getItem("verifin:last-report");
+    if (!raw) return;
+    try {
+      const report = JSON.parse(raw);
+      const company = report?.entities?.companies?.[0];
+      const url = report?.entities?.urls?.[0];
+      if (company || url) {
+        setTimeout(() => {
+          if (company) setCompanyName(company);
+          if (url) setEvidenceUrl(url);
+        }, 0);
       }
+    } catch {
+      // ignore
     }
   }, [urlCaseId]);
 
@@ -282,7 +273,7 @@ function ReportJobPageInner() {
 
   return (
     <div className="mx-auto w-full max-w-6xl px-4 py-14 sm:px-6 lg:py-20">
-      
+
       {/* ── Header Bagian Atas ── */}
       <div className="mb-10">
         {activeCaseId ? (
@@ -476,7 +467,7 @@ function ReportJobPageInner() {
 
         {/* Section 2: Kronologi & Bukti Pendukung */}
         <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
-          
+
           {/* Kolom Kiri: Kronologi Kejadian */}
           <div className="rounded-2xl border border-border bg-bg-elevated p-5 sm:p-6 lg:col-span-2">
             <div className="mb-4 flex items-center gap-2 border-b border-border pb-3">
@@ -534,6 +525,7 @@ function ReportJobPageInner() {
                 />
                 {evidencePreview ? (
                   <div className="relative overflow-hidden rounded-xl border border-border bg-bg">
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
                     <img src={evidencePreview} alt="Preview bukti" className="h-40 w-full object-cover" />
                     <button
                       type="button"
