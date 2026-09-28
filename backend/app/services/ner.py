@@ -45,13 +45,36 @@ def _is_plausible_address(s: str) -> bool:
         return False
     return True
 
+def _is_fee_context(text: str, start: int, end: int) -> bool:
+    window_start = max(0, start - 100)
+    window_end = min(len(text), end + 60)
+    ctx = text[window_start:window_end].lower()
+    fee_keywords = [
+        "biaya", "transfer", "bayar", "setor", "deposit", "uang jaminan",
+        "uang pendaftaran", "tiket", "akomodasi", "reimburse", "rekening",
+        "tarif", "seragam", "pelatihan", "training", "booking", "pemesanan"
+    ]
+    return any(kw in ctx for kw in fee_keywords)
+
 def _extract_salaries(text: str) -> list[str]:
     found = []
     pat = r"(?:Rp\.?\s*)\d{1,3}(?:[.,]\d{3})+(?:\s*[-–]\s*(?:Rp\.?\s*)?\d{1,3}(?:[.,]\d{3})+)?(?:\s*/\s*(?:bulan|bln|month))?"
     for m in re.finditer(pat, text or "", re.I):
-        found.append(re.sub(r"\s+", " ", m.group(0)).strip())
+        if not _is_fee_context(text or "", m.start(), m.end()):
+            found.append(re.sub(r"\s+", " ", m.group(0)).strip())
     for m in re.finditer(r"\b\d{1,2}(?:[.,]\d{1,2})?\s*(?:-\s*\d{1,2}(?:[.,]\d{1,2})?\s*)?juta(?:\s*/\s*(?:bulan|bln))?\b", text or "", re.I):
-        found.append(re.sub(r"\s+", " ", m.group(0)).strip())
+        if not _is_fee_context(text or "", m.start(), m.end()):
+            found.append(re.sub(r"\s+", " ", m.group(0)).strip())
+    return _uniq(found)
+
+def _extract_fee_requests(text: str) -> list[str]:
+    found = []
+    pat = r"(?:Rp\.?\s*)\d{1,3}(?:[.,]\d{3})+(?:\s*[-–]\s*(?:Rp\.?\s*)?\d{1,3}(?:[.,]\d{3})+)?(?:\s*/\s*(?:bulan|bln|month))?"
+    for m in re.finditer(pat, text or "", re.I):
+        if _is_fee_context(text or "", m.start(), m.end()):
+            found.append(re.sub(r"\s+", " ", m.group(0)).strip())
+    if not found and re.search(r"\b(?:transfer|biaya|bayar|deposit|setor)\b.*?\b(?:rekening|tiket|akomodasi|travel|jaminan|seragam)\b", text or "", re.I):
+        found.append("Permintaan transfer biaya/tiket terindikasi")
     return _uniq(found)
 
 def _extract_location_candidates(text: str) -> list[str]:
@@ -110,6 +133,7 @@ def extract_entities_from_text(text: str) -> dict:
     companies = _extract_companies(raw_text)
     addresses = _extract_addresses(raw_text)
     salaries = _extract_salaries(raw_text)
+    fee_requests = _extract_fee_requests(raw_text)
     locations = _extract_location_candidates(raw_text)
 
     return {
@@ -120,6 +144,7 @@ def extract_entities_from_text(text: str) -> dict:
         "addresses": addresses,
         "location_candidates": locations,
         "salaries": salaries,
+        "fee_requests": fee_requests,
         "extraction_meta": {
             "has_company": bool(companies),
             "has_phone": bool(phones),
@@ -127,6 +152,7 @@ def extract_entities_from_text(text: str) -> dict:
             "has_address": bool(addresses),
             "has_location_candidate": bool(locations),
             "has_salary": bool(salaries),
+            "has_fee_request": bool(fee_requests),
             "text_too_short": len(raw_text) < 50,
         },
         "fraud_fingerprint": {

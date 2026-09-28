@@ -1,7 +1,7 @@
 from datetime import datetime, timezone
 from typing import Any
 
-from app.services.constants import FREE_EMAIL_DOMAINS
+from app.services.constants import FREE_EMAIL_DOMAINS, RISK_THRESHOLD_WASPADA, RISK_THRESHOLD_BAHAYA
 
 
 def _cs(raw: float, weight: float) -> dict[str, Any]:
@@ -537,7 +537,7 @@ def _build_forensic_metadata(
     ran = len(applicable_probes)
     probe_hit_rate = round((hits / ran) * 100, 1) if ran else None
     decision_confidence = None
-    risk_level = "LOW" if risk_score < 35 else ("MEDIUM" if risk_score < 65 else "HIGH")
+    risk_level = "LOW" if risk_score < RISK_THRESHOLD_WASPADA else ("MEDIUM" if risk_score < RISK_THRESHOLD_BAHAYA else "HIGH")
     risk_label = {"LOW": "Risiko Rendah", "MEDIUM": "Risiko Sedang", "HIGH": "Risiko Tinggi"}[risk_level]
     first_phone = phones[0] if phones and isinstance(phones[0], dict) else {}
     phone_status = (
