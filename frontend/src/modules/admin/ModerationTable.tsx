@@ -24,17 +24,17 @@ import { fetchCommunityReports, reviewCommunityReport } from "@/lib/api";
 
 /* ── Helpers ──────────────────────────────────────────────────────────────── */
 const REPORT_TYPE_LABEL: Record<string, string> = {
-  biaya_travel:        "Penipuan Biaya & Travel",
-  perusahaan_fiktif:   "Perusahaan Fiktif",
-  tppo_eksploitasi:    "Indikasi TPPO & Eksploitasi",
+  biaya_travel: "Penipuan Biaya & Travel",
+  perusahaan_fiktif: "Perusahaan Fiktif",
+  tppo_eksploitasi: "Indikasi TPPO & Eksploitasi",
   pencurian_data_scam: "Pencurian Data & Task Scam",
 };
 
 const reportTypeLabel = (t: string) => REPORT_TYPE_LABEL[t] ?? t.replace(/_/g, " ");
 
 const FILTER_OPTIONS: { value: ReportStatus | "all"; label: string }[] = [
-  { value: "all",      label: "Semua" },
-  { value: "pending",  label: "Menunggu" },
+  { value: "all", label: "Semua" },
+  { value: "pending", label: "Menunggu" },
   { value: "approved", label: "Disetujui" },
   { value: "rejected", label: "Ditolak" },
 ];
@@ -45,15 +45,15 @@ function StatusBadge({ status }: { status: ReportStatus }) {
     <span
       className={cn(
         "inline-flex items-center gap-1 rounded-md px-2 py-0.5 text-[11px] font-semibold uppercase tracking-wide",
-        status === "pending"  && "bg-waspada-bg text-waspada-fg",
+        status === "pending" && "bg-waspada-bg text-waspada-fg",
         status === "approved" && "bg-aman-bg text-aman-fg",
         status === "rejected" && "bg-bahaya-bg text-bahaya-fg",
       )}
     >
-      {status === "pending"  && <Clock size={10} weight="bold" />}
+      {status === "pending" && <Clock size={10} weight="bold" />}
       {status === "approved" && <CheckCircle size={10} weight="bold" />}
       {status === "rejected" && <XCircle size={10} weight="bold" />}
-      {status === "pending"  ? "Menunggu" : status === "approved" ? "Disetujui" : "Ditolak"}
+      {status === "pending" ? "Menunggu" : status === "approved" ? "Disetujui" : "Ditolak"}
     </span>
   );
 }
@@ -168,6 +168,7 @@ function DetailModal({
                 rel="noopener noreferrer"
                 className="block overflow-hidden rounded-xl border border-border bg-bg-subtle transition-colors hover:border-border-focus"
               >
+                {/* eslint-disable-next-line @next/next/no-img-element */}
                 <img
                   src={report.evidence_file_url}
                   alt="Bukti komunitas"
@@ -321,7 +322,7 @@ function ReportRow({
   report: CommunityReport;
   index: number;
   onApprove: (id: string) => void;
-  onReject:  (id: string) => void;
+  onReject: (id: string) => void;
   onViewDetail: (report: CommunityReport) => void;
 }) {
   const isPending = report.status === "pending";
@@ -375,7 +376,7 @@ function ReportRow({
             <Eye size={11} /> Detail Deskripsi
           </button>
         </div>
-        
+
         {report.url && (
           <a
             href={report.url}
@@ -460,10 +461,10 @@ function ReportRow({
 /* ── Main component ───────────────────────────────────────────────────────── */
 export default function ModerationTable() {
   const [reports, setReports] = useState<CommunityReport[]>([]);
-  const [filter, setFilter]   = useState<ReportStatus | "all">("all");
+  const [filter, setFilter] = useState<ReportStatus | "all">("all");
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState("");
-  const [modal, setModal]     = useState<{
+  const [modal, setModal] = useState<{
     reportId: string;
     action: "approved" | "rejected";
   } | null>(null);
@@ -478,7 +479,7 @@ export default function ModerationTable() {
     return () => { cancelled = true; };
   }, []);
 
-  const pending  = reports.filter((r) => r.status === "pending").length;
+  const pending = reports.filter((r) => r.status === "pending").length;
   const approved = reports.filter((r) => r.status === "approved").length;
   const rejected = reports.filter((r) => r.status === "rejected").length;
 
@@ -519,9 +520,9 @@ export default function ModerationTable() {
       )}
       <div className="grid grid-cols-3 gap-3">
         {[
-          { label: "Menunggu Review", value: pending,  color: "text-waspada-fg", bg: "bg-waspada-bg border-waspada-border" },
-          { label: "Disetujui",       value: approved, color: "text-aman-fg",    bg: "bg-aman-bg border-aman-border" },
-          { label: "Ditolak",         value: rejected, color: "text-bahaya-fg",  bg: "bg-bahaya-bg border-bahaya-border" },
+          { label: "Menunggu Review", value: pending, color: "text-waspada-fg", bg: "bg-waspada-bg border-waspada-border" },
+          { label: "Disetujui", value: approved, color: "text-aman-fg", bg: "bg-aman-bg border-aman-border" },
+          { label: "Ditolak", value: rejected, color: "text-bahaya-fg", bg: "bg-bahaya-bg border-bahaya-border" },
         ].map(({ label, value, color, bg }) => (
           <div key={label} className={cn("rounded-xl border p-4", bg)}>
             <p className="text-[11px] font-medium text-text-muted">{label}</p>
@@ -617,7 +618,7 @@ export default function ModerationTable() {
                       report={report}
                       index={i}
                       onApprove={(id) => handleAction(id, "approved")}
-                      onReject={(id)  => handleAction(id, "rejected")}
+                      onReject={(id) => handleAction(id, "rejected")}
                       onViewDetail={(r) => setDetailModalReport(r)}
                     />
                   ))}

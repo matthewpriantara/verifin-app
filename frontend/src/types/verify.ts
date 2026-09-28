@@ -22,6 +22,7 @@ export interface OsintPhone {
   risk_flags?: string[];
   error?: string;
   authenticated?: boolean;
+  comments?: string[];
 }
 
 export interface OsintWebsite {

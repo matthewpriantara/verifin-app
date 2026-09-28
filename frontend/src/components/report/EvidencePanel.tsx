@@ -13,14 +13,52 @@ import {
   TiktokLogo,
   TwitterLogo,
   MapPin,
-  Star,
   Users,
   Heart,
-  ChatCircle,
   Eye,
-  Calendar,
   Link as LinkIcon,
 } from "@phosphor-icons/react/dist/ssr";
+
+interface WebSearchResult {
+  title?: string;
+  url?: string;
+  snippet?: string;
+}
+
+interface AddressDetails {
+  display_name?: string;
+  lat?: number;
+  lon?: number;
+  match_level?: string;
+  google_maps_url?: string;
+}
+
+interface AddressValidation {
+  address_input?: string;
+  address_normalized?: string;
+  address_details?: AddressDetails;
+}
+
+interface DomainEvidence {
+  age_years?: number | string;
+  created_at?: string;
+  is_new?: boolean;
+}
+
+interface EmailSecurityEvidence {
+  spf_active?: boolean;
+  dmarc_active?: boolean;
+}
+
+interface CompanyEvidence {
+  name?: string;
+  company_name?: string;
+  stats?: Record<string, unknown> | null;
+  is_legit?: boolean;
+  snippet?: string;
+  risk_flags?: string[];
+  safe_flags?: string[];
+}
 
 interface EvidencePanelProps {
   osint?: OsintPayload | null;
@@ -88,14 +126,14 @@ function Flag({ text, kind }: { text: string; kind: "risk" | "safe" | "neutral" 
       kind === "risk"
         ? "bg-bahaya-bg text-bahaya-fg border border-bahaya-fg/20"
         : kind === "safe"
-        ? "bg-aman-bg text-aman-fg border border-aman-fg/20"
-        : "bg-bg-subtle text-text-muted border border-border",
+          ? "bg-aman-bg text-aman-fg border border-aman-fg/20"
+          : "bg-bg-subtle text-text-muted border border-border",
     )}>
       {kind === "risk"
         ? <Warning size={11} weight="fill" />
         : kind === "safe"
-        ? <CheckCircle size={11} weight="fill" />
-        : null}
+          ? <CheckCircle size={11} weight="fill" />
+          : null}
       {text}
     </span>
   );
@@ -111,11 +149,11 @@ function SocialPlatformIcon({ platform }: { platform: string }) {
   return <ShareNetwork size={16} weight="bold" className="text-text-muted" />;
 }
 
-function SocialProfileCard({ result }: { result: any }) {
+function SocialProfileCard({ result }: { result: WebSearchResult }) {
   const url = result.url ?? "";
   const title = result.title ?? "";
   const snippet = result.snippet ?? "";
-  
+
   // Extract platform dari URL
   let platform = "web";
   if (url.includes("instagram.com")) platform = "instagram";
@@ -220,7 +258,7 @@ function SocialProfileCard({ result }: { result: any }) {
   );
 }
 
-function MapsLocationCard({ address, details }: { address: string; details: any }) {
+function MapsLocationCard({ address, details }: { address: string; details?: AddressDetails | null }) {
   return (
     <div className="overflow-hidden rounded-xl border border-border bg-gradient-to-br from-bg-elevated to-bg-subtle/50">
       {/* Header */}
@@ -236,7 +274,7 @@ function MapsLocationCard({ address, details }: { address: string; details: any 
       {/* Content */}
       <div className="p-4">
         <p className="text-[13px] font-medium text-text-primary">{address}</p>
-        
+
         {details?.display_name && (
           <p className="mt-2 text-[11px] leading-relaxed text-text-muted">
             {details.display_name}
@@ -261,8 +299,8 @@ function MapsLocationCard({ address, details }: { address: string; details: any 
                 details.match_level === "street"
                   ? "Jalan ditemukan, nomor belum pasti"
                   : details.match_level === "exact"
-                  ? "Alamat presisi terkonfirmasi"
-                  : "Wilayah ditemukan"
+                    ? "Alamat presisi terkonfirmasi"
+                    : "Wilayah ditemukan"
               }
               kind={details.match_level === "exact" ? "safe" : "neutral"}
             />
@@ -307,18 +345,17 @@ export function EvidencePanel({ osint }: EvidencePanelProps) {
     );
   }
 
-  const domain = (osint.domain ?? {}) as any;
-  const emailSec = (osint.email_security ?? {}) as any;
-  const phones = (osint.phones ?? []) as any[];
-  const companies = (osint.companies ?? []) as any[];
-  const web = osint.web as any;
-  const social = osint.social as any;
-  const addresses = (osint.address_validations ?? []) as any[];
+  const domain = (osint.domain ?? {}) as DomainEvidence;
+  const emailSec = (osint.email_security ?? {}) as EmailSecurityEvidence;
+  const phones = osint.phones ?? [];
+  const companies = (osint.companies ?? []) as CompanyEvidence[];
+  const web = osint.web;
+  const social = osint.social;
+  const addresses = (osint.address_validations ?? []) as AddressValidation[];
 
-  // Extract social results dari web.searches
-  const webSocialResults = (web?.searches ?? [])
-    .flatMap((s: any) => s.results ?? [])
-    .filter((r: any) => {
+  const webSocialResults: WebSearchResult[] = (web?.searches ?? [])
+    .flatMap((s) => s.results ?? [])
+    .filter((r) => {
       const url = (r.url ?? "").toLowerCase();
       return (
         url.includes("instagram.com") ||
@@ -328,7 +365,7 @@ export function EvidencePanel({ osint }: EvidencePanelProps) {
         url.includes("threads.net")
       );
     })
-    .slice(0, 6); // Top 6 social profiles
+    .slice(0, 6);
 
   const hasWebSocial = webSocialResults.length > 0;
 
@@ -478,7 +515,7 @@ export function EvidencePanel({ osint }: EvidencePanelProps) {
                 Jejak digital publik terverifikasi dari berbagai platform media sosial:
               </p>
               <div className="grid gap-3 sm:grid-cols-2">
-                {webSocialResults.map((result: any, i: number) => (
+                {webSocialResults.map((result, i) => (
                   <SocialProfileCard key={i} result={result} />
                 ))}
               </div>
@@ -490,7 +527,7 @@ export function EvidencePanel({ osint }: EvidencePanelProps) {
                     Status Pencarian per Platform
                   </p>
                   <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
-                    {social.social_searches.map((search: any, i: number) => (
+                    {social.social_searches.map((search, i) => (
                       <div
                         key={`${search.platform ?? "platform"}-${i}`}
                         className="flex items-center justify-between rounded-md bg-bg-elevated px-3 py-2"
@@ -507,8 +544,8 @@ export function EvidencePanel({ osint }: EvidencePanelProps) {
                             search.status === "FOUND"
                               ? "bg-aman-bg text-aman-fg"
                               : search.status === "UNAVAILABLE"
-                              ? "bg-bahaya-bg text-bahaya-fg"
-                              : "bg-bg-subtle text-text-muted"
+                                ? "bg-bahaya-bg text-bahaya-fg"
+                                : "bg-bg-subtle text-text-muted"
                           )}
                         >
                           {search.status === "FOUND" ? "✓" : search.status === "UNAVAILABLE" ? "✗" : "—"}
@@ -526,7 +563,7 @@ export function EvidencePanel({ osint }: EvidencePanelProps) {
         {web?.websites && web.websites.length > 0 && (
           <SectionRow label="Website & Web Evidence" icon={Globe} badge={`${web.websites.length} situs`}>
             <div className="space-y-3">
-              {web.websites.map((w: any, i: number) => (
+              {web.websites.map((w, i) => (
                 <div key={i} className="rounded-lg border border-border bg-bg-subtle/30 px-4 py-3">
                   <div className="flex flex-wrap items-center justify-between gap-2">
                     <span

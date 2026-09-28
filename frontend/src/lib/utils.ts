@@ -10,15 +10,15 @@ export function normalizeVerdict(v: string): Verdict {
   if (upper === "AMAN" || upper === "WASPADA" || upper === "BAHAYA" || upper === "ERROR") {
     return upper;
   }
-  return "ERROR";
+  return "WASPADA";
 }
 
 export function verdictLabel(v: string): string {
   switch (normalizeVerdict(v)) {
-    case "AMAN":    return "Aman";
-    case "WASPADA": return "Waspada";
-    case "BAHAYA":  return "Bahaya";
-    default:        return "Error";
+    case "AMAN": return "Aman Terverifikasi";
+    case "WASPADA": return "Waspada (Indikasi Awal)";
+    case "BAHAYA": return "Bahaya / Terindikasi Penipuan";
+    case "ERROR": return "Gagal Analisis";
   }
 }
 
@@ -37,25 +37,20 @@ export function verdictTone(v: string): { bg: string; fg: string; border: string
 
 export const REPORT_STORAGE_KEY = "verifin:last-report";
 
-// ── Verification History (localStorage, TTL 30 hari) ────────────────────
-
 export const HISTORY_STORAGE_KEY = "verifin:history";
 const HISTORY_TTL_DAYS = 30;
 const HISTORY_MAX_ITEMS = 50;
 
 export interface HistoryItem {
-  id: string;            // case_id atau timestamp fallback
+  id: string;
   case_id: string | null;
-  title: string;         // nama perusahaan atau input singkat
+  title: string;
   verdict: "AMAN" | "WASPADA" | "BAHAYA";
   risk_score: number;
-  timestamp: number;     // Date.now() saat disimpan
+  timestamp: number;
   entitiesSummary: string;
 }
 
-/**
- * Format timestamp ke "x menit lalu", "x jam lalu", "x hari lalu"
- */
 export function formatTimeAgo(timestamp: number): string {
   const diff = Date.now() - timestamp;
   const minutes = Math.floor(diff / 60000);
@@ -70,42 +65,62 @@ export function formatTimeAgo(timestamp: number): string {
   return new Date(timestamp).toLocaleDateString("id-ID", { day: "numeric", month: "short" });
 }
 
-/**
- * Baca history dari localStorage, auto-hapus entry yang expired (>30 hari).
- */
+let cachedHistoryRaw: string | null = null;
+let cachedHistoryItems: HistoryItem[] = [];
+const emptyHistoryServerSnapshot: HistoryItem[] = [];
+
 export function getHistory(): HistoryItem[] {
-  if (typeof window === "undefined") return [];
+  if (typeof window === "undefined") return emptyHistoryServerSnapshot;
   try {
     const raw = localStorage.getItem(HISTORY_STORAGE_KEY);
-    if (!raw) return [];
+    if (!raw) {
+      cachedHistoryRaw = null;
+      cachedHistoryItems = [];
+      return cachedHistoryItems;
+    }
+    if (raw === cachedHistoryRaw) {
+      return cachedHistoryItems;
+    }
     const items: HistoryItem[] = JSON.parse(raw);
-    if (!Array.isArray(items)) return [];
-
-    // Filter expired
+    if (!Array.isArray(items)) {
+      cachedHistoryRaw = raw;
+      cachedHistoryItems = [];
+      return cachedHistoryItems;
+    }
     const cutoff = Date.now() - HISTORY_TTL_DAYS * 86400000;
     const fresh = items.filter((item) => item.timestamp > cutoff);
-
-    // Simpan ulang kalau ada yang expired
     if (fresh.length !== items.length) {
-      localStorage.setItem(HISTORY_STORAGE_KEY, JSON.stringify(fresh));
+      const serialized = JSON.stringify(fresh);
+      localStorage.setItem(HISTORY_STORAGE_KEY, serialized);
+      cachedHistoryRaw = serialized;
+    } else {
+      cachedHistoryRaw = raw;
     }
-
-    return fresh.sort((a, b) => b.timestamp - a.timestamp);
+    cachedHistoryItems = fresh.sort((a, b) => b.timestamp - a.timestamp);
+    return cachedHistoryItems;
   } catch {
     return [];
   }
 }
 
-/**
- * Tambah entry baru ke history.
- * Auto-trim ke HISTORY_MAX_ITEMS terbaru.
- */
+export function getServerHistory(): HistoryItem[] {
+  return emptyHistoryServerSnapshot;
+}
+
+export function subscribeHistory(callback: () => void): () => void {
+  if (typeof window === "undefined") return () => { };
+  window.addEventListener("storage", callback);
+  window.addEventListener("verifin:history-updated", callback);
+  return () => {
+    window.removeEventListener("storage", callback);
+    window.removeEventListener("verifin:history-updated", callback);
+  };
+}
+
 export function addHistory(item: Omit<HistoryItem, "timestamp">): void {
   if (typeof window === "undefined") return;
   try {
     const existing = getHistory();
-
-    // Hindari duplikat berdasarkan case_id
     const filtered = item.case_id
       ? existing.filter((h) => h.case_id !== item.case_id)
       : existing;
@@ -114,17 +129,12 @@ export function addHistory(item: Omit<HistoryItem, "timestamp">): void {
     const updated = [newEntry, ...filtered].slice(0, HISTORY_MAX_ITEMS);
 
     localStorage.setItem(HISTORY_STORAGE_KEY, JSON.stringify(updated));
-
-    // Notify komponen lain (SearchHistory) untuk refresh
     window.dispatchEvent(new Event("verifin:history-updated"));
   } catch {
-    // localStorage penuh / disabled — silent fail
+    // silent fail
   }
 }
 
-/**
- * Hapus satu entry dari history berdasarkan id.
- */
 export function removeHistory(id: string): void {
   if (typeof window === "undefined") return;
   try {
@@ -137,9 +147,6 @@ export function removeHistory(id: string): void {
   }
 }
 
-/**
- * Hapus semua history.
- */
 export function clearHistory(): void {
   if (typeof window === "undefined") return;
   try {

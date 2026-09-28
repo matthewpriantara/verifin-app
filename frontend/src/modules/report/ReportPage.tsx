@@ -6,7 +6,6 @@ import Link from "next/link";
 import { motion } from "motion/react";
 import {
   ArrowLeft,
-  CircleNotch,
   Warning,
   CheckCircle,
   Lightbulb,
@@ -20,7 +19,6 @@ import {
   ShieldWarning,
   ShieldSlash,
   ShareNetwork,
-  ChatTeardropText,
   ArrowSquareOut,
   CaretDown,
   CaretUp,
