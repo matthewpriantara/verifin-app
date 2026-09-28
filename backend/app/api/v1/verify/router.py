@@ -22,6 +22,7 @@ from app.api.v1.verify.schema import (
 )
 from app.services.llm.verifin_reasoning import analyze_with_verifin, check_ai_status
 from app.services.ocr import extract_text_from_image
+from app.services.nlp.classifier import classify_text
 from app.services.osint.whois_handler import (
     check_domain_age,
     check_email_security,
@@ -182,13 +183,17 @@ async def verify_from_text(
         network_context = await asyncio.to_thread(_check_fraud_network, db, entities)
         logger.info("[verify][%s] fraud-network done status=%s in_network=%s reports=%s duration=%.2fs", request_id, network_context.get("status"), network_context.get("entity_in_fraud_network"), (network_context.get("community_reports") or {}).get("report_count"), time.perf_counter() - stage_started)
 
-        raw_text = request.text if request.include_raw_text else None
+        raw_text = request.text
+        nlp_result = classify_text(raw_text)
+        if nlp_result.get("behavioral_features", {}).get("has_fee_request"):
+            entities["has_fee_request"] = True
         stage_started = time.perf_counter()
         analysis = await analyze_with_verifin(entities, osint_results, raw_text=raw_text)
         _log_raw_json(request_id, "ANALYSIS", analysis)
         logger.info("[verify][%s] LLM done verdict=%s score=%s model=%s duration=%.2fs", request_id, analysis.get("verdict"), analysis.get("risk_score"), analysis.get("model_used"), time.perf_counter() - stage_started)
 
         analysis["network_context"] = network_context
+        analysis["nlp_result"] = nlp_result
         save_status = await asyncio.to_thread(
             _save_case_to_db,
             db, request.text, analysis, osint_results, entities=entities, source="text"
@@ -277,12 +282,16 @@ async def verify_from_image(
         logger.info("[verify][%s] fraud-network done status=%s in_network=%s reports=%s duration=%.2fs", request_id, network_context.get("status"), network_context.get("entity_in_fraud_network"), (network_context.get("community_reports") or {}).get("report_count"), time.perf_counter() - stage_started)
 
         stage_started = time.perf_counter()
+        nlp_result = classify_text(raw_text)
+        if nlp_result.get("behavioral_features", {}).get("has_fee_request"):
+            entities["has_fee_request"] = True
         analysis = await analyze_with_verifin(
             entities, osint_results, raw_text=raw_text
         )
         _log_raw_json(request_id, "ANALYSIS", analysis)
         logger.info("[verify][%s] LLM done verdict=%s score=%s model=%s duration=%.2fs", request_id, analysis.get("verdict"), analysis.get("risk_score"), analysis.get("model_used"), time.perf_counter() - stage_started)
         analysis["network_context"] = network_context
+        analysis["nlp_result"] = nlp_result
         save_status = await asyncio.to_thread(
             _save_case_to_db,
             db, raw_text, analysis, osint_results, entities=entities, source="image"
@@ -388,12 +397,16 @@ async def verify_from_url(
         logger.info("[verify][%s] fraud-network done status=%s in_network=%s reports=%s duration=%.2fs", request_id, network_context.get("status"), network_context.get("entity_in_fraud_network"), (network_context.get("community_reports") or {}).get("report_count"), time.perf_counter() - stage_started)
 
         stage_started = time.perf_counter()
+        nlp_result = classify_text(full_raw_text)
+        if nlp_result.get("behavioral_features", {}).get("has_fee_request"):
+            entities["has_fee_request"] = True
         analysis = await analyze_with_verifin(
             entities, osint_results, raw_text=full_raw_text
         )
         _log_raw_json(request_id, "ANALYSIS", analysis)
         logger.info("[verify][%s] LLM done verdict=%s score=%s model=%s duration=%.2fs", request_id, analysis.get("verdict"), analysis.get("risk_score"), analysis.get("model_used"), time.perf_counter() - stage_started)
         analysis["network_context"] = network_context
+        analysis["nlp_result"] = nlp_result
         if request.url:
             if "urls" not in entities or not isinstance(entities["urls"], list):
                 entities["urls"] = [request.url]

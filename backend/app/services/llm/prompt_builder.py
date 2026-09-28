@@ -344,6 +344,8 @@ def build_verify_prompt(entities: dict, osint_results: dict) -> str:
     url_str = ", ".join(urls) if urls else "Tidak ada"
     address_str = "\n  - ".join(addresses) if addresses else "Tidak disebutkan"
     salary_str = ", ".join(salaries) if salaries else "Tidak disebutkan"
+    fee_requests = entities.get("fee_requests") or []
+    fee_str = ", ".join(fee_requests) if fee_requests else "Tidak ada indikasi permintaan biaya pada format nominal"
     address_input_note = (
         "Alamat fisik tidak tercantum pada input; jangan menyebut alamat gagal, fiktif, atau belum tervalidasi."
         if not addresses
@@ -357,6 +359,7 @@ Analisis secara mendalam, formal, dan berbasis evidence. Berikan keputusan apaka
 
 ---
 
+## DATA LOWONGAN KERJA
 
 **Nama Perusahaan:**
 {company_str}
@@ -376,6 +379,9 @@ Analisis secara mendalam, formal, dan berbasis evidence. Berikan keputusan apaka
 
 **Gaji yang Ditawarkan:**
 {salary_str}
+
+**Indikasi Permintaan Biaya / Transfer:**
+{fee_str}
 
 ---
 
@@ -434,7 +440,7 @@ Analisis secara mendalam, formal, dan berbasis evidence. Berikan keputusan apaka
 - `NO_RESULTS` atau `UNAVAILABLE` pada search bukan zero footprint dan tidak boleh menaikkan verdict.
 
 **BAHAYA (75–100):**
-- WAJIB ada bukti keras: permintaan biaya/transfer/KTP/rekening, ATAU HP reported_fraud Kaspersky Who Calls,
+- WAJIB ada bukti keras: permintaan biaya/transfer/KTP/rekening (termasuk transfer pemesanan tiket travel/akomodasi fiktif dengan janji reimburse), ATAU HP reported_fraud Kaspersky Who Calls,
   ATAU phishing form, ATAU laporan penipuan spesifik yang terbukti menargetkan nomor/perusahaan ini.
 
 Jika SEMUA ini terpenuhi:
@@ -494,12 +500,16 @@ Skor vs verdict:
 def build_text_verify_prompt(raw_text: str, entities: dict, osint_results: dict) -> str:
     base_prompt = build_verify_prompt(entities, osint_results)
 
-    MAX_RAW = 600
+    MAX_RAW = 2500
     raw_section = f"""
-
-```
+## TEKS LENGKAP LOWONGAN KERJA (Input Langsung / OCR):
+```text
 {raw_text[:MAX_RAW]}{"...(terpotong)" if len(raw_text) > MAX_RAW else ""}
 ```
-
+---
 """
-    return base_prompt.replace("## DATA LOWONGAN KERJA", raw_section + "## DATA LOWONGAN KERJA")
+    if "## DATA LOWONGAN KERJA" in base_prompt:
+        return base_prompt.replace("## DATA LOWONGAN KERJA", raw_section + "\n## DATA LOWONGAN KERJA")
+    if "**Nama Perusahaan:**" in base_prompt:
+        return base_prompt.replace("**Nama Perusahaan:**", raw_section + "\n**Nama Perusahaan:**")
+    return raw_section + "\n" + base_prompt

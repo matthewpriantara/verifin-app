@@ -13,8 +13,10 @@ def _has_hard_risk_evidence(entities: dict, osint_results: dict) -> bool:
     web = osint_results.get("web") or {}
     network = osint_results.get("fraud_network") or {}
     gforms = web.get("gform_inspections") or []
+    has_fee = bool(entities.get("fee_requests")) or bool((entities.get("extraction_meta") or {}).get("has_fee_request"))
     return bool(
-        any(
+        has_fee
+        or any(
             p.get("reported_fraud")
             or p.get("scam_confirmed")
             or p.get("reputation_status") == "FLAGGED"
