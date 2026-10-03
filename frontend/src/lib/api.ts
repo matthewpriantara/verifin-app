@@ -86,14 +86,6 @@ export type SSEEvent =
  | { event: "done"; data: { message: string; case_id: string; verdict: string; risk_score: number; response: VerifyResponse } }
  | { event: "error"; data: { message: string } };
 
-/**
- * Verify URL dengan SSE streaming.
- * Memakai fetch + ReadableStream (bukan EventSource) karena endpoint butuh POST body.
- *
- * @param url URL lowongan kerja
- * @param onEvent Callback dipanggil untuk setiap SSE event
- * @param signal AbortSignal untuk cancel
- */
 export async function verifyUrlStream(
  url: string,
  onEvent: (event: SSEEvent) => void,
@@ -127,10 +119,8 @@ export async function verifyUrlStream(
    if (done) break;
 
    buffer += decoder.decode(value, { stream: true });
-
-   // Parse SSE events dari buffer (dipisah oleh \n\n)
    const parts = buffer.split("\n\n");
-   buffer = parts.pop() || ""; // sisain bagian yang belum complete
+   buffer = parts.pop() || ""; 
 
    for (const part of parts) {
     const lines = part.trim().split("\n");
@@ -155,7 +145,6 @@ export async function verifyUrlStream(
       return;
      }
     } catch {
-     // skip invalid JSON
     }
    }
   }
