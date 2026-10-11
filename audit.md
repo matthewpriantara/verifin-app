@@ -705,10 +705,9 @@ Seluruh temuan prioritas (bug fungsional, routing, styling, dead code, dan inkon
   - Visualisasi bobot kontribusi fitur Explainable AI (SHAP waterfall/bar) terintegrasi aktif di `ReportPage.tsx`.
 
 ### `[134/138] frontend/src/modules/report-job/ReportJobPage.tsx`
-- **Status:** [DUPLIKASI SKELETON]
+- **Status:** [BERSIH / VALID (ANTISLOP ENHANCED)]
 - **Temuan:**
-  - Baris 47–77: Komponen `ReportJobSkeleton` didefinisikan ulang secara lokal padahal sudah ada di `app/report-job/loading.tsx`.
-
+  - Nihil. Duplikasi skeleton lokal telah dihapus dan disatukan dengan `app/report-job/loading.tsx`. Navigasi tombol kembali telah ditingkatkan menjadi button card interaktif dengan batasan divider dan spacing proporsional.
 ### `[135/138] frontend/src/modules/verify/VerifyBox.tsx`
 - **Status:** [BERSIH / VALID]
 - **Temuan:**
