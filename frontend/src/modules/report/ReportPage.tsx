@@ -484,7 +484,24 @@ export default function ReportPage() {
 
             {/* Lokasi */}
             <div>
-              <p className="text-xs font-bold uppercase tracking-wider text-text-muted">Lokasi</p>
+              <div className="flex items-center gap-2">
+                <p className="text-xs font-bold uppercase tracking-wider text-text-muted">Lokasi</p>
+                {addrDetails.match_level === "area" && (
+                  <span className="rounded-md bg-amber-500/10 px-2 py-0.5 text-[10px] font-semibold text-amber-500">
+                    Perkiraan Wilayah
+                  </span>
+                )}
+                {addrDetails.match_level === "street" && (
+                  <span className="rounded-md bg-blue-500/10 px-2 py-0.5 text-[10px] font-semibold text-blue-500">
+                    Tingkat Jalan
+                  </span>
+                )}
+                {addrDetails.match_level === "exact" && (
+                  <span className="rounded-md bg-aman-bg px-2 py-0.5 text-[10px] font-semibold text-aman-fg">
+                    Titik Presisi
+                  </span>
+                )}
+              </div>
               {typeof addrDetails.display_name === "string" && addrDetails.display_name ? (
                 <p className="mt-2 text-sm leading-relaxed text-text-secondary">{addrDetails.display_name}</p>
               ) : address ? (
@@ -502,7 +519,15 @@ export default function ReportPage() {
               {hasCoords && (
                 <div className="mt-3 flex flex-wrap gap-2">
                   <a
-                    href={`https://www.google.com/maps?q=${(addrDetails.lat as number).toFixed(6)},${(addrDetails.lon as number).toFixed(6)}`}
+                    href={
+                      addrDetails.match_level === "exact"
+                        ? `https://www.google.com/maps?q=${(addrDetails.lat as number).toFixed(6)},${(addrDetails.lon as number).toFixed(6)}`
+                        : `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(
+                            `${companyName !== "Perusahaan" ? companyName : ""}, ${
+                              (addrDetails.display_name as string) || address
+                            }`.trim().replace(/^,\s*/, "")
+                          )}`
+                    }
                     target="_blank"
                     rel="noreferrer"
                     className="inline-flex items-center gap-2 rounded-xl bg-text-primary px-4 py-2.5 text-sm font-semibold text-bg-elevated transition-all hover:opacity-90"

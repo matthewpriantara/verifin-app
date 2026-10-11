@@ -270,7 +270,7 @@ def _verify_address_via_web(address: str, company_name: str, web_results: list[d
     best_name_match = False
     best_street_match = False
     best_house_number_match = False
-
+    best_discovered_street: str | None = None
     def _maps_coordinates(url: str) -> tuple[float, float] | None:
         patterns = (
             r"@(-?\d{1,3}\.\d+),(-?\d{1,3}\.\d+)",
@@ -319,6 +319,10 @@ def _verify_address_via_web(address: str, company_name: str, web_results: list[d
             best_street_match = street_match
             best_house_number_match = house_number_match
 
+        if name_match and not best_discovered_street:
+            street_m = re.search(r"\b((?:Jl\.?|Jln\.?|Jalan)\s+[A-Za-z0-9\s.,/-]{4,60}?)(?=[,.\n]|\bKec|\bKab|\bSleman|\bKota|$)", snippet, re.I)
+            if street_m:
+                best_discovered_street = street_m.group(0).strip(" .,;:-")
     found = best_score >= 0.4
     maps_match = bool(best_coordinates and best_name_match)
     return {
@@ -338,6 +342,7 @@ def _verify_address_via_web(address: str, company_name: str, web_results: list[d
             "exact" if maps_match and best_street_match and best_house_number_match
             else "business_location" if maps_match else "none"
         ),
+        "discovered_street": best_discovered_street,
     }
 
 
@@ -384,6 +389,18 @@ async def validate_address_and_business(address: str, company_name: str = None, 
     if company_name:
         web = _verify_address_via_web(address, company_name, web_results)
         result["web_verification"] = web
+        discovered = web.get("discovered_street")
+        addr_has_street = bool(re.search(r"\b(?:jl\.?|jln\.?|jalan)\b", address, re.I))
+        if discovered and not addr_has_street:
+            street_query = f"{discovered}, {address}, Indonesia"
+            street_geo = await geocode_address(street_query)
+            if street_geo.get("found") and street_geo.get("match_level") in ("street", "exact"):
+                result["address_details"] = street_geo
+                result["address_details"]["discovered_from_web"] = True
+                result["address_details"]["original_coarse_address"] = address
+                result["safe_signals"].append(
+                    f"Alamat jalan '{discovered}' terverifikasi dari jejak web publik bisnis."
+                )
         if web.get("maps_match"):
             result["business_found"] = True
             result["business_details"] = {
