@@ -72,7 +72,6 @@ Repositori ini adalah implementasi kode aplikasi **Verifin: Platform Deteksi Low
 │           │   ├── __init__.py
 │           │   ├── client.py
 │           │   ├── entity_extraction.py
-│           │   ├── entity_validator.py
 │           │   ├── prompt_builder.py
 │           │   └── verifin_reasoning.py
 │           ├── nlp/

@@ -18,6 +18,7 @@ _FEATURE_WEIGHTS: dict[str, float] = {
     "has_company":           -8.0,
     "has_address":           -6.0,
     "safe_keyword_count":    -5.0,
+    "phone_fraud_flag":      35.0,
     "kredibel_fraud_flag":   35.0,
     "domain_unreachable":    28.0,
     "domain_new":            15.0,
@@ -133,9 +134,9 @@ def explain_verification_shap(
     ):
         contributions.append(_make_contrib(
             "Nomor HP Dilaporkan Penipuan",
-            "kredibel_fraud_flag",
+            "phone_fraud_flag",
             1,
-            _FEATURE_WEIGHTS["kredibel_fraud_flag"],
+            _FEATURE_WEIGHTS["phone_fraud_flag"],
             "risk",
             "Nomor HP terdeteksi berbahaya/spam di Kaspersky Who Calls",
         ))
