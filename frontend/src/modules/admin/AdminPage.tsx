@@ -25,6 +25,7 @@ import { fetchCases, fetchAiStatus } from "@/lib/admin";
 import type { AdminCase } from "@/lib/admin";
 import ReportChart from "@/modules/admin/ReportChart";
 import ModerationTable from "@/modules/admin/ModerationTable";
+import AdminLoading from "@/app/admin/loading";
 
 /* ─── User Input History (Database Logs) ─────────────────────────────────── */
 export interface UserInputLog {
@@ -393,13 +394,7 @@ export default function AdminPage() {
   };
 
   /* render guards */
-  if (!authChecked) {
-    return (
-      <div className="flex min-h-[calc(100vh-56px)] items-center justify-center text-text-muted">
-        <span className="text-[14px]">Memeriksa sesi...</span>
-      </div>
-    );
-  }
+  if (!authChecked) return <AdminLoading />;
   if (!authed) return <LoginGate onAuth={() => setAuthed(true)} />;
 
   const stats = {

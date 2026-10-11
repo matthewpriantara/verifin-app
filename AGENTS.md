@@ -135,6 +135,7 @@ Repositori ini adalah implementasi kode aplikasi **Verifin: Platform Deteksi Low
         │   ├── icon.svg
         │   ├── layout.tsx
         │   ├── loading.tsx
+        │   ├── not-found.tsx
         │   ├── page.tsx
         │   ├── admin/
         │   │   ├── loading.tsx
@@ -147,6 +148,7 @@ Repositori ini adalah implementasi kode aplikasi **Verifin: Platform Deteksi Low
         │   │           └── route.ts
         │   ├── report/
         │   │   ├── page.tsx
+        │   │   ├── loading.tsx
         │   │   └── [caseId]/
         │   │       ├── loading.tsx
         │   │       └── page.tsx

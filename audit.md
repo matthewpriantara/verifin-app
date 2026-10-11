@@ -534,10 +534,14 @@ Seluruh temuan prioritas (bug fungsional, routing, styling, dead code, dan inkon
   - Root layout dengan cache-busting query (`?v=2`) dan fallback multi-format icon.
 
 ### `[101/138] frontend/src/app/loading.tsx`
-- **Status:** [BERSIH / VALID]
+- **Status:** [BERSIH / VALID (ANTISLOP AUDITED)]
 - **Temuan:**
-  - Root loading skeleton untuk homepage.
+  - Nihil. Sesuai prinsip Anti-Slop (R-27, R-03), skeleton loader telah diselaraskan dengan layout 2 kolom asli homepage disertai animasi `fadeIn` halus untuk mencegah Cumulative Layout Shift (CLS).
 
+### `[101b/138] frontend/src/app/not-found.tsx`
+- **Status:** [BERSIH / VALID (ANTISLOP CRAFTED)]
+- **Temuan:**
+  - Nihil. Halaman 404 custom khusus (R-27) dengan branding Verifin, pesan informatif, dan tombol aksi kembali ke beranda.
 ### `[102/138] frontend/src/app/page.tsx`
 - **Status:** [BERSIH / VALID]
 - **Temuan:**
@@ -566,6 +570,11 @@ Seluruh temuan prioritas (bug fungsional, routing, styling, dead code, dan inkon
 - **Status:** [BERSIH / VALID]
 - **Temuan:**
   - Re-export `ReportPage` bersih.
+
+### `[107b/138] frontend/src/app/report/loading.tsx`
+- **Status:** [BERSIH / VALID (ANTISLOP CRAFTED)]
+- **Temuan:**
+  - Nihil. Re-export skeleton report khusus untuk rute `/report`.
 
 ### `[108/138] frontend/src/app/report/[caseId]/loading.tsx`
 - **Status:** [BERSIH / VALID]
