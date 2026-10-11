@@ -34,9 +34,9 @@ export function Navbar() {
           {showLapor && (
             <Link
               href={reportJobHref}
-              className="flex items-center gap-1.5 rounded-lg border border-border bg-bg-subtle px-3 py-1.5 text-[13px] font-medium text-text-primary shadow-xs transition-colors hover:border-border-focus hover:bg-bg-elevated"
+              className="flex items-center gap-1.5 rounded-lg bg-text-primary px-3.5 py-1.5 text-[13px] font-semibold text-bg-elevated shadow-sm transition-all hover:bg-text-secondary active:scale-[0.98]"
             >
-              <ChatTeardropText size={14} weight="bold" className="text-text-secondary" />
+              <ChatTeardropText size={15} weight="bold" />
               Lapor komunitas
             </Link>
           )}

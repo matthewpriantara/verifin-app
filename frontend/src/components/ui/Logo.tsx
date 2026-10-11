@@ -42,17 +42,17 @@ const sizeConfig = {
   sm: {
     container: "h-7 w-7 rounded-lg",
     icon: "h-4 w-4",
-    text: "text-[15px] font-semibold tracking-tight text-text-primary",
+    text: "text-[15px] font-semibold tracking-tight",
   },
   md: {
     container: "h-8 w-8 rounded-lg",
     icon: "h-5 w-5",
-    text: "text-lg font-bold tracking-tight text-text-primary",
+    text: "text-lg font-bold tracking-tight",
   },
   lg: {
     container: "h-10 w-10 rounded-xl",
     icon: "h-6 w-6",
-    text: "text-xl font-bold tracking-tight text-text-primary",
+    text: "text-xl font-bold tracking-tight",
   },
 };
 
@@ -82,7 +82,9 @@ export function Logo({
         <span
           className={cn(
             currentSize.text,
-            inverted && "font-mono text-xl font-bold tracking-tight text-bg"
+            inverted
+              ? "font-mono text-xl font-bold tracking-tight text-bg"
+              : "text-text-primary"
           )}
         >
           {inverted ? "VERIFIN" : "Verifin"}
