@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { ShieldCheck } from "@phosphor-icons/react";
+import { Logo } from "@/components/ui/Logo";
 
 export function Footer() {
   return (
@@ -13,13 +13,8 @@ export function Footer() {
 
           {/* Col 1: Branding & Description */}
           <div className="md:col-span-5 space-y-4">
-            <Link href="/" className="inline-flex items-center gap-2 group">
-              <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-bg text-text-primary transition-transform group-hover:scale-105">
-                <ShieldCheck size={18} weight="bold" />
-              </div>
-              <span className="font-mono text-xl font-bold tracking-tight text-bg">
-                VERIFIN
-              </span>
+            <Link href="/" className="inline-flex items-center group">
+              <Logo size="md" inverted />
             </Link>
             <p className="text-[13px] leading-relaxed text-bg/60 max-w-sm">
               Platform verifikasi lowongan kerja terintegrasi. Memanfaatkan OSINT,
