@@ -204,11 +204,11 @@ function LoadingModal({
                         animate={
                           isActive
                             ? {
-                              scale: [1, 1.12, 1],
+                              scale: [1, 1.06, 1],
                               boxShadow: [
-                                "0 0 0px rgba(0,0,0,0)",
-                                "0 0 16px rgba(59,130,246,0.35)",
-                                "0 0 0px rgba(0,0,0,0)",
+                                "0 0 0px rgba(44,40,37,0)",
+                                "0 4px 16px rgba(44,40,37,0.12)",
+                                "0 0 0px rgba(44,40,37,0)",
                               ],
                             }
                             : { scale: 1 }
@@ -220,7 +220,7 @@ function LoadingModal({
                         }
                         className={cn(
                           "flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl transition-all duration-300 mx-auto",
-                          isDone && "bg-aman-fg text-white shadow-sm",
+                          isDone && "bg-aman-fg text-bg shadow-sm",
                           isActive && "bg-text-primary text-bg-elevated shadow-lg ring-4 ring-text-primary/20",
                           isPending && "border border-border bg-bg-subtle text-text-muted opacity-70"
                         )}
@@ -348,21 +348,27 @@ export function VerifyBox() {
     if (!loading) return;
     const iv = setInterval(() => setDotCount((d) => (d + 1) % 4), 380);
 
-    // Timed step progression for non-SSE requests (text & image)
-    const t1 = setTimeout(() => {
-      setStepIndex((prev) => (prev < 1 ? 1 : prev));
-      setStageMessage("Menjalankan investigasi OSINT paralel (DNS, Whois, Kaspersky, SearXNG)...");
-    }, 3200);
+    // Timed step progression HANYA untuk non-SSE (teks & gambar) agar tidak loncat dengan event SSE
+    let t1: NodeJS.Timeout | undefined;
+    let t2: NodeJS.Timeout | undefined;
+    let t3: NodeJS.Timeout | undefined;
 
-    const t2 = setTimeout(() => {
-      setStepIndex((prev) => (prev < 2 ? 2 : prev));
-      setStageMessage("Menganalisis relasi entitas & pemetaan Fraud Network Graph...");
-    }, 14000);
+    if (inputSource !== "url") {
+      t1 = setTimeout(() => {
+        setStepIndex((prev) => Math.max(prev, 1));
+        setStageMessage("Menjalankan investigasi OSINT paralel (DNS, Whois, Kaspersky, SearXNG)...");
+      }, 3500);
 
-    const t3 = setTimeout(() => {
-      setStepIndex((prev) => (prev < 3 ? 3 : prev));
-      setStageMessage("Sintesis penalaran Explainable AI & perhitungan skor risiko aditif...");
-    }, 22000);
+      t2 = setTimeout(() => {
+        setStepIndex((prev) => Math.max(prev, 2));
+        setStageMessage("Menganalisis relasi entitas & pemetaan Fraud Network Graph...");
+      }, 14000);
+
+      t3 = setTimeout(() => {
+        setStepIndex((prev) => Math.max(prev, 3));
+        setStageMessage("Sintesis penalaran Explainable AI & perhitungan skor risiko aditif...");
+      }, 22000);
+    }
 
     return () => {
       clearInterval(iv);
@@ -370,7 +376,7 @@ export function VerifyBox() {
       clearTimeout(t2);
       clearTimeout(t3);
     };
-  }, [loading]);
+  }, [loading, inputSource]);
 
   // Stage mapping: SSE stage name → step index
   // fetch/ocr → 0, ner → 1 (atau 0 untuk text), osint → 2, graph → 3, ai → 4
@@ -422,7 +428,7 @@ export function VerifyBox() {
       case "stage": {
         const { stage, message } = event.data;
         const idx = _sseStageToStep(stage);
-        setStepIndex(idx);
+        setStepIndex((prev) => Math.max(prev, idx));
         setStageMessage(message || "");
         break;
       }
@@ -589,7 +595,7 @@ export function VerifyBox() {
     }
   }
 
-  const progress = Math.round(((stepIndex + 1) / steps.length) * 100);
+  const progress = Math.min(100, Math.round((Math.min(stepIndex + 1, steps.length) / steps.length) * 100));
 
   return (
     <>
