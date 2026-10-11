@@ -77,8 +77,12 @@ def main():
         "komponen": "Layer-1 classify_text (rule-based behavioral, bukan LLM)",
     }
     print(json.dumps(result, ensure_ascii=False, indent=2))
-    out_path = "/Users/fizualstd/Documents/GitHub/_LOMBA/gemastik19/test/hasil-test-raw/evaluasi-emscad.json"
-    with open(out_path, "w") as f: json.dump(result, f, ensure_ascii=False, indent=2)
+    gemastik_dir = os.path.abspath(os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "..", "gemastik19", "test", "hasil-test-raw"))
+    out_dir = os.getenv("EVAL_OUTPUT_DIR") or (gemastik_dir if os.path.exists(gemastik_dir) else os.path.join(os.path.dirname(os.path.abspath(__file__)), "eval_results"))
+    os.makedirs(out_dir, exist_ok=True)
+    out_path = os.path.join(out_dir, "evaluasi-emscad.json")
+    with open(out_path, "w", encoding="utf-8") as f:
+        json.dump(result, f, ensure_ascii=False, indent=2)
     print("\nDisimpan ke:", os.path.normpath(out_path))
 
 if __name__ == "__main__":

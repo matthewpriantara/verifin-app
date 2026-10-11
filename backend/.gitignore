@@ -92,3 +92,4 @@ downloads/osint_raw/
 # Secrets lokal (cookies, keys)
 secrets/
 *.cookies.json
+eval_results/

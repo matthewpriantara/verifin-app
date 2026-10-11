@@ -28,9 +28,6 @@ Dokumen ini memuat hasil audit komprehensif **per-file** untuk seluruh berkas ya
    - `frontend/src/app/api/admin/login/route.ts` & `session/route.ts` memakai fallback `"verifin-admin-secret-change-me"`.
    - `frontend/.env.example` dan `docker-compose.yml` memakai `"verifin-admin-secret-change-me-2026"`.
 
-6. **Hardcoded Absolute Path Lokal (Backend ML/Evaluation)**
-   - `backend/evaluasi_classifier.py`, `backend/evaluasi_emscad_full.py`, dan `backend/latih_tfidf_emscad.py` memiliki hardcoded absolute path `/Users/fizualstd/Documents/GitHub/...`. Skrip akan melempar `FileNotFoundError` jika dijalankan di mesin lain, server, atau CI.
-
 ---
 
 ## 1. Root & CI/CD Configurations
@@ -85,20 +82,19 @@ Dokumen ini memuat hasil audit komprehensif **per-file** untuk seluruh berkas ya
   - Multi-stage dependency installation dengan dependensi C OpenCV/Paddle (`libgl1`, `libgomp1`). Healthcheck endpoint mengarah ke `/api/v1/health`.
 
 ### `[10/138] backend/evaluasi_classifier.py`
-- **Status:** [HARDCODED PATH]
+- **Status:** [BERSIH / VALID]
 - **Temuan:**
-  - Baris 80: Output path hardcoded absolut `/Users/fizualstd/Documents/GitHub/_LOMBA/gemastik19/test/hasil-test-raw/evaluasi-emscad.json`. Tidak portabel untuk environment lain.
+  - Nihil. Logika path output telah dinamis menggunakan `EVAL_OUTPUT_DIR` / fallback direktori relatif proyek.
 
 ### `[11/138] backend/evaluasi_emscad_full.py`
-- **Status:** [HARDCODED PATH]
+- **Status:** [BERSIH / VALID]
 - **Temuan:**
-  - Baris 20-21: Path dataset dan output hardcoded absolut ke `/Users/fizualstd/...`. Gagal berjalan di Docker/mesin tim lain tanpa path yang sama persis.
+  - Nihil. Path dataset dan output telah dinamis serta menangani ketiadaan dataset EMSCAD lokal secara graceful tanpa crash.
 
 ### `[12/138] backend/latih_tfidf_emscad.py`
-- **Status:** [HARDCODED PATH]
+- **Status:** [BERSIH / VALID]
 - **Temuan:**
-  - Baris 24: Path dataset hardcoded absolut ke `/Users/fizualstd/...`.
-
+  - Nihil. Path dataset telah dinamis serta menangani ketiadaan dataset EMSCAD lokal secara graceful tanpa crash.
 ### `[13/138] backend/main.py`
 - **Status:** [BERSIH / VALID]
 - **Temuan:**

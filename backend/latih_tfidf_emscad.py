@@ -21,7 +21,12 @@ from sklearn.metrics import (precision_score, recall_score, f1_score,
                              roc_auc_score, accuracy_score, confusion_matrix)
 import joblib
 
-DATASET = "/Users/fizualstd/Documents/GitHub/_LOMBA/verifin-app/dataset/fake_job_postings.csv"
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+DATASET = os.getenv("EMSCAD_DATASET_PATH") or os.path.join(BASE_DIR, "dataset", "fake_job_postings.csv")
+if not os.path.exists(DATASET):
+    alt = os.path.join(os.path.dirname(BASE_DIR), "dataset", "fake_job_postings.csv")
+    if os.path.exists(alt):
+        DATASET = alt
 MODEL_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "app", "services", "nlp", "model")
 os.makedirs(MODEL_DIR, exist_ok=True)
 
@@ -32,6 +37,11 @@ def build_text(row: dict) -> str:
     return "\n".join(p for p in parts if p.strip())
 
 def main():
+    if not os.path.exists(DATASET):
+        print(f"[!] Dataset EMSCAD tidak ditemukan di: {DATASET}")
+        print("    Silakan taruh fake_job_postings.csv di folder dataset/ atau set env EMSCAD_DATASET_PATH.")
+        return
+
     X, y = [], []
     with open(DATASET, encoding="utf-8", errors="replace") as f:
         for row in csv.DictReader(f):
@@ -40,7 +50,8 @@ def main():
                 continue
             txt = build_text(row)
             if txt.strip():
-                X.append(txt); y.append(int(lab))
+                X.append(txt)
+                y.append(int(lab))
     print(f"Dataset: {len(X)} sampel (fraud={sum(y)}, valid={len(y)-sum(y)})")
 
     Xtr, Xte, ytr, yte = train_test_split(

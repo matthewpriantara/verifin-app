@@ -17,8 +17,17 @@ import csv, json, time, os, sys
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from app.services.nlp.classifier import classify_text
 
-DATASET = "/Users/fizualstd/Documents/GitHub/_LOMBA/verifin-app/dataset/fake_job_postings.csv"
-OUT = "/Users/fizualstd/Documents/GitHub/_LOMBA/gemastik19/test/hasil-test-raw/evaluasi-emscad.json"
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+DATASET = os.getenv("EMSCAD_DATASET_PATH") or os.path.join(BASE_DIR, "dataset", "fake_job_postings.csv")
+if not os.path.exists(DATASET):
+    alt = os.path.join(os.path.dirname(BASE_DIR), "dataset", "fake_job_postings.csv")
+    if os.path.exists(alt):
+        DATASET = alt
+
+gemastik_dir = os.path.abspath(os.path.join(BASE_DIR, "..", "..", "gemastik19", "test", "hasil-test-raw"))
+out_dir = os.getenv("EVAL_OUTPUT_DIR") or (gemastik_dir if os.path.exists(gemastik_dir) else os.path.join(BASE_DIR, "eval_results"))
+os.makedirs(out_dir, exist_ok=True)
+OUT = os.getenv("EMSCAD_OUTPUT_PATH") or os.path.join(out_dir, "evaluasi-emscad.json")
 
 def build_text(row: dict) -> str:
     parts = [
@@ -32,6 +41,11 @@ def build_text(row: dict) -> str:
     return "\n".join(p for p in parts if p.strip())
 
 def main():
+    if not os.path.exists(DATASET):
+        print(f"[!] Dataset EMSCAD tidak ditemukan di: {DATASET}")
+        print("    Silakan taruh fake_job_postings.csv di folder dataset/ atau set env EMSCAD_DATASET_PATH.")
+        return
+
     rows = []
     with open(DATASET, encoding="utf-8", errors="replace") as f:
         for row in csv.DictReader(f):
