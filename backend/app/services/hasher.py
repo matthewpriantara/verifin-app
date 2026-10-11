@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import hashlib
-from typing import Any
 
 
 def compute_content_sha256(text_or_bytes: str | bytes) -> str:

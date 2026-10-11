@@ -4,7 +4,6 @@ import asyncio
 import json
 import tempfile
 import time
-from typing import List
 from uuid import UUID, uuid4
 from sqlalchemy.orm import Session
 
@@ -14,7 +13,6 @@ from app.database.postgres_client import get_db
 from app.database.models import JobCase
 
 from app.api.v1.verify.schema import (
-    ExtractedEntities,
     LlmStatusResponse,
     TextVerifyRequest,
     UrlVerifyRequest,
@@ -135,9 +133,9 @@ def _log_raw_json(request_id: str, label: str, payload: object) -> None:
         filepath = os.path.join(debug_dir, filename)
         with open(filepath, "w", encoding="utf-8") as f:
             f.write(encoded)
-        print(f"[verify][{request_id}] {label}_JSON saved to {filepath}", flush=True)
+        logger.info("[verify][%s] %s_JSON saved to %s", request_id, label, filepath)
     except Exception as e:
-        print(f"[verify][{request_id}] gagal mencetak {label}_JSON: {e}", flush=True)
+        logger.warning("[verify][%s] gagal mencetak %s_JSON: %s", request_id, label, e)
 
 @router.post(
     "/verify/text",

@@ -1,20 +1,18 @@
 from __future__ import annotations
 
-import json
 import logging
 import os
-import tempfile
 from typing import Optional
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, File, Form, HTTPException, Query, Request, UploadFile
-from sqlalchemy import func, or_, text
+from sqlalchemy import func, or_
 from sqlalchemy.orm import Session
 
 from app.database.models import CommunityReport
-from app.database.postgres_client import Base, engine, get_db
+from app.database.postgres_client import get_db
 from app.services.ner import clean_indonesian_phone
-from app.api.v1.community.schema import CommunityReportIn, CommunityReportOut, ModerationUpdate
+from app.api.v1.community.schema import CommunityReportOut, ModerationUpdate
 from app.config import UPLOAD_DIR, MAX_UPLOAD_SIZE_BYTES
 logger = logging.getLogger(__name__)
 router = APIRouter()

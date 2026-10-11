@@ -625,19 +625,18 @@ Seluruh temuan prioritas (bug fungsional, routing, styling, dead code, dan inkon
   - Komponen skeleton placeholder pulse standar.
 
 ### `[119/138] frontend/src/components/ui/testimonials-columns-1.tsx`
-- **Status:** [BERSIH / VALID]
+- **Status:** [BERSIH / VALID (ANTISLOP REMOVED)]
 - **Temuan:**
-  - Komponen marquee kolom testimoni interaktif di homepage.
-
+  - Nihil. Sesuai prinsip Anti-Slop (R-18: larangan testimoni fiktif dengan foto Unsplash acak), komponen template ini telah dihapus dari repositori.
 ### `[120/138] frontend/src/lib/admin.ts`
 - **Status:** [BERSIH / VALID]
 - **Temuan:**
   - Fungsi fetcher admin case dan status AI.
 
 ### `[121/138] frontend/src/lib/api.ts`
-- **Status:** [BERSIH / VALID]
+- **Status:** [BERSIH / VALID (ANTISLOP AUDITED)]
 - **Temuan:**
-  - Nihil. Fallback `API_BASE` telah diselaraskan ke domain resmi `https://api.verifin.web.id`.
+  - Nihil. Sesuai prinsip Anti-Slop (R-36, C-1), fallback hardcoded domain remote `|| "https://api.verifin.web.id"` telah dihapus; `API_BASE` membaca murni dari `process.env.NEXT_PUBLIC_API_URL`.
 ### `[122/138] frontend/src/lib/utils.ts`
 - **Status:** [BERSIH / VALID]
 - **Temuan:**

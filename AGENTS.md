@@ -18,6 +18,7 @@ Repositori ini adalah implementasi kode aplikasi **Verifin: Platform Deteksi Low
 │       └── deploy.yml
 ├── .gitignore
 ├── AGENTS.md
+├── audit.md
 ├── docker-compose.yml
 ├── backend/
 │   ├── .dockerignore
@@ -161,8 +162,7 @@ Repositori ini adalah implementasi kode aplikasi **Verifin: Platform Deteksi Low
         │       ├── Badge.tsx
         │       ├── Button.tsx
         │       ├── Logo.tsx
-        │       ├── Skeleton.tsx
-        │       └── testimonials-columns-1.tsx
+        │       └── Skeleton.tsx
         ├── lib/
         │   ├── admin.ts
         │   ├── api.ts
@@ -179,6 +179,7 @@ Repositori ini adalah implementasi kode aplikasi **Verifin: Platform Deteksi Low
         │   │   ├── Footer.tsx
         │   │   └── Navbar.tsx
         │   ├── report/
+        │   │   ├── ReportPage.tsx
         │   │   └── ShapChart.tsx
         │   ├── report-job/
         │   │   └── ReportJobPage.tsx

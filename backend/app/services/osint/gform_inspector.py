@@ -1,9 +1,8 @@
 import json
 import re
 from typing import Any
-from urllib.parse import unquote, urlparse
+from urllib.parse import unquote
 
-from scrapling.fetchers import Fetcher
 from app.services.status_contract import COMPLETED, LOGIN_REQUIRED, PARSE_FAILED, UNAVAILABLE
 
 PHISHING_KEYWORDS = {

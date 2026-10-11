@@ -1,9 +1,8 @@
-import base64
 import re
 import asyncio
 import logging
 from typing import Any
-from urllib.parse import quote_plus, urlparse
+from urllib.parse import urlparse
 
 from scrapling.fetchers import Fetcher
 from app.services.osint.gform_inspector import inspect_gform, is_gform_url
@@ -276,7 +275,7 @@ def fetch_company_website(url_or_domain: str) -> dict[str, Any]:
             "ok": ok,
             "probe_status": "COMPLETED",
             "website_status": "AVAILABLE" if ok else "UNAVAILABLE",
-            "evidence_status": "FOUND" if ok else "NO_RESULTS",
+            "evidence_status": FOUND if ok else NO_RESULTS,
             "status": status,
             "title": title[:200],
             "snippet": snippet,
@@ -305,7 +304,7 @@ def fetch_company_website(url_or_domain: str) -> dict[str, Any]:
             "ok": False,
             "probe_status": "UNAVAILABLE",
             "website_status": "UNAVAILABLE",
-            "evidence_status": "NO_RESULTS",
+            "evidence_status": NO_RESULTS,
             "error": str(exc),
             "risk_flags": ["Gagal membuka website perusahaan."],
             "safe_flags": [],
@@ -783,7 +782,7 @@ def collect_web_evidence(entities: dict) -> dict[str, Any]:
             "relevant_results": total_public_results,
             "by_source_type": source_counts,
             "successful_requests": sum(1 for s in searches if s.get("request_status") == COMPLETED),
-            "empty_searches": sum(1 for s in searches if s.get("status") == "NO_RESULTS"),
+            "empty_searches": sum(1 for s in searches if s.get("status") == NO_RESULTS),
             "no_relevant_searches": sum(1 for s in searches if s.get("status") == "NO_RELEVANT_RESULTS"),
             "unavailable_searches": sum(1 for s in searches if s.get("status") == "UNAVAILABLE"),
             "digital_footprint": intelligence_signals.get("digital_footprint", "unknown"),

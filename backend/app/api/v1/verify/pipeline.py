@@ -12,7 +12,6 @@ from app.services.ner import (
     extract_entities_from_text,
     _is_plausible_address,
     _uniq,
-    clean_indonesian_phone,
     fix_email_ocr_typos,
 )
 from app.services.osint.runner import run_osint_probes
@@ -21,7 +20,7 @@ from app.services.graph.fraud_network import (
     build_fraud_network,
     check_entity_in_network,
 )
-from app.services.status_contract import COMPLETED, NOT_PROVIDED, UNAVAILABLE
+from app.services.status_contract import COMPLETED, UNAVAILABLE
 
 def _check_fraud_network(db: Session, entities: dict) -> dict:
     try:
