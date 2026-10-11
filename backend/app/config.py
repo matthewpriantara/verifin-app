@@ -12,7 +12,6 @@ LLM_TIMEOUT = float(os.getenv("LLM_TIMEOUT", "120"))
 LLM_EXTRACTOR_MODEL = os.getenv("LLM_EXTRACTOR_MODEL") or LLM_MODEL
 
 DATABASE_URL = os.getenv("DATABASE_URL", "")
-REDIS_URL = os.getenv("REDIS_URL", "redis://localhost:6379/0")
 
 LIGHTPANDA_CONTAINER = os.getenv("LIGHTPANDA_CONTAINER", "lightpanda")
 LIGHTPANDA_CDP_URL = os.getenv("LIGHTPANDA_CDP_URL", "http://127.0.0.1:9222")
