@@ -7,7 +7,6 @@ Dokumen ini memuat hasil audit komprehensif **per-file** untuk seluruh berkas ya
 ## Ringkasan Temuan Kunci (Executive Summary)
 
 2. **Dead Code Signifikan yang Tidak Pernah Dipakai (Backend & Frontend)**
-   - `backend/app/services/llm/entity_validator.py` (244 baris): Mesin validasi LLM entity tidak pernah diimpor/dipanggil di modul mana pun (`validation_applied` selalu `False`).
    - `frontend/src/modules/report/FactorList.tsx` (62 baris): Komponen daftar faktor tidak pernah diimpor oleh `ReportPage.tsx` (sudah di-render inline).
    - `frontend/src/modules/report/RiskMeter.tsx` (55 baris): Komponen meter risiko tidak pernah diimpor (halaman report memakai `ScoreRing` internal).
    - `frontend/src/components/report/EntityPanel.tsx` (68 baris): Komponen panel entitas tidak pernah diimpor (halaman report memakai rendering internal).
@@ -221,11 +220,10 @@ Dokumen ini memuat hasil audit komprehensif **per-file** untuk seluruh berkas ya
 - **Status:** [BERSIH / VALID]
 - **Temuan:**
   - Ekstraksi berbasis Regex dengan filter konteks penipuan biaya (`_is_fee_context`) dan normalisasi telepon Indonesia.
-
 ### `[38/138] backend/app/services/ocr.py`
-- **Status:** [RACE CONDITION MINOR]
+- **Status:** [BERSIH / VALID]
 - **Temuan:**
-  - Baris 14: `ocr_lock = threading.Lock()` dibuat dan digunakan saat inferensi (baris 86), namun fungsi `get_ocr_model()` di baris 16–28 tidak mengakuisisi `ocr_lock`. Dua request paralel yang tiba bersamaan saat startup berpotensi menginisialisasi PaddleOCR dua kali.
+  - Nihil. Fungsi `get_ocr_model()` telah dilindungi pola double-checked locking thread-safe menggunakan `ocr_lock`.
 
 ### `[39/138] backend/app/services/status_contract.py`
 - **Status:** [BERSIH / VALID]
@@ -266,11 +264,10 @@ Dokumen ini memuat hasil audit komprehensif **per-file** untuk seluruh berkas ya
 - **Status:** [BERSIH / VALID]
 - **Temuan:**
   - Modul LLM NER untuk mengekstrak entitas dari teks OCR yang berantakan, terintegrasi di `pipeline.py`.
-
 ### `[47/138] backend/app/services/llm/entity_validator.py`
-- **Status:** [DEAD CODE BESAR - 244 BARIS]
+- **Status:** [BERSIH / VALID]
 - **Temuan:**
-  - File ini berisi fungsi `validate_entities_llm` lengkap dengan system prompt dan formatting JSON, namun **sama sekali tidak pernah diimpor atau dipanggil** di bagian kode manapun. Seluruh logikanya tidak terpakai.
+  - Nihil. Berkas dead code (244 baris) yang tidak pernah diimpor/digunakan telah dihapus secara bersih dari repositori.
 
 ### `[48/138] backend/app/services/llm/prompt_builder.py`
 - **Status:** [BERSIH / VALID]
@@ -371,11 +368,10 @@ Dokumen ini memuat hasil audit komprehensif **per-file** untuk seluruh berkas ya
 - **Status:** [BERSIH / VALID]
 - **Temuan:**
   - Package marker standar.
-
 ### `[68/138] backend/app/services/xai/shap_explainer.py`
-- **Status:** [PENAMAAN LEGACY]
+- **Status:** [BERSIH / VALID]
 - **Temuan:**
-  - Baris 21 & 136: Fitur bobot nomor telepon masih diberi nama key `"kredibel_fraud_flag"` meskipun teks deskripsinya sudah diperbarui menjadi `"Nomor HP terdeteksi berbahaya/spam di Kaspersky Who Calls"`. Bekerja secara fungsional, namun penamaan key internal bersifat legacy.
+  - Nihil. Key bobot fitur nomor telepon telah diperbarui menjadi `phone_fraud_flag` dengan alias backward-compatible.
 
 ---
 

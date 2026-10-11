@@ -16,15 +16,17 @@ ocr_lock = threading.Lock()
 def get_ocr_model():
     global ocr_model
     if ocr_model is None:
-        ocr_model = PaddleOCR(
-            use_angle_cls=False,
-            lang="id",
-            enable_mkldnn=False,
-            det_db_thresh=0.2,
-            det_db_box_thresh=0.4,
-            det_db_unclip_ratio=1.8,
-            rec_batch_num=6,
-        )
+        with ocr_lock:
+            if ocr_model is None:
+                ocr_model = PaddleOCR(
+                    use_angle_cls=False,
+                    lang="id",
+                    enable_mkldnn=False,
+                    det_db_thresh=0.2,
+                    det_db_box_thresh=0.4,
+                    det_db_unclip_ratio=1.8,
+                    rec_batch_num=6,
+                )
     return ocr_model
 
 def enhance_contrast(img_bgr: np.ndarray) -> np.ndarray:
