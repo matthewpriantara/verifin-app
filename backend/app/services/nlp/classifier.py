@@ -71,9 +71,32 @@ def extract_behavioral_features(text: str) -> dict[str, Any]:
 
 def classify_text(text: str) -> dict[str, Any]:
     behavioral = extract_behavioral_features(text)
+    has_fee = behavioral.get("has_fee_request", False)
+    has_foreign = behavioral.get("has_foreign_work", False)
+    fraud_hits = behavioral.get("fraud_keyword_count", 0.0)
+    safe_hits = behavioral.get("safe_keyword_count", 0.0)
+
+    score = 15.0
+    if has_fee:
+        score += 45.0
+    if has_foreign:
+        score += 25.0
+    score += min(30.0, fraud_hits * 10.0)
+    score -= min(20.0, safe_hits * 5.0)
+    score = max(0.0, min(100.0, score))
+
+    if score >= 75.0 or has_fee:
+        label = "BAHAYA"
+    elif score >= 40.0 or has_foreign:
+        label = "WASPADA"
+    else:
+        label = "AMAN"
+
     return {
         "enabled": True,
         "status": "RULE_BASED_HEURISTIC",
         "reason": "Taksonomi Pola Penipuan Kerja Indonesia (Paper22, GASA 2024, UNODC 2023)",
+        "label": label,
+        "nlp_score": score,
         "behavioral_features": behavioral,
     }
