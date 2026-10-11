@@ -8,7 +8,7 @@ from app.services.llm.client import chat_completion, extract_json_from_response
 
 logger = logging.getLogger(__name__)
 
-_EXTRACT_TIMEOUT = float(LLM_TIMEOUT) if LLM_TIMEOUT else 45.0
+_EXTRACT_TIMEOUT = max(float(LLM_TIMEOUT or 60.0), 60.0)
 
 _SYSTEM_PROMPT = """Kamu adalah mesin Named Entity Recognition (NER) untuk teks lowongan kerja berbahasa Indonesia, termasuk hasil OCR poster yang berantakan.
 
@@ -81,8 +81,9 @@ async def extract_entities_llm(text: str) -> dict[str, Any] | None:
                 messages,
                 model=LLM_EXTRACTOR_MODEL,
                 temperature=0.0,
-                max_tokens=1500,
-                max_retries=2,
+                max_tokens=600,
+                timeout=_EXTRACT_TIMEOUT,
+                max_retries=1,
             ),
             timeout=_EXTRACT_TIMEOUT,
         )

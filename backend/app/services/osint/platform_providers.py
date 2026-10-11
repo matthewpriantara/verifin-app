@@ -14,11 +14,11 @@ def _run_ai_extract_sync(query: str, results: list[dict[str, Any]]) -> dict[str,
     try:
         loop = asyncio.new_event_loop()
         try:
-            return loop.run_until_complete(ai_extract_and_rank(query, results))
+            return loop.run_until_complete(asyncio.wait_for(ai_extract_and_rank(query, results), timeout=10.0))
         finally:
             loop.close()
-    except RuntimeError:
-        return asyncio.run(ai_extract_and_rank(query, results))
+    except Exception:
+        return {"ok": False, "query": query, "results": [], "summary": "", "entities_found": []}
 
 def collect_all_platform_evidence(
     business_name: str,
