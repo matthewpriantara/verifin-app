@@ -36,15 +36,35 @@ def fix_email_ocr_typos(email: str) -> str:
 
 def _uniq(items: list[str]) -> list[str]:
     return list(dict.fromkeys(re.sub(r"\s+", " ", (i or "")).strip() for i in items if (i or "").strip()))
+_DATE_TIME_JUNK = re.compile(
+    r"\b(?:tanggal|tgl|jadwal|waktu|pukul|jam|periode|deadline|batas\s+waktu|"
+    r"senin|selasa|rabu|kamis|jumat|sabtu|minggu|"
+    r"januari|februari|maret|april|mei|juni|juli|agustus|september|oktober|november|desember|"
+    r"jan|feb|mar|apr|jun|jul|agu|ags|sep|sept|okt|oct|nov|des|dec|"
+    r"wib|wita|wit)\b",
+    re.I
+)
+
+_DATE_PATTERNS = re.compile(
+    r"(?:\d{1,2}\s*[-/.]\s*\d{1,2}\s*[-/.]\s*\d{2,4}|\d{1,2}[:.]\d{2}|\b202[0-9]\b)",
+    re.I
+)
 
 def _is_plausible_address(s: str) -> bool:
-    c = re.sub(r"\s+", " ", (s or "")).strip(" .,;:-")
-    if len(c) < 10 or len(c) > 180:
+    c = re.sub(r"\s+", " ", (s or "")).strip(" .,;:-·•*")
+    if len(c) < 8 or len(c) > 180:
         return False
     if re.search(r"\b(gaji|salary|kualifikasi|syarat|benefit|posisi|lowongan|dibutuhkan)\b", c, re.I):
         return False
+    if _DATE_TIME_JUNK.search(c) or _DATE_PATTERNS.search(c):
+        return False
+    physical_indicators = (
+        r"\b(?:jl\.?|jln\.?|jalan|gg\.?|gang|ruko|komplek|perumahan|gedung|tower|"
+        r"blok|rt|rw|kelurahan|kecamatan|desa|dusun|no\.?\s*\d+|km\.?\s*\d+|kode\s*pos)\b"
+    )
+    if not re.search(physical_indicators, c, re.I):
+        return False
     return True
-
 def _is_fee_context(text: str, start: int, end: int) -> bool:
     window_start = max(0, start - 100)
     window_end = min(len(text), end + 60)
@@ -79,13 +99,13 @@ def _extract_fee_requests(text: str) -> list[str]:
 
 def _extract_location_candidates(text: str) -> list[str]:
     candidates = []
-    pat = r"(?:Lokasi(?:\s+Kerja)?|Penempatan(?:\s+Kerja)?|Wilayah|Area|Domisili|Cabang)\s*[:.\-]?\s*([^\n,]{3,60})"
+    pat = r"(?:Lokasi(?:\s+Kerja)?|Penempatan(?:\s+Kerja)?|Wilayah|Area|Domisili|Cabang)[^\S\r\n]*[:.\-]?[^\S\r\n]*([^\n,]{3,60})"
     for m in re.finditer(pat, text or "", re.I):
-        loc = re.sub(r"\s+", " ", m.group(1)).strip(" .,;:-")
+        loc = re.sub(r"\s+", " ", m.group(1)).strip(" .,;:-·•*")
         if len(loc) >= 3 and not re.search(r"\b(gaji|syarat|kualifikasi|email|wa|hubungi)\b", loc, re.I):
-            candidates.append(loc)
+            if not _DATE_TIME_JUNK.search(loc) and not _DATE_PATTERNS.search(loc):
+                candidates.append(loc)
     return _uniq(candidates)
-
 def _extract_companies(text: str) -> list[str]:
     results = []
     pat = r"\b(PT|CV|UD|PD|Perum|Persero|Yayasan|Koperasi|Firma|Fa|BUMDes|BUMN)\.?\s+([A-Za-z0-9&'.-]+(?:\s+[A-Za-z0-9&'.-]+){0,5})"
@@ -106,18 +126,17 @@ def _extract_companies(text: str) -> list[str]:
 
 def _extract_addresses(text: str) -> list[str]:
     candidates = []
-    street_pat = r"\b((?:Jl\.?|Jln\.?|Jalan|Gg\.?|Gang|Ruko|Komplek|Perumahan|Gedung|Tower)\s+[A-Za-z0-9\s.,/-]{5,100}?)(?=\s*(?:\n|Email|WA|WhatsApp|Hubungi|Gaji|Syarat|Kualifikasi|$))"
+    street_pat = r"\b((?:Jl\.?|Jln\.?|Jalan|Gg\.?|Gang|Ruko|Komplek|Perumahan|Gedung|Tower)\s+[A-Za-z0-9\s.,/-]{5,100}?)(?=[^\S\r\n]*(?:\n|Email|WA|WhatsApp|Hubungi|Gaji|Syarat|Kualifikasi|$))"
     for m in re.finditer(street_pat, text or "", re.I):
-        addr = re.sub(r"\s+", " ", m.group(1)).strip(" .,;:-")
+        addr = re.sub(r"\s+", " ", m.group(1)).strip(" .,;:-·•*")
         if len(addr) >= 10:
             candidates.append(addr)
-    label_pat = r"(?:Alamat(?:\s+Kantor)?|Lokasi(?:\s+Kerja)?)\s*[:.\-]\s*([^\n]{8,120})"
+    label_pat = r"(?:Alamat(?:\s+Kantor)?)[^\S\r\n]*[:.\-][^\S\r\n]*([^\n]{8,120})"
     for m in re.finditer(label_pat, text or "", re.I):
-        addr = re.sub(r"\s+", " ", m.group(1)).strip(" .,;:-")
+        addr = re.sub(r"\s+", " ", m.group(1)).strip(" .,;:-·•*")
         if len(addr) >= 10 and not re.search(r"\b(gaji|syarat|kualifikasi|email|wa)\b", addr, re.I):
             candidates.append(addr)
     return [a for a in _uniq(candidates) if _is_plausible_address(a)]
-
 def extract_entities_from_text(text: str) -> dict:
     raw_text = text or ""
     phone_pat = r"(?:\+62|62|0)\s*[1-9](?:[\s\-]?\d){6,12}"

@@ -11,6 +11,8 @@ from app.services.llm.entity_extraction import extract_entities_llm
 from app.services.ner import (
     extract_entities_from_text,
     _is_plausible_address,
+    _DATE_TIME_JUNK,
+    _DATE_PATTERNS,
     _uniq,
     fix_email_ocr_typos,
 )
@@ -155,21 +157,41 @@ async def _extract_entities_hybrid(text: str) -> dict:
         added["companies"] = True
         any_added = True
 
-    for key in ("addresses", "location_candidates", "salaries"):
-        llm_vals = llm_extracted.get(key) or []
-        if not llm_vals:
-            continue
-        if key == "addresses":
-            llm_vals = [value for value in llm_vals if _is_plausible_address(value)]
-        existing = {_norm(v) for v in (merged.get(key) or [])}
-        for v in llm_vals:
+    llm_addresses = llm_extracted.get("addresses") or []
+    if llm_addresses:
+        valid_llm_addrs = [v for v in llm_addresses if _is_plausible_address(v)]
+        if valid_llm_addrs:
+            merged["addresses"] = valid_llm_addrs
+            added["addresses"] = True
+            any_added = True
+        else:
+            merged["addresses"] = []
+    else:
+        merged["addresses"] = [v for v in (merged.get("addresses") or []) if _is_plausible_address(v)]
+
+    llm_locs = llm_extracted.get("location_candidates") or []
+    if llm_locs:
+        existing = {_norm(v) for v in (merged.get("location_candidates") or [])}
+        for v in llm_locs:
+            if _DATE_TIME_JUNK.search(v) or _DATE_PATTERNS.search(v):
+                continue
             nv = _norm(v)
             if nv and nv not in existing:
-                merged.setdefault(key, []).append(v)
+                merged.setdefault("location_candidates", []).append(v)
                 existing.add(nv)
-                added[key] = True
+                added["location_candidates"] = True
                 any_added = True
 
+    llm_salaries = llm_extracted.get("salaries") or []
+    if llm_salaries:
+        existing = {_norm(v) for v in (merged.get("salaries") or [])}
+        for v in llm_salaries:
+            nv = _norm(v)
+            if nv and nv not in existing:
+                merged.setdefault("salaries", []).append(v)
+                existing.add(nv)
+                added["salaries"] = True
+                any_added = True
     if merged.get("emails"):
         merged["emails"] = _uniq([fix_email_ocr_typos(e) for e in merged["emails"] if e])
     if merged.get("urls"):
@@ -180,6 +202,10 @@ async def _extract_entities_hybrid(text: str) -> dict:
     merged["addresses"] = [
         value for value in (merged.get("addresses") or [])
         if _is_plausible_address(value)
+    ]
+    merged["location_candidates"] = [
+        value for value in (merged.get("location_candidates") or [])
+        if not _DATE_TIME_JUNK.search(value) and not _DATE_PATTERNS.search(value)
     ]
 
     merged["_ner_meta"] = {
