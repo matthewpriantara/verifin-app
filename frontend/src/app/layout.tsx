@@ -12,9 +12,12 @@ export const metadata: Metadata = {
   description: "Deteksi penipuan lowongan kerja dengan OCR, OSINT, dan Explainable AI.",
   icons: {
     icon: [
+      { url: "/favicon.ico", sizes: "any" },
       { url: "/icon.svg", type: "image/svg+xml" },
       { url: "/icon.png", type: "image/png" },
     ],
+    shortcut: "/favicon.ico",
+    apple: "/icon.png",
   },
 };
 
