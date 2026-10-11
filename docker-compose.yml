@@ -81,4 +81,4 @@ volumes:
 networks:
   default:
   searxng_default:
-    external: true
+    name: searxng_default

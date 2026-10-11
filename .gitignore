@@ -34,7 +34,6 @@ backend/app/debug_json/
 
 # --- LaTeX build artifacts ---
 *.aux
-*.log
 *.out
 *.toc
 *.synctex.gz
