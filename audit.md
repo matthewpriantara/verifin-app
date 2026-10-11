@@ -682,18 +682,18 @@ Seluruh temuan prioritas (bug fungsional, routing, styling, dead code, dan inkon
   - Komponen footer terintegrasi dengan `<Logo inverted />`, navigasi, dan disclaimer hukum.
 
 ### `[129/138] frontend/src/modules/layout/Navbar.tsx`
-- **Status:** [BERSIH / VALID]
+- **Status:** [BERSIH / VALID (ANTISLOP ENHANCED)]
 - **Temuan:**
-  - Header navigasi sticky terintegrasi dengan `<Logo />` dan tombol aksi cepat lapor komunitas.
+  - Header navigasi sticky terintegrasi dengan `<Logo />` dan tombol aksi cepat lapor komunitas berstandar kontras tinggi (WCAG AAA) dengan feedback hover interaktif.
 
 ### `[130/138] frontend/src/modules/report/FactorList.tsx`
 - **Status:** [BERSIH / VALID]
 - **Temuan:**
   - Nihil. Komponen dead code yang tidak pernah diimpor telah dihapus dari repositori.
 ### `[131/138] frontend/src/modules/report/ReportPage.tsx`
-- **Status:** [BERSIH / VALID]
+- **Status:** [BERSIH / VALID (ANTISLOP ENHANCED)]
 - **Temuan:**
-  - Halaman hasil verifikasi mendalam dengan visualisasi skor risiko, atribusi fitur SHAP, bukti OSINT, dan entitas teridentifikasi.
+  - Halaman hasil verifikasi mendalam dengan visualisasi skor risiko, atribusi fitur SHAP, bukti OSINT, dan CTA aksi ganda ("Verifikasi lowongan lain" dan "Laporkan ke Komunitas" dengan caseId aktif).
 
 ### `[132/138] frontend/src/modules/report/RiskMeter.tsx`
 - **Status:** [BERSIH / VALID]

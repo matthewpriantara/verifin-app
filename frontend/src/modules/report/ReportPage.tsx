@@ -6,6 +6,7 @@ import Link from "next/link";
 import { motion } from "motion/react";
 import {
   ArrowLeft,
+  ChatTeardropText,
   Warning,
   CheckCircle,
   Lightbulb,
@@ -688,8 +689,22 @@ export default function ReportPage() {
       </motion.div>
 
       {/* ── CTA ── */}
-      <motion.div {...fadeUp} transition={{ delay: 0.32 }} className="mt-8">
-        <Link href="/"><Button fullWidth>Verifikasi lowongan lain</Button></Link>
+      {/* ── CTA Actions ── */}
+      <motion.div {...fadeUp} transition={{ delay: 0.32 }} className="mt-8 flex flex-col gap-3 sm:flex-row sm:items-center">
+        <Link href="/" className="flex-1">
+          <Button fullWidth variant="primary">
+            Verifikasi lowongan lain
+          </Button>
+        </Link>
+        <Link
+          href={caseId ? `/report-job?caseId=${encodeURIComponent(caseId)}` : "/report-job"}
+          className="flex-1 sm:max-w-xs"
+        >
+          <Button fullWidth variant="secondary">
+            <ChatTeardropText size={16} weight="bold" />
+            Laporkan ke Komunitas
+          </Button>
+        </Link>
       </motion.div>
     </div>
   );
