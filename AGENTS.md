@@ -20,6 +20,11 @@ Repositori ini adalah implementasi kode aplikasi **Verifin: Platform Deteksi Low
 ├── AGENTS.md
 ├── audit.md
 ├── docker-compose.yml
+├── test/
+│   ├── ocr.webp
+│   ├── test-link.md
+│   ├── test-ocr.md
+│   └── test-teks.md
 ├── backend/
 │   ├── .dockerignore
 │   ├── .env
