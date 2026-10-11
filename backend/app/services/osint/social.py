@@ -232,6 +232,10 @@ def run_social_osint(
             for r in (search.get("results") or [])
             if isinstance(r, dict)
         ]
+        pe_platforms = (web_evidence.get("platform_evidence") or {}).get("platforms") or {}
+        for p_data in pe_platforms.values():
+            if isinstance(p_data, dict):
+                web_results.extend(p_data.get("results") or [])
         for r in web_results:
             url = (r.get("url") or "").strip()
             if not url:

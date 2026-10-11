@@ -109,6 +109,8 @@ async def ai_extract_and_rank(
             ],
             temperature=0.0,
             max_tokens=max_tokens,
+            timeout=25.0,
+            max_retries=1,
         )
 
         parsed = extract_json_from_response(raw_response)
