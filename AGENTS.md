@@ -156,7 +156,6 @@ Repositori ini adalah implementasi kode aplikasi **Verifin: Platform Deteksi Low
         │       └── page.tsx
         ├── components/
         │   ├── report/
-        │   │   ├── EntityPanel.tsx
         │   │   └── EvidencePanel.tsx
         │   └── ui/
         │       ├── Badge.tsx
@@ -180,9 +179,6 @@ Repositori ini adalah implementasi kode aplikasi **Verifin: Platform Deteksi Low
         │   │   ├── Footer.tsx
         │   │   └── Navbar.tsx
         │   ├── report/
-        │   │   ├── FactorList.tsx
-        │   │   ├── ReportPage.tsx
-        │   │   ├── RiskMeter.tsx
         │   │   └── ShapChart.tsx
         │   ├── report-job/
         │   │   └── ReportJobPage.tsx

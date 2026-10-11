@@ -59,8 +59,6 @@ services:
       - ADMIN_SESSION_SECRET=${ADMIN_SESSION_SECRET:-verifin-admin-secret-change-me-2026}
     depends_on:
       - verifin-backend
-
-  # Auto-update container ketika ada image baru di GHCR
   watchtower:
     image: containrrr/watchtower
     container_name: verifin-watchtower

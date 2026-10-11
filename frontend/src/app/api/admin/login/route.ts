@@ -4,7 +4,7 @@ import { createHash, timingSafeEqual } from "crypto";
 // Password dibaca dari env SERVER-SIDE (tanpa prefix NEXT_PUBLIC_),
 // sehingga tidak pernah dibundle ke client.
 const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD ?? "verifin2026";
-const SESSION_SECRET = process.env.ADMIN_SESSION_SECRET ?? "verifin-admin-secret-change-me";
+const SESSION_SECRET = process.env.ADMIN_SESSION_SECRET ?? "verifin-admin-secret-change-me-2026";
 
 function makeToken(): string {
   // Token = HMAC-like hash dari password + secret. Valid selama password/secret tidak berubah.
