@@ -38,7 +38,7 @@ async def health_check(db: Session = Depends(get_db)):
         "llm": ai_status,
         "osint_services": {
             "openstreetmap": "online",
-            "kredibel": "online",
+            "kaspersky_whocalls": "online",
             "scrapling": "online",
             "social_media": "online",
         }

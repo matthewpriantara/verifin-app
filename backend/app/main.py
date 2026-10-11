@@ -6,7 +6,7 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
-from app.config import CORS_ORIGINS
+from app.config import CORS_ORIGINS, UPLOAD_DIR
 handler = logging.StreamHandler(sys.stdout)
 handler.setLevel(logging.DEBUG)
 formatter = logging.Formatter("%(asctime)s %(levelname)s [%(name)s] %(message)s")
@@ -98,9 +98,9 @@ app.include_router(verify_router, prefix="/api/v1")
 app.include_router(health_router, prefix="/api/v1")
 app.include_router(community_router, prefix="/api/v1")
 
-UPLOAD_DIR = os.path.join(os.path.dirname(os.path.dirname(__file__)), "uploads", "evidence")
-os.makedirs(UPLOAD_DIR, exist_ok=True)
-app.mount("/uploads", StaticFiles(directory=UPLOAD_DIR), name="uploads")
+os.makedirs(str(UPLOAD_DIR), exist_ok=True)
+app.mount("/uploads/evidence", StaticFiles(directory=str(UPLOAD_DIR)), name="uploads_evidence")
+app.mount("/uploads", StaticFiles(directory=str(UPLOAD_DIR)), name="uploads")
 
 if __name__ == "__main__":
     import uvicorn
