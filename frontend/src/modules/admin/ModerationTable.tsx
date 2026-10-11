@@ -154,7 +154,7 @@ function DetailModal({
           <div>
             <span className="text-[11px] font-medium text-text-muted block uppercase tracking-wider mb-1">Kronologi Kejadian</span>
             <div className="rounded-xl border border-border bg-bg-elevated p-3 text-[13px] leading-relaxed text-text-secondary max-h-48 overflow-y-auto">
-              {report.description || "—"}
+              {report.description || "-"}
             </div>
           </div>
 
@@ -271,7 +271,7 @@ function NoteModal({
         <div className="mb-4 rounded-lg border border-border bg-bg-subtle p-3 text-[12px] leading-relaxed text-text-secondary">
           {(report.description || "").length > 120
             ? (report.description || "").slice(0, 120) + "…"
-            : report.description || "—"}
+            : report.description || "-"}
         </div>
 
         <div className="mb-4">
@@ -367,7 +367,7 @@ function ReportRow({
       <td className="px-4 py-3 align-top">
         <div className="flex flex-col items-start gap-1">
           <p className="max-w-[240px] text-[12px] leading-relaxed text-text-muted line-clamp-2">
-            {report.description || "—"}
+            {report.description || "-"}
           </p>
           <button
             onClick={() => onViewDetail(report)}
@@ -450,7 +450,7 @@ function ReportRow({
           <span className="text-[12px] text-text-muted">
             {report.reviewed_at
               ? new Date(report.reviewed_at).toLocaleDateString("id-ID", { dateStyle: "short" })
-              : "—"}
+              : "-"}
           </span>
         )}
       </td>

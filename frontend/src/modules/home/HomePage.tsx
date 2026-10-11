@@ -143,7 +143,7 @@ export default function HomePage() {
             initial={{ opacity: 0, y: 12 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.5, delay: 0.12, ease: [0.16, 1, 0.3, 1] }}
-            className="mt-4 max-w-lg text-justify text-[14px] leading-relaxed text-text-secondary sm:mt-5 sm:text-[15px]"
+            className="mt-4 max-w-lg text-[14px] leading-relaxed text-text-secondary sm:mt-5 sm:text-[15px]"
           >
             Lindungi perjalanan karirmu dari bahaya lowongan kerja palsu dan penipuan digital. Verifin memanfaatkan kecerdasan AI dan OSINT untuk memverifikasi profil perusahaan, keabsahan lokasi, nomor kontak, hingga jejak reputasi digital secara instan. Dapatkan rangkuman bukti risiko yang transparan dan dapat diaudit agar kamu bisa melamar kerja dengan percaya diri tanpa rasa cemas.
           </motion.p>
@@ -155,14 +155,14 @@ export default function HomePage() {
             className="mt-7 flex flex-wrap gap-x-6 gap-y-4 sm:mt-8 sm:gap-6"
           >
             {[
-              { val: "6", unit: "Kanal", label: "Pemeriksaan publik" },
+              { val: "6", unit: "Kanal", label: "Pemeriksaan OSINT" },
               { val: "4", unit: "Tahap", label: "Analisis Verifin" },
-              { val: "Bukti", unit: "dulu", label: "Penjelasan transparan" },
+              { val: "100%", unit: "Transparan", label: "Evidence Attribution" },
             ].map(({ val, unit, label }) => (
               <div key={label}>
                 <p className="font-mono text-xl font-semibold text-text-primary sm:text-2xl">
-                  {val}
-                  <span className="ml-1 text-[12px] font-normal text-text-muted sm:text-[13px]">{unit}</span>
+                  {val}{" "}
+                  <span className="text-[12px] font-normal text-text-muted sm:text-[13px]">{unit}</span>
                 </p>
                 <p className="text-[11px] text-text-muted sm:text-[12px]">{label}</p>
               </div>
@@ -174,7 +174,7 @@ export default function HomePage() {
             animate={{ opacity: 1 }}
             transition={{ delay: 0.9 }}
             onClick={() => howRef.current?.scrollIntoView({ behavior: "smooth" })}
-            className="mt-10 hidden items-center gap-2 rounded-lg border border-border bg-text-primary px-3.5 py-2 text-[12px] font-medium text-white transition-colors hover:border-border-focus hover:text-black hover:bg-bg-elevated lg:flex"
+            className="mt-10 hidden items-center gap-2 rounded-lg border border-border bg-text-primary px-3.5 py-2 text-[12px] font-medium text-bg transition-colors hover:border-border-focus hover:bg-bg-elevated hover:text-text-primary lg:flex"
           >
             <motion.span
               animate={{ y: [0, 3, 0] }}

@@ -383,7 +383,7 @@ export function EvidencePanel({ osint }: EvidencePanelProps) {
                 Bukti OSINT
               </h3>
               <p className="mt-0.5 text-[12px] text-text-muted">
-                Data dari sumber nyata — bukan rekaan model AI
+                Data dari sumber nyata, bukan rekaan model AI
               </p>
             </div>
           </div>
@@ -444,7 +444,7 @@ export function EvidencePanel({ osint }: EvidencePanelProps) {
                 <div key={i} className="rounded-lg border border-border bg-bg-subtle/30 px-4 py-3">
                   <div className="flex flex-wrap items-center justify-between gap-2">
                     <span className="font-mono text-[14px] font-semibold text-text-primary">
-                      {p.phone ?? "—"}
+                      {p.phone ?? "-"}
                     </span>
                     {p.reported_fraud ? (
                       <Flag text="Dilaporkan penipuan" kind="risk" />
@@ -476,7 +476,7 @@ export function EvidencePanel({ osint }: EvidencePanelProps) {
                 <div key={i} className="rounded-lg border border-border bg-bg-subtle/30 px-4 py-3">
                   <div className="flex flex-wrap items-center justify-between gap-2">
                     <span className="text-[14px] font-semibold text-text-primary">
-                      {String(c.name ?? c.company_name ?? "—")}
+                      {String(c.name ?? c.company_name ?? "-")}
                     </span>
                     {typeof c.stats === "object" && c.stats !== null && (
                       <span className="rounded-full bg-accent/10 px-3 py-1 text-[11px] font-semibold text-accent">
@@ -548,7 +548,7 @@ export function EvidencePanel({ osint }: EvidencePanelProps) {
                                 : "bg-bg-subtle text-text-muted"
                           )}
                         >
-                          {search.status === "FOUND" ? "✓" : search.status === "UNAVAILABLE" ? "✗" : "—"}
+                          {search.status === "FOUND" ? "✓" : search.status === "UNAVAILABLE" ? "✗" : "-"}
                         </span>
                       </div>
                     ))}

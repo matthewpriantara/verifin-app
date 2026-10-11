@@ -387,7 +387,7 @@ function ReportJobPageInner() {
                     onChange={(e) => handleSelectCase(e.target.value)}
                     className="w-full appearance-none rounded-xl border border-border bg-bg px-4 py-3 pr-10 text-[13px] text-text-primary outline-none transition-colors focus:border-border-focus"
                   >
-                    <option value="">— Pilih kasus —</option>
+                    <option value="">(Pilih riwayat kasus)</option>
                     {historyItems.map((item) => (
                       <option key={item.id} value={item.case_id || item.id}>
                         {item.title} ({item.verdict}, skor {item.risk_score})
@@ -544,7 +544,7 @@ function ReportJobPageInner() {
                   >
                     <UploadSimple size={20} weight="bold" />
                     <span className="text-[11px] font-medium">Klik untuk upload gambar</span>
-                    <span className="text-[10px] text-text-muted">JPG, PNG, WebP — maks 5MB</span>
+                    <span className="text-[10px] text-text-muted">JPG, PNG, WebP · maks 5MB</span>
                   </button>
                 )}
               </div>

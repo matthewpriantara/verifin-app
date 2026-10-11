@@ -235,10 +235,10 @@ function CasesTable({
                 {c.risk_score}
               </td>
               <td className="px-4 py-3 text-text-secondary max-w-[160px] truncate">
-                {c.company_name || "—"}
+                {c.company_name || "-"}
               </td>
               <td className="px-4 py-3 text-text-muted max-w-[240px] truncate">
-                {c.raw_text_preview || "—"}
+                {c.raw_text_preview || "-"}
               </td>
               <td className="px-4 py-3">
                 <span className="rounded border border-border px-1.5 py-0.5 font-mono text-[10px] text-text-muted uppercase">
@@ -251,7 +251,7 @@ function CasesTable({
                     dateStyle: "short",
                     timeStyle: "short",
                   })
-                  : "—"}
+                  : "-"}
               </td>
               <td className="px-4 py-3 text-right">
                 <button
@@ -316,7 +316,7 @@ export default function AdminPage() {
           id: c.id,
           case_id: c.id.slice(0, 8),
           source: (c.source as UserInputLog["source"]) || "text",
-          raw_input: c.raw_text_preview || "—",
+          raw_input: c.raw_text_preview || "-",
           company_name: c.company_name || "Tidak diketahui",
           verdict: (c.verdict as UserInputLog["verdict"]) || "WASPADA",
           risk_score: c.risk_score,
@@ -329,7 +329,7 @@ export default function AdminPage() {
             dateStyle: "short",
             timeStyle: "short",
           }) + " WIB",
-          ip_address: "—",
+          ip_address: "-",
         })),
       );
     } else setError(casesRes.reason instanceof Error ? casesRes.reason.message : "Gagal memuat kasus");
