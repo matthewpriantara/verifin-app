@@ -10,6 +10,12 @@ const geistMono = Geist_Mono({ variable: "--font-geist-mono", subsets: ["latin"]
 export const metadata: Metadata = {
   title: { default: "Verifin - Verifikasi Lowongan Kerja", template: "%s · Verifin" },
   description: "Deteksi penipuan lowongan kerja dengan OCR, OSINT, dan Explainable AI.",
+  icons: {
+    icon: [
+      { url: "/icon.svg", type: "image/svg+xml" },
+      { url: "/icon.png", type: "image/png" },
+    ],
+  },
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
