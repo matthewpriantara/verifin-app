@@ -8,7 +8,7 @@ load_dotenv(dotenv_path=BASE_DIR / ".env")
 LLM_BASE_URL = os.getenv("LLM_BASE_URL", "").rstrip("/")
 LLM_API_KEY = os.getenv("LLM_API_KEY", "")
 LLM_MODEL = os.getenv("LLM_MODEL", "")
-LLM_TIMEOUT = float(os.getenv("LLM_TIMEOUT", "120"))
+LLM_TIMEOUT = float(os.getenv("LLM_TIMEOUT", "35"))
 LLM_EXTRACTOR_MODEL = os.getenv("LLM_EXTRACTOR_MODEL") or LLM_MODEL
 
 DATABASE_URL = os.getenv("DATABASE_URL", "")
