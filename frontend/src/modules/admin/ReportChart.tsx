@@ -107,8 +107,8 @@ export default function ReportChart({
             Aktivitas Verifikasi
           </p>
           <p className="mt-0.5 text-[22px] font-semibold tabular-nums text-text-primary">
-            {totalAll}
-            <span className="ml-1.5 text-[13px] font-normal text-text-muted">total input</span>
+            {totalAll}{" "}
+            <span className="ml-1 text-[13px] font-normal text-text-muted">total input</span>
           </p>
         </div>
 
