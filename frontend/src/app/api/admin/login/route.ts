@@ -3,11 +3,13 @@ import { createHash, timingSafeEqual } from "crypto";
 
 // Password dibaca dari env SERVER-SIDE (tanpa prefix NEXT_PUBLIC_),
 // sehingga tidak pernah dibundle ke client.
-const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD ?? "verifin2026";
-const SESSION_SECRET = process.env.ADMIN_SESSION_SECRET ?? "verifin-admin-secret-change-me-2026";
+const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD;
+const SESSION_SECRET = process.env.ADMIN_SESSION_SECRET;
 
 function makeToken(): string {
-  // Token = HMAC-like hash dari password + secret. Valid selama password/secret tidak berubah.
+  if (!ADMIN_PASSWORD || !SESSION_SECRET) {
+    throw new Error("ADMIN_PASSWORD dan ADMIN_SESSION_SECRET wajib diset di .env");
+  }
   return createHash("sha256").update(`${ADMIN_PASSWORD}:${SESSION_SECRET}`).digest("hex");
 }
 
@@ -19,6 +21,13 @@ function safeEqual(a: string, b: string): boolean {
 }
 
 export async function POST(request: Request) {
+  if (!ADMIN_PASSWORD || !SESSION_SECRET) {
+    return NextResponse.json(
+      { ok: false, detail: "Konfigurasi server admin belum lengkap di .env." },
+      { status: 500 }
+    );
+  }
+
   let body: { password?: string };
   try {
     body = await request.json();
