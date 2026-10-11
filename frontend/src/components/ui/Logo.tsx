@@ -1,7 +1,6 @@
 "use client";
 
 import { cn } from "@/lib/utils";
-import { ShieldCheck } from "@phosphor-icons/react";
 
 interface LogoProps {
   size?: "sm" | "md" | "lg";
@@ -10,20 +9,49 @@ interface LogoProps {
   className?: string;
 }
 
+export function VerifinMark({ className }: { className?: string }) {
+  return (
+    <svg
+      viewBox="240 240 600 600"
+      fill="none"
+      xmlns="http://www.w3.org/2000/svg"
+      className={className}
+      aria-hidden="true"
+    >
+      <path
+        d="M488.568 639.311L534.479 724.833L625.171 569.339C579.957 596.48 515.263 627.296 488.568 639.311Z"
+        fill="currentColor"
+      />
+      <path
+        d="M328.417 370.777C349.766 371.047 372.895 373.007 394.333 373.989C403.873 374.425 428.07 375.298 436.018 377.395L436.812 377.611C448.638 380.771 474.963 428.298 483.412 441.89C505.137 476.463 526.67 511.156 548.011 545.966L520.625 558.24C500.983 567.115 481.059 575.353 460.881 582.937L328.417 370.777Z"
+        fill="currentColor"
+      />
+      <path
+        d="M771.509 356.563C779.84 355.147 789.651 355.254 798.12 355.648C808.76 356.142 822.084 358.076 829.486 366.529C833.216 370.788 834.429 376.247 833.871 381.8C831.073 409.656 795.333 438.485 775.116 455.352C682.943 532.254 409.559 676.531 289.075 665.274C276.054 664.056 259.947 660.515 251.385 649.85C247.143 644.568 245.816 638.047 246.565 631.415C250.194 599.288 293.509 564.207 317.201 544.965C331.414 533.875 358.366 514.135 373.584 505.437C374.571 507.573 364.786 514.835 362.989 516.267C339.01 535.355 293.477 572.275 290.07 604.228C289.534 609.255 290.535 614.149 293.801 618.109C300.145 625.795 312.145 628.122 321.571 629.09C423.048 639.501 678.862 506.356 756.639 442.353C771.776 429.898 801.955 405.206 803.621 384.018C804.02 378.935 802.564 374.089 799.095 370.305C788.28 358.51 766.021 359.683 751.169 359.045C757.69 358.073 764.907 357.35 771.509 356.563Z"
+        fill="currentColor"
+      />
+      <path
+        d="M718.176 365.371C722.063 364.857 725.011 364.1 728.721 365.211C723.418 376.364 644.451 494.353 637.37 500.462C626.683 509.682 578.908 532.229 563.928 538.225C560.551 537.193 560.93 536.353 558.62 532.764L537.496 497.553C545.706 486.517 611.693 382.263 620.789 378.806C631.106 374.885 702.251 367.359 718.176 365.371Z"
+        fill="currentColor"
+      />
+    </svg>
+  );
+}
+
 const sizeConfig = {
   sm: {
     container: "h-7 w-7 rounded-lg",
-    icon: 15,
+    icon: "h-4 w-4",
     text: "text-[15px] font-semibold tracking-tight text-text-primary",
   },
   md: {
     container: "h-8 w-8 rounded-lg",
-    icon: 18,
+    icon: "h-5 w-5",
     text: "text-lg font-bold tracking-tight text-text-primary",
   },
   lg: {
     container: "h-10 w-10 rounded-xl",
-    icon: 22,
+    icon: "h-6 w-6",
     text: "text-xl font-bold tracking-tight text-text-primary",
   },
 };
@@ -47,7 +75,7 @@ export function Logo({
             : "bg-text-primary text-bg-elevated"
         )}
       >
-        <ShieldCheck size={currentSize.icon} weight="bold" />
+        <VerifinMark className={currentSize.icon} />
       </div>
 
       {showText && (
