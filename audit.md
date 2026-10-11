@@ -554,14 +554,14 @@ Seluruh temuan prioritas (bug fungsional, routing, styling, dead code, dan inkon
   - Re-export `AdminPage` bersih.
 
 ### `[105/138] frontend/src/app/api/admin/login/route.ts`
-- **Status:** [BERSIH / VALID]
+- **Status:** [BERSIH / VALID (ANTISLOP AUDITED)]
 - **Temuan:**
-  - Nihil. Fallback `SESSION_SECRET` telah diselaraskan ke `"verifin-admin-secret-change-me-2026"`.
+  - Nihil. Sesuai prinsip Anti-Slop (R-36, C-1), seluruh fallback hardcoded string (`?? "verifin2026"`) telah dihapus. Nilai dibaca murni dari `.env` dengan mekanisme Fail-Closed (HTTP 500 jika env belum diset), mencegah bypass login tanpa kredensial resmi.
 
 ### `[106/138] frontend/src/app/api/admin/session/route.ts`
-- **Status:** [BERSIH / VALID]
+- **Status:** [BERSIH / VALID (ANTISLOP AUDITED)]
 - **Temuan:**
-  - Nihil. Fallback `SESSION_SECRET` telah diselaraskan ke `"verifin-admin-secret-change-me-2026"`.
+  - Nihil. Sesuai prinsip Anti-Slop (R-36, C-1), secret session dibaca murni dari `.env` tanpa fallback string hardcoded di kode sumber.
 ### `[107/138] frontend/src/app/report/page.tsx`
 - **Status:** [BERSIH / VALID]
 - **Temuan:**
