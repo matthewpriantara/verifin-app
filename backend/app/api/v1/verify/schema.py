@@ -96,7 +96,7 @@ class VerifyResponse(BaseModel):
 
 
 class LlmStatusResponse(BaseModel):
-    provider: str = "openagentic"
+    provider: str = "google-api"
     configured: bool
     reachable: bool
     available_models: List[str] = []
