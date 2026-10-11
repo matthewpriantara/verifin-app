@@ -4,24 +4,17 @@ Dokumen ini memuat hasil audit komprehensif **per-file** untuk seluruh berkas ya
 
 ---
 
-## Ringkasan Temuan Kunci (Executive Summary)
+## Ringkasan Audit (Executive Summary)
 
-2. **Dead Code Signifikan yang Tidak Pernah Dipakai (Backend & Frontend)**
-   - `frontend/src/modules/report/FactorList.tsx` (62 baris): Komponen daftar faktor tidak pernah diimpor oleh `ReportPage.tsx` (sudah di-render inline).
-   - `frontend/src/modules/report/RiskMeter.tsx` (55 baris): Komponen meter risiko tidak pernah diimpor (halaman report memakai `ScoreRing` internal).
-   - `frontend/src/components/report/EntityPanel.tsx` (68 baris): Komponen panel entitas tidak pernah diimpor (halaman report memakai rendering internal).
-   - `frontend/package.json`: Memuat dependensi ganda `framer-motion` dan `motion`. Seluruh kode frontend hanya mengimpor `motion/react`, sehingga `framer-motion` adalah dead dependency.
-
-3. **Styling Token Rusak (Frontend)**
-   - `frontend/src/components/ui/Badge.tsx`: Varian `neutral` memanggil class `bg-cream-deep text-charcoal-soft`. Kedua class ini **tidak didefinisikan** pada `@theme inline` di `globals.css` Tailwind v4, menyebabkan badge netral tampil transparan/tanpa warna latar.
-
-4. **Hardcoded Fallback Domain Outdated (Frontend)**
-   - `frontend/src/lib/api.ts`: Fallback `API_BASE` masih mengarah ke domain lama `https://verifin.octane.web.id`, sedangkan `docker-compose.yml` dan deploy workflow menggunakan domain resmi `https://api.verifin.web.id`.
-
-5. **Inkonsistensi Secret Admin Session**
-   - `frontend/src/app/api/admin/login/route.ts` & `session/route.ts` memakai fallback `"verifin-admin-secret-change-me"`.
-   - `frontend/.env.example` dan `docker-compose.yml` memakai `"verifin-admin-secret-change-me-2026"`.
-
+Seluruh temuan prioritas (bug fungsional, routing, styling, dead code, dan inkonsistensi konfigurasi) telah berhasil diperbaiki dan diverifikasi:
+- [x] Bug routing 404 upload komunitas diperbaiki via dual mount `/uploads` dan `/uploads/evidence`.
+- [x] 4 file dead code (`entity_validator.py`, `FactorList.tsx`, `RiskMeter.tsx`, `EntityPanel.tsx`) telah dibersihkan.
+- [x] Dependensi ganda `framer-motion` telah dihapus dari `package.json`.
+- [x] Styling token `Badge.tsx` diperbaiki agar sesuai dengan tema Tailwind v4.
+- [x] Fallback domain `API_BASE` diselaraskan ke `https://api.verifin.web.id`.
+- [x] Fallback secret session admin diselaraskan ke `verifin-admin-secret-change-me-2026`.
+- [x] Path skrip evaluasi ML dibuat dinamis dan menangani dataset offline secara graceful.
+- [x] Inisialisasi engine database dan PaddleOCR dilindungi pengaman thread-safe.
 ---
 
 ## 1. Root & CI/CD Configurations
@@ -433,10 +426,9 @@ Dokumen ini memuat hasil audit komprehensif **per-file** untuk seluruh berkas ya
   - Baris 5: `allowedDevOrigins: ["100.111.60.81"]`. Hardcoded IP lokal / Tailscale developer saat development.
 
 ### `[80/138] frontend/package.json`
-- **Status:** [DEPENDENCY GANDA / DEAD WEIGHT]
+- **Status:** [BERSIH / VALID]
 - **Temuan:**
-  - Terdapat dependensi `"framer-motion": "^13.4.4"` DAN `"motion": "^13.4.4"`. Kode frontend 100% menggunakan `motion/react`, sehingga `framer-motion` adalah dead weight yang menambah ukuran node_modules.
-
+  - Nihil. Dependensi ganda `framer-motion` telah dihapus; project murni menggunakan library resmi `motion`.
 ### `[81/138] frontend/pnpm-lock.yaml`
 - **Status:** [BERSIH / VALID]
 - **Temuan:**
@@ -562,15 +554,14 @@ Dokumen ini memuat hasil audit komprehensif **per-file** untuk seluruh berkas ya
   - Re-export `AdminPage` bersih.
 
 ### `[105/138] frontend/src/app/api/admin/login/route.ts`
-- **Status:** [INKONSISTENSI SECRET]
+- **Status:** [BERSIH / VALID]
 - **Temuan:**
-  - Baris 7: Fallback `SESSION_SECRET` adalah `"verifin-admin-secret-change-me"` (tanpa `-2026`), berbeda dengan `.env.example` dan `docker-compose.yml` (`"verifin-admin-secret-change-me-2026"`).
+  - Nihil. Fallback `SESSION_SECRET` telah diselaraskan ke `"verifin-admin-secret-change-me-2026"`.
 
 ### `[106/138] frontend/src/app/api/admin/session/route.ts`
-- **Status:** [INKONSISTENSI SECRET]
+- **Status:** [BERSIH / VALID]
 - **Temuan:**
-  - Memiliki fallback secret yang sama dengan `login/route.ts` (perlu diselaraskan dengan `.env.example`).
-
+  - Nihil. Fallback `SESSION_SECRET` telah diselaraskan ke `"verifin-admin-secret-change-me-2026"`.
 ### `[107/138] frontend/src/app/report/page.tsx`
 - **Status:** [BERSIH / VALID]
 - **Temuan:**
@@ -606,20 +597,18 @@ Dokumen ini memuat hasil audit komprehensif **per-file** untuk seluruh berkas ya
 ## 7. Frontend Components, Modules, Lib, & Types
 
 ### `[113/138] frontend/src/components/report/EntityPanel.tsx`
-- **Status:** [DEAD CODE - TIDAK PERNAH DIIMPOR]
+- **Status:** [BERSIH / VALID]
 - **Temuan:**
-  - Komponen panel entitas ini tidak pernah diimpor oleh halaman mana pun di proyek (`ReportPage.tsx` merender entitas menggunakan list internal).
-
+  - Nihil. Komponen dead code yang tidak pernah diimpor telah dihapus dari repositori.
 ### `[114/138] frontend/src/components/report/EvidencePanel.tsx`
 - **Status:** [BERSIH / VALID]
 - **Temuan:**
   - Komponen visualisasi bukti OSINT (web searches, digital footprint, DNS, maps, social) aktif dan terintegrasi di `ReportPage.tsx`.
 
 ### `[115/138] frontend/src/components/ui/Badge.tsx`
-- **Status:** [BUG STYLING TAILWIND]
+- **Status:** [BERSIH / VALID]
 - **Temuan:**
-  - Baris 11: `neutral: "bg-cream-deep text-charcoal-soft"`. Class `bg-cream-deep` dan `text-charcoal-soft` tidak ada di Tailwind theme tokens. Seharusnya menggunakan `bg-bg-subtle text-text-secondary`.
-
+  - Nihil. Styling varian `neutral` telah diperbaiki menggunakan class token resmi Tailwind v4 (`bg-bg-subtle text-text-secondary border border-border`).
 ### `[116/138] frontend/src/components/ui/Button.tsx`
 - **Status:** [BERSIH / VALID]
 - **Temuan:**
@@ -646,10 +635,9 @@ Dokumen ini memuat hasil audit komprehensif **per-file** untuk seluruh berkas ya
   - Fungsi fetcher admin case dan status AI.
 
 ### `[121/138] frontend/src/lib/api.ts`
-- **Status:** [OUTDATED FALLBACK URL]
+- **Status:** [BERSIH / VALID]
 - **Temuan:**
-  - Baris 10: Fallback `API_BASE` mengarah ke `https://verifin.octane.web.id` (seharusnya `https://api.verifin.web.id`).
-
+  - Nihil. Fallback `API_BASE` telah diselaraskan ke domain resmi `https://api.verifin.web.id`.
 ### `[122/138] frontend/src/lib/utils.ts`
 - **Status:** [BERSIH / VALID]
 - **Temuan:**
@@ -691,20 +679,18 @@ Dokumen ini memuat hasil audit komprehensif **per-file** untuk seluruh berkas ya
   - Header navigasi sticky terintegrasi dengan `<Logo />` dan tombol aksi cepat lapor komunitas.
 
 ### `[130/138] frontend/src/modules/report/FactorList.tsx`
-- **Status:** [DEAD CODE - TIDAK PERNAH DIIMPOR]
+- **Status:** [BERSIH / VALID]
 - **Temuan:**
-  - Komponen ini tidak pernah diimpor oleh modul manapun. `ReportPage.tsx` merender daftar faktor penilai secara langsung tanpa menggunakan komponen ini.
-
+  - Nihil. Komponen dead code yang tidak pernah diimpor telah dihapus dari repositori.
 ### `[131/138] frontend/src/modules/report/ReportPage.tsx`
 - **Status:** [BERSIH / VALID]
 - **Temuan:**
   - Halaman hasil verifikasi mendalam dengan visualisasi skor risiko, atribusi fitur SHAP, bukti OSINT, dan entitas teridentifikasi.
 
 ### `[132/138] frontend/src/modules/report/RiskMeter.tsx`
-- **Status:** [DEAD CODE - TIDAK PERNAH DIIMPOR]
+- **Status:** [BERSIH / VALID]
 - **Temuan:**
-  - Komponen ini tidak pernah diimpor oleh modul manapun. `ReportPage.tsx` menggunakan komponen internal `ScoreRing` berbasis SVG.
-
+  - Nihil. Komponen dead code yang tidak pernah diimpor telah dihapus dari repositori.
 ### `[133/138] frontend/src/modules/report/ShapChart.tsx`
 - **Status:** [BERSIH / VALID]
 - **Temuan:**
@@ -737,16 +723,10 @@ Dokumen ini memuat hasil audit komprehensif **per-file** untuk seluruh berkas ya
 
 ---
 
-## Rekomendasi Tindak Lanjut Terprioritas
+## Status Rekomendasi Tindak Lanjut
 
-1. **Perbaiki Bug URL Upload Bukti Komunitas (Prioritas 1 - Fungsionalitas):**
-   Ubah baris 66 di `backend/app/api/v1/community/router.py` dari `/uploads/evidence/{filename}` menjadi `/uploads/{filename}` (atau sesuaikan mount di `main.py`).
-2. **Perbaiki Styling Class `Badge.tsx` (Prioritas 1 - UI):**
-   Ganti `bg-cream-deep text-charcoal-soft` dengan `bg-bg-subtle text-text-secondary` agar badge tone netral tampil sempurna.
-3. **Pembersihan Dead Code (Prioritas 2 - Kebersihan Repo):**
-   - Hapus `entity_validator.py` di backend jika validasi LLM entity tidak akan diaktifkan.
-   - Hapus `EntityPanel.tsx`, `FactorList.tsx`, dan `RiskMeter.tsx` di frontend.
-   - Hapus dependensi `"framer-motion"` dari `frontend/package.json`.
-4. **Penyelarasan Konfigurasi (Prioritas 3 - Maintainability):**
-   - Ganti fallback `API_BASE` di `frontend/src/lib/api.ts` ke `https://api.verifin.web.id`.
-   - Selaraskan fallback `ADMIN_SESSION_SECRET` di API routes admin dengan `.env.example`.
+Semua rekomendasi terprioritas telah berhasil diselesaikan 100%:
+- [x] Bug URL upload bukti komunitas di backend teratasi (dual static mount).
+- [x] Styling class token `Badge.tsx` diperbaiki sesuai token tema Tailwind v4.
+- [x] Pembersihan seluruh dead code selesai (`entity_validator.py`, `EntityPanel.tsx`, `FactorList.tsx`, `RiskMeter.tsx`, dan `framer-motion`).
+- [x] Penyelarasan konfigurasi selesai (`API_BASE` domain resmi dan `ADMIN_SESSION_SECRET` fallback).

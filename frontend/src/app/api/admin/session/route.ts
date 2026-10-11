@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { createHash, timingSafeEqual } from "crypto";
 
 const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD ?? "verifin2026";
-const SESSION_SECRET = process.env.ADMIN_SESSION_SECRET ?? "verifin-admin-secret-change-me";
+const SESSION_SECRET = process.env.ADMIN_SESSION_SECRET ?? "verifin-admin-secret-change-me-2026";
 
 function expectedToken(): string {
   return createHash("sha256").update(`${ADMIN_PASSWORD}:${SESSION_SECRET}`).digest("hex");

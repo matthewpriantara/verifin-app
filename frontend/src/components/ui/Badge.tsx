@@ -8,7 +8,7 @@ interface BadgeProps {
 }
 
 const tones = {
-  neutral: "bg-cream-deep text-charcoal-soft",
+  neutral: "bg-bg-subtle text-text-secondary border border-border",
   aman: "bg-aman-bg text-aman-fg",
   waspada: "bg-waspada-bg text-waspada-fg",
   bahaya: "bg-bahaya-bg text-bahaya-fg",
