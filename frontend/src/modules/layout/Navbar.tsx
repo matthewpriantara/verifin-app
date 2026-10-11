@@ -2,7 +2,8 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { ShieldCheck, ChatTeardropText } from "@phosphor-icons/react";
+import { ChatTeardropText } from "@phosphor-icons/react";
+import { Logo } from "@/components/ui/Logo";
 
 export function Navbar() {
   const pathname = usePathname();
@@ -25,13 +26,8 @@ export function Navbar() {
   return (
     <header className="sticky top-0 z-50 border-b border-border bg-bg/90 backdrop-blur-md">
       <div className="mx-auto flex h-14 max-w-6xl items-center justify-between px-4 sm:px-6">
-        <Link href="/" className="flex items-center gap-2.5 no-underline">
-          <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-text-primary">
-            <ShieldCheck size={15} weight="bold" className="text-bg-elevated" />
-          </div>
-          <span className="text-[15px] font-semibold tracking-tight text-text-primary">
-            Verifin
-          </span>
+        <Link href="/" className="inline-flex items-center no-underline">
+          <Logo size="sm" />
         </Link>
 
         <div className="flex items-center gap-2">
