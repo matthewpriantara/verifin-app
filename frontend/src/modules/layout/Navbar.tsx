@@ -20,8 +20,8 @@ export function Navbar() {
     ? `/report-job?caseId=${encodeURIComponent(caseId)}`
     : "/report-job";
 
-  // Tampilkan tombol lapor komunitas di home & report page (kecuali di /report-job sendiri)
-  const showLapor = (onReport || onHome) && !pathname.startsWith("/report-job");
+  // Tampilkan tombol lapor komunitas HANYA di home (di halaman report sudah ada CTA aksi spesifik kasus)
+  const showLapor = onHome;
 
   return (
     <header className="sticky top-0 z-50 border-b border-border bg-bg/90 backdrop-blur-md">

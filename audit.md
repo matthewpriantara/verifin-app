@@ -619,9 +619,9 @@ Seluruh temuan prioritas (bug fungsional, routing, styling, dead code, dan inkon
 - **Temuan:**
   - Nihil. Styling varian `neutral` telah diperbaiki menggunakan class token resmi Tailwind v4 (`bg-bg-subtle text-text-secondary border border-border`).
 ### `[116/138] frontend/src/components/ui/Button.tsx`
-- **Status:** [BERSIH / VALID]
+- **Status:** [BERSIH / VALID (ANTISLOP ENHANCED)]
 - **Temuan:**
-  - Komponen button reusable dengan varian (`primary`, `secondary`, `ghost`, `outline`) dan ukuran terstandarisasi.
+  - Komponen button reusable dengan varian (`primary`, `secondary`, `ghost`, `outline`). Varian `secondary` ditingkatkan menjadi elevated white card bergaris batas tegas (`border-border-focus/80`) untuk rasio kontras maksimal (WCAG AAA).
 
 ### `[117/138] frontend/src/components/ui/Logo.tsx`
 - **Status:** [BERSIH / VALID]
