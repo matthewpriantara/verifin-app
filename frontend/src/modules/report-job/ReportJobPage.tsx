@@ -17,7 +17,7 @@ import {
   FolderOpen,
 } from "@phosphor-icons/react";
 import { cn, getHistory, getServerHistory, subscribeHistory } from "@/lib/utils";
-import { Skeleton } from "@/components/ui/Skeleton";
+import ReportJobLoading from "@/app/report-job/loading";
 import type { ReportType } from "@/types/admin";
 import { submitCommunityReport } from "@/lib/api";
 
@@ -44,41 +44,10 @@ const REPORT_TYPES: { value: ReportType; label: string; desc: string }[] = [
   },
 ];
 
-function ReportJobSkeleton() {
-  return (
-    <div className="mx-auto w-full max-w-3xl px-4 py-8 sm:px-6 space-y-8 animate-fade-in">
-      <div className="space-y-2">
-        <Skeleton className="h-4 w-28" />
-        <Skeleton className="h-8 w-64" />
-        <Skeleton className="h-4 w-96" />
-      </div>
-      <div className="space-y-3">
-        <Skeleton className="h-4 w-36" />
-        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-          <Skeleton className="h-20 rounded-2xl" />
-          <Skeleton className="h-20 rounded-2xl" />
-          <Skeleton className="h-20 rounded-2xl" />
-          <Skeleton className="h-20 rounded-2xl" />
-        </div>
-      </div>
-      <div className="rounded-3xl border border-border bg-bg-elevated p-6 space-y-5">
-        <div className="space-y-2">
-          <Skeleton className="h-4 w-32" />
-          <Skeleton className="h-10 w-full rounded-xl" />
-        </div>
-        <div className="space-y-2">
-          <Skeleton className="h-4 w-40" />
-          <Skeleton className="h-28 w-full rounded-2xl" />
-        </div>
-        <Skeleton className="h-12 w-full rounded-xl" />
-      </div>
-    </div>
-  );
-}
 
 export default function ReportJobPage() {
   return (
-    <Suspense fallback={<ReportJobSkeleton />}>
+    <Suspense fallback={<ReportJobLoading />}>
       <ReportJobPageInner />
     </Suspense>
   );
@@ -272,39 +241,43 @@ function ReportJobPageInner() {
   }
 
   return (
-    <div className="mx-auto w-full max-w-6xl px-4 py-14 sm:px-6 lg:py-20">
+    <div className="mx-auto w-full max-w-6xl px-4 py-8 sm:px-6 sm:py-10 lg:py-12">
 
-      {/* ── Header Bagian Atas ── */}
-      <div className="mb-10">
+      {/* ── Top Bar Navigasi ── */}
+      <div className="mb-6 flex items-center justify-between border-b border-border/60 pb-4">
         {activeCaseId ? (
           <button
+            type="button"
             onClick={() => router.back()}
-            className="inline-flex items-center gap-1.5 text-[13px] font-medium text-text-muted transition-colors hover:text-text-primary"
+            className="inline-flex items-center gap-2 rounded-lg border border-border bg-bg-elevated px-3 py-1.5 text-[13px] font-medium text-text-primary shadow-xs transition-all hover:border-border-focus hover:bg-bg-subtle active:scale-[0.98]"
           >
             <ArrowLeft size={14} weight="bold" /> Kembali ke Laporan
           </button>
         ) : (
           <Link
             href="/"
-            className="inline-flex items-center gap-1.5 text-[13px] font-medium text-text-muted transition-colors hover:text-text-primary"
+            className="inline-flex items-center gap-2 rounded-lg border border-border bg-bg-elevated px-3 py-1.5 text-[13px] font-medium text-text-primary shadow-xs transition-all hover:border-border-focus hover:bg-bg-subtle active:scale-[0.98]"
           >
-            <ArrowLeft size={14} weight="bold" /> Kembali
+            <ArrowLeft size={14} weight="bold" /> Kembali ke Beranda
           </Link>
         )}
 
-        <div className="mt-6 flex flex-col gap-3 md:flex-row md:items-end md:justify-between">
-          <div>
-            <p className="font-mono text-[11px] uppercase tracking-widest text-text-muted">
-              Community Watch
-            </p>
-            <h1 className="mt-1.5 text-3xl font-semibold tracking-tight text-text-primary sm:text-4xl">
-              Laporkan Lowongan Mencurigakan
-            </h1>
-            <p className="mt-2 max-w-2xl text-[14px] leading-relaxed text-text-secondary">
-              Bantu lindungi sesama pencari kerja dari kejahatan rekrutmen. Setiap laporan akan dimoderasi terlebih dahulu oleh tim admin sebelum mempengaruhi skor risiko perusahaan.
-            </p>
-          </div>
-        </div>
+        <span className="font-mono text-[11px] font-medium uppercase tracking-wider text-text-muted">
+          {activeCaseId ? `Kasus #${activeCaseId.slice(0, 8)}` : "Laporan Komunitas"}
+        </span>
+      </div>
+
+      {/* ── Header Title ── */}
+      <div className="mb-8 max-w-3xl">
+        <span className="inline-flex items-center rounded-full border border-border bg-bg-subtle px-2.5 py-0.5 font-mono text-[10px] font-medium uppercase tracking-wider text-text-muted">
+          Community Watch
+        </span>
+        <h1 className="mt-2.5 text-2xl font-bold tracking-tight text-text-primary sm:text-3xl">
+          Laporkan Lowongan Mencurigakan
+        </h1>
+        <p className="mt-2 text-[13px] leading-relaxed text-text-secondary sm:text-[14px]">
+          Bantu lindungi sesama pencari kerja dari kejahatan rekrutmen. Setiap laporan akan dimoderasi terlebih dahulu oleh tim admin sebelum mempengaruhi skor risiko perusahaan.
+        </p>
       </div>
 
       {/* ── Form Utama ── */}
