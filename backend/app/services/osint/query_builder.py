@@ -1,6 +1,5 @@
 import re
 
-from app.services.constants import FREE_EMAIL_DOMAINS
 
 _LEGAL_PREFIX = re.compile(r"^(?:pt|cv|ud|tbk|firma|yayasan)\.?\s+", re.I)
 _ADDRESS_LABEL = re.compile(

@@ -4,7 +4,6 @@ import { useRef } from "react";
 import { motion } from "motion/react";
 import { VerifyBox } from "@/modules/verify/VerifyBox";
 import { SearchHistory } from "@/modules/home/SearchHistory";
-import { Testimonials } from "@/components/ui/testimonials-columns-1";
 import {
   Scan,
   MagnifyingGlass,
@@ -247,8 +246,6 @@ export default function HomePage() {
         </div>
       </section>
 
-      {/* ── Testimoni & Pengalaman Pengguna ─────────────────────────── */}
-      <Testimonials />
     </div>
   );
 }

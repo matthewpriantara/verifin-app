@@ -1,10 +1,8 @@
 import re
 from typing import Any
-from urllib.parse import quote, unquote
 from urllib.parse import urlsplit, urlunsplit
 from collections import Counter
 
-from scrapling.fetchers import Fetcher
 
 _SOCIAL_AGGREGATOR_TOKENS = (
     "lokerjogja", "loker jogja", "lokerterbaru", "loker terbaru",

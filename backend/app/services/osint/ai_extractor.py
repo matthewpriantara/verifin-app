@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import logging
-import json
 from typing import Any
 
 from app.services.llm.client import chat_completion, extract_json_from_response

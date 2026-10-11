@@ -28,7 +28,6 @@ def _save_case_to_db(
     entities: dict | None = None,
     source: str = "text",
 ) -> dict:
-    from sqlalchemy.exc import IntegrityError
 
     if db is None:
         return {"status": "SKIPPED", "case_id": None}
