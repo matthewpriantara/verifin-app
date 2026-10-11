@@ -351,12 +351,15 @@ export default function ReportPage() {
     <div className="mx-auto w-full max-w-7xl px-4 py-6 sm:px-6 sm:py-8 lg:px-10 lg:py-12">
 
       {/* ── Top bar ── */}
-      <div className="mb-5 flex items-center justify-between gap-3">
-        <Link href="/" className="flex items-center gap-1.5 text-[13px] font-medium text-text-muted transition-colors hover:text-text-primary">
-          <ArrowLeft size={14} weight="bold" /> Verifikasi baru
+      <div className="mb-6 flex items-center justify-between border-b border-border-focus/40 pb-4">
+        <Link
+          href="/"
+          className="inline-flex items-center gap-2 rounded-xl bg-text-primary px-3.5 py-2 text-[13px] font-semibold text-bg-elevated shadow-sm transition-all hover:bg-text-secondary active:scale-[0.98]"
+        >
+          <ArrowLeft size={15} weight="bold" /> Verifikasi baru
         </Link>
-        <span className="truncate font-mono text-[11px] text-text-muted sm:text-xs">
-          {caseId ? `Kasus #${caseId.slice(0, 8)}` : "Laporan sementara"}
+        <span className="inline-flex items-center rounded-lg border border-border-focus/60 bg-bg-subtle px-3 py-1.5 font-mono text-[11px] font-semibold uppercase tracking-wider text-text-primary">
+          {caseId ? `Kasus #${caseId.slice(0, 8)}` : "Laporan Sementara"}
         </span>
       </div>
 

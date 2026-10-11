@@ -244,32 +244,33 @@ function ReportJobPageInner() {
     <div className="mx-auto w-full max-w-6xl px-4 py-8 sm:px-6 sm:py-10 lg:py-12">
 
       {/* ── Top Bar Navigasi ── */}
-      <div className="mb-6 flex items-center justify-between border-b border-border/60 pb-4">
+      <div className="mb-6 flex items-center justify-between border-b border-border-focus/40 pb-4">
         {activeCaseId ? (
           <button
             type="button"
             onClick={() => router.back()}
-            className="inline-flex items-center gap-2 rounded-lg border border-border bg-bg-elevated px-3 py-1.5 text-[13px] font-medium text-text-primary shadow-xs transition-all hover:border-border-focus hover:bg-bg-subtle active:scale-[0.98]"
+            className="inline-flex items-center gap-2 rounded-xl bg-text-primary px-4 py-2 text-[13px] font-semibold text-bg-elevated shadow-sm transition-all hover:bg-text-secondary active:scale-[0.98]"
           >
-            <ArrowLeft size={14} weight="bold" /> Kembali ke Laporan
+            <ArrowLeft size={15} weight="bold" /> Kembali ke Laporan
           </button>
         ) : (
           <Link
             href="/"
-            className="inline-flex items-center gap-2 rounded-lg border border-border bg-bg-elevated px-3 py-1.5 text-[13px] font-medium text-text-primary shadow-xs transition-all hover:border-border-focus hover:bg-bg-subtle active:scale-[0.98]"
+            className="inline-flex items-center gap-2 rounded-xl bg-text-primary px-4 py-2 text-[13px] font-semibold text-bg-elevated shadow-sm transition-all hover:bg-text-secondary active:scale-[0.98]"
           >
-            <ArrowLeft size={14} weight="bold" /> Kembali ke Beranda
+            <ArrowLeft size={15} weight="bold" /> Kembali ke Beranda
           </Link>
         )}
 
-        <span className="font-mono text-[11px] font-medium uppercase tracking-wider text-text-muted">
+        <span className="inline-flex items-center rounded-lg border border-border-focus/60 bg-bg-subtle px-3 py-1.5 font-mono text-[11px] font-semibold uppercase tracking-wider text-text-primary">
           {activeCaseId ? `Kasus #${activeCaseId.slice(0, 8)}` : "Laporan Komunitas"}
         </span>
       </div>
 
       {/* ── Header Title ── */}
       <div className="mb-8 max-w-3xl">
-        <span className="inline-flex items-center rounded-full border border-border bg-bg-subtle px-2.5 py-0.5 font-mono text-[10px] font-medium uppercase tracking-wider text-text-muted">
+        <span className="inline-flex items-center gap-1.5 rounded-full border border-border-focus/60 bg-bg-subtle px-3 py-1 font-mono text-[11px] font-semibold uppercase tracking-wider text-text-primary">
+          <span className="h-1.5 w-1.5 rounded-full bg-bahaya-fg" />
           Community Watch
         </span>
         <h1 className="mt-2.5 text-2xl font-bold tracking-tight text-text-primary sm:text-3xl">
