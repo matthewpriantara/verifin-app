@@ -558,9 +558,9 @@ export default function ReportPage() {
       </div>
 
       {/* ── Jejak Digital ── */}
-      {hasDigitalFootprint && (
-        <div className="mt-6">
-          <Section icon={ShareNetwork} title="Jejak Digital" subtitle="Profil media sosial dan situs resmi yang ditemukan publik" delay={0.2}>
+      <div className="mt-6">
+        <Section icon={ShareNetwork} title="Jejak Digital" subtitle="Profil media sosial dan situs resmi yang ditemukan publik" delay={0.2}>
+          {hasDigitalFootprint ? (
             <div className="grid gap-3 sm:grid-cols-2">
               {/* Profil sosial terderivasi */}
               {socialProfiles.map((p, i) => (
@@ -629,9 +629,21 @@ export default function ReportPage() {
                 );
               })}
             </div>
-          </Section>
-        </div>
-      )}
+          ) : (
+            <div className="flex flex-col items-center justify-center rounded-2xl border border-dashed border-border bg-bg-subtle/30 px-6 py-8 text-center">
+              <div className="flex h-10 w-10 items-center justify-center rounded-xl border border-border bg-bg-elevated text-text-muted shadow-2xs">
+                <ShareNetwork size={20} weight="duotone" />
+              </div>
+              <p className="mt-3 text-[13px] font-semibold text-text-primary">
+                Belum Ditemukan Jejak Digital Publik
+              </p>
+              <p className="mt-1 max-w-md text-[12px] leading-relaxed text-text-muted">
+                Tidak ditemukan profil media sosial terverifikasi atau website resmi publik yang terhubung dengan entitas ini pada penelusuran terbuka.
+              </p>
+            </div>
+          )}
+        </Section>
+      </div>
 
       {/* ── Entitas lowongan (collapse) ── */}
       <motion.div {...fadeUp} transition={{ delay: 0.24 }} className="mt-6 overflow-hidden rounded-3xl border border-border bg-bg-elevated">
@@ -703,9 +715,9 @@ export default function ReportPage() {
           href={caseId ? `/report-job?caseId=${encodeURIComponent(caseId)}` : "/report-job"}
           className="flex-1 sm:max-w-xs"
         >
-          <Button fullWidth variant="secondary">
+          <Button fullWidth variant="danger">
             <ChatTeardropText size={16} weight="bold" />
-            Laporkan ke Komunitas
+            Laporkan Kasus Ini
           </Button>
         </Link>
       </motion.div>
