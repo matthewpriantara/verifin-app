@@ -7,10 +7,10 @@ Kumpulan loker nyata untuk menguji tiga kanal input Verifin (teks, link, poster)
 | ID | Kanal | Input | Sumber | Kesimpulan manual | Verdict yang diharapkan |
 |---|---|---|---|---|---|
 | T1 | Teks | `T1-teks-hotel-new-saphir.txt` | [Threads @jogjalowker_official, 16 Okt 2026](https://www.threads.com/@jogjalowker_official/post/DejIohQkerQ) | Kemungkinan asli, tapi posisi belum terkonfirmasi | AMAN atau WASPADA |
-| T2 | Teks | `T2-teks-packing-pasar-kemis.txt` | [Threads @fahadhamzah_, 9 Okt 2026](https://www.threads.com/@fahadhamzah_/post/DeQi-aTAX0G) | Sangat mencurigakan: ada kesaksian pelamar dimintai KTP dan nama ibu kandung | WASPADA atau BAHAYA |
+| T2 | Teks | `T2-teks-packing-pasar-kemis.txt` | [Threads @fahadhamzah_, 9 Okt 2026](https://www.threads.com/@fahadhamzah_/post/DeQi-aTAX0G) | Kemungkinan asli (rekrutmen outsourcing PT IGS), tetapi teksnya sendiri tidak menyebut perusahaan | WASPADA (dari teks saja identitas tidak bisa dicek) |
 | L1 | Link | `https://www.threads.com/@jogjalowker_official/post/DegeamfkV1w` | Threads @jogjalowker_official, 13 Okt 2026 | Asli | AMAN |
 | L2 | Link | `https://www.threads.com/@pastidapatuangg/post/DekRfpYEzzW` | Threads @pastidapatuangg, 17 Okt 2026 | Sangat mencurigakan (pola sewa akun LinkedIn) | WASPADA atau BAHAYA |
-| P1 | Poster | `P1-poster-packing-pasar-kemis.jpg` | Gambar lampiran postingan T2 (Threads @fahadhamzah_, 9 Okt 2026) | Sangat mencurigakan (sama dengan T2) | WASPADA atau BAHAYA |
+| P1 | Poster | `P1-poster-packing-pasar-kemis.jpg` | Gambar lampiran postingan T2 (Threads @fahadhamzah_, 9 Okt 2026) | Kemungkinan asli (PT Indokarya Global Sinergi, perusahaan outsourcing di Cikupa, Tangerang) | AMAN atau WASPADA |
 
 ## Catatan pengecekan manual
 
@@ -22,12 +22,10 @@ Kumpulan loker nyata untuk menguji tiga kanal input Verifin (teks, link, poster)
 - Kesimpulan: identitas perusahaan nyata dan kanal lamaran resmi, tapi posisinya belum bisa dipastikan. Kasus abu-abu yang bagus untuk menguji apakah Verifin jujur soal ketidakpastian.
 
 ### T2 · Operator Packing, Pasar Kemis
-- Tidak ada nama perusahaan, hanya "pabrik baru". Kontak hanya nomor WA pribadi.
-- Gaji Rp120–130 rb/hari untuk 11 jam kerja: rendah, bukan tidak realistis. Tidak ada permintaan biaya di teks.
-- Ada komentar publik yang menuduh penipuan. Pengunggah membalas bahwa "nama PT resmi dan ada di maps", tapi tidak menyebut namanya.
-- Komentar publik (@liasel18, 9 Okt 2026, dicek 18 Okt 2026): setelah menghubungi WA, pelamar **dimintai KTP dan nama ibu kandung**, lalu nomor kontaknya berganti. Nama ibu kandung lazim dipakai untuk verifikasi rekening bank, jadi ini pola pencurian identitas.
-- Akun yang sama memposting lowongan serupa dengan nomor lain (`0813-8849-511`, 8 Okt 2026, upah Rp110rb/hari, syarat berbeda).
-- Kesimpulan: sangat mencurigakan. Bukti berupa kesaksian satu pengguna, belum laporan resmi. Verifin tidak bisa melihat komentar ini; kasus ini menguji apakah sinyal teks dan OSINT saja sudah cukup.
+- Teks tidak menyebut nama perusahaan, hanya "pabrik baru"; kontak hanya nomor WA. Gaji Rp120–130 rb/hari untuk 11 jam kerja; tidak ada permintaan biaya.
+- Ada komentar publik yang menuduh penipuan, dan satu komentar menyebut pelamar dimintai KTP serta nama ibu kandung lalu nomornya berganti.
+- **Koreksi setelah pengecekan lanjutan (lihat P1):** pengunggah adalah Operations Manager PT Indokarya Global Sinergi, perusahaan outsourcing yang nyata. KTP dan nama ibu kandung lazim diminta untuk pendaftaran BPJS, jadi komentar itu bukan bukti penipuan. Nomor WA pada lowongan berbeda dari kontak resmi di situs perusahaan.
+- Kesimpulan: kemungkinan rekrutmen outsourcing yang sah. Namun dari **teks ini saja** identitas pemberi kerja tidak bisa diperiksa, sehingga WASPADA ("cek dulu") adalah keluaran yang wajar.
 
 ### L1 · Qhomemart (Videographer)
 - Alamat Jl. Raya Janti No. 96, email `recruitment@qhomemart.co.id`, dan WA `0857-0129-9095` **semuanya cocok** dengan listing Qhomemart di pusat karier UAD (`cdc.uad.ac.id/jobs/qhomemart-5-positions`).
@@ -40,9 +38,29 @@ Kumpulan loker nyata untuk menguji tiga kanal input Verifin (teks, link, poster)
 - Kesimpulan: sangat mencurigakan. Kasus uji untuk input yang hampir tanpa entitas.
 
 ### P1 · Poster Operator Packing "PT. Indokarya Global Sinergi"
-- Gambar lampiran dari postingan yang sama dengan T2, diunduh 18 Okt 2026 (1086×1448, JPEG).
-- Poster menyebut **PT. Indokarya Global Sinergi (IGS)**, nama yang tidak ada di teks postingan. Pencarian web (18 Okt 2026) tidak menemukan jejak publik perusahaan dengan nama ini.
-- Gambar jelas buatan AI (wajah dan latar pabrik generik). Pelamar diminta mengirim nama, usia, domisili, serta tinggi dan berat badan lewat WhatsApp.
-- Isi lain sama dengan T2: gaji Rp120–130 rb/hari, 11 jam kerja, khusus perempuan 18–28 tahun, WA `0896-7951-0296`.
-- Kesimpulan: sangat mencurigakan, seperti T2, ditambah nama PT yang tidak terlacak.
-- Catatan uji: kontennya tumpang tindih dengan T2, tapi teks hasil OCR berbeda, jadi tidak terkena cache teks. Bandingkan apakah poster (yang punya nama PT) dan teks (tanpa nama PT) menghasilkan verdict yang konsisten.
+- Gambar lampiran postingan T2, diunduh 18 Okt 2026 (1086×1448, JPEG). Gambar jelas buatan AI.
+- Poster menyebut **PT. Indokarya Global Sinergi (IGS)**. Pencarian awal lewat mesin pencari umum tidak menemukannya, tetapi pencarian SearXNG Verifin menemukan situs `ptigs.com` dan profil LinkedIn pengunggah.
+- **Diverifikasi langsung (`ptigs.com`):** PT Indokarya Global Sinergi bergerak di outsourcing dan penyediaan tenaga kerja, kantor di Bizpoint Modern Multi Business Blok R2 No. 03, Cikupa, Kabupaten Tangerang (bersebelahan dengan Pasar Kemis). Situs tidak memuat lowongan ini dan tidak menyebut pungutan biaya. Nomor WA lowongan berbeda dari kontak resmi situs.
+- Kesimpulan: kemungkinan asli. Pelajaran: pengecekan manual awal kami keliru karena hanya mengandalkan satu mesin pencari.
+
+## Hasil uji Verifin (18 Okt 2026, aplikasi lokal)
+
+Dijalankan lewat antarmuka web (Playwright) terhadap backend yang terhubung ke Supabase. Screenshot dan JSON lengkap ada di `hasil/`; hasil run pertama diarsipkan di `hasil/run1/`.
+
+| ID | Run 1 | Run 2 | Durasi run 2 | Sesuai cek manual? |
+|---|---|---|---|---|
+| T1 | AMAN 8 | AMAN 10 | 44 dtk | Ya |
+| T2 | AMAN 28 | **WASPADA 52** | 24 dtk | Run 1 terlalu longgar; run 2 ya |
+| L1 | AMAN 10 | AMAN 12 | 41 dtk | Ya |
+| L2 | WASPADA 60 | WASPADA 60 | 21 dtk | Ya |
+| P1 | AMAN 25 | AMAN 20 | 58 dtk | Ya |
+
+Run 1 memperlihatkan empat bug, yang diperbaiki sebelum run 2:
+1. Penalti "Tidak Ada SPF/DMARC pada Domain Korporat" (+12) terpicu walau lowongan tidak punya domain sama sekali (T2).
+2. Nama perusahaan hasil OCR terpecah (`PT.INDOKARYA`, `GLOBALSINERGI`, `iGS`), sehingga pencarian web memakai potongan nama dan menemukan perusahaan lain bernama mirip.
+3. Pola "lamar via WhatsApp" tidak mengenali "Kirim CV: 0896…" dan "pesan WhatsApp".
+4. Kasus WASPADA ikut dihitung sebagai kasus penipuan di Fraud Network Graph, sehingga P1 sempat diberi label "terhubung ke jaringan penipuan" hanya karena nomornya sama dengan T2.
+
+Selain itu prompt LLM ditambah aturan: lowongan yang mengaku perusahaan/pabrik tetapi tidak menyebut nama badan usaha dan hanya memberi nomor WhatsApp pribadi dinilai WASPADA. Aturan ini dirumuskan setelah melihat kasus T2, jadi perlu divalidasi pada set uji yang lebih besar agar tidak hanya cocok untuk kasus ini.
+
+Catatan: kelima kasus belum memuat lowongan penipuan yang terkonfirmasi, sehingga jalur verdict BAHAYA belum teruji pada data nyata di set ini.

@@ -165,6 +165,45 @@ def _is_grounded(value: str, source: str) -> bool:
     return bool(tokens) and all(t in hay for t in tokens)
 
 
+_LEGAL_PREFIX = re.compile(r"^(PT|CV|UD)\.?\s*", re.I)
+
+
+def _merge_company_fragments(companies: list[str], source: str) -> list[str]:
+    """Gabungkan nama perusahaan yang terpecah oleh OCR (mis. "PT.INDOKARYA" + "GLOBALSINERGI").
+
+    Hanya pecahan yang sama-sama sudah dikenali sebagai perusahaan dan letaknya berdekatan
+    (maks. 4 baris) yang digabung. Akronim pendek (<= 3 huruf, mis. logo "iGS") dibuang bila ada
+    nama yang lebih panjang.
+    """
+    if len(companies) < 2:
+        return companies
+    lines = [_squash(l) for l in (source or "").splitlines()]
+
+    def line_of(name: str) -> int:
+        key = _squash(name)
+        return next((i for i, l in enumerate(lines) if key and key in l), 10**6)
+
+    ordered = sorted(companies, key=line_of)
+    merged: list[str] = []
+    used: set[int] = set()
+    for i, name in enumerate(ordered):
+        if i in used:
+            continue
+        current = name
+        if _LEGAL_PREFIX.match(name) and len(_LEGAL_PREFIX.sub("", name).split()) <= 1:
+            for j in range(i + 1, len(ordered)):
+                nxt = ordered[j]
+                if j in used or _LEGAL_PREFIX.match(nxt) or " " in nxt.strip() or len(_squash(nxt)) <= 3:
+                    continue
+                if 0 < line_of(nxt) - line_of(name) <= 4:
+                    current = f"{current} {nxt}"
+                    used.add(j)
+                    break
+        merged.append(_LEGAL_PREFIX.sub(lambda m: f"{m.group(1).upper()} ", current).strip())
+    longest = max(len(_squash(n)) for n in merged)
+    return [n for n in merged if len(_squash(n)) > 3 or longest <= 3]
+
+
 async def _extract_entities_hybrid(text: str) -> dict:
     """NER hibrida: regex untuk entitas struktural (nomor, email, URL, nominal),
     LLM untuk entitas semantik (perusahaan, alamat, lokasi, gaji), lalu divalidasi.
@@ -213,7 +252,7 @@ async def _extract_entities_hybrid(text: str) -> dict:
     # Perusahaan: LLM diutamakan bila lolos grounding; jika tidak ada yang lolos, pakai regex.
     llm_companies = accept(llm_extracted.get("companies") or [])
     regex_companies = [v for v in (merged.get("companies") or []) if not is_junk_entity(v)]
-    merged["companies"] = uniq_casefold(llm_companies or regex_companies)
+    merged["companies"] = uniq_casefold(_merge_company_fragments(llm_companies or regex_companies, clean_text))
 
     # Alamat: harus lolos grounding dan terlihat seperti alamat fisik.
     llm_addresses = [v for v in accept(llm_extracted.get("addresses") or []) if _is_plausible_address(v)]

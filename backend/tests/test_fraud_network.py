@@ -71,3 +71,13 @@ class TestFraudNetworkGraph:
         })
         assert res["fraud_case_count"] == 1
         assert res["total_case_count"] == 1
+
+
+def test_waspada_case_is_not_counted_as_fraud():
+    from app.services.graph.fraud_network import build_fraud_network, check_entity_in_network
+    G = build_fraud_network([
+        {"id": "c1", "verdict": "WASPADA", "risk_score": 52, "phones": ["+6289679510296"], "emails": [], "company_name": None},
+    ])
+    r = check_entity_in_network(G, {"phones": ["+6289679510296"], "emails": [], "companies": []})
+    assert r["entity_in_fraud_network"] is False
+    assert r["fraud_case_count"] == 0

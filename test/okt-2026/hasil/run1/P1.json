@@ -1,0 +1,1069 @@
+{
+  "verdict": "AMAN",
+  "risk_score": 25,
+  "case_id": "aa53a541-963b-4f7b-8c8a-b7c66e29cd3b",
+  "summary": "Lowongan terindikasi aman dengan kontak bersih dan tanpa pungutan biaya, meski alamat pabrik belum dicantumkan secara spesifik.",
+  "risk_factors": [
+    "Alamat pabrik belum tercantum spesifik",
+    "Pendaftaran hanya melalui nomor WhatsApp pribadi"
+  ],
+  "safe_factors": [
+    "Nomor telepon bersih dari riwayat fraud",
+    "Tidak ada indikasi permintaan biaya seleksi",
+    "Ditemukan jejak publik entitas di internet"
+  ],
+  "recommendations": [
+    "Tanyakan alamat pabrik pasti sebelum melamar",
+    "Tolak pembayaran uang dalam bentuk apapun",
+    "Pastikan kejelasan status kontrak kerja fisik"
+  ],
+  "entities": {
+    "companies": [
+      "PT.INDOKARYA",
+      "GLOBALSINERGI",
+      "iGS"
+    ],
+    "contacts": [
+      "+6289679510296"
+    ],
+    "emails": [],
+    "urls": [],
+    "addresses": [],
+    "location_candidates": [
+      "PASARKEMIS",
+      "TANGERANG",
+      "Pasar Kemis, Tangerang"
+    ],
+    "salaries": [
+      "Rp120.000",
+      "Rp130.000 /HARI",
+      "Rp120.000 /HARI"
+    ]
+  },
+  "model_used": "ag/gemini-3.8-flash-medium (Evidence Reasoning)",
+  "osint": {
+    "domain": {
+      "age_years": null,
+      "created_at": "Tidak diketahui",
+      "is_new": false
+    },
+    "email_security": {
+      "spf_active": false,
+      "dmarc_active": false
+    },
+    "address_validations": [
+      {
+        "address_input": "PASARKEMIS",
+        "company_name_input": "PT.INDOKARYA",
+        "address_found": true,
+        "address_details": {
+          "found": true,
+          "probe_status": "COMPLETED",
+          "evidence_status": "FOUND",
+          "lat": -6.1638035,
+          "lon": 106.5813424,
+          "display_name": "SMP Negeri 3 Pasarkemis, Jalan Sadewa I, Gelam Jaya, Pasar Kemis, Kabupaten Tangerang, Banten, 11513, Indonesia",
+          "country": "Indonesia",
+          "confidence_score": 0,
+          "matched_query": "PASARKEMIS",
+          "google_maps_url": "https://www.google.com/maps/search/?api=1&query=PT.INDOKARYA%2C+PASARKEMIS",
+          "osm_url": "https://www.openstreetmap.org/?mlat=-6.1638035&mlon=106.5813424&zoom=17",
+          "match_level": "area",
+          "coordinates_exact": false,
+          "house_number_match": false,
+          "street_match": false,
+          "token_score": 1,
+          "matched_tokens": [
+            "pasarkemis"
+          ],
+          "coordinate_confidence": 0
+        },
+        "risk_signals": [],
+        "safe_signals": [],
+        "neutral_notes": [
+          "Peta menemukan wilayah sekitar; titik exact belum terkonfirmasi."
+        ],
+        "web_verification": {
+          "found": false,
+          "method": "google_maps_serp",
+          "match_score": 0,
+          "matched_snippet": null,
+          "maps_match": false,
+          "maps_url": null,
+          "lat": null,
+          "lon": null,
+          "matched_name": null,
+          "name_match": false,
+          "street_match": false,
+          "house_number_match": false,
+          "address_match_level": "none",
+          "discovered_street": null
+        },
+        "business_found": false
+      },
+      {
+        "address_input": "TANGERANG",
+        "company_name_input": "PT.INDOKARYA",
+        "address_found": true,
+        "address_details": {
+          "found": true,
+          "probe_status": "COMPLETED",
+          "evidence_status": "FOUND",
+          "lat": -6.1761924,
+          "lon": 106.6382161,
+          "display_name": "Tangerang, Banten, Indonesia",
+          "country": "Indonesia",
+          "confidence_score": 0.532,
+          "matched_query": "TANGERANG",
+          "google_maps_url": "https://www.google.com/maps/search/?api=1&query=PT.INDOKARYA%2C+TANGERANG",
+          "osm_url": "https://www.openstreetmap.org/?mlat=-6.1761924&mlon=106.6382161&zoom=17",
+          "match_level": "area",
+          "coordinates_exact": false,
+          "house_number_match": false,
+          "street_match": false,
+          "token_score": 1,
+          "matched_tokens": [
+            "tangerang"
+          ],
+          "coordinate_confidence": 0.532
+        },
+        "risk_signals": [],
+        "safe_signals": [],
+        "neutral_notes": [
+          "Peta menemukan wilayah sekitar; titik exact belum terkonfirmasi."
+        ],
+        "web_verification": {
+          "found": false,
+          "method": "google_maps_serp",
+          "match_score": 0,
+          "matched_snippet": null,
+          "maps_match": false,
+          "maps_url": null,
+          "lat": null,
+          "lon": null,
+          "matched_name": null,
+          "name_match": false,
+          "street_match": false,
+          "house_number_match": false,
+          "address_match_level": "none",
+          "discovered_street": null
+        },
+        "business_found": false
+      }
+    ],
+    "phones": [
+      {
+        "source": "kaspersky",
+        "phone": "+6289679510296",
+        "url": "https://whocalls.id.kaspersky.com/info/6289679510296",
+        "checked": true,
+        "probe_status": "COMPLETED",
+        "reputation_status": "CLEAN",
+        "danger_level": 0,
+        "category": "NETRAL",
+        "scam_confirmed": false,
+        "risk_flags": [],
+        "comments": [
+          "Tidak ada laporan spam.",
+          "Kode 896 ini digunakan operator seluler: Indosat Ooredoo Hutchison"
+        ],
+        "found": false,
+        "reported_fraud": false,
+        "serp_fallback": {
+          "serp_checked": true,
+          "serp_results": [],
+          "risk_flags": [],
+          "found_scam": false
+        }
+      }
+    ],
+    "phone_probe": {
+      "status": "COMPLETED",
+      "note": "Nomor HP ditemukan dan dikirim ke validator reputasi."
+    },
+    "companies": [
+      {
+        "name": "PT.INDOKARYA",
+        "checked": true,
+        "method": "public_web_only",
+        "registry": {
+          "pt_registry_verified": false,
+          "portal": {
+            "source": "ahu.go.id",
+            "ok": false,
+            "pt_registry_verified": false,
+            "note": "Legalitas formal PT (AHU/OSS) tidak diotomasi; hanya jejak web publik.",
+            "skipped": true
+          },
+          "disclaimer": "Legalitas formal PT (AHU/OSS) BELUM diverifikasi per-entitas. Hanya probe portal + jejak web publik."
+        },
+        "stats": {
+          "search_count": 1,
+          "public_mentions": 7,
+          "fraud_related_mentions": 0,
+          "legality_mentions": 0,
+          "successful_requests": 1,
+          "relevant_results": 0,
+          "cross_service_match_count": 7,
+          "social_public_mention_count": 2,
+          "public_mentions_source": "web_evidence"
+        },
+        "neutral_notes": [],
+        "risk_flags": [],
+        "safe_flags": []
+      }
+    ],
+    "web": {
+      "enabled": true,
+      "engine": "searxng + lightpanda fallback",
+      "websites": [],
+      "probe_status": "COMPLETED",
+      "gform_inspections": [],
+      "searches": [
+        {
+          "type": "search",
+          "query": "INDOKARYA",
+          "ok": true,
+          "request_status": "COMPLETED",
+          "engine": "searxng-intelligent",
+          "status": "FOUND",
+          "results": [
+            {
+              "title": "About Us - Indokarya Group",
+              "url": "https://indokaryagroup.com/about/",
+              "snippet": "Indokarya Group has been established since 1994. Includes marble work, wrought iron, interior, decorative paint and more. With more than 20 years of work experience and now has become a professional, effective and expert service company.",
+              "source_type": "official",
+              "_final_score": 0.85,
+              "_entity_score": 1
+            },
+            {
+              "title": "Indokarya Group",
+              "url": "http://indokaryagroup.com/",
+              "snippet": "Panglima Polim Raya No.64 Kebayoran Baru, Jakarta Selatan.",
+              "source_type": "web",
+              "_final_score": 0.84,
+              "_entity_score": 1
+            },
+            {
+              "title": "PT Indokarya Internusa Company Profile - Indonesia ... - EMIS",
+              "url": "https://www.emis.com/php/company-profile/ID/PT_Indokarya_Internusa_en_7289910.html",
+              "snippet": "Nov 25, 2024 · Report with financial data, key executives contacts, ownership details & and more for PT Indokarya Internusa in Indonesia. Report is available for immediate purchase & download from EMIS.",
+              "source_type": "official",
+              "_final_score": 0.7429,
+              "_entity_score": 1
+            },
+            {
+              "title": "indokarya jaya (@indokaryajaya) • Instagram photos and videos",
+              "url": "https://www.instagram.com/indokaryajaya/",
+              "snippet": "6,166 Followers, 581 Following, 48 Posts - See Instagram photos and videos from indokarya jaya (@indokaryajaya)",
+              "source_type": "social",
+              "_final_score": 0.74,
+              "_entity_score": 1
+            },
+            {
+              "title": "PT INDOKARYA SUKSES SEJAHTERA (@pt_indokarya) - Instagram",
+              "url": "https://www.instagram.com/pt_indokarya/",
+              "snippet": "40 Followers, 9 Following, 16 Posts - See Instagram photos and videos from PT INDOKARYA SUKSES SEJAHTERA (@pt_indokarya)",
+              "source_type": "social",
+              "_final_score": 0.715,
+              "_entity_score": 1
+            },
+            {
+              "title": "INDOKARYA MANDIRI",
+              "url": "https://indokaryamandiri.com/",
+              "snippet": "",
+              "source_type": "web",
+              "_final_score": 0.6,
+              "_entity_score": 1
+            },
+            {
+              "title": "Indokarya HRIS – Sistem Operasional Perusahaan",
+              "url": "https://www.indokarya.net/",
+              "snippet": "Indokarya HRIS adalah platform terintegrasi yang digunakan untuk mengelola berbagai kebutuhan operasional perusahaan, mulai dari kehadiran karyawan, proyek, penggajian, hingga keuangan dalam satu sistem terpadu. Solusi lengkap untuk kebutuh",
+              "source_type": "web",
+              "_final_score": 0.59,
+              "_entity_score": 1
+            }
+          ],
+          "raw_result_count": 7,
+          "relevant_result_count": 7,
+          "error": null,
+          "risk_flags": [],
+          "fallback_kind": "intelligent_search",
+          "fallback_index": 0
+        }
+      ],
+      "social_searches": [
+        {
+          "platform": "instagram",
+          "query": "INDOKARYA",
+          "ok": true,
+          "request_status": "COMPLETED",
+          "engine": "searxng-intelligent",
+          "status": "FOUND",
+          "results": [
+            {
+              "title": "indokarya jaya (@indokaryajaya) • Instagram photos and videos",
+              "url": "https://www.instagram.com/indokaryajaya/",
+              "snippet": "6,166 Followers, 581 Following, 48 Posts - See Instagram photos and videos from indokarya jaya (@indokaryajaya)",
+              "source_type": "social",
+              "_final_score": 0.64,
+              "_entity_score": 1,
+              "_category": "social",
+              "_location_score": 0
+            },
+            {
+              "title": "PT INDOKARYA SUKSES SEJAHTERA (@pt_indokarya) - Instagram",
+              "url": "https://www.instagram.com/pt_indokarya/",
+              "snippet": "40 Followers, 9 Following, 16 Posts - See Instagram photos and videos from PT INDOKARYA SUKSES SEJAHTERA (@pt_indokarya)",
+              "source_type": "social",
+              "_final_score": 0.64,
+              "_entity_score": 1,
+              "_category": "social",
+              "_location_score": 0
+            }
+          ],
+          "raw_result_count": 2,
+          "relevant_result_count": 2,
+          "error": null,
+          "fallback_kind": "intelligent_search_derived",
+          "fallback_index": 0,
+          "attempt_count": 1,
+          "attempts": []
+        }
+      ],
+      "evidence_counts": {
+        "relevant_results": 7,
+        "by_source_type": {
+          "official": 2,
+          "web": 3,
+          "social": 2
+        },
+        "successful_requests": 1,
+        "empty_searches": 0,
+        "no_relevant_searches": 0,
+        "unavailable_searches": 0,
+        "digital_footprint": "strong",
+        "official_presence": true,
+        "marketplace_presence": false,
+        "social_presence": true,
+        "maps_presence": false
+      },
+      "risk_flags": [],
+      "safe_flags": [
+        "Terdeteksi hasil Instagram publik (status resmi belum terverifikasi): indokarya jaya (@indokaryajaya) • Instagram photos and videos (https://www.instagram.com/indokaryajaya/)",
+        "Terdeteksi hasil Instagram publik (status resmi belum terverifikasi): PT INDOKARYA SUKSES SEJAHTERA (@pt_indokarya) - Instagram (https://www.instagram.com/pt_indokarya/)",
+        "Ditemukan 2 jejak publik.",
+        "Ditemukan 3 hasil web publik.",
+        "Ditemukan indikasi website/halaman resmi perusahaan.",
+        "Ditemukan keberadaan di platform media sosial."
+      ],
+      "neutral_notes": [],
+      "platform_evidence": {
+        "ok": true,
+        "query": "PT.INDOKARYA",
+        "platforms": {
+          "google_maps": {
+            "count": 0,
+            "results": []
+          },
+          "instagram": {
+            "count": 2,
+            "results": [
+              {
+                "title": "indokarya jaya (@indokaryajaya) • Instagram photos and videos",
+                "url": "https://www.instagram.com/indokaryajaya/",
+                "snippet": "6,166 Followers, 581 Following, 48 Posts - See Instagram photos and videos from indokarya jaya (@indokaryajaya)",
+                "engines": [
+                  "yahoo"
+                ],
+                "score": 0.3333333333333333,
+                "category": "general",
+                "published_date": null,
+                "_category": "social",
+                "_entity_score": 1,
+                "_location_score": 0,
+                "_final_score": 0.74
+              },
+              {
+                "title": "PT INDOKARYA SUKSES SEJAHTERA (@pt_indokarya) - Instagram",
+                "url": "https://www.instagram.com/pt_indokarya/",
+                "snippet": "40 Followers, 9 Following, 16 Posts - See Instagram photos and videos from PT INDOKARYA SUKSES SEJAHTERA (@pt_indokarya)",
+                "engines": [
+                  "yahoo"
+                ],
+                "score": 0.25,
+                "category": "general",
+                "published_date": null,
+                "_category": "social",
+                "_entity_score": 1,
+                "_location_score": 0,
+                "_final_score": 0.715
+              }
+            ]
+          },
+          "facebook": {
+            "count": 0,
+            "results": []
+          },
+          "tiktok": {
+            "count": 0,
+            "results": []
+          },
+          "twitter": {
+            "count": 0,
+            "results": []
+          },
+          "job_portal": {
+            "count": 0,
+            "results": []
+          },
+          "web_search": {
+            "count": 5,
+            "results": [
+              {
+                "title": "About Us - Indokarya Group",
+                "url": "https://indokaryagroup.com/about/",
+                "snippet": "Indokarya Group has been established since 1994. Includes marble work, wrought iron, interior, decorative paint and more. With more than 20 years of work experience and now has become a professional, effective and expert service company.",
+                "engines": [
+                  "yahoo"
+                ],
+                "score": 0.5,
+                "category": "general",
+                "published_date": null,
+                "_category": "official",
+                "_entity_score": 1,
+                "_location_score": 0,
+                "_final_score": 0.85
+              },
+              {
+                "title": "Indokarya Group",
+                "url": "http://indokaryagroup.com/",
+                "snippet": "Panglima Polim Raya No.64 Kebayoran Baru, Jakarta Selatan.",
+                "engines": [
+                  "yahoo"
+                ],
+                "score": 1,
+                "category": "general",
+                "published_date": null,
+                "_category": "web",
+                "_entity_score": 1,
+                "_location_score": 0,
+                "_final_score": 0.84
+              },
+              {
+                "title": "PT Indokarya Internusa Company Profile - Indonesia ... - EMIS",
+                "url": "https://www.emis.com/php/company-profile/ID/PT_Indokarya_Internusa_en_7289910.html",
+                "snippet": "Nov 25, 2024 · Report with financial data, key executives contacts, ownership details & and more for PT Indokarya Internusa in Indonesia. Report is available for immediate purchase & download from EMIS.",
+                "engines": [
+                  "yahoo"
+                ],
+                "score": 0.14285714285714285,
+                "category": "general",
+                "published_date": null,
+                "_category": "official",
+                "_entity_score": 1,
+                "_location_score": 0,
+                "_final_score": 0.7429
+              },
+              {
+                "title": "INDOKARYA MANDIRI",
+                "url": "https://indokaryamandiri.com/",
+                "snippet": "",
+                "engines": [
+                  "yahoo"
+                ],
+                "score": 0.2,
+                "category": "general",
+                "published_date": null,
+                "_category": "web",
+                "_entity_score": 1,
+                "_location_score": 0,
+                "_final_score": 0.6
+              },
+              {
+                "title": "Indokarya HRIS – Sistem Operasional Perusahaan",
+                "url": "https://www.indokarya.net/",
+                "snippet": "Indokarya HRIS adalah platform terintegrasi yang digunakan untuk mengelola berbagai kebutuhan operasional perusahaan, mulai dari kehadiran karyawan, proyek, penggajian, hingga keuangan dalam satu sistem terpadu. Solusi lengkap untuk kebutuhan operasional dan manajemen perusahaan Anda dalam satu apli",
+                "engines": [
+                  "yahoo"
+                ],
+                "score": 0.16666666666666666,
+                "category": "general",
+                "published_date": null,
+                "_category": "web",
+                "_entity_score": 1,
+                "_location_score": 0,
+                "_final_score": 0.59
+              }
+            ]
+          }
+        },
+        "merged_evidence": {
+          "ok": true,
+          "query": "PT.INDOKARYA",
+          "results": [],
+          "summary": "",
+          "entities_found": [],
+          "has_strong_verification": false,
+          "has_scam_indicators": false,
+          "total_results": 0
+        },
+        "verification_summary": "",
+        "entities_found": [],
+        "has_strong_verification": false,
+        "has_scam_indicators": false,
+        "total_raw_results": 7,
+        "total_extracted": 0
+      },
+      "search_intelligence": {
+        "digital_footprint": "strong",
+        "official_presence": true,
+        "marketplace_presence": false,
+        "social_presence": true,
+        "maps_presence": false,
+        "scam_mentions": 0,
+        "advice_only_scam": false,
+        "top_categories": [
+          "web",
+          "official",
+          "social"
+        ],
+        "risk_flags": [],
+        "safe_flags": [
+          "Ditemukan indikasi website/halaman resmi perusahaan.",
+          "Ditemukan keberadaan di platform media sosial."
+        ]
+      }
+    },
+    "social": {
+      "enabled": true,
+      "probe_status": "COMPLETED",
+      "evidence_status": "FOUND",
+      "platform": "social_media",
+      "query": "PT.INDOKARYA",
+      "found": true,
+      "social_found": true,
+      "official_social_found": true,
+      "public_footprint_found": true,
+      "authenticated": false,
+      "posts": [
+        {
+          "platform": "instagram",
+          "source": "serp",
+          "title": "indokarya jaya (@indokaryajaya) • Instagram photos and videos",
+          "snippet": "6,166 Followers, 581 Following, 48 Posts - See Instagram photos and videos from indokarya jaya (@indokaryajaya)",
+          "url": "https://instagram.com/indokaryajaya",
+          "fallback_kind": "intelligent_search_derived",
+          "is_official": false,
+          "source_type": "public_search_result",
+          "match_confidence": 1,
+          "matched_tokens": [
+            "indokarya"
+          ],
+          "matched_email": false,
+          "matched_reason": "exact_tokens"
+        },
+        {
+          "platform": "instagram",
+          "source": "serp",
+          "title": "PT INDOKARYA SUKSES SEJAHTERA (@pt_indokarya) - Instagram",
+          "snippet": "40 Followers, 9 Following, 16 Posts - See Instagram photos and videos from PT INDOKARYA SUKSES SEJAHTERA (@pt_indokarya)",
+          "url": "https://instagram.com/pt_indokarya",
+          "fallback_kind": "intelligent_search_derived",
+          "is_official": false,
+          "source_type": "public_search_result",
+          "match_confidence": 1,
+          "matched_tokens": [
+            "indokarya"
+          ],
+          "matched_email": false,
+          "matched_reason": "exact_tokens"
+        }
+      ],
+      "profiles": [
+        {
+          "platform": "instagram",
+          "url": "https://instagram.com/indokaryajaya",
+          "title": "indokarya jaya (@indokaryajaya) • Instagram photos and videos",
+          "snippet": "6,166 Followers, 581 Following, 48 Posts - See Instagram photos and videos from indokarya jaya (@indokaryajaya)",
+          "source": "web_search",
+          "is_official": false,
+          "matched_tokens": [
+            "indokarya"
+          ],
+          "match_confidence": 1
+        },
+        {
+          "platform": "instagram",
+          "url": "https://instagram.com/pt_indokarya",
+          "title": "PT INDOKARYA SUKSES SEJAHTERA (@pt_indokarya) - Instagram",
+          "snippet": "40 Followers, 9 Following, 16 Posts - See Instagram photos and videos from PT INDOKARYA SUKSES SEJAHTERA (@pt_indokarya)",
+          "source": "web_search",
+          "is_official": false,
+          "matched_tokens": [
+            "indokarya"
+          ],
+          "match_confidence": 1
+        }
+      ],
+      "platform_hits": {
+        "instagram": true,
+        "threads": false,
+        "tiktok": false,
+        "facebook": false,
+        "x_twitter": false
+      },
+      "official_platform_hits": {
+        "instagram": true,
+        "threads": false,
+        "tiktok": false,
+        "facebook": false,
+        "x_twitter": false
+      },
+      "public_platform_hits": {
+        "instagram": true,
+        "threads": false,
+        "tiktok": false,
+        "facebook": false,
+        "x_twitter": false
+      },
+      "evidence_counts": {
+        "public_posts": 2,
+        "public_profiles": 2,
+        "official_posts": 0,
+        "by_platform": {
+          "instagram": 4,
+          "threads": 0,
+          "tiktok": 0,
+          "facebook": 0,
+          "x_twitter": 0,
+          "other": 0
+        }
+      },
+      "search_diagnostics": {
+        "platforms_requested": [
+          "instagram",
+          "threads",
+          "tiktok",
+          "facebook",
+          "x_twitter"
+        ],
+        "search_engine": "lightpanda",
+        "note": "Hasil sosial diklasifikasikan terpisah dari portal loker dan aggregator."
+      },
+      "social_searches": [
+        {
+          "platform": "instagram",
+          "query": "INDOKARYA",
+          "ok": true,
+          "request_status": "COMPLETED",
+          "engine": "searxng-intelligent",
+          "status": "FOUND",
+          "results": [
+            {
+              "title": "indokarya jaya (@indokaryajaya) • Instagram photos and videos",
+              "url": "https://www.instagram.com/indokaryajaya/",
+              "snippet": "6,166 Followers, 581 Following, 48 Posts - See Instagram photos and videos from indokarya jaya (@indokaryajaya)",
+              "source_type": "social",
+              "_final_score": 0.64,
+              "_entity_score": 1,
+              "_category": "social",
+              "_location_score": 0
+            },
+            {
+              "title": "PT INDOKARYA SUKSES SEJAHTERA (@pt_indokarya) - Instagram",
+              "url": "https://www.instagram.com/pt_indokarya/",
+              "snippet": "40 Followers, 9 Following, 16 Posts - See Instagram photos and videos from PT INDOKARYA SUKSES SEJAHTERA (@pt_indokarya)",
+              "source_type": "social",
+              "_final_score": 0.64,
+              "_entity_score": 1,
+              "_category": "social",
+              "_location_score": 0
+            }
+          ],
+          "raw_result_count": 2,
+          "relevant_result_count": 2,
+          "error": null,
+          "fallback_kind": "intelligent_search_derived",
+          "fallback_index": 0,
+          "attempt_count": 1,
+          "attempts": []
+        }
+      ],
+      "risk_flags": [],
+      "errors": []
+    },
+    "evidence_policy": {
+      "mode": "factual_sources_only",
+      "note": "Semua temuan OSINT berasal dari fetch/scrape/API nyata (WHOIS, DNS, OSM, Kaspersky Who Calls, Scrapling, dan seluruh platform media sosial). LLM reasoner dilarang mengarang fakta di luar evidence.",
+      "social": "all_platforms"
+    },
+    "fraud_network": {
+      "nodes": [
+        {
+          "id": "PT.INDOKARYA",
+          "type": "company",
+          "risk_score": 0,
+          "status": "CLEAN"
+        },
+        {
+          "id": "GLOBALSINERGI",
+          "type": "company",
+          "risk_score": 0,
+          "status": "CLEAN"
+        },
+        {
+          "id": "iGS",
+          "type": "company",
+          "risk_score": 0,
+          "status": "CLEAN"
+        },
+        {
+          "id": "+6289679510296",
+          "type": "phone",
+          "risk_score": 0,
+          "status": "CLEAN"
+        }
+      ],
+      "edges": [
+        {
+          "source": "+6289679510296",
+          "target": "PT.INDOKARYA",
+          "relation": "contact_of"
+        },
+        {
+          "source": "+6289679510296",
+          "target": "GLOBALSINERGI",
+          "relation": "contact_of"
+        },
+        {
+          "source": "+6289679510296",
+          "target": "iGS",
+          "relation": "contact_of"
+        }
+      ],
+      "cluster_id": null,
+      "entity_in_fraud_network": false,
+      "total_case_count": 1,
+      "threat_level": "LOW",
+      "entity_seen_multiple_cases": false,
+      "fraud_case_count": 0,
+      "matched_entities": [],
+      "network_graph_summary": {
+        "total_nodes": 14,
+        "total_edges": 11,
+        "case_nodes": 4,
+        "fraud_cases": 1
+      },
+      "syndicate_analysis": {
+        "syndicate_detected": false,
+        "syndicate_alerts": [],
+        "historical_associations_count": 0,
+        "data_source": "database_historical_cases",
+        "note": "Dihitung dari riwayat job_cases nyata."
+      },
+      "community_reports": {
+        "status": "COMPLETED",
+        "report_count": 0,
+        "pending_report_count": 0,
+        "reported_by_community": false,
+        "risk_signal": "NONE"
+      },
+      "status": "COMPLETED"
+    },
+    "timing": {
+      "osint_parallel_sec": 21.362,
+      "ocr": {
+        "preprocess_sec": 0.094,
+        "model_init_sec": 0,
+        "inference_sec": 21.35,
+        "total_sec": 21.444,
+        "image_shape": [
+          1040,
+          790,
+          3
+        ],
+        "line_count": 63
+      }
+    },
+    "nlp": {
+      "enabled": true,
+      "status": "RULE_BASED_HEURISTIC",
+      "reason": "Taksonomi Pola Penipuan Kerja Indonesia (Paper22, GASA 2024, UNODC 2023)"
+    },
+    "syndicate_analysis": {
+      "syndicate_detected": false,
+      "syndicate_alerts": [],
+      "historical_associations_count": 0,
+      "data_source": "database_historical_cases",
+      "note": "Dihitung dari riwayat job_cases nyata."
+    },
+    "persistence_status": "SAVED"
+  },
+  "shap_explanation": {
+    "model_type": "Evidence Attribution Engine (Feature Contribution Analysis)",
+    "base_value": 12,
+    "final_risk_score": 25,
+    "evidence_confidence": null,
+    "decision_confidence": null,
+    "confidence_method": "not_calibrated",
+    "evidence_coverage_percent": null,
+    "probe_hit_rate_percent": 100,
+    "probe_applicability": {
+      "applicable": 3,
+      "positive": 3,
+      "outcomes": {
+        "phone_reputation": true,
+        "web_evidence": true,
+        "social_media": true
+      },
+      "excluded_not_provided": [
+        "whois_domain",
+        "address_geocoding",
+        "legal_registry"
+      ]
+    },
+    "decision_path": [
+      {
+        "step": "1. OCR & Entity Extraction",
+        "status": "PASS",
+        "detail": "Entitas terdeteksi: PT.INDOKARYA; 1 no HP, 1 perusahaan, 2 alamat."
+      },
+      {
+        "step": "2. Address OSM Geocoding",
+        "status": "AREA_ONLY",
+        "detail": "Wilayah/jalan ditemukan, tetapi titik exact belum terkonfirmasi."
+      },
+      {
+        "step": "3. Phone Kaspersky Who Calls Check",
+        "status": "PASS",
+        "detail": "Tidak ditemukan laporan penipuan pada Kaspersky Who Calls."
+      },
+      {
+        "step": "4. Email Domain Infrastructure Check",
+        "status": "NOT_PROVIDED",
+        "detail": "Email tidak tercantum pada input; pemeriksaan domain dilewati."
+      },
+      {
+        "step": "5. Fraud Network Case Memory",
+        "status": "NO_MATCH",
+        "detail": "Status jaringan: tidak ada asosiasi fraud publik."
+      },
+      {
+        "step": "6. Final Risk Level Evaluation",
+        "status": "LOW",
+        "detail": "Skor risiko akhir: 25 / 100 (Risiko Rendah); bukan probabilitas."
+      }
+    ],
+    "consistency_breakdown": [
+      {
+        "factor": "company_name_match",
+        "raw_score": 100,
+        "weight": 0.25,
+        "weighted_contribution": 25
+      },
+      {
+        "factor": "address_gis_match",
+        "raw_score": null,
+        "weight": 0.2,
+        "weighted_contribution": 0,
+        "status": "NOT_PROVIDED"
+      },
+      {
+        "factor": "phone_reputation",
+        "raw_score": 100,
+        "weight": 0.2,
+        "weighted_contribution": 20
+      },
+      {
+        "factor": "domain_security",
+        "raw_score": 95,
+        "weight": 0.15,
+        "weighted_contribution": 14.2
+      },
+      {
+        "factor": "social_footprint",
+        "raw_score": 90,
+        "weight": 0.2,
+        "weighted_contribution": 18
+      }
+    ],
+    "dns_records": {
+      "resolver": "system resolver",
+      "provider_type": "CORPORATE_DOMAIN",
+      "domain": "n/a",
+      "spf_active": false,
+      "dmarc_active": false
+    },
+    "not_verified": [
+      {
+        "item": "Legal Entity AHU / OSS",
+        "reason": "Tidak ada API publik otomatis; perlu cek manual"
+      },
+      {
+        "item": "BPJS Employment Registration",
+        "reason": "Data internal perusahaan"
+      },
+      {
+        "item": "NPWP Tax Registration",
+        "reason": "Data terproteksi regulasi"
+      }
+    ],
+    "probe_weights": [
+      {
+        "probe": "Address Geocoding (OSM GIS)",
+        "weight": 0.25,
+        "configured_weight": 0.25,
+        "effective_weight": 0,
+        "execution_time_ms": null,
+        "status": "AREA_ONLY",
+        "applicable": false
+      },
+      {
+        "probe": "Phone Reputation (Kaspersky Who Calls)",
+        "weight": 0.2,
+        "configured_weight": 0.2,
+        "effective_weight": 0.2,
+        "execution_time_ms": null,
+        "status": "CLEAN",
+        "applicable": true,
+        "url": "https://whocalls.id.kaspersky.com/info/6289679510296"
+      },
+      {
+        "probe": "Web Evidence (SERP)",
+        "weight": 0.2,
+        "configured_weight": 0.2,
+        "effective_weight": 0.2,
+        "execution_time_ms": null,
+        "status": "VALID",
+        "applicable": true
+      },
+      {
+        "probe": "Email Security (DNS MX/SPF)",
+        "weight": 0.2,
+        "configured_weight": 0.2,
+        "effective_weight": 0,
+        "execution_time_ms": null,
+        "status": "NOT_PROVIDED",
+        "applicable": false
+      },
+      {
+        "probe": "Legal Entity (AHU/OSS)",
+        "weight": 0.15,
+        "configured_weight": 0.15,
+        "effective_weight": 0.15,
+        "execution_time_ms": 0,
+        "status": "UNKNOWN",
+        "applicable": true,
+        "note": "Tidak ada API publik otomatis"
+      }
+    ],
+    "community_bootstrap_strategy": {
+      "current_stage": "STAGE_1_PUBLIC_OSINT_BOOTSTRAP",
+      "public_osint_references_mined": 6,
+      "verified_candidate_reviews_count": 0,
+      "bootstrap_note": "Menggunakan rujukan OSINT publik sebelum ulasan pelamar terakumulasi."
+    },
+    "deduplication_engine": {
+      "sha256_text_hash": "n/a (dihitung di layer router/cache)",
+      "perceptual_hash_phash": "n/a (memerlukan imagehash; tidak dihitung di explainer)",
+      "crop_compression_invariant": false
+    },
+    "networkx_graph_analytics": {
+      "algorithm": "Connected Component Subgraph Analysis (nx.connected_components)",
+      "subgraph_id": "n/a (tidak ada kluster)",
+      "nodes_in_cluster": 4,
+      "entity_in_fraud_network": false,
+      "threat_level": "LOW",
+      "shared_identity_reuse": false
+    },
+    "checked_at": "2026-10-17T20:17:46.570271+00:00",
+    "ethical_safeguards": {
+      "human_review_recommended": true,
+      "cost_of_error": {
+        "false_positive_fatal_cost": 5,
+        "false_negative_cost": 10
+      }
+    },
+    "verdict": "AMAN",
+    "feature_contributions": [
+      {
+        "feature": "Tidak Ada SPF/DMARC pada Domain Korporat",
+        "feature_key": "no_spf_corporate",
+        "value": 1,
+        "contribution": 12,
+        "impact": "risk",
+        "description": "Domain korporat tanpa konfigurasi email security — rentan spoofing",
+        "delta": 12
+      },
+      {
+        "feature": "Hasil Web Relevan Ditemukan",
+        "feature_key": "company_found_web",
+        "value": 1,
+        "contribution": 10,
+        "impact": "safe",
+        "description": "Ditemukan 7 hasil web relevan dengan nama perusahaan; keterkaitan resmi belum terverifikasi.",
+        "delta": -10
+      },
+      {
+        "feature": "Kata Kunci Penipuan (1 match)",
+        "feature_key": "fraud_keyword_count",
+        "value": 1,
+        "contribution": 8,
+        "impact": "risk",
+        "description": "Terdeteksi 1 pola kata kunci penipuan loker Indonesia",
+        "delta": 8
+      },
+      {
+        "feature": "Penyesuaian Penalaran AI",
+        "feature_key": "model_calibration",
+        "value": 3,
+        "contribution": 3,
+        "impact": "risk",
+        "description": "Penalaran AI atas seluruh teks dan bukti menilai risiko lebih tinggi daripada jumlah bobot bukti terukur. Selisihnya ditampilkan terpisah agar skor akhir = nilai dasar + Σ kontribusi.",
+        "delta": 3
+      }
+    ],
+    "waterfall_chart": [
+      {
+        "label": "Tidak Ada SPF/DMARC pada Domain Korporat",
+        "value": 12,
+        "cumulative": 24,
+        "impact": "risk",
+        "delta": 12
+      },
+      {
+        "label": "Hasil Web Relevan Ditemukan",
+        "value": 10,
+        "cumulative": 14,
+        "impact": "safe",
+        "delta": -10
+      },
+      {
+        "label": "Kata Kunci Penipuan (1 match)",
+        "value": 8,
+        "cumulative": 22,
+        "impact": "risk",
+        "delta": 8
+      },
+      {
+        "label": "Penyesuaian Penalaran AI",
+        "value": 3,
+        "cumulative": 25,
+        "impact": "risk",
+        "delta": 3
+      }
+    ],
+    "evidence_delta": 10,
+    "calibration_delta": 3,
+    "top_risk_features": [
+      "Kata Kunci Penipuan (1 match)",
+      "Tidak Ada SPF/DMARC pada Domain Korporat"
+    ],
+    "top_safe_features": [
+      "Hasil Web Relevan Ditemukan"
+    ],
+    "summary": "Berdasarkan bukti publik independen yang berhasil dikumpulkan, lowongan ini dinilai aman — tidak ditemukan indikator kuat penipuan. Sistem tidak dapat menjamin legalitas perusahaan secara absolut karena beberapa sumber resmi (seperti registri AHU/OSS) tidak tersedia secara publik."
+  }
+}

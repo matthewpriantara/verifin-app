@@ -22,7 +22,14 @@ _FOREIGN_WORK_PATTERNS = [
 _WHATSAPP_APPLY_PATTERNS = [
     r"(?:daftar|hubungi|chat|kirim cv|kirim lamaran|kirim format)\s+(?:ke\s+)?(?:wa|whatsapp)\b",
     r"wa\.me/\d+",
+    # "Kirim CV: 0896-...", "pesan WhatsApp", "WA: 0812..."
+    r"(?:kirim|hubungi|daftar|chat)\s*(?:cv|lamaran|berkas)?[^\n\d]{0,25}(?:\+62|62|0)8\d",
+    r"(?:pesan|via|lewat|melalui)\s+(?:wa|whatsapp)\b",
+    r"\b(?:wa|whatsapp)\b\s*[:\-]?\s*(?:\+62|62|0)8\d",
 ]
+
+# Jalur lamaran resmi selain WhatsApp: email atau tautan formulir/portal.
+_OFFICIAL_CHANNEL = re.compile(r"[a-z0-9._%+-]+@[a-z0-9.-]+\.[a-z]{2,}|https?://|forms\.gle|www\.", re.I)
 
 _FRAUD_KEYWORDS = [
     r"\b(?:biaya\s*pendaftaran|biaya\s*administrasi|uang\s*jaminan|deposit\s*awal|transfer\s*ke\s*rekening)\b",
@@ -44,14 +51,16 @@ def extract_behavioral_features(text: str) -> dict[str, Any]:
 
     has_fee = any(re.search(p, text_lower) for p in _FEE_PATTERNS)
     has_foreign = any(re.search(p, text_lower) for p in _FOREIGN_WORK_PATTERNS)
-    has_wa = any(re.search(p, text_lower) for p in _WHATSAPP_APPLY_PATTERNS)
+    # Dihitung hanya bila WhatsApp satu-satunya jalur melamar; loker yang juga mencantumkan
+    # email atau tautan resmi tidak dianggap "lamar via WA".
+    has_wa = any(re.search(p, text_lower) for p in _WHATSAPP_APPLY_PATTERNS) and not _OFFICIAL_CHANNEL.search(text_lower)
 
     fraud_hits = sum(1 for p in _FRAUD_KEYWORDS if re.search(p, text_lower, re.I))
     safe_hits = sum(1 for p in _SAFE_KEYWORDS if re.search(p, text_lower, re.I))
 
     has_company = bool(re.search(r"\b(pt|cv|ud|yayasan|persero|perum)\b", text_lower))
     has_address = bool(re.search(r"\b(jl\.|jalan|gedung|komplek|ruko)\b", text_lower))
-    has_salary = bool(re.search(r"\b(gaji|salary|upah|honor)\b", text_lower))
+    has_salary = bool(re.search(r"\b(gaji\w*|salary|upah|honor)\b|rp\.?\s*\d", text_lower))
 
     return {
         "has_fee_request": bool(has_fee),

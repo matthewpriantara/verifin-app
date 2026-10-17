@@ -459,6 +459,11 @@ Jika TIDAK ADA alamat OSM tapi SEMUA ini terpenuhi:
 ➔ verdict **AMAN**, risk_score **20–35** (aman dengan catatan — zero footprint UMKM normal).
 Jangan naikkan ke WASPADA hanya karena tidak ada alamat/PT/website — itu normal untuk UMKM kecil.
 
+PENGECUALIAN (bukan UMKM perorangan): jika teks MENGAKU sebagai perusahaan/pabrik/kantor (mis. "pabrik baru",
+"perusahaan kami", menyebut nama PT yang tidak ditemukan jejaknya) TETAPI tidak menyebut nama badan usaha yang bisa
+diperiksa, DAN satu-satunya jalur melamar adalah nomor WhatsApp pribadi (tanpa email/portal/alamat kantor):
+➔ verdict **WASPADA**, risk_score **45–60**. Pabrik dan perusahaan sungguhan selalu dapat menyebut nama dan alamatnya.
+
 1. Red flag keras dulu: biaya, fraud HP, phishing form, scam SERP.
 2. Bedakan alamat exact dari area-only; hanya `match_level=exact` yang boleh disebut titik alamat terverifikasi.
 3. Medsos/toko/web evidence?
