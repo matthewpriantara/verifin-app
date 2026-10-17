@@ -196,15 +196,15 @@ def inspect_gform(url: str) -> dict[str, Any]:
         else:
             if form_desc:
                 safe_flags.append(
-                    f"ℹ️ Deskripsi form berhasil dibaca dari Google Forms: '{form_desc[:180]}...'"
+                    f"Deskripsi form berhasil dibaca dari Google Forms: '{form_desc[:180]}...'"
                 )
             if questions:
                 q_sample = ", ".join(questions[:3])
                 safe_flags.append(
-                    f"✅ Tidak ditemukan kata kunci phishing pada {len(questions)} pertanyaan yang berhasil dibaca ({q_sample})."
+                    f"Tidak ditemukan kata kunci phishing pada {len(questions)} pertanyaan yang berhasil dibaca ({q_sample})."
                 )
             elif valid_form_target:
-                safe_flags.append("ℹ️ URL terhubung ke infrastruktur resmi Google Forms; ini bukan verifikasi perusahaan atau lowongan.")
+                safe_flags.append("URL terhubung ke infrastruktur resmi Google Forms; ini bukan verifikasi perusahaan atau lowongan.")
 
         verification_note = None
         if valid_form_target and content_verification_status == LOGIN_REQUIRED:
@@ -215,7 +215,7 @@ def inspect_gform(url: str) -> dict[str, Any]:
                 "perusahaan terkonfirmasi."
             )
             safe_flags.append(
-                "ℹ️ Formulir mewajibkan login akun Google — isi pertanyaan tidak dapat "
+                "Formulir mewajibkan login akun Google — isi pertanyaan tidak dapat "
                 "dibaca sistem tanpa kredensial."
             )
         elif valid_form_target and content_verification_status == "UNVERIFIED":

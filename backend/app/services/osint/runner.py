@@ -336,9 +336,20 @@ def _attach_company_evidence_counts(
         if isinstance(search, dict)
     )
     social_count = len(social_posts or [])
+    web_relevant = int(((web or {}).get("evidence_counts") or {}).get("relevant_results") or 0)
     for record in company_records:
         if not isinstance(record, dict):
             continue
         stats = record.setdefault("stats", {})
         stats["cross_service_match_count"] = web_match_count
         stats["social_public_mention_count"] = social_count
+        # Validator perusahaan memakai query sendiri dan bisa kosong padahal probe web
+        # (query yang lebih kaya: nama + alamat) menemukan hasil relevan. Samakan supaya
+        # XAI dan prompt LLM tidak menerima dua fakta yang bertentangan.
+        if web_relevant > int(stats.get("public_mentions") or 0):
+            stats["public_mentions"] = web_relevant
+            stats["public_mentions_source"] = "web_evidence"
+            record["neutral_notes"] = [
+                note for note in (record.get("neutral_notes") or [])
+                if "tidak ada hasil relevan" not in str(note).lower()
+            ]

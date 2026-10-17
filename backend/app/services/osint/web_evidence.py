@@ -390,13 +390,6 @@ def search_web_evidence(
                     search_error = search_result.get("error", "Tidak ada hasil.")
 
     risk_flags = []
-    quoted = re.findall(r'"([^"]+)"', q)
-    target_words: list[str] = []
-    if quoted:
-        target_words = [w.lower() for w in quoted[0].split() if len(w) >= 3 and w.lower() not in ("pt", "cv", "ud", "pd", "tbk", "lowongan", "penipuan", "penipu", "scam")]
-    else:
-        target_words = [w.lower() for w in q.split()[:2] if len(w) >= 3 and w.lower() not in ("pt", "cv", "ud", "pd", "tbk", "lowongan", "penipuan", "penipu", "scam")]
-
     relevant_results = []
     for r in results:
         t_s = f"{r.get('title', '')} {r.get('snippet', '')}".lower()

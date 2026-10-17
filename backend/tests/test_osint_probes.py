@@ -38,3 +38,29 @@ class TestWebEvidenceMatching:
         )
         assert matched is False
 
+
+
+def test_company_mentions_follow_web_evidence_when_validator_finds_nothing():
+    from app.services.osint.runner import _attach_company_evidence_counts
+
+    companies = [{
+        "name": "Qhomemart",
+        "stats": {"public_mentions": 0},
+        "neutral_notes": ["Tidak ada hasil relevan untuk 'Qhomemart' pada request ini.", "Legalitas belum diverifikasi."],
+    }]
+    web = {"evidence_counts": {"relevant_results": 7}, "searches": [{"results": [{}, {}]}]}
+    _attach_company_evidence_counts(companies, web, {"posts": []})
+
+    stats = companies[0]["stats"]
+    assert stats["public_mentions"] == 7
+    assert stats["public_mentions_source"] == "web_evidence"
+    assert companies[0]["neutral_notes"] == ["Legalitas belum diverifikasi."]
+
+
+def test_company_mentions_untouched_when_validator_already_higher():
+    from app.services.osint.runner import _attach_company_evidence_counts
+
+    companies = [{"name": "PT A", "stats": {"public_mentions": 9}}]
+    _attach_company_evidence_counts(companies, {"evidence_counts": {"relevant_results": 3}}, {})
+    assert companies[0]["stats"]["public_mentions"] == 9
+    assert "public_mentions_source" not in companies[0]["stats"]
