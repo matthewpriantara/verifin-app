@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { ChatTeardropText } from "@phosphor-icons/react";
+import { ChatTeardropText, MagnifyingGlass } from "@phosphor-icons/react";
 import { Logo } from "@/components/ui/Logo";
 
 export function Navbar() {
@@ -22,6 +22,7 @@ export function Navbar() {
 
   // Tampilkan tombol lapor komunitas HANYA di home (di halaman report sudah ada CTA aksi spesifik kasus)
   const showLapor = onHome;
+  const onSearch = pathname.startsWith("/cari");
 
   return (
     <header className="sticky top-0 z-50 border-b border-border bg-bg/90 backdrop-blur-md">
@@ -31,6 +32,15 @@ export function Navbar() {
         </Link>
 
         <div className="flex items-center gap-2">
+          {!onSearch && (
+            <Link
+              href="/cari"
+              className="flex items-center gap-1.5 rounded-lg border border-border px-3 py-1.5 text-[13px] font-medium text-text-secondary transition-colors hover:border-border-focus hover:text-text-primary"
+            >
+              <MagnifyingGlass size={15} weight="bold" />
+              Cari loker
+            </Link>
+          )}
           {showLapor && (
             <Link
               href={reportJobHref}

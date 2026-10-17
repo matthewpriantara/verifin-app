@@ -575,6 +575,30 @@ def lookup_cases_by_entity(
 
 
 @router.get(
+    "/cases/search",
+    summary="Cari lowongan yang sudah pernah dianalisis",
+    description=(
+        "Pencarian publik berdasarkan nama perusahaan, nomor HP, email, atau link postingan. "
+        "Hanya mengembalikan ringkasan (tanpa teks mentah, nomor, atau email)."
+    ),
+)
+def search_cases_public(
+    q: str | None = Query(None, max_length=300, description="Nama PT, nomor HP, email, atau link"),
+    verdict: str | None = Query(None, description="AMAN / WASPADA / BAHAYA"),
+    limit: int = Query(20, ge=1, le=50),
+    skip: int = Query(0, ge=0),
+    db: Session = Depends(get_db),
+):
+    from app.services.case_search import search_cases
+
+    try:
+        return search_cases(db, q, verdict=verdict, limit=limit, skip=skip)
+    except Exception as e:
+        logger.warning("[Case Search] %s", e)
+        raise HTTPException(status_code=500, detail="Gagal mencari riwayat lowongan")
+
+
+@router.get(
     "/cases/{case_id}",
     summary="Ambil detail kasus berdasarkan ID",
     description="Mengembalikan detail lengkap analisis dari database PostgreSQL untuk case_id tertentu."
