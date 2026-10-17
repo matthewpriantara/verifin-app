@@ -11,7 +11,9 @@ logging.getLogger("ppocr").setLevel(logging.ERROR)
 logger = logging.getLogger(__name__)
 
 ocr_model = None
-ocr_lock = threading.Lock()
+# RLock: extract_text_from_image memegang lock ini lalu memanggil get_ocr_model(),
+# yang juga mengambilnya saat model belum dimuat. Lock biasa akan deadlock di situ.
+ocr_lock = threading.RLock()
 
 def get_ocr_model():
     global ocr_model
