@@ -28,6 +28,12 @@ SEARXNG_MIN_INTERVAL = float(os.getenv("SEARXNG_MIN_INTERVAL", "0.8"))
 UPLOAD_DIR = Path(os.getenv("UPLOAD_DIR", BASE_DIR / "uploads" / "evidence"))
 MAX_UPLOAD_SIZE_BYTES = int(os.getenv("MAX_UPLOAD_SIZE_BYTES", str(5 * 1024 * 1024)))
 
+# Token rahasia yang dikirim proxy admin Next.js lewat header X-Admin-Token.
+# Kosong = endpoint admin ditutup (fail closed).
+ADMIN_API_TOKEN = os.getenv("ADMIN_API_TOKEN", "")
+RATE_LIMIT_VERIFY_PER_MIN = int(os.getenv("RATE_LIMIT_VERIFY_PER_MIN", "10"))
+RATE_LIMIT_REPORT_PER_MIN = int(os.getenv("RATE_LIMIT_REPORT_PER_MIN", "5"))
+
 CORS_ORIGINS = [o.strip() for o in os.getenv("CORS_ORIGINS", "*").split(",") if o.strip()]
 
 VERIFIN_DEBUG_RAW_JSON = os.getenv("VERIFIN_DEBUG_RAW_JSON", "false").lower() in {

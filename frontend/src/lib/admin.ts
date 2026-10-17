@@ -5,7 +5,7 @@ export type { AdminCase, AdminStats } from "@/types/admin";
 
 export async function fetchCases(limit = 50, skip = 0): Promise<AdminCase[]> {
   const res = await fetch(
-    `${API_BASE}/api/v1/cases?limit=${limit}&skip=${skip}`,
+    `/api/admin/proxy/cases?limit=${limit}&skip=${skip}`,
     { cache: "no-store" },
   );
   if (!res.ok) throw new Error(`Gagal mengambil kasus (${res.status})`);

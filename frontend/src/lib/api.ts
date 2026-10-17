@@ -229,7 +229,7 @@ export async function fetchCommunityReports(
 ): Promise<CommunityReport[]> {
  const qs = new URLSearchParams({ limit: String(limit) });
  if (status) qs.set("status", status);
- const res = await fetch(`${API_BASE}/api/v1/community/reports?${qs}`, {
+ const res = await fetch(`/api/admin/proxy/community/reports?${qs}`, {
   cache: "no-store",
  });
  if (!res.ok) throw new Error(await parseError(res));
@@ -242,7 +242,7 @@ export async function reviewCommunityReport(
  status: "pending" | "approved" | "rejected",
  reviewer_note?: string,
 ): Promise<void> {
- const res = await fetch(`${API_BASE}/api/v1/community/reports/${id}`, {
+ const res = await fetch(`/api/admin/proxy/community/reports/${id}`, {
   method: "PATCH",
   headers: { "Content-Type": "application/json" },
   body: JSON.stringify({ status, reviewer_note: reviewer_note ?? null }),

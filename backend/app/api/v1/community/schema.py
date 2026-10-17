@@ -13,6 +13,17 @@ class CommunityReportIn(BaseModel):
     case_id: Optional[str] = Field(None, max_length=64)
 
 
+class CommunityReportPublic(BaseModel):
+    id: str
+    report_type: str
+    company_name: Optional[str]
+    phone: Optional[str]
+    email: Optional[str]
+    url: Optional[str]
+    description: Optional[str]
+    created_at: str
+
+
 class CommunityReportOut(BaseModel):
     id: str
     report_type: str

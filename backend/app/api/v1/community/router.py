@@ -12,12 +12,14 @@ from sqlalchemy.orm import Session
 from app.database.models import CommunityReport
 from app.database.postgres_client import get_db
 from app.services.ner import clean_indonesian_phone
-from app.api.v1.community.schema import CommunityReportOut, ModerationUpdate
-from app.config import UPLOAD_DIR, MAX_UPLOAD_SIZE_BYTES
+from app.api.v1.community.schema import CommunityReportOut, CommunityReportPublic, ModerationUpdate
+from app.config import UPLOAD_DIR, MAX_UPLOAD_SIZE_BYTES, RATE_LIMIT_REPORT_PER_MIN
+from app.services.security import RateLimiter, client_ip, require_admin
 logger = logging.getLogger(__name__)
 router = APIRouter()
+_report_limit = RateLimiter(RATE_LIMIT_REPORT_PER_MIN).dependency("community-report")
 
-@router.post("/community/report", status_code=201, summary="Kirim Laporan Penipuan Komunitas")
+@router.post("/community/report", status_code=201, dependencies=[Depends(_report_limit)], summary="Kirim Laporan Penipuan Komunitas")
 async def submit_report(
     request: Request,
     db: Session = Depends(get_db),
@@ -71,7 +73,7 @@ async def submit_report(
         report_type=(report_type or "penipuan").strip(),
         description=(description or "").strip() or None,
         reporter_contact=(reporter_contact or "").strip() or None,
-        reporter_ip=request.client.host if request.client else None,
+        reporter_ip=client_ip(request),
         case_id=(case_id or "").strip() or None,
         evidence_file_url=evidence_file_url,
         status="pending",
@@ -125,7 +127,7 @@ def check_entity(
     }
 
 
-@router.get("/community/recent", summary="Laporan Komunitas Terbaru")
+@router.get("/community/recent", summary="Laporan komunitas terbaru yang sudah disetujui moderator")
 def recent_reports(
     limit: int = Query(20, ge=1, le=100),
     db: Session = Depends(get_db),
@@ -133,6 +135,7 @@ def recent_reports(
     try:
         rows = (
             db.query(CommunityReport)
+            .filter(CommunityReport.status == "approved")
             .order_by(CommunityReport.created_at.desc())
             .limit(limit)
             .all()
@@ -140,11 +143,12 @@ def recent_reports(
     except Exception as exc:
         raise HTTPException(status_code=500, detail=f"Gagal mengambil laporan: {exc}") from exc
 
+    # Data pelapor (IP, kontak) dan catatan moderator tidak pernah dikirim ke publik.
     return {
         "status": "ok",
         "count": len(rows),
         "reports": [
-            CommunityReportOut(
+            CommunityReportPublic(
                 id=str(r.id),
                 report_type=r.report_type,
                 company_name=r.company_name,
@@ -152,12 +156,6 @@ def recent_reports(
                 email=r.email,
                 url=r.url,
                 description=r.description,
-                reporter_ip=r.reporter_ip,
-                case_id=r.case_id,
-                evidence_file_url=r.evidence_file_url,
-                status=r.status or "pending",
-                reviewer_note=r.reviewer_note,
-                reviewed_at=r.reviewed_at.isoformat() if r.reviewed_at else None,
                 created_at=r.created_at.isoformat() if r.created_at else "",
             ).model_dump()
             for r in rows
@@ -165,7 +163,7 @@ def recent_reports(
     }
 
 
-@router.get("/community/reports", summary="Daftar laporan komunitas (termasuk status moderasi)")
+@router.get("/community/reports", dependencies=[Depends(require_admin)], summary="Daftar laporan komunitas termasuk status moderasi (khusus admin)")
 def list_reports(
     status: Optional[str] = Query(None, pattern="^(pending|approved|rejected)$"),
     limit: int = Query(50, ge=1, le=200),
@@ -204,7 +202,7 @@ def list_reports(
     }
 
 
-@router.patch("/community/reports/{report_id}", summary="Tinjau laporan (approve/reject) oleh moderator")
+@router.patch("/community/reports/{report_id}", dependencies=[Depends(require_admin)], summary="Tinjau laporan (approve/reject) oleh moderator")
 def review_report(
     report_id: UUID,
     payload: ModerationUpdate,
