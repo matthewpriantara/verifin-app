@@ -8,17 +8,13 @@ import {
   ShareNetwork,
   Warning,
   CheckCircle,
-  InstagramLogo,
-  FacebookLogo,
-  LinkedinLogo,
-  TiktokLogo,
-  TwitterLogo,
   MapPin,
   Users,
   Heart,
   Eye,
   Link as LinkIcon,
 } from "@phosphor-icons/react/dist/ssr";
+import { SocialPlatformIcon } from "@/components/report/SocialPlatformIcon";
 
 interface WebSearchResult {
   title?: string;
@@ -140,15 +136,6 @@ function Flag({ text, kind }: { text: string; kind: "risk" | "safe" | "neutral" 
   );
 }
 
-function SocialPlatformIcon({ platform }: { platform: string }) {
-  const p = platform.toLowerCase();
-  if (p.includes("instagram")) return <InstagramLogo size={16} weight="fill" className="text-pink-500" />;
-  if (p.includes("facebook")) return <FacebookLogo size={16} weight="fill" className="text-blue-600" />;
-  if (p.includes("linkedin")) return <LinkedinLogo size={16} weight="fill" className="text-blue-700" />;
-  if (p.includes("tiktok")) return <TiktokLogo size={16} weight="fill" className="text-black" />;
-  if (p.includes("twitter") || p.includes("x")) return <TwitterLogo size={16} weight="fill" className="text-sky-500" />;
-  return <ShareNetwork size={16} weight="bold" className="text-text-muted" />;
-}
 
 function SocialProfileCard({ result }: { result: WebSearchResult }) {
   const url = result.url ?? "";

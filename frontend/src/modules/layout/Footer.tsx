@@ -16,9 +16,9 @@ export function Footer() {
             <Link href="/" className="inline-flex items-center group">
               <Logo size="md" inverted />
             </Link>
-            <p className="text-[13px] leading-relaxed text-bg/60 max-w-sm">
-              Platform verifikasi lowongan kerja terintegrasi. Memanfaatkan OSINT,
-              graf hubungan (Heterogeneous Graph), dan Explainable AI (Evidence Attribution) untuk menciptakan ekosistem pencarian kerja yang aman.
+            <p className="text-[13px] leading-relaxed text-bg/70 max-w-sm">
+              Cek lowongan kerja sebelum melamar. Verifin memeriksa nomor, perusahaan, alamat, email,
+              dan formulir lewat sumber publik, lalu menjelaskan alasan di balik setiap skor.
             </p>
           </div>
 
@@ -29,18 +29,18 @@ export function Footer() {
             </h4>
             <ul className="space-y-2 text-[13px]">
               <li>
-                <Link href="/" className="text-bg/60 hover:text-bg transition-colors">
-                  Verifikasi Baru
+                <Link href="/" className="text-bg/70 hover:text-bg transition-colors">
+                  Cek lowongan
                 </Link>
               </li>
               <li>
-                <Link href="/report-job" className="text-bg/60 hover:text-bg transition-colors">
-                  Lapor Komunitas
+                <Link href="/cari" className="text-bg/70 hover:text-bg transition-colors">
+                  Cari loker
                 </Link>
               </li>
               <li>
-                <Link href="/admin" className="text-bg/60 hover:text-bg transition-colors">
-                  Dashboard Admin
+                <Link href="/report-job" className="text-bg/70 hover:text-bg transition-colors">
+                  Lapor komunitas
                 </Link>
               </li>
             </ul>
@@ -49,10 +49,10 @@ export function Footer() {
           {/* Col 3: Tech Stack & System Status */}
           <div className="md:col-span-4 space-y-3.5">
             <h4 className="text-[12px] font-semibold tracking-wider uppercase text-bg">
-              Teknologi & Engine
+              Sumber & teknologi
             </h4>
             <div className="flex flex-wrap gap-1.5">
-              {["PaddleOCR", "OSINT", "NetworkX", "Evidence Attribution", "LLM Reasoning"].map((tech) => (
+              {["PaddleOCR", "SearXNG", "OpenStreetMap", "Kaspersky Who Calls", "WHOIS/RDAP", "NetworkX", "LLM"].map((tech) => (
                 <span
                   key={tech}
                   className="rounded bg-bg/5 border border-bg/10 px-2.5 py-1 font-mono text-[10px] text-bg/70 hover:bg-bg/10 transition-colors"
@@ -68,16 +68,16 @@ export function Footer() {
         {/* Lower Disclaimer & Info */}
         <div className="pt-6 flex flex-col-reverse md:flex-row md:items-center md:justify-between gap-4">
           <div className="space-y-1">
-            <p className="text-[12px] text-bg/40 font-medium">
+            <p className="text-[12px] text-bg/60 font-medium">
               &copy; {new Date().getFullYear()} VERIFIN. Hak Cipta Dilindungi.
             </p>
-            <p className="text-[11px] text-bg/30">
-              Dikembangkan sebagai solusi deteksi penipuan kerja cerdas.
+            <p className="text-[11px] text-bg/60">
+              Tim Three Achilles · Universitas Gadjah Mada
             </p>
           </div>
-          <p className="text-[11px] md:text-[12px] leading-relaxed text-bg/35 max-w-md md:text-right font-light">
-            Disclaimer: Hasil analisis risiko yang disajikan bersifat indikatif
-            dan merupakan hasil pemrosesan AI secara otomatis. Bukan merupakan putusan hukum final.
+          <p className="text-[11px] md:text-[12px] leading-relaxed text-bg/60 max-w-md md:text-right">
+            Hasil Verifin adalah penilaian risiko otomatis dari bukti publik, bukan putusan hukum
+            dan bukan jaminan legalitas perusahaan.
           </p>
         </div>
       </div>

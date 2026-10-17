@@ -97,7 +97,9 @@ function DetailModal({
             <h3 className="text-[14px] font-bold text-text-primary">Detail Laporan Komunitas</h3>
           </div>
           <button
+            type="button"
             onClick={onClose}
+            aria-label="Tutup detail laporan"
             className="rounded-lg p-1 text-text-muted transition-colors hover:bg-bg-subtle hover:text-text-primary"
           >
             <XCircle size={18} />
@@ -126,7 +128,7 @@ function DetailModal({
               </span>
             </div>
             <div>
-              <span className="text-[11px] font-medium text-text-muted block uppercase tracking-wider">Waktu Submit</span>
+              <span className="text-[11px] font-medium text-text-muted block uppercase tracking-wider">Waktu Kirim</span>
               <span className="text-text-primary flex items-center gap-1 mt-0.5">
                 <CalendarBlank size={12} /> {new Date(report.created_at).toLocaleString("id-ID")}
               </span>
