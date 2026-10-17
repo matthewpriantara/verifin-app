@@ -307,7 +307,7 @@ function LoadingModal({
         {/* Footer info */}
         <div className="border-t border-border bg-bg-subtle/30 px-6 py-3 text-center">
           <p className="text-[11px] font-medium text-text-muted flex items-center justify-center gap-1.5">
-            <span className="h-1.5 w-1.5 rounded-full bg-emerald-500 animate-ping" />
+            <span className="h-1.5 w-1.5 rounded-full bg-aman-fg motion-safe:animate-pulse" aria-hidden />
             {stageMessage || "Harap tunggu, Verifin AI sedang memverifikasi bukti OSINT secara mendalam..."}
           </p>
         </div>

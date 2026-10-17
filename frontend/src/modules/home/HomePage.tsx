@@ -121,14 +121,6 @@ export default function HomePage() {
 
         {/* Kiri — headline */}
         <div className="w-full flex-1">
-          <motion.p
-            initial={{ opacity: 0, y: 8 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.4 }}
-            className="mb-4 font-mono text-[11px] uppercase tracking-widest text-text-muted"
-          >
-            Job Risk Platform
-          </motion.p>
 
           <motion.h1
             initial={{ opacity: 0, y: 16 }}
@@ -157,7 +149,7 @@ export default function HomePage() {
             {[
               { val: "6", unit: "Kanal", label: "Pemeriksaan OSINT" },
               { val: "4", unit: "Tahap", label: "Analisis Verifin" },
-              { val: "100%", unit: "Transparan", label: "Evidence Attribution" },
+              { val: "3", unit: "Jenis input", label: "Teks, poster, atau link" },
             ].map(({ val, unit, label }) => (
               <div key={label}>
                 <p className="font-mono text-xl font-semibold text-text-primary sm:text-2xl">
@@ -216,10 +208,7 @@ export default function HomePage() {
             transition={{ duration: 0.5 }}
             className="mb-8 text-center sm:mb-10"
           >
-            <p className="font-mono text-[11px] uppercase tracking-widest text-text-muted">
-              Job Risk Infrastructure
-            </p>
-            <h2 className="mt-2 text-[1.4rem] font-semibold tracking-tight text-text-primary sm:text-3xl">
+            <h2 className="text-[1.4rem] font-semibold tracking-tight text-text-primary sm:text-3xl">
               Cara Verifin menilai risiko
             </h2>
             <p className="mx-auto mt-2 max-w-xl text-[13px] leading-relaxed text-text-secondary sm:text-[14px]">

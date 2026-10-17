@@ -125,6 +125,7 @@ export function SearchHistory() {
               onClick={handleClearAll}
               className="flex h-5 w-5 items-center justify-center rounded-md text-text-muted transition-colors hover:bg-bahaya-bg hover:text-bahaya-fg"
               title="Hapus semua riwayat"
+              aria-label="Hapus semua riwayat"
             >
               <Trash size={11} weight="bold" />
             </button>
@@ -164,6 +165,16 @@ export function SearchHistory() {
                   <div
                     key={item.id}
                     onClick={() => handleSelectHistory(item)}
+                    role="button"
+                    tabIndex={0}
+                    aria-label={`Buka laporan ${item.title}, ${item.verdict} skor ${item.risk_score}`}
+                    onKeyDown={(e) => {
+                      if (e.target !== e.currentTarget) return;
+                      if (e.key === "Enter" || e.key === " ") {
+                        e.preventDefault();
+                        handleSelectHistory(item);
+                      }
+                    }}
                     className="group flex cursor-pointer items-center justify-between gap-2.5 rounded-xl border border-border/50 bg-bg-subtle/30 px-3 py-2.5 transition-all hover:border-border-focus hover:bg-bg-subtle hover:shadow-xs active:scale-[0.99]"
                   >
                     <div className="min-w-0 flex-1">
@@ -180,8 +191,9 @@ export function SearchHistory() {
                       <button
                         type="button"
                         onClick={(e) => handleRemove(e, item.id)}
-                        className="flex h-5 w-5 items-center justify-center rounded-md text-text-muted opacity-0 transition-all hover:bg-bahaya-bg hover:text-bahaya-fg group-hover:opacity-100"
+                        className="flex h-5 w-5 items-center justify-center rounded-md text-text-muted opacity-0 transition-all hover:bg-bahaya-bg hover:text-bahaya-fg group-hover:opacity-100 group-focus-within:opacity-100 focus-visible:opacity-100"
                         title="Hapus riwayat ini"
+                        aria-label="Hapus riwayat ini"
                       >
                         <Trash size={10} weight="bold" />
                       </button>

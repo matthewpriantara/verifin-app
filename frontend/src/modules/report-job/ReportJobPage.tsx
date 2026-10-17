@@ -177,7 +177,7 @@ function ReportJobPageInner() {
           <h2 className="text-xl font-bold text-text-primary">Laporan Terkirim</h2>
           <p className="mt-2 text-[14px] leading-relaxed text-text-secondary">
             Laporan Anda mengenai <span className="font-semibold">{companyName}</span> telah berhasil kami terima.
-            Laporan ini akan ditinjau oleh tim moderator admin sebelum mempengaruhi skor risiko perusahaan.
+            Admin akan meninjaunya dulu. Setelah disetujui, laporan ini menjadi bukti tambahan saat lowongan dengan kontak yang sama diperiksa.
           </p>
 
           <div className="mt-4 rounded-xl border border-border bg-bg-subtle/50 p-3 text-left font-mono text-[11px] text-text-muted">
@@ -251,33 +251,31 @@ function ReportJobPageInner() {
             onClick={() => router.back()}
             className="inline-flex items-center gap-2 rounded-xl bg-text-primary px-4 py-2 text-[13px] font-semibold text-bg-elevated shadow-sm transition-all hover:bg-text-secondary active:scale-[0.98]"
           >
-            <ArrowLeft size={15} weight="bold" /> Kembali ke Laporan
+            <ArrowLeft size={15} weight="bold" /> Kembali
           </button>
         ) : (
           <Link
             href="/"
             className="inline-flex items-center gap-2 rounded-xl bg-text-primary px-4 py-2 text-[13px] font-semibold text-bg-elevated shadow-sm transition-all hover:bg-text-secondary active:scale-[0.98]"
           >
-            <ArrowLeft size={15} weight="bold" /> Kembali ke Beranda
+            <ArrowLeft size={15} weight="bold" /> Kembali
           </Link>
         )}
 
-        <span className="inline-flex items-center rounded-lg border border-border-focus/60 bg-bg-subtle px-3 py-1.5 font-mono text-[11px] font-semibold uppercase tracking-wider text-text-primary">
-          {activeCaseId ? `Kasus #${activeCaseId.slice(0, 8)}` : "Laporan Komunitas"}
-        </span>
+        {activeCaseId && (
+          <span className="inline-flex items-center rounded-lg border border-border-focus/60 bg-bg-subtle px-3 py-1.5 font-mono text-[11px] font-semibold uppercase tracking-wider text-text-primary">
+            Kasus #{activeCaseId.slice(0, 8)}
+          </span>
+        )}
       </div>
 
       {/* ── Header Title ── */}
       <div className="mb-8 max-w-3xl">
-        <span className="inline-flex items-center gap-1.5 rounded-full border border-border-focus/60 bg-bg-subtle px-3 py-1 font-mono text-[11px] font-semibold uppercase tracking-wider text-text-primary">
-          <span className="h-1.5 w-1.5 rounded-full bg-bahaya-fg" />
-          Community Watch
-        </span>
-        <h1 className="mt-2.5 text-2xl font-bold tracking-tight text-text-primary sm:text-3xl">
+        <h1 className="text-2xl font-bold tracking-tight text-text-primary sm:text-3xl">
           Laporkan Lowongan Mencurigakan
         </h1>
         <p className="mt-2 text-[13px] leading-relaxed text-text-secondary sm:text-[14px]">
-          Bantu lindungi sesama pencari kerja dari kejahatan rekrutmen. Setiap laporan akan dimoderasi terlebih dahulu oleh tim admin sebelum mempengaruhi skor risiko perusahaan.
+          Bantu lindungi sesama pencari kerja dari kejahatan rekrutmen. Setiap laporan ditinjau admin dulu. Laporan yang disetujui menjadi bukti tambahan saat lowongan dengan nomor, email, atau nama yang sama diperiksa, bukan vonis terhadap perusahaan.
         </p>
       </div>
 
@@ -403,7 +401,7 @@ function ReportJobPageInner() {
                   required
                   value={companyName}
                   onChange={(e) => setCompanyName(e.target.value)}
-                  placeholder="Contoh: PT Investasi Cerdas Sejahtera"
+                  placeholder="Tulis nama perusahaan seperti di lowongan"
                   className="w-full rounded-xl border border-border bg-bg pl-9 pr-4 py-3 text-[13px] text-text-primary placeholder:text-text-muted outline-none transition-colors focus:border-border-focus"
                 />
               </div>
@@ -506,6 +504,7 @@ function ReportJobPageInner() {
                       onClick={handleRemoveFile}
                       className="absolute right-2 top-2 flex h-6 w-6 items-center justify-center rounded-lg bg-bahaya-bg/80 text-bahaya-fg backdrop-blur-sm transition-colors hover:bg-bahaya-bg"
                       title="Hapus gambar"
+                      aria-label="Hapus gambar"
                     >
                       <X size={12} weight="bold" />
                     </button>

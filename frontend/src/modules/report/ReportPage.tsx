@@ -23,12 +23,9 @@ import {
   ArrowSquareOut,
   CaretDown,
   CaretUp,
-  InstagramLogo,
-  FacebookLogo,
-  LinkedinLogo,
-  TiktokLogo,
-  TwitterLogo,
+  Info,
 } from "@phosphor-icons/react";
+import { SocialPlatformIcon } from "@/components/report/SocialPlatformIcon";
 import { Button } from "@/components/ui/Button";
 import { Skeleton } from "@/components/ui/Skeleton";
 import { ShapChart } from "@/modules/report/ShapChart";
@@ -57,6 +54,18 @@ function riskLevelLabel(verdict: string) {
   if (n === "BAHAYA") return "Risiko tinggi";
   return "Tidak dapat dinilai";
 }
+// Menjawab komentar juri: label AMAN bukan jaminan legalitas, dan verdict menilai lowongan, bukan perusahaan.
+function verdictDisclaimer(verdict: string) {
+  const n = normalizeVerdict(verdict);
+  if (n === "AMAN")
+    return "AMAN berarti tidak ditemukan tanda bahaya pada bukti publik saat ini, bukan jaminan legalitas perusahaan. Tetap jangan transfer uang atau mengirim dokumen pribadi sebelum bertemu pihak perusahaan lewat kanal resminya.";
+  if (n === "WASPADA")
+    return "Bukti yang ada belum cukup untuk memastikan. Cek ulang lewat situs atau akun resmi perusahaan sebelum melamar, dan jangan mengirim uang atau dokumen pribadi.";
+  if (n === "BAHAYA")
+    return "Penilaian ini untuk isi lowongan yang kamu periksa, bukan vonis terhadap perusahaan yang namanya dipakai. Penipu sering mencatut nama perusahaan asli.";
+  return "Sistem tidak dapat menilai lowongan ini. Lakukan pengecekan mandiri sebelum melamar.";
+}
+
 function verdictStroke(verdict: string): string {
   const n = normalizeVerdict(verdict);
   if (n === "AMAN") return "#2f5c34";
@@ -152,15 +161,6 @@ function AnimatedScoreGauge({
 }
 
 /* ─── Social Platform Icon ─────────────────────────────────────────────────── */
-function SocialPlatformIcon({ platform }: { platform: string }) {
-  const p = platform.toLowerCase();
-  if (p.includes("instagram")) return <InstagramLogo size={18} weight="fill" className="text-pink-500" />;
-  if (p.includes("facebook")) return <FacebookLogo size={18} weight="fill" className="text-blue-600" />;
-  if (p.includes("linkedin")) return <LinkedinLogo size={18} weight="fill" className="text-blue-700" />;
-  if (p.includes("tiktok")) return <TiktokLogo size={18} weight="fill" className="text-black" />;
-  if (p.includes("twitter") || p === "x" || p.includes("x.com")) return <TwitterLogo size={18} weight="fill" className="text-sky-500" />;
-  return <ShareNetwork size={18} weight="bold" className="text-text-muted" />;
-}
 
 function detectPlatform(url: string): string {
   try {
@@ -357,7 +357,7 @@ export default function ReportPage() {
           href="/"
           className="inline-flex items-center gap-2 rounded-xl bg-text-primary px-3.5 py-2 text-[13px] font-semibold text-bg-elevated shadow-sm transition-all hover:bg-text-secondary active:scale-[0.98]"
         >
-          <ArrowLeft size={15} weight="bold" /> Verifikasi baru
+          <ArrowLeft size={15} weight="bold" /> Cek lowongan lain
         </Link>
         <span className="inline-flex items-center rounded-lg border border-border-focus/60 bg-bg-subtle px-3 py-1.5 font-mono text-[11px] font-semibold uppercase tracking-wider text-text-primary">
           {caseId ? `Kasus #${caseId.slice(0, 8)}` : "Laporan Sementara"}
@@ -401,6 +401,10 @@ export default function ReportPage() {
             </div>
           </div>
         </div>
+        <p className="mt-5 flex gap-2 border-t pt-4 text-[13px] leading-relaxed text-text-secondary" style={{ borderColor: "var(--border)" }}>
+          <Info size={16} weight="bold" className="mt-0.5 shrink-0" aria-hidden />
+          <span>{verdictDisclaimer(report.verdict)}</span>
+        </p>
       </motion.div>
 
       {/* ── Faktor Penilaian (satu blok, dua kolom) ── */}
@@ -488,12 +492,12 @@ export default function ReportPage() {
               <div className="flex items-center gap-2">
                 <p className="text-xs font-bold uppercase tracking-wider text-text-muted">Lokasi</p>
                 {addrDetails.match_level === "area" && (
-                  <span className="rounded-md bg-amber-500/10 px-2 py-0.5 text-[10px] font-semibold text-amber-500">
+                  <span className="rounded-md bg-waspada-bg px-2 py-0.5 text-[11px] font-semibold text-waspada-fg">
                     Perkiraan Wilayah
                   </span>
                 )}
                 {addrDetails.match_level === "street" && (
-                  <span className="rounded-md bg-blue-500/10 px-2 py-0.5 text-[10px] font-semibold text-blue-500">
+                  <span className="rounded-md bg-bg-subtle px-2 py-0.5 text-[11px] font-semibold text-text-secondary">
                     Tingkat Jalan
                   </span>
                 )}
@@ -605,7 +609,7 @@ export default function ReportPage() {
                   rel="noreferrer"
                   className="group flex items-center gap-3 rounded-2xl border border-border bg-bg-subtle/50 px-4 py-3.5 transition-all hover:border-border-focus hover:bg-bg-subtle"
                 >
-                  <SocialPlatformIcon platform={detectPlatform(p.url ?? "")} />
+                  <SocialPlatformIcon size={18} platform={detectPlatform(p.url ?? "")} />
                   <div className="min-w-0 flex-1">
                     <p className="truncate text-sm font-semibold text-text-primary">{p.username ?? p.title ?? p.url}</p>
                     <p className="truncate text-xs text-text-muted">{detectPlatform(p.url ?? "")}</p>
@@ -622,7 +626,7 @@ export default function ReportPage() {
                   rel="noreferrer"
                   className="group flex items-center gap-3 rounded-2xl border border-border bg-bg-subtle/50 px-4 py-3.5 transition-all hover:border-border-focus hover:bg-bg-subtle"
                 >
-                  <SocialPlatformIcon platform={detectPlatform(r.url ?? "")} />
+                  <SocialPlatformIcon size={18} platform={detectPlatform(r.url ?? "")} />
                   <div className="min-w-0 flex-1">
                     <p className="truncate text-sm font-semibold text-text-primary">{r.title}</p>
                     <p className="truncate text-xs text-text-muted">{detectPlatform(r.url ?? "")}</p>
@@ -650,7 +654,7 @@ export default function ReportPage() {
                     className="group flex items-center gap-3 rounded-2xl border border-border bg-bg-subtle/50 px-4 py-3.5 transition-all hover:border-border-focus hover:bg-bg-subtle"
                   >
                     {isSocial ? (
-                      <SocialPlatformIcon platform={platform} />
+                      <SocialPlatformIcon size={18} platform={platform} />
                     ) : (
                       <LinkSimple size={18} weight="bold" className="shrink-0 text-text-muted" />
                     )}
@@ -742,7 +746,7 @@ export default function ReportPage() {
       <motion.div {...fadeUp} transition={{ delay: 0.32 }} className="mt-8 flex flex-col gap-3 sm:flex-row sm:items-center">
         <Link href="/" className="flex-1">
           <Button fullWidth variant="primary">
-            Verifikasi lowongan lain
+            Cek lowongan lain
           </Button>
         </Link>
         <Link
