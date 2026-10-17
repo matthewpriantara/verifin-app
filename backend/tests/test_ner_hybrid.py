@@ -89,3 +89,16 @@ def test_hybrid_drops_descriptive_location_and_case_duplicates():
     llm = {"location_candidates": ["seluruh jaringan cabang perusahaan", "PASAR KEMIS", "Pasar Kemis"]}
     r = _run("Lokasi: Pasar Kemis\nBersedia ditempatkan di seluruh jaringan cabang perusahaan", llm)
     assert r["location_candidates"] == ["Pasar Kemis"]
+
+
+def test_ocr_split_company_name_is_merged_and_logo_acronym_dropped():
+    from app.api.v1.verify.pipeline import _merge_company_fragments
+    ocr = "iGS\nPT.INDOKARYA\nKERJA STABIL\nLINGKUNGAN MODERN\nGLOBALSINERGI\nOPERATOR PACKING"
+    assert _merge_company_fragments(["PT.INDOKARYA", "GLOBALSINERGI", "iGS"], ocr) == ["PT INDOKARYA GLOBALSINERGI"]
+
+
+def test_separate_companies_are_not_merged():
+    from app.api.v1.verify.pipeline import _merge_company_fragments
+    text = "Hotel New Saphir Yogyakarta\nAkun IG / Website: New Saphir Hotel Yogyakarta"
+    names = ["HOTEL NEW SAPHIR YOGYAKARTA", "New Saphir Hotel Yogyakarta"]
+    assert _merge_company_fragments(names, text) == names

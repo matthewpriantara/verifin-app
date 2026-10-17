@@ -4,6 +4,10 @@ from typing import Any
 
 import networkx as nx
 
+# Hanya kasus BAHAYA yang dianggap penipuan. WASPADA berarti bukti belum cukup; menghitungnya
+# sebagai penipuan akan menandai lowongan lain "terhubung ke jaringan penipuan" tanpa dasar.
+FRAUD_VERDICTS = ("BAHAYA",)
+
 logger = logging.getLogger(__name__)
 
 
@@ -119,7 +123,7 @@ def check_entity_in_network(
             total_case_ids.update(n for n, _ in predecessor_cases)
             fraud_cases = [
                 (n, d) for n, d in predecessor_cases
-                if d.get("verdict") in ("BAHAYA", "WASPADA")
+                if d.get("verdict") in FRAUD_VERDICTS
             ]
             fraud_case_ids.update(n for n, _ in fraud_cases)
 
@@ -149,7 +153,7 @@ def check_entity_in_network(
             "case_nodes": sum(1 for n, d in G.nodes(data=True) if d.get("node_type") == "JobCase"),
             "fraud_cases": sum(
                 1 for n, d in G.nodes(data=True)
-                if d.get("node_type") == "JobCase" and d.get("verdict") in ("BAHAYA", "WASPADA")
+                if d.get("node_type") == "JobCase" and d.get("verdict") in FRAUD_VERDICTS
             ),
         },
     }
@@ -164,7 +168,7 @@ def get_network_graph_data(
 
     fraud_related = set()
     for n, d in G.nodes(data=True):
-        if d.get("node_type") == "JobCase" and d.get("verdict") in ("BAHAYA", "WASPADA"):
+        if d.get("node_type") == "JobCase" and d.get("verdict") in FRAUD_VERDICTS:
             fraud_related.add(n)
             for neighbor in G.neighbors(n):
                 fraud_related.add(neighbor)

@@ -81,3 +81,20 @@ class TestXAIShapExplainer:
         assert len(exp["decision_path"]) > 0
         step_names = [s["step"] for s in exp["decision_path"]]
         assert any("Fraud Network Case Memory" in s for s in step_names)
+
+
+def test_spf_penalty_requires_corporate_domain():
+    from app.services.xai.shap_explainer import explain_verification_shap
+    no_domain = explain_verification_shap(28, "AMAN", {"domain": {"age_years": None}, "email_security": {"spf_active": False}}, [], [], entities={})
+    labels = [c.get("label") for c in no_domain.get("waterfall_chart", [])]
+    assert "Tidak Ada SPF/DMARC pada Domain Korporat" not in labels
+    with_domain = explain_verification_shap(28, "AMAN", {"domain": {"domain": "contoh.co.id", "age_years": 5}, "email_security": {"spf_active": False, "domain": "contoh.co.id"}}, [], [], entities={})
+    labels = [c.get("label") for c in with_domain.get("waterfall_chart", [])]
+    assert "Tidak Ada SPF/DMARC pada Domain Korporat" in labels
+
+
+def test_whatsapp_only_apply_detected_but_not_when_email_present():
+    from app.services.nlp.classifier import extract_behavioral_features as f
+    assert f("Operator packing. Kirim CV: 0896-7951-0296")["has_whatsapp_apply"]
+    assert f("Cantumkan nama dan usia pada pesan WhatsApp")["has_whatsapp_apply"]
+    assert not f("Kirim lamaran ke hrm@newsaphirhotel.com\\nNo Whatsapp : 0823 2386 3434")["has_whatsapp_apply"]

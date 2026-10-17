@@ -109,11 +109,15 @@ async def run_osint_probes(entities: dict) -> dict:
             if "age_years" not in age_info and age_info.get("age_days", -1) > 0:
                 age_info["age_years"] = round(age_info["age_days"] / 365, 2)
             security_info = check_email_security(domain)
+            # Simpan nama domain supaya XAI tahu lowongan memang memakai domain korporat.
+            age_info.setdefault("domain", domain)
+            security_info.setdefault("domain", domain)
             return age_info, security_info
         except Exception as exc:
             return (
                 {
                     "error": str(exc),
+                    "domain": domain,
                     "is_new": True,
                     "age_years": None,
                     "created_at": "Unknown",

@@ -94,6 +94,16 @@ def explain_verification_shap(
                 f"Terdeteksi {int(fraud_kw)} pola kata kunci penipuan loker Indonesia",
             ))
 
+        if bf.get("salary_no_company") and not bf.get("fee_no_company") and not (entities or {}).get("companies"):
+            contributions.append(_make_contrib(
+                "Gaji Ditawarkan tanpa Identitas Perusahaan",
+                "salary_no_company",
+                1,
+                _FEATURE_WEIGHTS["salary_no_company"],
+                "risk",
+                "Lowongan menawarkan gaji tetapi tidak menyebut nama badan usaha yang bisa diperiksa",
+            ))
+
         if bf.get("fee_no_company"):
             contributions.append(_make_contrib(
                 "Minta Biaya tanpa Identitas PT",
@@ -178,8 +188,11 @@ def explain_verification_shap(
         ))
 
     email_sec = osint_results.get("email_security") or {}
+    # Hanya berlaku bila lowongan memang mencantumkan domain korporat.
+    has_corporate_domain = bool(domain_info_pre.get("domain") or email_sec.get("domain"))
     if (
-        not email_sec.get("spf_active")
+        has_corporate_domain
+        and not email_sec.get("spf_active")
         and domain_info_pre.get("skipped") != "free_email"
         and email_sec.get("skipped") != "free_email"
     ):
