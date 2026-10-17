@@ -7,10 +7,10 @@ Kumpulan loker nyata untuk menguji tiga kanal input Verifin (teks, link, poster)
 | ID | Kanal | Input | Sumber | Kesimpulan manual | Verdict yang diharapkan |
 |---|---|---|---|---|---|
 | T1 | Teks | `T1-teks-hotel-new-saphir.txt` | [Threads @jogjalowker_official, 16 Okt 2026](https://www.threads.com/@jogjalowker_official/post/DejIohQkerQ) | Kemungkinan asli, tapi posisi belum terkonfirmasi | AMAN atau WASPADA |
-| T2 | Teks | `T2-teks-packing-pasar-kemis.txt` | [Threads @fahadhamzah_, 9 Okt 2026](https://www.threads.com/@fahadhamzah_/post/DeQi-aTAX0G) | Mencurigakan, belum terbukti penipuan | WASPADA |
+| T2 | Teks | `T2-teks-packing-pasar-kemis.txt` | [Threads @fahadhamzah_, 9 Okt 2026](https://www.threads.com/@fahadhamzah_/post/DeQi-aTAX0G) | Sangat mencurigakan: ada kesaksian pelamar dimintai KTP dan nama ibu kandung | WASPADA atau BAHAYA |
 | L1 | Link | `https://www.threads.com/@jogjalowker_official/post/DegeamfkV1w` | Threads @jogjalowker_official, 13 Okt 2026 | Asli | AMAN |
 | L2 | Link | `https://www.threads.com/@pastidapatuangg/post/DekRfpYEzzW` | Threads @pastidapatuangg, 17 Okt 2026 | Sangat mencurigakan (pola sewa akun LinkedIn) | WASPADA atau BAHAYA |
-| P1 | Poster | `P1-poster-packing-pasar-kemis.jpg` | Gambar lampiran postingan T2 (Threads @fahadhamzah_, 9 Okt 2026) | Mencurigakan, belum terbukti penipuan | WASPADA atau BAHAYA |
+| P1 | Poster | `P1-poster-packing-pasar-kemis.jpg` | Gambar lampiran postingan T2 (Threads @fahadhamzah_, 9 Okt 2026) | Sangat mencurigakan (sama dengan T2) | WASPADA atau BAHAYA |
 
 ## Catatan pengecekan manual
 
@@ -25,7 +25,9 @@ Kumpulan loker nyata untuk menguji tiga kanal input Verifin (teks, link, poster)
 - Tidak ada nama perusahaan, hanya "pabrik baru". Kontak hanya nomor WA pribadi.
 - Gaji Rp120–130 rb/hari untuk 11 jam kerja: rendah, bukan tidak realistis. Tidak ada permintaan biaya di teks.
 - Ada komentar publik yang menuduh penipuan. Pengunggah membalas bahwa "nama PT resmi dan ada di maps", tapi tidak menyebut namanya.
-- Kesimpulan: mencurigakan karena identitasnya tidak bisa diverifikasi. Belum ada bukti penipuan.
+- Komentar publik (@liasel18, 9 Okt 2026, dicek 18 Okt 2026): setelah menghubungi WA, pelamar **dimintai KTP dan nama ibu kandung**, lalu nomor kontaknya berganti. Nama ibu kandung lazim dipakai untuk verifikasi rekening bank, jadi ini pola pencurian identitas.
+- Akun yang sama memposting lowongan serupa dengan nomor lain (`0813-8849-511`, 8 Okt 2026, upah Rp110rb/hari, syarat berbeda).
+- Kesimpulan: sangat mencurigakan. Bukti berupa kesaksian satu pengguna, belum laporan resmi. Verifin tidak bisa melihat komentar ini; kasus ini menguji apakah sinyal teks dan OSINT saja sudah cukup.
 
 ### L1 · Qhomemart (Videographer)
 - Alamat Jl. Raya Janti No. 96, email `recruitment@qhomemart.co.id`, dan WA `0857-0129-9095` **semuanya cocok** dengan listing Qhomemart di pusat karier UAD (`cdc.uad.ac.id/jobs/qhomemart-5-positions`).
@@ -42,5 +44,5 @@ Kumpulan loker nyata untuk menguji tiga kanal input Verifin (teks, link, poster)
 - Poster menyebut **PT. Indokarya Global Sinergi (IGS)**, nama yang tidak ada di teks postingan. Pencarian web (18 Okt 2026) tidak menemukan jejak publik perusahaan dengan nama ini.
 - Gambar jelas buatan AI (wajah dan latar pabrik generik). Pelamar diminta mengirim nama, usia, domisili, serta tinggi dan berat badan lewat WhatsApp.
 - Isi lain sama dengan T2: gaji Rp120–130 rb/hari, 11 jam kerja, khusus perempuan 18–28 tahun, WA `0896-7951-0296`.
-- Kesimpulan: lebih mencurigakan daripada teks T2, karena nama PT-nya tidak terlacak. Tetap belum ada bukti penipuan.
+- Kesimpulan: sangat mencurigakan, seperti T2, ditambah nama PT yang tidak terlacak.
 - Catatan uji: kontennya tumpang tindih dengan T2, tapi teks hasil OCR berbeda, jadi tidak terkena cache teks. Bandingkan apakah poster (yang punya nama PT) dan teks (tanpa nama PT) menghasilkan verdict yang konsisten.
