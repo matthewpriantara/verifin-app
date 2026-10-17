@@ -35,6 +35,7 @@ import { ShapChart } from "@/modules/report/ShapChart";
 import { EvidencePanel } from "@/components/report/EvidencePanel";
 import { REPORT_STORAGE_KEY, cn, normalizeVerdict, verdictTone } from "@/lib/utils";
 import { getCaseById } from "@/lib/api";
+import { getPhoneStatus } from "@/lib/phone-status";
 import type { VerifyResponse, ExtractedEntities } from "@/types/verify";
 
 /* ─── helpers ──────────────────────────────────────────────────────────── */
@@ -469,7 +470,7 @@ export default function ReportPage() {
                     <MapPin size={12} weight="fill" /> Titik Maps ditemukan
                   </span>
                 )}
-                {phones.length > 0 && !phones.some((p) => p.reported_fraud) && (
+                {phones.length > 0 && phones.every((p) => getPhoneStatus(p).kind === "safe") && (
                   <span className="inline-flex items-center gap-1.5 rounded-full bg-aman-bg px-3 py-1 text-xs font-semibold text-aman-fg">
                     <Phone size={12} weight="fill" /> Nomor bersih
                   </span>
@@ -562,20 +563,28 @@ export default function ReportPage() {
           {/* Telepon cross-check */}
           {phones.length > 0 && (
             <div className="mt-8 border-t border-border pt-6">
-              <p className="mb-3 text-xs font-bold uppercase tracking-wider text-text-muted">Kontak Terverifikasi</p>
+              <p className="mb-3 text-xs font-bold uppercase tracking-wider text-text-muted">Reputasi Kontak</p>
               <div className="grid gap-3 sm:grid-cols-2">
-                {phones.map((p, i) => (
-                  <div key={i} className="flex items-center justify-between rounded-2xl bg-bg-subtle px-4 py-3">
-                    <span className="font-mono text-sm font-semibold text-text-primary">{p.phone ?? "-"}</span>
-                    <span className={cn(
-                      "inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-[11px] font-bold",
-                      p.reported_fraud ? "bg-bahaya-bg text-bahaya-fg" : "bg-aman-bg text-aman-fg"
-                    )}>
-                      {p.reported_fraud ? <Warning size={11} weight="fill" /> : <CheckCircle size={11} weight="fill" />}
-                      {p.reported_fraud ? "Dilaporkan" : "Bersih"}
-                    </span>
-                  </div>
-                ))}
+                {phones.map((p, i) => {
+                  const status = getPhoneStatus(p);
+                  return (
+                    <div key={i} className="flex items-center justify-between rounded-2xl bg-bg-subtle px-4 py-3">
+                      <span className="font-mono text-sm font-semibold text-text-primary">{p.phone ?? "-"}</span>
+                      <span className={cn(
+                        "inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-[11px] font-bold",
+                        status.kind === "risk"
+                          ? "bg-bahaya-bg text-bahaya-fg"
+                          : status.kind === "safe"
+                            ? "bg-aman-bg text-aman-fg"
+                            : "bg-bg-muted text-text-muted"
+                      )}>
+                        {status.kind === "risk" && <Warning size={11} weight="fill" />}
+                        {status.kind === "safe" && <CheckCircle size={11} weight="fill" />}
+                        {status.shortLabel}
+                      </span>
+                    </div>
+                  );
+                })}
               </div>
             </div>
           )}

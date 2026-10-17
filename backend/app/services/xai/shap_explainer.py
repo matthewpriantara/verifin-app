@@ -31,6 +31,7 @@ _FEATURE_WEIGHTS: dict[str, float] = {
     "social_risk_flag":      10.0,
     "entity_in_fraud_network": 30.0,
     "entity_seen_multiple_cases": 15.0,
+    "community_reported":    20.0,
 }
 
 
@@ -265,14 +266,15 @@ def explain_verification_shap(
         ))
 
     if network_context:
-        if network_context.get("entity_in_fraud_network"):
+        fraud_case_count = int(network_context.get("fraud_case_count") or 0)
+        if network_context.get("entity_in_fraud_network") and fraud_case_count > 0:
             contributions.append(_make_contrib(
                 "Entitas Terhubung ke Jaringan Penipuan",
                 "entity_in_fraud_network",
                 1,
                 _FEATURE_WEIGHTS["entity_in_fraud_network"],
                 "risk",
-                f"HP/email/PT ini sebelumnya muncul di {network_context.get('fraud_case_count', '?')} kasus BAHAYA",
+                f"HP/email/PT ini sebelumnya muncul di {fraud_case_count} kasus BAHAYA/WASPADA",
             ))
         elif network_context.get("entity_seen_multiple_cases"):
             contributions.append(_make_contrib(
@@ -284,26 +286,43 @@ def explain_verification_shap(
                 f"Entitas ini sebelumnya terdeteksi di {network_context.get('total_case_count', '?')} verifikasi lain",
             ))
 
+        community = network_context.get("community_reports") or {}
+        approved_reports = int(community.get("report_count") or 0)
+        if community.get("status") == "COMPLETED" and approved_reports > 0:
+            contributions.append(_make_contrib(
+                "Dilaporkan Komunitas",
+                "community_reported",
+                approved_reports,
+                _FEATURE_WEIGHTS["community_reported"],
+                "risk",
+                f"Ada {approved_reports} laporan komunitas yang sudah disetujui admin untuk HP/email/PT/URL ini",
+            ))
+
     risk_contribs = [c for c in contributions if c["impact"] == "risk"]
     safe_contribs = [c for c in contributions if c["impact"] == "safe"]
 
-    raw_risk_sum = sum(c["contribution"] for c in risk_contribs)
-    raw_safe_sum = sum(c["contribution"] for c in safe_contribs)
-
-    effective_score = risk_score - base_value
-    if effective_score > 0 and raw_risk_sum > 0:
-        scale = effective_score / raw_risk_sum
-        for c in risk_contribs:
-            c["contribution"] = round(c["contribution"] * scale, 2)
-            c["delta"] = c["contribution"]
-    if effective_score < 0 and raw_safe_sum > 0:
-        scale = abs(effective_score) / raw_safe_sum
-        for c in safe_contribs:
-            c["contribution"] = round(c["contribution"] * scale, 2)
-            c["delta"] = -c["contribution"]
+    # Skor akhir berasal dari penalaran LLM, bukan dari jumlah bobot di atas.
+    # Bobot bukti tidak diskalakan; selisihnya ditampilkan sebagai kontribusi
+    # tersendiri agar skor akhir = base_value + Σ delta selalu berlaku.
+    evidence_delta = sum(c["delta"] for c in contributions)
+    calibration_delta = round(risk_score - base_value - evidence_delta, 2)
+    calibration_contribs = []
+    if abs(calibration_delta) >= 0.01:
+        calibration_contribs.append(_make_contrib(
+            "Penyesuaian Penalaran AI",
+            "model_calibration",
+            calibration_delta,
+            abs(calibration_delta),
+            "risk" if calibration_delta > 0 else "safe",
+            (
+                "Penalaran AI atas seluruh teks dan bukti menilai risiko "
+                f"{'lebih tinggi' if calibration_delta > 0 else 'lebih rendah'} daripada jumlah bobot "
+                "bukti terukur. Selisihnya ditampilkan terpisah agar skor akhir = nilai dasar + Σ kontribusi."
+            ),
+        ))
 
     all_contributions = sorted(
-        risk_contribs + safe_contribs,
+        risk_contribs + safe_contribs + calibration_contribs,
         key=lambda x: abs(x["contribution"]),
         reverse=True,
     )
@@ -358,6 +377,8 @@ def explain_verification_shap(
         "verdict": verdict,
         "feature_contributions": all_contributions,
         "waterfall_chart": waterfall,
+        "evidence_delta": round(evidence_delta, 2),
+        "calibration_delta": calibration_delta,
         "top_risk_features": [c["feature"] for c in risk_contribs[:3]],
         "top_safe_features": [c["feature"] for c in safe_contribs[:3]],
         "summary": (
@@ -470,7 +491,7 @@ def _build_forensic_metadata(
     network_status = (network_context or {}).get("status")
     in_fraud_network = network_status != "UNAVAILABLE" and bool(
         (network_context or {}).get("entity_in_fraud_network")
-    )
+    ) and int((network_context or {}).get("fraud_case_count") or 0) > 0
 
     address_probe = [a for a in addr if isinstance(a, dict)]
     address_completed = any(

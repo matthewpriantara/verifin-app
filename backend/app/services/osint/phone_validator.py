@@ -4,6 +4,8 @@ from typing import Any
 
 from scrapling.fetchers import Fetcher
 
+from app.services.status_contract import COMPLETED, UNAVAILABLE
+
 
 def normalize_phone_id(phone: str) -> dict[str, str]:
     digits = re.sub(r"[^\d]", "", (phone or "").strip())
@@ -17,48 +19,63 @@ def normalize_phone_id(phone: str) -> dict[str, str]:
     return {"e164": e164, "local": local, "digits": digits, "display": e164}
 
 
+_KASPERSKY_DANGER = {"BERBAHAYA": 2, "SPAM": 2, "MENCURIGAKAN": 1, "NETRAL": 0, "AMAN": 0}
+_REPUTATION_BY_DANGER = {0: "CLEAN", 1: "SUSPICIOUS", 2: "FLAGGED"}
+
+
+def _parse_kaspersky_page(page: Any, result: dict[str, Any]) -> dict[str, Any]:
+    verdict_el = page.css('[class*="NumberInfoWrapper_title"]').first
+    verdict = verdict_el.text.strip().upper() if verdict_el is not None else ""
+    if not verdict:
+        result["error"] = "Kaspersky: elemen status nomor tidak ditemukan di halaman."
+        return result
+
+    risk_flags = result["risk_flags"]
+    danger_level = _KASPERSKY_DANGER.get(verdict, 1)
+    result.update({
+        "checked": True,
+        "probe_status": COMPLETED,
+        "reputation_status": _REPUTATION_BY_DANGER[danger_level],
+        "category": verdict,
+        "danger_level": danger_level,
+        "comments": [
+            line.strip()
+            for el in page.css('[class*="Comments_comment"]')
+            for line in el.get_all_text(strip=True).splitlines()
+            if line.strip() and not line.strip().startswith("Coba Kaspersky")
+        ],
+    })
+
+    if danger_level >= 2:
+        result["scam_confirmed"] = True
+        risk_flags.append(f"Kaspersky Who Calls: nomor terdeteksi '{verdict}'.")
+    elif danger_level == 1:
+        risk_flags.append(f"Kaspersky Who Calls: nomor mencurigakan — '{verdict}'.")
+    return result
+
+
 def _check_kaspersky(phone_meta: dict[str, str]) -> dict[str, Any]:
     digits = phone_meta["e164"].lstrip("+")
     url = f"https://whocalls.id.kaspersky.com/info/{digits}"
-    risk_flags: list[str] = []
     result: dict[str, Any] = {
         "source": "kaspersky",
         "phone": phone_meta["display"],
         "url": url,
         "checked": False,
+        "probe_status": UNAVAILABLE,
+        "reputation_status": UNAVAILABLE,
         "danger_level": None,
         "category": None,
         "scam_confirmed": False,
-        "risk_flags": risk_flags,
+        "risk_flags": [],
     }
 
     try:
-        page = Fetcher().get(url, stealthy_headers=True, follow_redirects=True)
+        page = Fetcher.get(url, stealthy_headers=True, follow_redirects=True)
         if page is None or page.status != 200:
             result["error"] = f"Kaspersky HTTP {getattr(page, 'status', 'N/A')}"
             return result
-
-        result["checked"] = True
-
-        verdict_el = page.css_first('[class*="NumberInfoWrapper_title"]')
-        verdict = verdict_el.text.strip().upper() if verdict_el else "NETRAL"
-        result["category"] = verdict
-
-        comments = [el.text.strip() for el in page.css('[class*="Comments_comment"]') if el.text.strip()]
-        result["comments"] = comments
-
-        _danger = {"BERBAHAYA": 2, "SPAM": 2, "MENCURIGAKAN": 1, "NETRAL": 0, "AMAN": 0}
-        danger_level = _danger.get(verdict, 1 if verdict not in ("NETRAL", "AMAN") else 0)
-        result["danger_level"] = danger_level
-
-        if danger_level >= 2:
-            result["scam_confirmed"] = True
-            risk_flags.append(f"Kaspersky Who Calls: nomor terdeteksi '{verdict}'.")
-        elif danger_level == 1:
-            risk_flags.append(f"Kaspersky Who Calls: nomor mencurigakan — '{verdict}'.")
-
-        return result
-
+        return _parse_kaspersky_page(page, result)
     except Exception as exc:
         result["error"] = f"Kaspersky check gagal: {exc}"
         return result
@@ -109,6 +126,9 @@ def check_phone_kredibel(phone: str) -> dict[str, Any]:
             "source": "kaspersky",
             "phone": phone,
             "found": False,
+            "checked": False,
+            "probe_status": UNAVAILABLE,
+            "reputation_status": UNAVAILABLE,
             "error": "Format nomor tidak valid.",
             "risk_flags": [],
         }
@@ -117,9 +137,11 @@ def check_phone_kredibel(phone: str) -> dict[str, Any]:
     serp = _search_phone_public_serp(meta)
 
     all_risk_flags = kaspersky.get("risk_flags", []) + serp.get("risk_flags", [])
+    reported_fraud = bool(kaspersky.get("scam_confirmed")) or bool(serp.get("found_scam"))
     return {
         **kaspersky,
-        "found": kaspersky.get("scam_confirmed", False) or serp.get("found_scam", False),
+        "found": reported_fraud,
+        "reported_fraud": reported_fraud,
         "risk_flags": all_risk_flags,
         "serp_fallback": serp,
     }

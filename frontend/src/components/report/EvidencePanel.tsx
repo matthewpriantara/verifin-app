@@ -1,5 +1,6 @@
 import type { OsintPayload } from "@/types/verify";
 import { cn } from "@/lib/utils";
+import { getPhoneStatus } from "@/lib/phone-status";
 import {
   Globe,
   Phone,
@@ -440,18 +441,21 @@ export function EvidencePanel({ osint }: EvidencePanelProps) {
         {phones.length > 0 && (
           <SectionRow label="Reputasi Nomor HP/WA" icon={Phone} badge="Kaspersky Who Calls">
             <div className="space-y-3">
-              {phones.map((p, i) => (
+              {phones.map((p, i) => {
+                const status = getPhoneStatus(p);
+                return (
                 <div key={i} className="rounded-lg border border-border bg-bg-subtle/30 px-4 py-3">
                   <div className="flex flex-wrap items-center justify-between gap-2">
                     <span className="font-mono text-[14px] font-semibold text-text-primary">
                       {p.phone ?? "-"}
                     </span>
-                    {p.reported_fraud ? (
-                      <Flag text="Dilaporkan penipuan" kind="risk" />
-                    ) : (
-                      <Flag text="Bersih dari laporan penipuan" kind="safe" />
-                    )}
+                    <Flag text={status.label} kind={status.kind} />
                   </div>
+                  {status.kind === "neutral" && (
+                    <p className="mt-2 text-[12px] leading-relaxed text-text-muted">
+                      Kaspersky Who Calls tidak bisa diakses saat pemeriksaan, jadi reputasi nomor ini belum diketahui.
+                    </p>
+                  )}
                   {p.summary && (
                     <p className="mt-2 text-[12px] leading-relaxed text-text-muted">{p.summary}</p>
                   )}
@@ -463,7 +467,8 @@ export function EvidencePanel({ osint }: EvidencePanelProps) {
                     </div>
                   )}
                 </div>
-              ))}
+                );
+              })}
             </div>
           </SectionRow>
         )}

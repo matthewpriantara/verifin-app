@@ -24,11 +24,15 @@ from app.services.graph.fraud_network import (
 )
 from app.services.status_contract import COMPLETED, UNAVAILABLE
 
-def _check_fraud_network(db: Session, entities: dict) -> dict:
+def _check_fraud_network(db: Session, entities: dict, raw_text: str | None = None) -> dict:
+    from app.services.db_cache import _case_hash
+
     try:
-        cases = db.query(JobCase).order_by(
-            JobCase.created_at.desc()
-        ).limit(500).all()
+        query = db.query(JobCase)
+        if raw_text:
+            # Verifikasi ulang teks yang sama tidak boleh cocok dengan riwayatnya sendiri.
+            query = query.filter(JobCase.raw_text_hash != _case_hash(raw_text))
+        cases = query.order_by(JobCase.created_at.desc()).limit(500).all()
 
         if not cases:
             return {"status": "NO_DATA", "entity_in_fraud_network": False, "total_case_count": 0}
@@ -75,7 +79,7 @@ def _check_fraud_network(db: Session, entities: dict) -> dict:
         community = _community_report_signal(db, entities)
         network_ctx["community_reports"] = community
         if community.get("status") == COMPLETED and community.get("report_count", 0) > 0:
-            network_ctx["entity_in_fraud_network"] = True
+            network_ctx["reported_by_community"] = True
             if community["report_count"] >= 3:
                 network_ctx["threat_level"] = "HIGH"
             elif network_ctx.get("threat_level") not in ("HIGH",):
@@ -110,13 +114,16 @@ def _community_report_signal(db: Session, entities: dict) -> dict:
         return {"status": "NO_DATA", "report_count": 0, "reported_by_community": False}
 
     try:
-        count = db.query(func.count(CommunityReport.id)).filter(or_(*conditions)).scalar() or 0
+        base_query = db.query(func.count(CommunityReport.id)).filter(or_(*conditions))
+        count = base_query.filter(CommunityReport.status == "approved").scalar() or 0
+        pending = base_query.filter(CommunityReport.status == "pending").scalar() or 0
     except Exception:
         return {"status": UNAVAILABLE, "report_count": None, "reported_by_community": None}
 
     return {
         "status": COMPLETED,
         "report_count": int(count),
+        "pending_report_count": int(pending),
         "reported_by_community": count > 0,
         "risk_signal": "HIGH" if count >= 3 else ("MEDIUM" if count == 2 else ("LOW" if count == 1 else "NONE")),
     }
@@ -368,6 +375,34 @@ async def _enrich_entities_from_osint(entities: dict, osint_results: dict) -> di
     return entities
 
 
+def attach_shap_explanation(
+    analysis: dict,
+    entities: dict,
+    osint_results: dict | None = None,
+) -> dict | None:
+    """Hitung atribusi skor dan simpan di analysis, sebelum kasus disimpan ke DB."""
+    try:
+        shap_explanation = explain_verification_shap(
+            risk_score=int(analysis.get("risk_score") or 0),
+            verdict=analysis.get("verdict", "ERROR"),
+            osint_results=osint_results or {},
+            risk_factors=analysis.get("risk_factors") or [],
+            safe_factors=analysis.get("safe_factors") or [],
+            nlp_result=(
+                analysis.get("nlp_result")
+                if (analysis.get("nlp_result") or {}).get("enabled") is True
+                else None
+            ),
+            network_context=analysis.get("network_context"),
+            entities=entities,
+        )
+    except Exception as exc:
+        logging.getLogger(__name__).warning("SHAP explanation gagal: %s", exc)
+        shap_explanation = None
+    analysis["shap_explanation"] = shap_explanation
+    return shap_explanation
+
+
 def _to_response(
     analysis: dict,
     entities: dict,
@@ -392,25 +427,9 @@ def _to_response(
     risk_factors = analysis.get("risk_factors") or []
     safe_factors = analysis.get("safe_factors") or []
 
-    shap_explanation = None
-    try:
-        shap_explanation = explain_verification_shap(
-            risk_score=risk_score,
-            verdict=verdict,
-            osint_results=osint_results or {},
-            risk_factors=risk_factors,
-            safe_factors=safe_factors,
-            nlp_result=(
-                analysis.get("nlp_result")
-                if (analysis.get("nlp_result") or {}).get("enabled") is True
-                else None
-            ),
-            network_context=analysis.get("network_context"),
-            entities=entities,
-        )
-    except Exception:
-        shap_explanation = None
-    analysis["shap_explanation"] = shap_explanation
+    shap_explanation = analysis.get("shap_explanation") or attach_shap_explanation(
+        analysis, entities, osint_results
+    )
 
     nlp_meta = analysis.get("nlp_result") or {}
     if osint_results is not None and nlp_meta.get("status"):

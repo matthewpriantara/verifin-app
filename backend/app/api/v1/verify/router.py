@@ -32,6 +32,7 @@ from app.api.v1.verify.pipeline import (
     _run_osint_on_entities,
     _enrich_entities_from_osint,
     _to_response,
+    attach_shap_explanation,
 )
 from app.services.db_cache import _save_case_to_db, _get_cached_case_from_db, _get_cached_case_by_url
 from app.services.web_fetcher import _fetch_url_content_and_image
@@ -178,7 +179,7 @@ async def verify_from_text(
         entities = await _enrich_entities_from_osint(entities, osint_results)
 
         stage_started = time.perf_counter()
-        network_context = await asyncio.to_thread(_check_fraud_network, db, entities)
+        network_context = await asyncio.to_thread(_check_fraud_network, db, entities, request.text)
         logger.info("[verify][%s] fraud-network done status=%s in_network=%s reports=%s duration=%.2fs", request_id, network_context.get("status"), network_context.get("entity_in_fraud_network"), (network_context.get("community_reports") or {}).get("report_count"), time.perf_counter() - stage_started)
 
         raw_text = request.text
@@ -192,6 +193,7 @@ async def verify_from_text(
 
         analysis["network_context"] = network_context
         analysis["nlp_result"] = nlp_result
+        attach_shap_explanation(analysis, entities, osint_results)
         save_status = await asyncio.to_thread(
             _save_case_to_db,
             db, request.text, analysis, osint_results, entities=entities, source="text"
@@ -276,7 +278,7 @@ async def verify_from_image(
         entities = await _enrich_entities_from_osint(entities, osint_results)
 
         stage_started = time.perf_counter()
-        network_context = await asyncio.to_thread(_check_fraud_network, db, entities)
+        network_context = await asyncio.to_thread(_check_fraud_network, db, entities, raw_text)
         logger.info("[verify][%s] fraud-network done status=%s in_network=%s reports=%s duration=%.2fs", request_id, network_context.get("status"), network_context.get("entity_in_fraud_network"), (network_context.get("community_reports") or {}).get("report_count"), time.perf_counter() - stage_started)
 
         stage_started = time.perf_counter()
@@ -290,6 +292,7 @@ async def verify_from_image(
         logger.info("[verify][%s] LLM done verdict=%s score=%s model=%s duration=%.2fs", request_id, analysis.get("verdict"), analysis.get("risk_score"), analysis.get("model_used"), time.perf_counter() - stage_started)
         analysis["network_context"] = network_context
         analysis["nlp_result"] = nlp_result
+        attach_shap_explanation(analysis, entities, osint_results)
         save_status = await asyncio.to_thread(
             _save_case_to_db,
             db, raw_text, analysis, osint_results, entities=entities, source="image"
@@ -391,7 +394,7 @@ async def verify_from_url(
         entities = await _enrich_entities_from_osint(entities, osint_results)
 
         stage_started = time.perf_counter()
-        network_context = await asyncio.to_thread(_check_fraud_network, db, entities)
+        network_context = await asyncio.to_thread(_check_fraud_network, db, entities, full_raw_text)
         logger.info("[verify][%s] fraud-network done status=%s in_network=%s reports=%s duration=%.2fs", request_id, network_context.get("status"), network_context.get("entity_in_fraud_network"), (network_context.get("community_reports") or {}).get("report_count"), time.perf_counter() - stage_started)
 
         stage_started = time.perf_counter()
@@ -410,6 +413,7 @@ async def verify_from_url(
                 entities["urls"] = [request.url]
             elif request.url not in entities["urls"]:
                 entities["urls"].insert(0, request.url)
+        attach_shap_explanation(analysis, entities, osint_results)
         save_status = await asyncio.to_thread(
             _save_case_to_db,
             db, full_raw_text, analysis, osint_results, entities=entities, source="url"
@@ -745,7 +749,7 @@ async def _verify_url_stream_generator(url: str, additional_text: str, db_sessio
 
         yield _sse_event("stage", {"stage": "graph", "status": "processing", "message": "Memeriksa jaringan fraud..."})
         stage_started = time.perf_counter()
-        network_context = await asyncio.to_thread(_check_fraud_network, db_session, entities)
+        network_context = await asyncio.to_thread(_check_fraud_network, db_session, entities, full_raw_text)
         logger.info("[verify-stream][%s] fraud-network done duration=%.2fs", request_id, time.perf_counter() - stage_started)
         yield _sse_event("stage", {"stage": "graph", "status": "done", "message": "Pemeriksaan jaringan selesai"})
 
@@ -769,6 +773,7 @@ async def _verify_url_stream_generator(url: str, additional_text: str, db_sessio
                 entities["urls"] = [url]
             elif url not in entities["urls"]:
                 entities["urls"].insert(0, url)
+        attach_shap_explanation(analysis, entities, osint_results)
         save_status = await asyncio.to_thread(
             _save_case_to_db,
             db_session, full_raw_text, analysis, osint_results, entities=entities, source="url"
