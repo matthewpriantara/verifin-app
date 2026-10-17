@@ -182,3 +182,23 @@ export interface LlmStatusResponse {
 export interface ApiError {
   detail: string;
 }
+
+export type CaseQueryKind = "url" | "phone" | "email" | "company";
+
+export interface CaseSummary {
+  id: string;
+  company_name: string | null;
+  source: "text" | "image" | "url" | string | null;
+  verdict: Verdict | string;
+  risk_score: number;
+  osint_failed: boolean;
+  matched_on: CaseQueryKind | null;
+  created_at: string | null;
+}
+
+export interface CaseSearchResponse {
+  query_kind: CaseQueryKind | null;
+  total: number;
+  cases: CaseSummary[];
+  too_short: boolean;
+}

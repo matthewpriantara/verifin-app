@@ -1,5 +1,6 @@
 import type {
  ApiError,
+ CaseSearchResponse,
  LlmStatusResponse,
  TextVerifyRequest,
  VerifyResponse,
@@ -159,6 +160,24 @@ export async function getCaseById(caseId: string): Promise<VerifyResponse> {
  });
  if (!res.ok) throw new Error(await parseError(res));
  return res.json() as Promise<VerifyResponse>;
+}
+
+export async function searchCases(params: {
+ q?: string;
+ verdict?: string;
+ limit?: number;
+ skip?: number;
+ signal?: AbortSignal;
+}): Promise<CaseSearchResponse> {
+ const qs = new URLSearchParams({ limit: String(params.limit ?? 20), skip: String(params.skip ?? 0) });
+ if (params.q?.trim()) qs.set("q", params.q.trim());
+ if (params.verdict) qs.set("verdict", params.verdict);
+ const res = await fetch(`${API_BASE}/api/v1/cases/search?${qs}`, {
+  cache: "no-store",
+  signal: params.signal,
+ });
+ if (!res.ok) throw new Error(await parseError(res));
+ return res.json() as Promise<CaseSearchResponse>;
 }
 
 export async function getAiStatus(): Promise<LlmStatusResponse> {
