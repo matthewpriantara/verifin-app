@@ -1,199 +1,65 @@
-# Verifin App — Codebase Guidelines & Context
+# Verifin App — Codebase Guidelines & Architecture
 
-Repositori ini adalah implementasi kode aplikasi **Verifin: Platform Deteksi Lowongan Kerja Palsu Berbasis AI & OSINT**.
+Full-stack codebase untuk **Verifin: Platform Deteksi Lowongan Kerja Palsu Berbasis AI & OSINT**.
 
 ## Hubungan dengan Dokumen Lomba (`gemastik19`)
 
-- Repositori ini terhubung dengan repositori berkas lomba di: `../gemastik19` (atau parent path `/Users/fizualstd/Documents/GitHub/_LOMBA/gemastik19`).
-- Segala spesifikasi fitur, batasan sistem, dan target kriteria merujuk pada berkas finalis di `../gemastik19/berkas-finalis/` dan `../gemastik19/proposal-verifin/`.
+- Workspace dokumen lomba: `../gemastik19` (parent: `/Users/fizualstd/Documents/GitHub/_LOMBA/gemastik19`).
+- Spesifikasi sistem, laporan, dan proposal merujuk pada: `../gemastik19/siap-submit/` dan `../gemastik19/proposal-verifin/`.
 
----
+## Stack & Services
 
-## Struktur Berkas Proyek
+- **Backend:** FastAPI (Python 3.11), SQLAlchemy, PostgreSQL, Redis, NetworkX (Fraud Graph), SHAP (Explainable AI), PaddleOCR (OCR).
+- **Frontend:** Next.js 16 (React 19, App Router, TypeScript), Tailwind CSS v4, Motion, Phosphor Icons.
+- **External Services / Containers (`docker-compose.yml`):**
+  - PostgreSQL (`:5432`) & Redis (`:6379`)
+  - SearXNG (`:8080`) — Web search intelligence & evidence scraping
+  - Lightpanda (`:9222`) — Headless CDP browser untuk dynamic page evaluation
 
-```text
-.
-├── .github/
-│   └── workflows/
-│       └── deploy.yml
-├── .gitignore
-├── AGENTS.md
-├── audit.md
-├── docker-compose.yml
-├── test/
-│   ├── ocr.webp
-│   ├── test-link.md
-│   ├── test-ocr.md
-│   └── test-teks.md
-├── backend/
-│   ├── .dockerignore
-│   ├── .env
-│   ├── .env.example
-│   ├── .gitignore
-│   ├── Dockerfile
-│   ├── evaluasi_classifier.py
-│   ├── evaluasi_emscad_full.py
-│   ├── latih_tfidf_emscad.py
-│   ├── main.py
-│   ├── pyrightconfig.json
-│   ├── pytest.ini
-│   ├── requirements.txt
-│   └── app/
-│       ├── __init__.py
-│       ├── config.py
-│       ├── main.py
-│       ├── api/
-│       │   ├── __init__.py
-│       │   └── v1/
-│       │       ├── __init__.py
-│       │       ├── community/
-│       │       │   ├── __init__.py
-│       │       │   ├── router.py
-│       │       │   └── schema.py
-│       │       ├── health/
-│       │       │   ├── __init__.py
-│       │       │   └── router.py
-│       │       └── verify/
-│       │           ├── __init__.py
-│       │           ├── pipeline.py
-│       │           ├── router.py
-│       │           └── schema.py
-│       ├── database/
-│       │   ├── models.py
-│       │   └── postgres_client.py
-│       └── services/
-│           ├── __init__.py
-│           ├── constants.py
-│           ├── db_cache.py
-│           ├── hasher.py
-│           ├── ner.py
-│           ├── ocr.py
-│           ├── status_contract.py
-│           ├── url_guard.py
-│           ├── web_fetcher.py
-│           ├── graph/
-│           │   ├── __init__.py
-│           │   └── fraud_network.py
-│           ├── llm/
-│           │   ├── __init__.py
-│           │   ├── client.py
-│           │   ├── entity_extraction.py
-│           │   ├── prompt_builder.py
-│           │   └── verifin_reasoning.py
-│           ├── nlp/
-│           │   ├── __init__.py
-│           │   └── classifier.py
-│           ├── osint/
-│           │   ├── __init__.py
-│           │   ├── address_validator.py
-│           │   ├── ai_extractor.py
-│           │   ├── company_validator.py
-│           │   ├── gform_inspector.py
-│           │   ├── lightpanda_client.py
-│           │   ├── phone_validator.py
-│           │   ├── platform_providers.py
-│           │   ├── query_builder.py
-│           │   ├── runner.py
-│           │   ├── search_intelligence.py
-│           │   ├── searxng_client.py
-│           │   ├── social.py
-│           │   ├── web_evidence.py
-│           │   └── whois_handler.py
-│           └── xai/
-│               ├── __init__.py
-│               └── shap_explainer.py
-└── frontend/
-    ├── .dockerignore
-    ├── .env
-    ├── .env.example
-    ├── .gitignore
-    ├── Dockerfile
-    ├── e2e-complete.js
-    ├── e2e-final.js
-    ├── e2e-retry.js
-    ├── e2e-screenshot.js
-    ├── eslint.config.mjs
-    ├── next.config.ts
-    ├── package.json
-    ├── pnpm-lock.yaml
-    ├── pnpm-workspace.yaml
-    ├── postcss.config.mjs
-    ├── tsconfig.json
-    ├── public/
-    │   ├── brand/
-    │   │   ├── 1x1_bg_black.svg
-    │   │   ├── 1x1_bg_white.svg
-    │   │   ├── 1x1_black_bg_transparant.svg
-    │   │   ├── 1x1_white_bg_transparant.svg
-    │   │   ├── logo_bg_black.svg
-    │   │   ├── logo_bg_white.svg
-    │   │   ├── logo_black_bg_transparant.svg
-    │   │   └── logo_white_bg_transparant.svg
-    │   ├── favicon.ico
-    │   ├── icon.png
-    │   └── icon.svg
-    └── src/
-        ├── app/
-        │   ├── favicon.ico
-        │   ├── globals.css
-        │   ├── icon.png
-        │   ├── icon.svg
-        │   ├── layout.tsx
-        │   ├── loading.tsx
-        │   ├── not-found.tsx
-        │   ├── page.tsx
-        │   ├── admin/
-        │   │   ├── loading.tsx
-        │   │   └── page.tsx
-        │   ├── api/
-        │   │   └── admin/
-        │   │       ├── login/
-        │   │       │   └── route.ts
-        │   │       └── session/
-        │   │           └── route.ts
-        │   ├── report/
-        │   │   ├── page.tsx
-        │   │   ├── loading.tsx
-        │   │   └── [caseId]/
-        │   │       ├── loading.tsx
-        │   │       └── page.tsx
-        │   ├── report-job/
-        │   │   ├── loading.tsx
-        │   │   └── page.tsx
-        │   └── verify/
-        │       └── page.tsx
-        ├── components/
-        │   ├── report/
-        │   │   └── EvidencePanel.tsx
-        │   └── ui/
-        │       ├── Badge.tsx
-        │       ├── Button.tsx
-        │       ├── Logo.tsx
-        │       └── Skeleton.tsx
-        ├── lib/
-        │   ├── admin.ts
-        │   ├── api.ts
-        │   └── utils.ts
-        ├── modules/
-        │   ├── admin/
-        │   │   ├── AdminPage.tsx
-        │   │   ├── ModerationTable.tsx
-        │   │   └── ReportChart.tsx
-        │   ├── home/
-        │   │   ├── HomePage.tsx
-        │   │   └── SearchHistory.tsx
-        │   ├── layout/
-        │   │   ├── Footer.tsx
-        │   │   └── Navbar.tsx
-        │   ├── report/
-        │   │   ├── ReportPage.tsx
-        │   │   └── ShapChart.tsx
-        │   ├── report-job/
-        │   │   └── ReportJobPage.tsx
-        │   └── verify/
-        │       └── VerifyBox.tsx
-        └── types/
-            ├── admin.ts
-            ├── phosphor.d.ts
-            └── verify.ts
-```
+## Alur Pipeline Verifikasi (`/api/v1/verify/`)
+
+1. **Ingestion & Text Extraction:**
+   - Text direct (`/text`), Image OCR (`/image` via `app.services.ocr`), URL scraping (`/url-stream` via `app.services.web_fetcher`).
+2. **Hybrid NER:**
+   - Regex-based heuristics + LLM extraction (`app.services.ner` & `app.services.llm.entity_extraction`).
+   - Normalisasi nomor telepon (+62) dan sanitasi domain/email.
+3. **Multi-Channel OSINT Probes (`app.services.osint.runner`):**
+   - Telepon (Kredibel / Whocalls via `phone_validator.py`)
+   - Perusahaan & AHU/Pemerintah via SearXNG (`company_validator.py`)
+   - Domain age & email SPF/DKIM/MX via WHOIS (`whois_handler.py`)
+   - Google Forms phishing check (`gform_inspector.py`)
+   - Alamat & geocoding OpenStreetMap (`address_validator.py`)
+4. **Graph & Explainable AI:**
+   - Heterogeneous Fraud Network correlation (`app.services.graph.fraud_network`).
+   - SHAP local explanation waterfall (`app.services.xai.shap_explainer`).
+5. **LLM Synthesis & Scoring Verdict:**
+   - Multi-factor synthesis prompt (`app.services.llm.verifin_reasoning`).
+   - Verdict output: `AMAN` (0–29), `WASPADA` (30–69), `BAHAYA` (70–100).
+   - Real-time stage updates dikirim ke frontend via Server-Sent Events (SSE).
+
+## Perintah Pengembangan & Pengujian
+
+- **Backend:**
+  ```bash
+  cd backend
+  source venv/bin/activate  # jika ada venv lokal
+  uvicorn app.main:app --reload --port 8000
+  pytest
+  ```
+- **Frontend:**
+  ```bash
+  cd frontend
+  pnpm dev       # berjalan di http://localhost:3000
+  pnpm lint
+  pnpm build
+  ```
+- **Docker Stack:**
+  ```bash
+  docker-compose up -d
+  ```
+
+## Konvensi & Aturan Penting
+
+- **Status Contract:** Semua modul OSINT WAJIB mengembalikan status string baku dari `app.services.status_contract` (`COMPLETED`, `FOUND`, `NO_RESULTS`, `UNAVAILABLE`, dsb).
+- **Caching:** Cache verifikasi berbasis SHA-256 content hash di `app.services.db_cache` & `app.services.hasher`.
+- **Git Isolation:** Setiap perubahan kode di repo ini WAJIB diisolasi dengan flag `-C verifin-app`. Pastikan cek branch (`git -C verifin-app branch --show-current`).
