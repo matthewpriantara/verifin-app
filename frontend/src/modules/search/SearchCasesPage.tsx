@@ -153,7 +153,7 @@ function SearchCasesInner() {
             type="search"
             value={input}
             onChange={(e) => setInput(e.target.value)}
-            placeholder="PT Maju Jaya, 0812xxxx, hrd@..., atau https://..."
+            placeholder="Nama perusahaan, nomor WA, email, atau link postingan"
             maxLength={300}
             className="h-11 w-full rounded-xl border border-border bg-bg-elevated pl-10 pr-3 text-[14px] text-text-primary placeholder:text-text-muted focus:border-border-focus focus:outline-none"
           />
