@@ -1,30 +1,45 @@
 import { NextResponse } from "next/server";
-import { createHash, timingSafeEqual } from "crypto";
+import { ADMIN_COOKIE, adminConfigured, expectedAdminToken, safeEqual } from "@/lib/adminAuth";
 
 // Password dibaca dari env SERVER-SIDE (tanpa prefix NEXT_PUBLIC_),
 // sehingga tidak pernah dibundle ke client.
 const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD;
-const SESSION_SECRET = process.env.ADMIN_SESSION_SECRET;
 
-function makeToken(): string {
-  if (!ADMIN_PASSWORD || !SESSION_SECRET) {
-    throw new Error("ADMIN_PASSWORD dan ADMIN_SESSION_SECRET wajib diset di .env");
-  }
-  return createHash("sha256").update(`${ADMIN_PASSWORD}:${SESSION_SECRET}`).digest("hex");
+// Batas percobaan login per IP: 5 kali gagal dalam 15 menit. Disimpan di memori proses.
+const MAX_FAILS = 5;
+const WINDOW_MS = 15 * 60 * 1000;
+const failures = new Map<string, number[]>();
+
+function clientIp(request: Request): string {
+  return (
+    request.headers.get("cf-connecting-ip") ||
+    request.headers.get("x-forwarded-for")?.split(",")[0].trim() ||
+    "unknown"
+  );
 }
 
-function safeEqual(a: string, b: string): boolean {
-  const ba = Buffer.from(a);
-  const bb = Buffer.from(b);
-  if (ba.length !== bb.length) return false;
-  return timingSafeEqual(ba, bb);
+function recentFailures(ip: string, now: number): number[] {
+  const list = (failures.get(ip) || []).filter((t) => now - t < WINDOW_MS);
+  failures.set(ip, list);
+  return list;
 }
 
 export async function POST(request: Request) {
-  if (!ADMIN_PASSWORD || !SESSION_SECRET) {
+  if (!adminConfigured() || !ADMIN_PASSWORD) {
     return NextResponse.json(
       { ok: false, detail: "Konfigurasi server admin belum lengkap di .env." },
       { status: 500 }
+    );
+  }
+
+  const ip = clientIp(request);
+  const now = Date.now();
+  const fails = recentFailures(ip, now);
+  if (fails.length >= MAX_FAILS) {
+    const retryAfter = Math.ceil((WINDOW_MS - (now - fails[0])) / 1000);
+    return NextResponse.json(
+      { ok: false, detail: `Terlalu banyak percobaan. Coba lagi dalam ${Math.ceil(retryAfter / 60)} menit.` },
+      { status: 429, headers: { "Retry-After": String(retryAfter) } }
     );
   }
 
@@ -37,11 +52,13 @@ export async function POST(request: Request) {
 
   const pw = body.password ?? "";
   if (!safeEqual(pw, ADMIN_PASSWORD)) {
+    fails.push(now);
     return NextResponse.json({ ok: false, detail: "Password salah." }, { status: 401 });
   }
 
+  failures.delete(ip);
   const res = NextResponse.json({ ok: true });
-  res.cookies.set("verifin_admin", makeToken(), {
+  res.cookies.set(ADMIN_COOKIE, expectedAdminToken() as string, {
     httpOnly: true,
     sameSite: "lax",
     secure: process.env.NODE_ENV === "production",
@@ -53,6 +70,6 @@ export async function POST(request: Request) {
 
 export async function DELETE() {
   const res = NextResponse.json({ ok: true });
-  res.cookies.set("verifin_admin", "", { httpOnly: true, path: "/", maxAge: 0 });
+  res.cookies.set(ADMIN_COOKIE, "", { httpOnly: true, path: "/", maxAge: 0 });
   return res;
 }

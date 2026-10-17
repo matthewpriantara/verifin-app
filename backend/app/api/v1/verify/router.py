@@ -2,6 +2,7 @@ import logging
 import os
 import asyncio
 import json
+import re
 import tempfile
 import time
 from uuid import UUID, uuid4
@@ -36,11 +37,13 @@ from app.api.v1.verify.pipeline import (
 )
 from app.services.db_cache import _save_case_to_db, _get_cached_case_from_db, _get_cached_case_by_url
 from app.services.web_fetcher import _fetch_url_content_and_image
-from app.config import VERIFIN_DEBUG_RAW_JSON
+from app.config import RATE_LIMIT_VERIFY_PER_MIN, VERIFIN_DEBUG_RAW_JSON
+from app.services.security import RateLimiter, require_admin
 
 logger = logging.getLogger(__name__)
 
 router = APIRouter()
+_verify_limit = RateLimiter(RATE_LIMIT_VERIFY_PER_MIN).dependency("verify")
 
 
 def _request_id() -> str:
@@ -140,6 +143,7 @@ def _log_raw_json(request_id: str, label: str, payload: object) -> None:
 
 @router.post(
     "/verify/text",
+    dependencies=[Depends(_verify_limit)],
     response_model=VerifyResponse,
     summary="Verifikasi Lowongan Kerja dari Teks",
 )
@@ -214,6 +218,7 @@ async def verify_from_text(
 
 @router.post(
     "/verify/image",
+    dependencies=[Depends(_verify_limit)],
     response_model=VerifyResponse,
     summary="Verifikasi Lowongan Kerja dari Gambar (PaddleOCR + OpenCV)",
     description=(
@@ -322,6 +327,7 @@ async def verify_from_image(
 
 @router.post(
     "/verify/url",
+    dependencies=[Depends(_verify_limit)],
     response_model=VerifyResponse,
     summary="Verifikasi Lowongan Kerja dari Link / URL Postingan",
     description=(
@@ -492,7 +498,8 @@ def verify_domain(
 
 @router.get(
     "/cases",
-    summary="Ambil semua daftar kasus",
+    dependencies=[Depends(require_admin)],
+    summary="Ambil semua daftar kasus (khusus admin)",
     description="Mengembalikan seluruh riwayat kasus verifikasi lowongan kerja dari database PostgreSQL."
 )
 def list_cases(limit: int = 100, skip: int = 0, db: Session = Depends(get_db)):
@@ -612,8 +619,10 @@ def get_case_by_id(case_id: str, db: Session = Depends(get_db)):
     except (ValueError, AttributeError):
         db_case = None
 
-    if not db_case:
-        db_case = db.query(JobCase).filter(cast(JobCase.id, String).like(f"{case_id}%")).first()
+    # Awalan ID (mis. "#5E8949DF" di UI) tetap didukung, tapi minimal 8 karakter heksadesimal
+    # supaya riwayat tidak bisa ditelusuri dengan menebak satu-dua karakter.
+    if not db_case and re.fullmatch(r"[0-9a-fA-F-]{8,36}", case_id or ""):
+        db_case = db.query(JobCase).filter(cast(JobCase.id, String).like(f"{case_id.lower()}%")).first()
 
     if not db_case:
         raise HTTPException(status_code=404, detail="Kasus tidak ditemukan")
@@ -832,6 +841,7 @@ async def _verify_url_stream_generator(url: str, additional_text: str, db_sessio
 
 @router.post(
     "/verify/url/stream",
+    dependencies=[Depends(_verify_limit)],
     summary="Verifikasi URL dengan SSE Streaming (real-time progress)",
     description=(
         "Endpoint SSE yang mengirim event real-time per pipeline stage. "
