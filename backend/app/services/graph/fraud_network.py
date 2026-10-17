@@ -90,8 +90,9 @@ def check_entity_in_network(
     entities: dict[str, Any],
 ) -> dict[str, Any]:
     matched_entities: list[dict[str, Any]] = []
-    fraud_case_count = 0
-    total_case_count = 0
+    # Satu kasus bisa cocok lewat beberapa entitas (PT + email); hitung kasus unik.
+    fraud_case_ids: set[str] = set()
+    total_case_ids: set[str] = set()
 
     checks = [
         ("phones",    "phone",   [_canonical_phone(p) for p in (entities.get("phones") or []) if _canonical_phone(p)]),
@@ -115,12 +116,12 @@ def check_entity_in_network(
             if not predecessor_cases:
                 continue
 
-            total_case_count += len(predecessor_cases)
+            total_case_ids.update(n for n, _ in predecessor_cases)
             fraud_cases = [
                 (n, d) for n, d in predecessor_cases
                 if d.get("verdict") in ("BAHAYA", "WASPADA")
             ]
-            fraud_case_count += len(fraud_cases)
+            fraud_case_ids.update(n for n, _ in fraud_cases)
 
             if fraud_cases or len(predecessor_cases) >= 2:
                 matched_entities.append({
@@ -131,6 +132,8 @@ def check_entity_in_network(
                     "verdicts": [d.get("verdict") for _, d in predecessor_cases],
                 })
 
+    fraud_case_count = len(fraud_case_ids)
+    total_case_count = len(total_case_ids)
     entity_in_fraud_network = fraud_case_count > 0
     entity_seen_multiple_cases = total_case_count >= 2
 

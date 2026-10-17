@@ -18,6 +18,10 @@ export interface OsintPhone {
   review_count?: number | null;
   reported_fraud?: boolean;
   found?: boolean;
+  checked?: boolean;
+  probe_status?: string;
+  reputation_status?: string;
+  category?: string | null;
   summary?: string;
   risk_flags?: string[];
   error?: string;
@@ -127,6 +131,8 @@ export interface ShapExplanation {
   top_risk_features: string[];
   top_safe_features: string[];
   summary: string;
+  evidence_delta?: number;
+  calibration_delta?: number;
   evidence_confidence?: number | null;
   decision_confidence?: number | null;
   confidence_method?: string;
