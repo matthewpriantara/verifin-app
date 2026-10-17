@@ -225,12 +225,6 @@ def explain_verification_shap(
         for a in address_validations
         if isinstance(a, dict)
     )
-    has_area_address = any(
-        (a.get("found") or a.get("address_found"))
-        and (a.get("match_level") or (a.get("address_details") or {}).get("match_level")) in {"area", "street"}
-        for a in address_validations
-        if isinstance(a, dict)
-    )
     if exact_address:
         contributions.append(_make_contrib(
             "Alamat Terverifikasi di OpenStreetMap",
@@ -400,8 +394,6 @@ def _build_forensic_metadata(
     entities: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     o = osint_results or {}
-    timing = o.get("timing") or {}
-    osint_ms = int(round(float(timing.get("osint_parallel_sec", 0.0)) * 1000))
 
     phones = o.get("phones") or []
     companies = o.get("companies") or []
@@ -482,7 +474,6 @@ def _build_forensic_metadata(
         or any(p.get("is_official") and p.get("platform") in official_platforms for p in (social.get("posts") or []))
         or social.get("profiles")
     )
-    public_footprint = bool(social.get("posts") or social.get("profiles"))
     is_free_email = (
         domain.get("skipped") == "free_email"
         or email_sec.get("skipped") == "free_email"
