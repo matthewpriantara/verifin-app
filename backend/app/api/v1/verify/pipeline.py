@@ -11,6 +11,9 @@ from app.services.llm.entity_extraction import extract_entities_llm
 from app.services.ner import (
     extract_entities_from_text,
     _is_plausible_address,
+    is_junk_entity,
+    is_junk_location,
+    uniq_casefold,
     _DATE_TIME_JUNK,
     _DATE_PATTERNS,
     _uniq,
@@ -138,89 +141,119 @@ def _clean_text_for_ner(text: str) -> str:
     return cleaned.strip()
 
 
+_SALARY_HINT = re.compile(r"\d|\bUM[RPK]\b", re.I)
+
+
+def _squash(s: str) -> str:
+    return re.sub(r"[^a-z0-9]", "", (s or "").lower())
+
+
+def _is_grounded(value: str, source: str) -> bool:
+    """Entitas dari LLM hanya diterima bila memang tertulis di teks sumber.
+
+    Dicocokkan per token bermakna (>= 3 huruf) setelah semua tanda baca dan spasi dibuang,
+    karena OCR sering menghapus spasi ("GLOBALSINERGI") atau mengganti huruf besar-kecil.
+    """
+    hay = _squash(source)
+    if not hay:
+        return False
+    whole = _squash(value)
+    if whole and whole in hay:
+        return True
+    tokens = [_squash(t) for t in re.split(r"[\s,./()-]+", value or "")]
+    tokens = [t for t in tokens if len(t) >= 3 and t not in {"pt", "cv", "tbk", "the"}]
+    return bool(tokens) and all(t in hay for t in tokens)
+
+
 async def _extract_entities_hybrid(text: str) -> dict:
+    """NER hibrida: regex untuk entitas struktural (nomor, email, URL, nominal),
+    LLM untuk entitas semantik (perusahaan, alamat, lokasi, gaji), lalu divalidasi.
+
+    Validasi setelah merge membuat format loker baru tidak perlu pola regex baru:
+    - grounding: entitas LLM yang tidak tertulis di teks dibuang (anti-halusinasi);
+    - saringan sampah: kata umum seperti "Kerja", "Kompetitif" dibuang;
+    - gaji wajib memuat angka atau UMR/UMK/UMP.
+    Regex semantik hanya menjadi cadangan saat LLM tidak tersedia.
+    """
     clean_text = _clean_text_for_ner(text) or text
 
-    regex_entities = await asyncio.to_thread(extract_entities_from_text, clean_text)
-
-    llm_extracted = await _run_llm_ner(clean_text)
+    regex_entities, llm_extracted = await asyncio.gather(
+        asyncio.to_thread(extract_entities_from_text, clean_text),
+        _run_llm_ner(clean_text),
+    )
 
     if llm_extracted is None:
+        regex_entities["companies"] = [v for v in (regex_entities.get("companies") or []) if not is_junk_entity(v)]
+        regex_entities["location_candidates"] = [
+            v for v in (regex_entities.get("location_candidates") or []) if not is_junk_location(v)
+        ]
         regex_entities["_ner_meta"] = {
             "used": False,
             "source": "regex_fallback",
-            "validation_applied": False,
+            "validation_applied": True,
         }
         return regex_entities
 
     merged = copy.deepcopy(regex_entities)
-    added = {"companies": False, "addresses": False, "salaries": False, "location_candidates": False}
-    cleaned = {"companies": 0}
-    any_added = False
+    dropped: dict[str, list[str]] = {"ungrounded": [], "junk": []}
 
-    llm_companies = llm_extracted.get("companies") or []
-    if llm_companies:
-        merged["companies"] = list(llm_companies)
-        added["companies"] = True
-        any_added = True
-
-    llm_addresses = llm_extracted.get("addresses") or []
-    if llm_addresses:
-        valid_llm_addrs = [v for v in llm_addresses if _is_plausible_address(v)]
-        if valid_llm_addrs:
-            merged["addresses"] = valid_llm_addrs
-            added["addresses"] = True
-            any_added = True
-        else:
-            merged["addresses"] = []
-    else:
-        merged["addresses"] = [v for v in (merged.get("addresses") or []) if _is_plausible_address(v)]
-
-    llm_locs = llm_extracted.get("location_candidates") or []
-    if llm_locs:
-        existing = {_norm(v) for v in (merged.get("location_candidates") or [])}
-        for v in llm_locs:
-            if _DATE_TIME_JUNK.search(v) or _DATE_PATTERNS.search(v):
+    def accept(values: list[str]) -> list[str]:
+        kept = []
+        for v in values or []:
+            if not isinstance(v, str) or not v.strip():
                 continue
-            nv = _norm(v)
-            if nv and nv not in existing:
-                merged.setdefault("location_candidates", []).append(v)
-                existing.add(nv)
-                added["location_candidates"] = True
-                any_added = True
+            if is_junk_entity(v):
+                dropped["junk"].append(v)
+            elif not _is_grounded(v, clean_text):
+                dropped["ungrounded"].append(v)
+            else:
+                kept.append(v.strip())
+        return kept
 
-    llm_salaries = llm_extracted.get("salaries") or []
-    if llm_salaries:
-        existing = {_norm(v) for v in (merged.get("salaries") or [])}
-        for v in llm_salaries:
-            nv = _norm(v)
-            if nv and nv not in existing:
-                merged.setdefault("salaries", []).append(v)
-                existing.add(nv)
-                added["salaries"] = True
-                any_added = True
+    # Perusahaan: LLM diutamakan bila lolos grounding; jika tidak ada yang lolos, pakai regex.
+    llm_companies = accept(llm_extracted.get("companies") or [])
+    regex_companies = [v for v in (merged.get("companies") or []) if not is_junk_entity(v)]
+    merged["companies"] = uniq_casefold(llm_companies or regex_companies)
+
+    # Alamat: harus lolos grounding dan terlihat seperti alamat fisik.
+    llm_addresses = [v for v in accept(llm_extracted.get("addresses") or []) if _is_plausible_address(v)]
+    regex_addresses = [v for v in (merged.get("addresses") or []) if _is_plausible_address(v)]
+    merged["addresses"] = _uniq(llm_addresses or regex_addresses)
+
+    # Lokasi: gabungan keduanya, tanpa sampah, tanggal, atau jam.
+    locations = list(merged.get("location_candidates") or [])
+    locations += accept(llm_extracted.get("location_candidates") or [])
+    dropped["junk"] += [v for v in locations if is_junk_location(v)]
+    merged["location_candidates"] = [
+        v for v in uniq_casefold([v for v in locations if not is_junk_location(v)])
+        if not _DATE_TIME_JUNK.search(v) and not _DATE_PATTERNS.search(v)
+    ]
+
+    # Gaji: gabungan keduanya, wajib memuat angka atau UMR/UMK/UMP.
+    salaries = (merged.get("salaries") or []) + accept(llm_extracted.get("salaries") or [])
+    merged["salaries"] = [v for v in _uniq(salaries) if _SALARY_HINT.search(v)]
+    dropped["junk"] += [v for v in _uniq(salaries) if not _SALARY_HINT.search(v)]
+
     if merged.get("emails"):
         merged["emails"] = _uniq([fix_email_ocr_typos(e) for e in merged["emails"] if e])
     if merged.get("urls"):
         merged["urls"] = [u for u in _uniq(merged["urls"]) if not re.search(r"^(?:[a-zA-Z]\.com|gmail|yahoo|gmai|gamil)\.", u, re.I)]
-    for key in ("companies", "addresses", "location_candidates", "salaries", "phones"):
-        if merged.get(key):
-            merged[key] = _uniq(merged[key])
-    merged["addresses"] = [
-        value for value in (merged.get("addresses") or [])
-        if _is_plausible_address(value)
-    ]
-    merged["location_candidates"] = [
-        value for value in (merged.get("location_candidates") or [])
-        if not _DATE_TIME_JUNK.search(value) and not _DATE_PATTERNS.search(value)
-    ]
+    if merged.get("phones"):
+        merged["phones"] = _uniq(merged["phones"])
 
+    added = {
+        "companies": bool(llm_companies),
+        "addresses": bool(llm_addresses),
+        "location_candidates": any(v in merged["location_candidates"] for v in (llm_extracted.get("location_candidates") or [])),
+        "salaries": any(v in merged["salaries"] for v in (llm_extracted.get("salaries") or [])),
+    }
     merged["_ner_meta"] = {
         "used": True,
-        "source": "hybrid_llm_regex" if any_added else "llm_no_new",
+        "source": "hybrid_llm_regex" if any(added.values()) else "llm_no_new",
         "added": added,
-        "cleaned_false_positive_companies": cleaned["companies"],
-        "validation_applied": False,
+        "validation_applied": True,
+        "dropped_ungrounded": _uniq(dropped["ungrounded"]),
+        "dropped_junk": _uniq(dropped["junk"]),
     }
     return merged
 

@@ -34,6 +34,43 @@ def fix_email_ocr_typos(email: str) -> str:
     }
     return f"{user}@{typo_map.get(domain_low, domain_low)}"
 
+# Baris berisi kontak admin akun penyebar/iklan, bukan kontak perekrut.
+_PROMOTER_LINE = re.compile(
+    r"\b(?:admin|pasang\s+(?:loker|iklan|lowongan)|promosi(?:kan)?|endorse|iklan\s+loker|"
+    r"mau\s+dipromosikan|hubungi\s+admin)\b",
+    re.I,
+)
+
+# Kata yang sering tertangkap sebagai entitas padahal bukan nama/lokasi/gaji.
+_JUNK_ENTITY = {
+    "kerja", "perusahaan", "kompetitif", "nego", "negotiable", "menarik", "lokasi", "cabang",
+    "kantor", "tempat", "area", "wilayah", "domisili", "penempatan", "sesuai", "terlampir", "-",
+}
+
+
+# Frasa deskriptif yang bukan nama tempat, mis. "seluruh jaringan cabang perusahaan".
+_JUNK_PHRASE = re.compile(r"\b(?:seluruh|semua|jaringan|perusahaan|ditempatkan|bersedia|sesuai\s+kebutuhan)\b", re.I)
+
+
+def is_junk_entity(value: str) -> bool:
+    v = re.sub(r"[^a-z0-9 ]", " ", (value or "").lower()).strip()
+    return not v or v in _JUNK_ENTITY or all(w in _JUNK_ENTITY for w in v.split())
+
+
+def is_junk_location(value: str) -> bool:
+    return is_junk_entity(value) or bool(_JUNK_PHRASE.search(value or ""))
+
+
+def uniq_casefold(items: list[str]) -> list[str]:
+    seen, out = set(), []
+    for item in _uniq(items):
+        key = re.sub(r"\s+", " ", item.casefold())
+        if key not in seen:
+            seen.add(key)
+            out.append(item)
+    return out
+
+
 def _uniq(items: list[str]) -> list[str]:
     return list(dict.fromkeys(re.sub(r"\s+", " ", (i or "")).strip() for i in items if (i or "").strip()))
 _DATE_TIME_JUNK = re.compile(
@@ -76,9 +113,20 @@ def _is_fee_context(text: str, start: int, end: int) -> bool:
     ]
     return any(kw in ctx for kw in fee_keywords)
 
+_SALARY_SHORT = re.compile(
+    r"Rp\.?\s*\d{1,3}(?:[.,]\d{1,3})?\s*(?:rb|ribu|k|jt|juta)\b(?:\s*/\s*(?:hari|minggu|bulan|bln|jam))?",
+    re.I,
+)
+_SALARY_MINIMUM = re.compile(r"\b(?:gaji\s+)?UM[RPK](?:\s*\+\s*\w+)?\b", re.I)
+
+
 def _extract_salaries(text: str) -> list[str]:
     found = []
-    pat = r"(?:Rp\.?\s*)\d{1,3}(?:[.,]\d{3})+(?:\s*[-–]\s*(?:Rp\.?\s*)?\d{1,3}(?:[.,]\d{3})+)?(?:\s*/\s*(?:bulan|bln|month))?"
+    for pat in (_SALARY_SHORT, _SALARY_MINIMUM):
+        for m in pat.finditer(text or ""):
+            if not _is_fee_context(text or "", m.start(), m.end()):
+                found.append(re.sub(r"\s+", " ", m.group(0)).strip())
+    pat = r"(?:Rp\.?\s*)\d{1,3}(?:[.,]\d{3})+(?:\s*[-–]\s*(?:Rp\.?\s*)?\d{1,3}(?:[.,]\d{3})+)?(?:\s*/\s*(?:bulan|bln|month|hari|minggu|jam))?"
     for m in re.finditer(pat, text or "", re.I):
         if not _is_fee_context(text or "", m.start(), m.end()):
             found.append(re.sub(r"\s+", " ", m.group(0)).strip())
@@ -99,10 +147,10 @@ def _extract_fee_requests(text: str) -> list[str]:
 
 def _extract_location_candidates(text: str) -> list[str]:
     candidates = []
-    pat = r"(?:Lokasi(?:\s+Kerja)?|Penempatan(?:\s+Kerja)?|Wilayah|Area|Domisili|Cabang)[^\S\r\n]*[:.\-]?[^\S\r\n]*([^\n,]{3,60})"
+    pat = r"\b(?:Lokasi(?:\s+Kerja)?|Penempatan(?:\s+Kerja)?|Wilayah|Area|Domisili|Cabang)[^\S\r\n]*[:\-][^\S\r\n]*([^\n,]{3,60})"
     for m in re.finditer(pat, text or "", re.I):
         loc = re.sub(r"\s+", " ", m.group(1)).strip(" .,;:-·•*")
-        if len(loc) >= 3 and not re.search(r"\b(gaji|syarat|kualifikasi|email|wa|hubungi)\b", loc, re.I):
+        if len(loc) >= 3 and not is_junk_location(loc) and not re.search(r"\b(gaji|syarat|kualifikasi|email|wa|hubungi)\b", loc, re.I):
             if not _DATE_TIME_JUNK.search(loc) and not _DATE_PATTERNS.search(loc):
                 candidates.append(loc)
     return _uniq(candidates)
@@ -118,7 +166,8 @@ def _extract_companies(text: str) -> list[str]:
         if len(core) >= 3 and not re.search(r"^(?:ke|dari|untuk|di|dengan|pada)\b", core, re.I):
             prefix = f"{form}. " if form in {"PT", "CV", "UD"} else f"{form.title()} "
             results.append(f"{prefix}{core}")
-    for m in re.finditer(r"(?:Nama\s+Perusahaan|Perusahaan|Instansi)\s*[:\-]\s*([^\n,]{3,60})", text or "", re.I):
+    label = r"(?:Nama\s+(?:Perusahaan|Usaha|Toko|Instansi)(?:\s*/\s*(?:Perusahaan|Usaha|Toko|Instansi))?|Perusahaan|Instansi|Company)"
+    for m in re.finditer(label + r"[^\S\r\n]*[:\-][^\S\r\n]*([^\n,]{3,60})", text or "", re.I):
         name = re.sub(r"\s+", " ", m.group(1)).strip().rstrip(".,;:")
         if len(name) >= 3 and not re.search(r"\b(membuka|lowongan|syarat|gaji)\b", name, re.I):
             results.append(name)
@@ -140,8 +189,12 @@ def _extract_addresses(text: str) -> list[str]:
 def extract_entities_from_text(text: str) -> dict:
     raw_text = text or ""
     phone_pat = r"(?:\+62|62|0)\s*[1-9](?:[\s\-]?\d){6,12}"
-    phones = [clean_indonesian_phone(p) for p in re.findall(phone_pat, raw_text)]
+    phones, promoter_phones = [], []
+    for line in raw_text.splitlines() or [raw_text]:
+        found = [clean_indonesian_phone(p) for p in re.findall(phone_pat, line)]
+        (promoter_phones if _PROMOTER_LINE.search(line) else phones).extend(found)
     phones = [p for p in _uniq(phones) if p]
+    promoter_phones = [p for p in _uniq(promoter_phones) if p and p not in phones]
 
     email_pat = r"\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}\b"
     emails = _uniq([fix_email_ocr_typos(e) for e in re.findall(email_pat, raw_text)])
@@ -164,6 +217,7 @@ def extract_entities_from_text(text: str) -> dict:
         "location_candidates": locations,
         "salaries": salaries,
         "fee_requests": fee_requests,
+        "promoter_phones": promoter_phones,
         "extraction_meta": {
             "has_company": bool(companies),
             "has_phone": bool(phones),
