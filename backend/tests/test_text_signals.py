@@ -62,3 +62,10 @@ def test_bumn_name_is_not_a_safe_keyword():
 def test_bumn_with_official_portal_is_not_flagged():
     text = "PT Pos Indonesia (Persero) membuka lowongan. Daftar di https://posindonesia.rakamin.com"
     assert features(text)["brand_unofficial_channel"] is False
+
+
+def test_link_in_bio_with_punctuation_is_an_unofficial_channel():
+    text = "PT Adaro Andalan Indonesia Tbk. Syarat & Cara Melamar kerja melalui link di. bio profil"
+    f = features(text)
+    assert f["has_whatsapp_apply"] is True
+    assert f["brand_unofficial_channel"] is True

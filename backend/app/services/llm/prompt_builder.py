@@ -339,7 +339,7 @@ def _build_text_signal_section(signals: dict | None) -> str:
 ## SINYAL TEKS (deterministik, dihitung sistem dari teks lowongan)
 - Meminta biaya/transfer: {yn("has_fee_request")}
 - Menyebut kerja di luar negeri / negara rawan TPPO: {yn("has_foreign_work")}
-- WhatsApp satu-satunya jalur melamar (tanpa email/portal/tautan resmi): {yn("has_whatsapp_apply")}
+- Satu-satunya jalur melamar adalah WhatsApp pribadi atau tautan di bio (tanpa email/portal resmi): {yn("has_whatsapp_apply")}
 - Menyebut nama badan usaha yang bisa diperiksa: {yn("has_company")}
 - Mengaku pabrik/perusahaan/kantor tetapi tidak menyebut namanya: {yn("anonymous_employer_claim")}
 - Menawarkan gaji tanpa nama badan usaha: {yn("salary_no_company")}
@@ -481,7 +481,7 @@ Jika TIDAK ADA alamat OSM tapi SEMUA ini terpenuhi:
 Jangan naikkan ke WASPADA hanya karena tidak ada alamat/PT/website — itu normal untuk UMKM kecil.
 
 Jika SINYAL TEKS "Mengaku pabrik/perusahaan/kantor tetapi tidak menyebut namanya" = YA DAN
-"WhatsApp satu-satunya jalur melamar" = YA, tanpa red flag keras:
+"Satu-satunya jalur melamar adalah WhatsApp pribadi atau tautan di bio" = YA, tanpa red flag keras:
 ➔ verdict **WASPADA**, risk_score **45–60**. Pemberi kerja berbadan usaha bisa menyebut nama dan alamatnya;
 tanpa itu pelamar tidak punya apa pun untuk diperiksa sebelum mengirim data pribadi.
 

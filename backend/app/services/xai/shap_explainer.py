@@ -75,12 +75,12 @@ def explain_verification_shap(
 
         if bf.get("has_whatsapp_apply"):
             contributions.append(_make_contrib(
-                "Pendaftaran via WhatsApp Langsung",
+                "Daftar Hanya via WhatsApp/Tautan Bio",
                 "has_whatsapp_apply",
                 1,
                 _FEATURE_WEIGHTS["has_whatsapp_apply"],
                 "risk",
-                "Alur rekrutmen tidak resmi — daftar langsung WA tanpa portal perusahaan",
+                "Pendaftaran hanya lewat WhatsApp pribadi atau tautan di bio, tanpa email atau portal resmi perusahaan",
             ))
 
         fraud_kw = bf.get("fraud_keyword_count", 0)
