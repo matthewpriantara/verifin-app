@@ -98,3 +98,15 @@ def test_whatsapp_only_apply_detected_but_not_when_email_present():
     assert f("Operator packing. Kirim CV: 0896-7951-0296")["has_whatsapp_apply"]
     assert f("Cantumkan nama dan usia pada pesan WhatsApp")["has_whatsapp_apply"]
     assert not f("Kirim lamaran ke hrm@newsaphirhotel.com\\nNo Whatsapp : 0823 2386 3434")["has_whatsapp_apply"]
+
+
+def test_web_footprint_of_impersonated_brand_is_not_counted_safe():
+    from app.services.xai.shap_explainer import explain_verification_shap
+    osint = {"companies": [{"name": "PT Pos Indonesia (Persero)", "stats": {"public_mentions": 5}}]}
+    nlp = {"behavioral_features": {"brand_unofficial_channel": True, "has_whatsapp_apply": True}}
+    result = explain_verification_shap(
+        68, "WASPADA", osint, [], [], nlp_result=nlp, entities={"companies": ["PT Pos Indonesia (Persero)"]}
+    )
+    keys = {c["feature_key"] for c in result["feature_contributions"]}
+    assert "brand_unofficial_channel" in keys
+    assert not any(c["feature"] == "Hasil Web Relevan Ditemukan" for c in result["feature_contributions"])
