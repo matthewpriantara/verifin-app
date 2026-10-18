@@ -15,6 +15,7 @@ _FEATURE_WEIGHTS: dict[str, float] = {
     "fraud_keyword_count":    8.0,
     "fee_no_company":        15.0,
     "salary_no_company":      8.0,
+    "brand_unofficial_channel": 15.0,
     "has_company":           -8.0,
     "has_address":           -6.0,
     "safe_keyword_count":    -5.0,
@@ -114,26 +115,37 @@ def explain_verification_shap(
                 "Kombinasi berbahaya: permintaan uang tanpa nama perusahaan yang jelas",
             ))
 
-        if bf.get("has_company") and bf.get("has_address"):
+        if bf.get("brand_unofficial_channel"):
             contributions.append(_make_contrib(
-                "Ada Nama PT + Alamat Fisik",
+                "Nama BUMN/Tbk, Daftar lewat WhatsApp",
+                "brand_unofficial_channel",
+                1,
+                _FEATURE_WEIGHTS["brand_unofficial_channel"],
+                "risk",
+                "Mengatasnamakan BUMN/perusahaan terbuka, tetapi pendaftaran hanya lewat WhatsApp atau tautan di bio",
+            ))
+
+        # Nama dan alamat perusahaan besar mudah disalin; tidak dihitung aman bila jalurnya tidak resmi.
+        if bf.get("has_company") and bf.get("has_address") and not bf.get("brand_unofficial_channel"):
+            contributions.append(_make_contrib(
+                "Ada Nama Usaha + Alamat Fisik",
                 "has_company_address",
                 1,
                 abs(_FEATURE_WEIGHTS["has_company"]) + abs(_FEATURE_WEIGHTS["has_address"]),
                 "safe",
-                "Terdapat identitas perusahaan (PT/CV) dan alamat fisik yang dapat diverifikasi",
+                "Lowongan menyebut nama usaha dan alamat fisik yang dapat diperiksa",
             ))
 
         safe_kw = bf.get("safe_keyword_count", 0)
         if safe_kw >= 2:
             reduction = min(safe_kw * abs(_FEATURE_WEIGHTS["safe_keyword_count"]), 20.0)
             contributions.append(_make_contrib(
-                f"Indikator Legalitas ({int(safe_kw)} signal)",
+                f"Indikator Rekrutmen Wajar ({int(safe_kw)} sinyal)",
                 "safe_keyword_count",
                 int(safe_kw),
                 reduction,
                 "safe",
-                "Terdapat sinyal legalitas: NIB, BPJS, OJK, atau proses lamaran resmi",
+                "Menyebut BPJS/kontrak kerja, kualifikasi, portal karier, atau pernyataan tanpa biaya",
             ))
 
     phones = osint_results.get("phones") or []
@@ -259,7 +271,9 @@ def explain_verification_shap(
         ))
 
     companies = osint_results.get("companies") or []
-    if any(
+    # Jejak web BUMN yang namanya dicatut tidak membuktikan lowongannya asli.
+    brand_impersonation = bool(((nlp_result or {}).get("behavioral_features") or {}).get("brand_unofficial_channel"))
+    if not brand_impersonation and any(
         (c.get("stats") or {}).get("public_mentions", 0) > 0 or bool(c.get("safe_flags"))
         for c in companies if isinstance(c, dict)
     ):
