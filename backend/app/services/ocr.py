@@ -20,9 +20,13 @@ def get_ocr_model():
     if ocr_model is None:
         with ocr_lock:
             if ocr_model is None:
+                # Model rekognisi "en" (PP-OCRv4). Model "latin" v3 yang dipakai lang="id" sering
+                # menghapus spasi pada judul berhuruf besar ("LOWONGANKERJA", "GLOBALSINERGI"),
+                # sehingga nama perusahaan yang dicari di web jadi salah. Bahasa Indonesia tidak
+                # memakai diakritik, jadi kamus "en" cukup.
                 ocr_model = PaddleOCR(
                     use_angle_cls=False,
-                    lang="id",
+                    lang="en",
                     enable_mkldnn=False,
                     det_db_thresh=0.2,
                     det_db_box_thresh=0.4,
@@ -81,6 +85,86 @@ def preprocess_image(image_path: str) -> np.ndarray:
     )
     return img
 
+def _box_bounds(box) -> tuple[float, float, float, float]:
+    xs = [float(p[0]) for p in box]
+    ys = [float(p[1]) for p in box]
+    return min(xs), min(ys), max(xs), max(ys)
+
+
+def order_text_by_layout(items: list[tuple[list, str]]) -> str:
+    """Susun hasil OCR mengikuti tata letak poster, bukan urutan deteksi mentah.
+
+    PaddleOCR mengurutkan kotak per baris dari atas ke bawah, sehingga teks dari kolom berbeda
+    tercampur ("PT.INDOKARYA", "KERJA STABIL", "GLOBAL SINERGI"). Di sini kotak dikelompokkan
+    menjadi blok: kotak yang bertumpuk secara vertikal dengan jarak kecil dan saling tumpang-tindih
+    secara horizontal dianggap satu blok. Blok diurutkan per pita baris lalu dari kiri ke kanan;
+    kotak dalam blok yang sejajar digabung dengan spasi. Antarblok dipisah baris kosong.
+    """
+    boxes = []
+    for box, text in items:
+        text = (text or "").strip()
+        if len(text) <= 1:
+            continue
+        x0, y0, x1, y1 = _box_bounds(box)
+        boxes.append({"x0": x0, "y0": y0, "x1": x1, "y1": y1, "h": max(1.0, y1 - y0), "text": text})
+    if not boxes:
+        return ""
+
+    parent = list(range(len(boxes)))
+
+    def find(i: int) -> int:
+        while parent[i] != i:
+            parent[i] = parent[parent[i]]
+            i = parent[i]
+        return i
+
+    for i, a in enumerate(boxes):
+        for j in range(i + 1, len(boxes)):
+            b = boxes[j]
+            h_overlap = min(a["x1"], b["x1"]) - max(a["x0"], b["x0"])
+            if h_overlap <= 0:
+                continue
+            gap = max(a["y0"], b["y0"]) - min(a["y1"], b["y1"])
+            if gap < 0.8 * min(a["h"], b["h"]):
+                parent[find(i)] = find(j)
+
+    groups: dict[int, list[dict]] = {}
+    for i, b in enumerate(boxes):
+        groups.setdefault(find(i), []).append(b)
+
+    blocks = []
+    for members in groups.values():
+        members.sort(key=lambda b: (b["y0"], b["x0"]))
+        rows: list[list[dict]] = []
+        for b in members:
+            row = rows[-1] if rows else None
+            if row:
+                ref = row[0]
+                v_overlap = min(ref["y1"], b["y1"]) - max(ref["y0"], b["y0"])
+                if v_overlap > 0.5 * min(ref["h"], b["h"]):
+                    row.append(b)
+                    continue
+            rows.append([b])
+        lines = [" ".join(b["text"] for b in sorted(r, key=lambda b: b["x0"])) for r in rows]
+        blocks.append({
+            "x0": min(b["x0"] for b in members),
+            "y0": min(b["y0"] for b in members),
+            "h": members[0]["h"],
+            "text": "\n".join(lines),
+        })
+
+    blocks.sort(key=lambda b: b["y0"])
+    ordered: list[dict] = []
+    band: list[dict] = []
+    for blk in blocks:
+        if band and blk["y0"] > band[0]["y0"] + band[0]["h"]:
+            ordered.extend(sorted(band, key=lambda b: b["x0"]))
+            band = []
+        band.append(blk)
+    ordered.extend(sorted(band, key=lambda b: b["x0"]))
+    return "\n\n".join(b["text"] for b in ordered)
+
+
 def extract_text_from_image(image_path: str, metrics: dict | None = None) -> str:
     if not os.path.exists(image_path):
         raise FileNotFoundError(f"File gambar tidak ditemukan di path: {image_path}")
@@ -98,20 +182,15 @@ def extract_text_from_image(image_path: str, metrics: dict | None = None) -> str
             result = ocr.ocr(processed_img)
             inference_elapsed = time.perf_counter() - inference_started
 
-            extracted_lines = []
-            if result and len(result) > 0:
+            items: list[tuple[list, str]] = []
+            if result and len(result) > 0 and result[0]:
                 res = result[0]
                 if isinstance(res, dict):
-                    texts = res.get("rec_texts", [])
-                    for text in texts:
-                        if len(text.strip()) > 1:
-                            extracted_lines.append(text)
+                    items = list(zip(res.get("rec_polys", []), res.get("rec_texts", [])))
                 elif isinstance(res, list):
-                    for line in res:
-                        if line and len(line) > 1:
-                            text = line[1][0]
-                            if len(text.strip()) > 1:
-                                extracted_lines.append(text)
+                    items = [(line[0], line[1][0]) for line in res if line and len(line) > 1]
+            text = order_text_by_layout(items)
+            line_count = sum(1 for l in text.splitlines() if l.strip())
 
             if metrics is not None:
                 metrics.update({
@@ -120,9 +199,9 @@ def extract_text_from_image(image_path: str, metrics: dict | None = None) -> str
                     "inference_sec": round(inference_elapsed, 3),
                     "total_sec": round(time.perf_counter() - started, 3),
                     "image_shape": list(processed_img.shape),
-                    "line_count": len(extracted_lines),
+                    "line_count": line_count,
                 })
-            return "\n".join(extracted_lines)
+            return text
     except Exception as e:
         logger.error("[OCR Error] Gagal mengekstrak gambar: %s", e)
         raise e
