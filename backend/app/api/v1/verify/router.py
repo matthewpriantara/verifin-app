@@ -187,11 +187,11 @@ async def verify_from_text(
         logger.info("[verify][%s] fraud-network done status=%s in_network=%s reports=%s duration=%.2fs", request_id, network_context.get("status"), network_context.get("entity_in_fraud_network"), (network_context.get("community_reports") or {}).get("report_count"), time.perf_counter() - stage_started)
 
         raw_text = request.text
-        nlp_result = classify_text(raw_text)
-        if nlp_result.get("behavioral_features", {}).get("has_fee_request"):
-            entities["has_fee_request"] = True
+        nlp_result = _classify_text_signals(raw_text, entities)
         stage_started = time.perf_counter()
-        analysis = await analyze_with_verifin(entities, osint_results, raw_text=raw_text)
+        analysis = await analyze_with_verifin(
+            entities, osint_results, raw_text=raw_text, text_signals=nlp_result["behavioral_features"]
+        )
         _log_raw_json(request_id, "ANALYSIS", analysis)
         logger.info("[verify][%s] LLM done verdict=%s score=%s model=%s duration=%.2fs", request_id, analysis.get("verdict"), analysis.get("risk_score"), analysis.get("model_used"), time.perf_counter() - stage_started)
 
@@ -287,11 +287,9 @@ async def verify_from_image(
         logger.info("[verify][%s] fraud-network done status=%s in_network=%s reports=%s duration=%.2fs", request_id, network_context.get("status"), network_context.get("entity_in_fraud_network"), (network_context.get("community_reports") or {}).get("report_count"), time.perf_counter() - stage_started)
 
         stage_started = time.perf_counter()
-        nlp_result = classify_text(raw_text)
-        if nlp_result.get("behavioral_features", {}).get("has_fee_request"):
-            entities["has_fee_request"] = True
+        nlp_result = _classify_text_signals(raw_text, entities)
         analysis = await analyze_with_verifin(
-            entities, osint_results, raw_text=raw_text
+            entities, osint_results, raw_text=raw_text, text_signals=nlp_result["behavioral_features"]
         )
         _log_raw_json(request_id, "ANALYSIS", analysis)
         logger.info("[verify][%s] LLM done verdict=%s score=%s model=%s duration=%.2fs", request_id, analysis.get("verdict"), analysis.get("risk_score"), analysis.get("model_used"), time.perf_counter() - stage_started)
@@ -404,11 +402,9 @@ async def verify_from_url(
         logger.info("[verify][%s] fraud-network done status=%s in_network=%s reports=%s duration=%.2fs", request_id, network_context.get("status"), network_context.get("entity_in_fraud_network"), (network_context.get("community_reports") or {}).get("report_count"), time.perf_counter() - stage_started)
 
         stage_started = time.perf_counter()
-        nlp_result = classify_text(full_raw_text)
-        if nlp_result.get("behavioral_features", {}).get("has_fee_request"):
-            entities["has_fee_request"] = True
+        nlp_result = _classify_text_signals(full_raw_text, entities)
         analysis = await analyze_with_verifin(
-            entities, osint_results, raw_text=full_raw_text
+            entities, osint_results, raw_text=full_raw_text, text_signals=nlp_result["behavioral_features"]
         )
         _log_raw_json(request_id, "ANALYSIS", analysis)
         logger.info("[verify][%s] LLM done verdict=%s score=%s model=%s duration=%.2fs", request_id, analysis.get("verdict"), analysis.get("risk_score"), analysis.get("model_used"), time.perf_counter() - stage_started)
@@ -677,6 +673,15 @@ def get_case_by_id(case_id: str, db: Session = Depends(get_db)):
     }
 
 
+def _classify_text_signals(raw_text: str, entities: dict) -> dict:
+    """Sinyal teks deterministik; nama perusahaan hasil NER ikut dipakai supaya "Kirim CV" atau
+    nama hotel tanpa awalan PT tidak salah dibaca."""
+    nlp_result = classify_text(raw_text, entities.get("companies"))
+    if nlp_result["behavioral_features"].get("has_fee_request"):
+        entities["has_fee_request"] = True
+    return nlp_result
+
+
 def _sse_event(event: str, data: dict) -> str:
     return f"event: {event}\ndata: {json.dumps(data, ensure_ascii=False)}\n\n"
 
@@ -788,8 +793,9 @@ async def _verify_url_stream_generator(url: str, additional_text: str, db_sessio
 
         yield _sse_event("stage", {"stage": "ai", "status": "processing", "message": "AI menganalisis dan menyusun verdict..."})
         stage_started = time.perf_counter()
+        nlp_result = _classify_text_signals(full_raw_text, entities)
         llm_task = asyncio.create_task(analyze_with_verifin(
-            entities, osint_results, raw_text=full_raw_text
+            entities, osint_results, raw_text=full_raw_text, text_signals=nlp_result["behavioral_features"]
         ))
         while not llm_task.done():
             done, _ = await asyncio.wait({llm_task}, timeout=3.0)
@@ -801,6 +807,7 @@ async def _verify_url_stream_generator(url: str, additional_text: str, db_sessio
         logger.info("[verify-stream][%s] LLM done verdict=%s score=%s duration=%.2fs", request_id, analysis.get("verdict"), analysis.get("risk_score"), time.perf_counter() - stage_started)
 
         analysis["network_context"] = network_context
+        analysis["nlp_result"] = nlp_result
         if url:
             if "urls" not in entities or not isinstance(entities["urls"], list):
                 entities["urls"] = [url]
