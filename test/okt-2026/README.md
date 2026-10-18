@@ -1,6 +1,6 @@
 # Loker uji Oktober 2026
 
-Kumpulan loker nyata untuk menguji tiga kanal input Verifin (teks, link, poster). Semua diambil dari postingan publik Threads pada 18 Okt 2026, lalu dicek manual tanpa Verifin. Set lama di `test/` (The Biker Shop, VinFast, PT SISI) tetap disimpan karena dipakai di Laporan Akhir Bab G.
+Kumpulan loker nyata untuk menguji tiga kanal input Verifin (teks, link, poster). T1, T2, L1, L2, dan P1 diambil dari postingan publik Threads pada 18 Okt 2026, lalu dicek manual tanpa Verifin. T3 dan T4 adalah lowongan penipuan yang sudah dibantah resmi oleh perusahaan yang namanya dicatut. Set lama di `test/` (The Biker Shop, VinFast, PT SISI) tetap disimpan karena dipakai di Laporan Akhir Bab G.
 
 > Label "kesimpulan manual" adalah hasil pengecekan tim, bukan kebenaran mutlak. Untuk kasus yang tidak bisa dipastikan, labelnya ditulis apa adanya.
 
@@ -8,6 +8,8 @@ Kumpulan loker nyata untuk menguji tiga kanal input Verifin (teks, link, poster)
 |---|---|---|---|---|---|
 | T1 | Teks | `T1-teks-hotel-new-saphir.txt` | [Threads @jogjalowker_official, 16 Okt 2026](https://www.threads.com/@jogjalowker_official/post/DejIohQkerQ) | Kemungkinan asli, tapi posisi belum terkonfirmasi | AMAN atau WASPADA |
 | T2 | Teks | `T2-teks-packing-pasar-kemis.txt` | [Threads @fahadhamzah_, 9 Okt 2026](https://www.threads.com/@fahadhamzah_/post/DeQi-aTAX0G) | Kemungkinan asli (rekrutmen outsourcing PT IGS), tetapi teksnya sendiri tidak menyebut perusahaan | WASPADA (dari teks saja identitas tidak bisa dicek) |
+| T3 | Teks | `T3-teks-surat-panggilan-pertamina.txt` | [IDN Times, 2 Mar 2026](https://www.idntimes.com/business/economy/cek-fakta-waspada-surat-panggilan-seleksi-palsu-atas-nama-pertamina-00-bvq5c-pypb8n) | **Penipuan terkonfirmasi** (dicap HOAX oleh Pertamina) | BAHAYA |
+| T4 | Teks | `T4-teks-loker-pos-indonesia.txt` | [Jalahoaks DKI, 22 Mei 2026](https://jalahoaks.jakarta.go.id/detail/Hoaks-Pendaftaran-Lowongan-Pekerjaan-PT-Pos-Indonesia-2026-Melalui-Whatsapp) | **Penipuan terkonfirmasi** (dibantah Pos Indonesia) | WASPADA atau BAHAYA |
 | L1 | Link | `https://www.threads.com/@jogjalowker_official/post/DegeamfkV1w` | Threads @jogjalowker_official, 13 Okt 2026 | Asli | AMAN |
 | L2 | Link | `https://www.threads.com/@pastidapatuangg/post/DekRfpYEzzW` | Threads @pastidapatuangg, 17 Okt 2026 | Sangat mencurigakan (pola sewa akun LinkedIn) | WASPADA atau BAHAYA |
 | P1 | Poster | `P1-poster-packing-pasar-kemis.jpg` | Gambar lampiran postingan T2 (Threads @fahadhamzah_, 9 Okt 2026) | Kemungkinan asli (PT Indokarya Global Sinergi, perusahaan outsourcing di Cikupa, Tangerang) | AMAN atau WASPADA |
@@ -27,6 +29,16 @@ Kumpulan loker nyata untuk menguji tiga kanal input Verifin (teks, link, poster)
 - **Koreksi setelah pengecekan lanjutan (lihat P1):** pengunggah adalah Operations Manager PT Indokarya Global Sinergi, perusahaan outsourcing yang nyata. KTP dan nama ibu kandung lazim diminta untuk pendaftaran BPJS, jadi komentar itu bukan bukti penipuan. Nomor WA pada lowongan berbeda dari kontak resmi di situs perusahaan.
 - Kesimpulan: kemungkinan rekrutmen outsourcing yang sah. Namun dari **teks ini saja** identitas pemberi kerja tidak bisa diperiksa, sehingga WASPADA ("cek dulu") adalah keluaran yang wajar.
 
+### T3 · Surat panggilan seleksi palsu atas nama PT Pertamina (Persero)
+- Sumber: gambar surat dan isi artikel IDN Times (2 Mar 2026). Pertamina menandai surat ini dengan cap "HOAX" di Instagram resminya dan menegaskan informasi resmi hanya di `recruitment.pertamina.com`.
+- Isi surat ditranskripsi dari gambar artikel tanpa cap HOAX. Bagian yang tertutup cap ditulis `[...]`. Daftar 40 nama peserta di surat **tidak** disalin. Tiga baris terakhir (wajib pesan tiket sebelum 22.15 WIB lewat "agen perjalanan resmi", biaya diganti setelah tiba, konfirmasi ke WA +62 822-2133-3836, nama "Ketua Tim Recruitment") disusun dari kutipan artikel karena bagian itu tidak terlihat di gambar.
+- Pola: dinyatakan lulus tanpa melamar, wajib bayar tiket dengan janji *reimburse*, konfirmasi lewat WhatsApp pribadi.
+
+### T4 · Lowongan palsu PT Pos Indonesia 2026
+- Sumber: unggahan Facebook halaman "Loker Indonesia" yang dimuat Jalahoaks DKI Jakarta (22 Mei 2026, mengutip Tirto 30 Apr 2026). Pos Indonesia menegaskan pendaftaran tidak pernah lewat WhatsApp pribadi atau akun media sosial tidak resmi; kanal resminya `posindonesia.co.id/id/karir` dan `posindonesia.rakamin.com`.
+- Teks ditranskripsi dari takarir dan poster pada gambar Jalahoaks (tanpa label HOAKS). Nomor WhatsApp tidak terlihat di gambar.
+- Pola: mencatut BUMN, daftar lewat "WhatsApp admin" dan "link di bio", tidak ada permintaan biaya di teks. Dari teks saja tidak ada bukti keras (biaya, nomor terlapor), sehingga WASPADA adalah batas atas yang jujur untuk input ini.
+
 ### L1 · Qhomemart (Videographer)
 - Alamat Jl. Raya Janti No. 96, email `recruitment@qhomemart.co.id`, dan WA `0857-0129-9095` **semuanya cocok** dengan listing Qhomemart di pusat karier UAD (`cdc.uad.ac.id/jobs/qhomemart-5-positions`).
 - Kesimpulan: asli.
@@ -45,22 +57,31 @@ Kumpulan loker nyata untuk menguji tiga kanal input Verifin (teks, link, poster)
 
 ## Hasil uji Verifin (18 Okt 2026, aplikasi lokal)
 
-Dijalankan lewat antarmuka web (Playwright) terhadap backend yang terhubung ke Supabase. Screenshot dan JSON lengkap ada di `hasil/`; hasil run pertama diarsipkan di `hasil/run1/`.
+Dijalankan lewat antarmuka web (Playwright) terhadap backend yang terhubung ke Supabase. Screenshot dan JSON run terakhir ada di `hasil/`; run sebelumnya diarsipkan di `hasil/run1/` dan `hasil/run2/`. Sebelum tiap run ulang, baris `job_cases` hasil run sebelumnya dihapus supaya tidak terbaca dari cache.
 
-| ID | Run 1 | Run 2 | Durasi run 2 | Sesuai cek manual? |
-|---|---|---|---|---|
-| T1 | AMAN 8 | AMAN 10 | 44 dtk | Ya |
-| T2 | AMAN 28 | **WASPADA 52** | 24 dtk | Run 1 terlalu longgar; run 2 ya |
-| L1 | AMAN 10 | AMAN 12 | 41 dtk | Ya |
-| L2 | WASPADA 60 | WASPADA 60 | 21 dtk | Ya |
-| P1 | AMAN 25 | AMAN 20 | 58 dtk | Ya |
+| ID | Run 1 | Run 2 | Run 3 (final) | Durasi run 3 | Sesuai cek manual? |
+|---|---|---|---|---|---|
+| T1 | AMAN 8 | AMAN 10 | AMAN 10 | 34 dtk | Ya |
+| T2 | AMAN 28 | WASPADA 52 | **WASPADA 50** | 16 dtk | Run 1 terlalu longgar; run 2–3 ya |
+| T3 | — | — | **BAHAYA 95** | 40 dtk | Ya |
+| T4 | — | — | **WASPADA 68** | 28 dtk | Sebagian: lowongan ini penipuan, tetapi tanpa bukti keras di teks Verifin berhenti di WASPADA |
+| L1 | AMAN 10 | AMAN 12 | AMAN 12 | 40 dtk | Ya |
+| L2 | WASPADA 60 | WASPADA 60 | WASPADA 60 | 21 dtk | Ya |
+| P1 | AMAN 25 | AMAN 20 | AMAN 24 | 52 dtk | Ya |
 
-Run 1 memperlihatkan empat bug, yang diperbaiki sebelum run 2:
+### Bug yang ditemukan run 1 (diperbaiki sebelum run 2)
 1. Penalti "Tidak Ada SPF/DMARC pada Domain Korporat" (+12) terpicu walau lowongan tidak punya domain sama sekali (T2).
-2. Nama perusahaan hasil OCR terpecah (`PT.INDOKARYA`, `GLOBALSINERGI`, `iGS`), sehingga pencarian web memakai potongan nama dan menemukan perusahaan lain bernama mirip.
+2. Nama perusahaan hasil OCR terpecah (`PT.INDOKARYA`, `GLOBALSINERGI`, `iGS`), sehingga pencarian web memakai potongan nama.
 3. Pola "lamar via WhatsApp" tidak mengenali "Kirim CV: 0896…" dan "pesan WhatsApp".
-4. Kasus WASPADA ikut dihitung sebagai kasus penipuan di Fraud Network Graph, sehingga P1 sempat diberi label "terhubung ke jaringan penipuan" hanya karena nomornya sama dengan T2.
+4. Kasus WASPADA ikut dihitung sebagai penipuan di Fraud Network Graph, sehingga P1 sempat diberi label "terhubung ke jaringan penipuan" hanya karena nomornya sama dengan T2.
 
-Selain itu prompt LLM ditambah aturan: lowongan yang mengaku perusahaan/pabrik tetapi tidak menyebut nama badan usaha dan hanya memberi nomor WhatsApp pribadi dinilai WASPADA. Aturan ini dirumuskan setelah melihat kasus T2, jadi perlu divalidasi pada set uji yang lebih besar agar tidak hanya cocok untuk kasus ini.
+### Akar masalah yang diperbaiki sebelum run 3
+Run 2 sudah benar, tetapi sebagian perbaikannya masih tambalan. Akar masalahnya:
+- **T2 AMAN 28 bukan karena prompt kurang aturan.** Regex badan usaha membaca "Kirim **CV**" sebagai CV (badan usaha), sehingga sinyal "gaji tanpa nama perusahaan" mati. Regex alamat `jl\.` juga tidak pernah cocok karena `\b` setelah titik. Keduanya diperbaiki; nama perusahaan hasil NER sekarang ikut dipakai classifier.
+- **LLM tidak pernah menerima sinyal teks deterministik**, dan jalur `url/stream` sama sekali tidak menjalankan classifier (XAI tautan tidak punya kontribusi teks). Sinyal sekarang dikirim ke prompt di keempat jalur, dan aturan prompt khusus T2 diganti aturan yang merujuk sinyal tersebut (`anonymous_employer_claim`).
+- **Spasi OCR hilang** (`GLOBALSINERGI`, `LOWONGANKERJA`) berasal dari model rekognisi `latin` PP-OCRv3. Diganti model `en` PP-OCRv4; inferensi juga lebih cepat (13 dtk vs 21 dtk pada P1).
+- **Urutan baca OCR mencampur kolom poster.** Teks sekarang disusun per blok tata letak, sehingga baris kedua nama di logo selalu tepat di bawah baris pertama dan sel tabel ("SHIFT PAGI / Rp120.000") tetap berpasangan.
+- **Nama BUMN dihitung sebagai sinyal aman** (`persero`, `bumn`, `tbk` di daftar kata aman), padahal penipu justru mencatut nama itu. Dihapus, diganti sinyal `brand_unofficial_channel` (nama BUMN/Tbk + daftar hanya lewat WhatsApp/tautan di bio). Kata "gratis" saja juga tidak lagi dihitung aman, dan jejak web atau alamat milik BUMN yang dicatut tidak lagi dihitung sebagai bukti aman di XAI.
+- Varian nama yang sama ("PT POS INDONESIA", "PT Pos Indonesia (Persero)") sekarang disatukan.
 
-Catatan: kelima kasus belum memuat lowongan penipuan yang terkonfirmasi, sehingga jalur verdict BAHAYA belum teruji pada data nyata di set ini.
+Batasan yang tersisa: T4 menunjukkan bahwa penipuan yang mencatut BUMN tanpa meminta biaya di teks baru bisa dinaikkan ke WASPADA. Untuk BAHAYA, Verifin membutuhkan bukti keras (biaya, nomor terlapor, formulir phishing). Set uji ini masih kecil (7 kasus, 2 penipuan); belum bisa dipakai untuk mengklaim akurasi.

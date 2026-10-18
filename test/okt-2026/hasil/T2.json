@@ -1,21 +1,21 @@
 {
   "verdict": "WASPADA",
-  "risk_score": 52,
-  "case_id": "413a79f1-f214-45ed-9148-158d99bf050a",
-  "summary": "Lowongan mengklaim pabrik baru tanpa mencantumkan identitas resmi dan hanya mengandalkan kontak nomor pribadi.",
+  "risk_score": 50,
+  "case_id": "9f24c25b-a4d6-453e-bb31-049f22b81811",
+  "summary": "Lowongan berstatus waspada karena mengklaim pabrik tanpa menyebutkan identitas perusahaan dan pendaftaran hanya melalui WhatsApp.",
   "risk_factors": [
-    "Identitas resmi pabrik tidak disebutkan",
-    "Alamat spesifik pabrik tidak dicantumkan",
-    "Lamaran hanya melalui kontak pribadi"
+    "Mengaku pabrik tanpa menyebutkan nama perusahaan",
+    "Pendaftaran hanya melalui kontak WhatsApp",
+    "Identitas legalitas pemberi kerja tidak jelas"
   ],
   "safe_factors": [
-    "Nomor telepon bersih dari laporan penipuan",
-    "Tidak ada indikasi permintaan biaya"
+    "Tidak ada indikasi permintaan biaya transfer",
+    "Nomor telepon bersih dari laporan penipuan"
   ],
   "recommendations": [
-    "Minta kejelasan identitas resmi perusahaan",
-    "Pastikan alamat pabrik sebelum melamar",
-    "Jangan bayar biaya administrasi apa pun"
+    "Tanyakan nama resmi dan legalitas pabrik",
+    "Jangan kirim dokumen identitas pribadi sensitif",
+    "Tolak tegas jika diminta membayar biaya"
   ],
   "entities": {
     "companies": [],
@@ -245,7 +245,7 @@
       "status": "COMPLETED"
     },
     "timing": {
-      "osint_parallel_sec": 6.62
+      "osint_parallel_sec": 2.33
     },
     "nlp": {
       "enabled": true,
@@ -264,7 +264,7 @@
   "shap_explanation": {
     "model_type": "Evidence Attribution Engine (Feature Contribution Analysis)",
     "base_value": 12,
-    "final_risk_score": 52,
+    "final_risk_score": 50,
     "evidence_confidence": null,
     "decision_confidence": null,
     "confidence_method": "not_calibrated",
@@ -313,7 +313,7 @@
       {
         "step": "6. Final Risk Level Evaluation",
         "status": "MEDIUM",
-        "detail": "Skor risiko akhir: 52 / 100 (Risiko Sedang); bukan probabilitas."
+        "detail": "Skor risiko akhir: 50 / 100 (Risiko Sedang); bukan probabilitas."
       }
     ],
     "consistency_breakdown": [
@@ -438,7 +438,7 @@
       "threat_level": "LOW",
       "shared_identity_reuse": false
     },
-    "checked_at": "2026-10-17T20:24:32.516966+00:00",
+    "checked_at": "2026-10-18T05:05:04.010333+00:00",
     "ethical_safeguards": {
       "human_review_recommended": true,
       "cost_of_error": {
@@ -458,15 +458,6 @@
         "delta": 20
       },
       {
-        "feature": "Penyesuaian Penalaran AI",
-        "feature_key": "model_calibration",
-        "value": 12,
-        "contribution": 12,
-        "impact": "risk",
-        "description": "Penalaran AI atas seluruh teks dan bukti menilai risiko lebih tinggi daripada jumlah bobot bukti terukur. Selisihnya ditampilkan terpisah agar skor akhir = nilai dasar + Σ kontribusi.",
-        "delta": 12
-      },
-      {
         "feature": "Kata Kunci Penipuan (1 match)",
         "feature_key": "fraud_keyword_count",
         "value": 1,
@@ -474,6 +465,24 @@
         "impact": "risk",
         "description": "Terdeteksi 1 pola kata kunci penipuan loker Indonesia",
         "delta": 8
+      },
+      {
+        "feature": "Gaji Ditawarkan tanpa Identitas Perusahaan",
+        "feature_key": "salary_no_company",
+        "value": 1,
+        "contribution": 8,
+        "impact": "risk",
+        "description": "Lowongan menawarkan gaji tetapi tidak menyebut nama badan usaha yang bisa diperiksa",
+        "delta": 8
+      },
+      {
+        "feature": "Penyesuaian Penalaran AI",
+        "feature_key": "model_calibration",
+        "value": 2,
+        "contribution": 2,
+        "impact": "risk",
+        "description": "Penalaran AI atas seluruh teks dan bukti menilai risiko lebih tinggi daripada jumlah bobot bukti terukur. Selisihnya ditampilkan terpisah agar skor akhir = nilai dasar + Σ kontribusi.",
+        "delta": 2
       }
     ],
     "waterfall_chart": [
@@ -485,25 +494,33 @@
         "delta": 20
       },
       {
-        "label": "Penyesuaian Penalaran AI",
-        "value": 12,
-        "cumulative": 44,
-        "impact": "risk",
-        "delta": 12
-      },
-      {
         "label": "Kata Kunci Penipuan (1 match)",
         "value": 8,
-        "cumulative": 52,
+        "cumulative": 40,
         "impact": "risk",
         "delta": 8
+      },
+      {
+        "label": "Gaji Ditawarkan tanpa Identitas Perusahaan",
+        "value": 8,
+        "cumulative": 48,
+        "impact": "risk",
+        "delta": 8
+      },
+      {
+        "label": "Penyesuaian Penalaran AI",
+        "value": 2,
+        "cumulative": 50,
+        "impact": "risk",
+        "delta": 2
       }
     ],
-    "evidence_delta": 28,
-    "calibration_delta": 12,
+    "evidence_delta": 36,
+    "calibration_delta": 2,
     "top_risk_features": [
       "Pendaftaran via WhatsApp Langsung",
-      "Kata Kunci Penipuan (1 match)"
+      "Kata Kunci Penipuan (1 match)",
+      "Gaji Ditawarkan tanpa Identitas Perusahaan"
     ],
     "top_safe_features": [],
     "summary": "Berdasarkan bukti publik independen yang berhasil dikumpulkan, lowongan ini dinilai perlu diwaspadai — ditemukan sinyal risiko. Sistem tidak dapat menjamin legalitas perusahaan secara absolut karena beberapa sumber resmi (seperti registri AHU/OSS) tidak tersedia secara publik."

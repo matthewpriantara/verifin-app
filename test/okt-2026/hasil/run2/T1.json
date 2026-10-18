@@ -1,0 +1,967 @@
+{
+  "verdict": "AMAN",
+  "risk_score": 10,
+  "case_id": "1eba6319-d19b-496a-bea6-5f333eccecc1",
+  "summary": "Lowongan terverifikasi aman didukung domain resmi berumur panjang, kontak reputasi bersih, serta jejak digital hotel yang kredibel.",
+  "risk_factors": [
+    "Nomor bangunan belum terverifikasi persis di peta.",
+    "Legalitas formal AHU belum diverifikasi per entitas."
+  ],
+  "safe_factors": [
+    "Domain email yang tercantum berumur 13 tahun aktif.",
+    "Nomor telepon berstatus bersih di Kaspersky.",
+    "Halaman karier resmi dan jejak publik kuat."
+  ],
+  "recommendations": [
+    "Lamar langsung melalui portal karier resmi hotel.",
+    "Jangan pernah membayar biaya administrasi apa pun.",
+    "Pastikan proses seleksi berlangsung di hotel langsung."
+  ],
+  "entities": {
+    "companies": [
+      "HOTEL NEW SAPHIR YOGYAKARTA",
+      "New Saphir Hotel Yogyakarta"
+    ],
+    "contacts": [
+      "+6282323863434"
+    ],
+    "emails": [
+      "hrm@newsaphirhotel.com",
+      "hr.coordinator@newsaphirhotel.com"
+    ],
+    "urls": [
+      "https://www.newsaphirhotel.com/lowongan-pekerjaan/"
+    ],
+    "addresses": [
+      "Jl. Laksda Adisucipto No. 38, Yogyakarta"
+    ],
+    "location_candidates": [
+      "Jl. Laksda Adisucipto No. 38",
+      "JOGJA",
+      "Yogyakarta"
+    ],
+    "salaries": []
+  },
+  "model_used": "ag/gemini-3.8-flash-medium (Evidence Reasoning)",
+  "osint": {
+    "domain": {
+      "age_days": 4910,
+      "age_years": 13.45,
+      "is_new": false,
+      "created_at": "2013-05-08",
+      "source": "whois",
+      "domain": "newsaphirhotel.com"
+    },
+    "email_security": {
+      "spf_active": true,
+      "dmarc_active": true,
+      "mx_active": true,
+      "mx_provider": "mail.newsaphirhotel.com",
+      "domain": "newsaphirhotel.com"
+    },
+    "address_validations": [
+      {
+        "address_input": "Jl. Laksda Adisucipto No. 38, Yogyakarta",
+        "company_name_input": "HOTEL NEW SAPHIR YOGYAKARTA",
+        "address_found": true,
+        "address_details": {
+          "found": true,
+          "probe_status": "COMPLETED",
+          "evidence_status": "FOUND",
+          "lat": -7.7832303,
+          "lon": 110.3927041,
+          "display_name": "Gedung Wanita, Jalan Laksda Adisucipto, Papringan, Catur Tunggal, Depok, Sleman, Daerah Istimewa Yogyakarta, 55221, Indonesia",
+          "country": "Indonesia",
+          "confidence_score": 0,
+          "matched_query": "Jl. Laksda Adisucipto , Yogyakarta, Indonesia",
+          "google_maps_url": "https://www.google.com/maps/search/?api=1&query=HOTEL+NEW+SAPHIR+YOGYAKARTA%2C+Jl.+Laksda+Adisucipto+No.+38%2C+Yogyakarta",
+          "osm_url": "https://www.openstreetmap.org/?mlat=-7.7832303&mlon=110.3927041&zoom=17",
+          "match_level": "street",
+          "coordinates_exact": false,
+          "house_number_match": false,
+          "street_match": true,
+          "token_score": 1,
+          "matched_tokens": [
+            "adisucipto",
+            "laksda",
+            "yogyakarta"
+          ],
+          "coordinate_confidence": 0
+        },
+        "risk_signals": [],
+        "safe_signals": [],
+        "neutral_notes": [
+          "Nama jalan ditemukan, tetapi nomor bangunan belum cocok dengan hasil peta.",
+          "Nama bisnis ditemukan di web, tetapi koordinat Google Maps tidak tersedia (skor 1.0)."
+        ],
+        "web_verification": {
+          "found": true,
+          "method": "google_maps_serp",
+          "match_score": 1,
+          "matched_snippet": "hotel new saphir yogyakarta - 4-star hotel in city center located in a prime location on jalan laksda adisucipto, the new saphir hotel yogyakarta combines modern 4-star comfort with the warm hospitali",
+          "maps_match": false,
+          "maps_url": null,
+          "lat": null,
+          "lon": null,
+          "matched_name": null,
+          "name_match": false,
+          "street_match": false,
+          "house_number_match": false,
+          "address_match_level": "none",
+          "discovered_street": "jalan laksda adisucipto"
+        },
+        "business_found": true
+      }
+    ],
+    "phones": [
+      {
+        "source": "kaspersky",
+        "phone": "+6282323863434",
+        "url": "https://whocalls.id.kaspersky.com/info/6282323863434",
+        "checked": true,
+        "probe_status": "COMPLETED",
+        "reputation_status": "CLEAN",
+        "danger_level": 0,
+        "category": "NETRAL",
+        "scam_confirmed": false,
+        "risk_flags": [],
+        "comments": [
+          "Tidak ada laporan spam.",
+          "Kode 823 ini digunakan operator seluler: Telkomsel"
+        ],
+        "found": false,
+        "reported_fraud": false,
+        "serp_fallback": {
+          "serp_checked": true,
+          "serp_results": [],
+          "risk_flags": [],
+          "found_scam": false
+        }
+      }
+    ],
+    "phone_probe": {
+      "status": "COMPLETED",
+      "note": "Nomor HP ditemukan dan dikirim ke validator reputasi."
+    },
+    "companies": [
+      {
+        "name": "HOTEL NEW SAPHIR YOGYAKARTA",
+        "checked": true,
+        "method": "public_web_only",
+        "registry": {
+          "pt_registry_verified": false,
+          "portal": {
+            "source": "ahu.go.id",
+            "ok": false,
+            "pt_registry_verified": false,
+            "note": "Legalitas formal PT (AHU/OSS) tidak diotomasi; hanya jejak web publik.",
+            "skipped": true
+          },
+          "disclaimer": "Legalitas formal PT (AHU/OSS) BELUM diverifikasi per-entitas. Hanya probe portal + jejak web publik."
+        },
+        "stats": {
+          "search_count": 1,
+          "public_mentions": 10,
+          "fraud_related_mentions": 0,
+          "legality_mentions": 0,
+          "successful_requests": 1,
+          "relevant_results": 10,
+          "cross_service_match_count": 10,
+          "social_public_mention_count": 0
+        },
+        "neutral_notes": [],
+        "risk_flags": [],
+        "safe_flags": [
+          "Website memuat indikasi halaman perusahaan/karir.",
+          "Ditemukan 10 jejak publik di search (bukan klaim legalitas AHU)."
+        ]
+      }
+    ],
+    "web": {
+      "enabled": true,
+      "engine": "searxng + lightpanda fallback",
+      "websites": [
+        {
+          "type": "website",
+          "url": "https://newsaphirhotel.com/lowongan-pekerjaan",
+          "ok": true,
+          "probe_status": "COMPLETED",
+          "website_status": "AVAILABLE",
+          "evidence_status": "FOUND",
+          "status": 200,
+          "title": "Lowongan Pekerjaan - New Saphir Hotel Yogyakarta",
+          "snippet": ".elementor-26052 .elementor-element.elementor-element-a359d4c > .elementor-container > .elementor-column > .elementor-widget-wrap{align-content:center;align-items:center;}.elementor-26052 .elementor-element.elementor-element-a359d4c:not(.elementor-motion-effects-element-type-background), .elementor-26052 .elementor-element.elementor-element-a359d4c > .elementor-motion-effects-container > .elementor-motion-effects-layer{background-color:var( --e-global-color-accent );}.elementor-26052 .elementor-",
+          "risk_flags": [],
+          "safe_flags": [
+            "Website memuat indikasi halaman perusahaan/karir."
+          ]
+        }
+      ],
+      "probe_status": "COMPLETED",
+      "gform_inspections": [],
+      "searches": [
+        {
+          "type": "search",
+          "query": "HOTEL NEW SAPHIR YOGYAKARTA laksda adisucipto yogyakarta",
+          "ok": true,
+          "request_status": "COMPLETED",
+          "engine": "searxng-intelligent",
+          "status": "FOUND",
+          "results": [
+            {
+              "title": "Hotel New Saphir Yogyakarta - 4-Star Hotel in City Center",
+              "url": "https://www.newsaphirhotel.com/",
+              "snippet": "Located in a prime location on Jalan Laksda Adisucipto, the New Saphir Hotel Yogyakarta combines modern 4-star comfort with the warm hospitality characteristic of Yogyakarta. Just a few minutes from renowned shopping centers, the Malioboro ",
+              "source_type": "web",
+              "_final_score": 0.94,
+              "_entity_score": 1
+            },
+            {
+              "title": "Hotel New Saphir Yogyakarta, Yogyakarta - Diskon s.d 50% - Traveloka",
+              "url": "https://www.traveloka.com/id-id/hotel/indonesia/hotel-new-saphir-yogyakarta-5500",
+              "snippet": "Hotel New Saphir Yogyakarta terletak di Jalan Laksda Adisucipto No. 38, Depok, Yogyakarta, Daerah Istimewa Yogyakarta, Indonesia. Hotel ini berjarak sekitar 4 km dari pusat kota Yogyakarta, sehingga memudahkan akses ke berbagai landmark pop",
+              "source_type": "web",
+              "_final_score": 0.94,
+              "_entity_score": 1
+            },
+            {
+              "title": "Contact Hotel New Saphir Yogyakarta | Address & Direct Phone",
+              "url": "https://www.newsaphirhotel.com/contact-us/",
+              "snippet": "Get in touch with Hotel New Saphir Yogyakarta. Find our direct phone numbers, email addresses, central Jogja map location, and online inquiry form. We are here to assist you 24/7.",
+              "source_type": "official",
+              "_final_score": 0.8833,
+              "_entity_score": 1
+            },
+            {
+              "title": "Hotel New Saphir Yogyakarta - Dinas Pariwisata Daerah Istimewa Yogyakarta",
+              "url": "https://visitingjogja.jogjaprov.go.id/7989/hotel-new-saphir-yogyakarta/",
+              "snippet": "Jan 16, 2017 · Terletak di Jl. Laksda Adisucipto, Hotel New Saphir Yogyakarta hanya berjarak 10 menit dari Bandara. Dengan desain kamar yang modern, hotel ini memberikan fasilitas Live Music di Mirah Lounge setiap hari dari pukul 20.00 WIB ",
+              "source_type": "web",
+              "_final_score": 0.8457,
+              "_entity_score": 1
+            },
+            {
+              "title": "Hotel New Saphir Yogyakarta, Yogyakarta | 2026 Updated Prices, Deals",
+              "url": "https://www.agoda.com/hotel-new-saphir-yogyakarta/hotel/yogyakarta-id.html",
+              "snippet": "In a vibrant cultural hub near Malioboro, historic markets and batik workshops, this hotel is minutes from Plaza Ambarrukmo, Galeria Mall and the Yogyakarta Monument. Relax at the stylish bar and coffee shop, swim in the heated indoor pool,",
+              "source_type": "web",
+              "_final_score": 0.84,
+              "_entity_score": 1
+            },
+            {
+              "title": "Hotel New Saphir Yogyakarta | Rekomendasi Hotel Bintang 4 Terbaik - New ...",
+              "url": "https://www.newsaphirhotel.com/homepage-saphir/",
+              "snippet": "Welcome to the New Saphir Hotel in Yogyakarta Located in a prime location on Jalan Laksda Adisucipto, the New Saphir Hotel Yogyakarta combines modern 4-star comfort with the warm hospitality characteristic of Yogyakarta. Just a few minutes ",
+              "source_type": "web",
+              "_final_score": 0.79,
+              "_entity_score": 1
+            },
+            {
+              "title": "Hotel New Saphir Yogyakarta (New Saphir Hotel Yogyakarta) Jl ...",
+              "url": "https://dinogo.com/hotels/53549-new-saphir-hotel-yogyakarta",
+              "snippet": "Welcome to Hotel New Saphir Yogyakarta, a stylish and inviting hotel nestled in the vibrant heart of Yogyakarta. Situated at Jl. Laksda Adisucipto No.38, Demangan, Kec.",
+              "source_type": "web",
+              "_final_score": 0.69,
+              "_entity_score": 1
+            },
+            {
+              "title": "Hotel New Saphir Yogyakarta, Penginapan Bintang Empat Yang Cocok Untuk ...",
+              "url": "https://pergimulu.com/hotel-new-saphir-yogyakarta/",
+              "snippet": "Salah satunya adalah Hotel New Saphir Yogyakarta yang merupakan penginapan bintang empat di Jalan Laksda Adisucipto. Hotel ini cocok untuk segala jenis wisatawan dari yang bertujuan rekreasi maupun bisnis.",
+              "source_type": "web",
+              "_final_score": 0.6829,
+              "_entity_score": 1
+            },
+            {
+              "title": "Hotel New Saphir Yogyakarta, Yogyakarta (updated prices 2027)",
+              "url": "https://www.booking.com/hotel/id/saphir-yogyakarta.html",
+              "snippet": "The Hotel New Saphir Yogyakarta is within walking distance of shops, mini markets and restaurants. It is a 20-minute drive from Adi Sucipto International Airport and a 30-minute drive from Prambanan Temple.",
+              "source_type": "web",
+              "_final_score": 0.6483,
+              "_entity_score": 1
+            },
+            {
+              "title": "Hotel New Saphir Yogyakarta - Tripadvisor",
+              "url": "https://www.tripadvisor.com/Hotel_Review-g294230-d307067-Reviews-Hotel_New_Saphir_Yogyakarta-Yogyakarta_Region_Java.html",
+              "snippet": "Book Hotel New Saphir Yogyakarta, Yogyakarta Region on Tripadvisor: See 266 traveler reviews, 214 candid photos, and great deals for Hotel New Saphir Yogyakarta, ranked #127 of 352 hotels in Yogyakarta Region and rated 3 of 5 at Tripadvisor",
+              "source_type": "web",
+              "_final_score": 0.6333,
+              "_entity_score": 1
+            }
+          ],
+          "raw_result_count": 10,
+          "relevant_result_count": 10,
+          "error": null,
+          "risk_flags": [],
+          "fallback_kind": "intelligent_search",
+          "fallback_index": 0
+        }
+      ],
+      "social_searches": [],
+      "evidence_counts": {
+        "relevant_results": 10,
+        "by_source_type": {
+          "web": 9,
+          "official": 1
+        },
+        "successful_requests": 1,
+        "empty_searches": 0,
+        "no_relevant_searches": 0,
+        "unavailable_searches": 0,
+        "digital_footprint": "strong",
+        "official_presence": true,
+        "marketplace_presence": false,
+        "social_presence": false,
+        "maps_presence": false
+      },
+      "risk_flags": [],
+      "safe_flags": [
+        "Website memuat indikasi halaman perusahaan/karir.",
+        "Location candidate match: hasil web memuat token lokasi 'adisucipto, laksda, yogyakarta'; belum membuktikan alamat exact.",
+        "Ditemukan 9 hasil web publik.",
+        "Ditemukan 1 jejak publik.",
+        "Ditemukan indikasi website/halaman resmi perusahaan."
+      ],
+      "neutral_notes": [],
+      "platform_evidence": {
+        "ok": true,
+        "query": "HOTEL NEW SAPHIR YOGYAKARTA Jl. Laksda Adisucipto No. 38, Yogyakarta",
+        "platforms": {
+          "google_maps": {
+            "count": 0,
+            "results": []
+          },
+          "instagram": {
+            "count": 0,
+            "results": []
+          },
+          "facebook": {
+            "count": 0,
+            "results": []
+          },
+          "tiktok": {
+            "count": 0,
+            "results": []
+          },
+          "twitter": {
+            "count": 0,
+            "results": []
+          },
+          "job_portal": {
+            "count": 0,
+            "results": []
+          },
+          "web_search": {
+            "count": 10,
+            "results": [
+              {
+                "title": "Hotel New Saphir Yogyakarta - 4-Star Hotel in City Center",
+                "url": "https://www.newsaphirhotel.com/",
+                "snippet": "Located in a prime location on Jalan Laksda Adisucipto, the New Saphir Hotel Yogyakarta combines modern 4-star comfort with the warm hospitality characteristic of Yogyakarta. Just a few minutes from renowned shopping centers, the Malioboro tourist district, and Lempuyangan Station, we offer the best",
+                "engines": [
+                  "duckduckgo",
+                  "yahoo"
+                ],
+                "score": 4,
+                "category": "general",
+                "published_date": null,
+                "_category": "web",
+                "_entity_score": 1,
+                "_location_score": 1,
+                "_final_score": 0.94
+              },
+              {
+                "title": "Hotel New Saphir Yogyakarta, Yogyakarta - Diskon s.d 50% - Traveloka",
+                "url": "https://www.traveloka.com/id-id/hotel/indonesia/hotel-new-saphir-yogyakarta-5500",
+                "snippet": "Hotel New Saphir Yogyakarta terletak di Jalan Laksda Adisucipto No. 38, Depok, Yogyakarta, Daerah Istimewa Yogyakarta, Indonesia. Hotel ini berjarak sekitar 4 km dari pusat kota Yogyakarta, sehingga memudahkan akses ke berbagai landmark populer seperti Malioboro dan Keraton Yogyakarta.",
+                "engines": [
+                  "duckduckgo",
+                  "yahoo"
+                ],
+                "score": 1.1666666666666665,
+                "category": "general",
+                "published_date": null,
+                "_category": "web",
+                "_entity_score": 1,
+                "_location_score": 1,
+                "_final_score": 0.94
+              },
+              {
+                "title": "Contact Hotel New Saphir Yogyakarta | Address & Direct Phone",
+                "url": "https://www.newsaphirhotel.com/contact-us/",
+                "snippet": "Get in touch with Hotel New Saphir Yogyakarta. Find our direct phone numbers, email addresses, central Jogja map location, and online inquiry form. We are here to assist you 24/7.",
+                "engines": [
+                  "yahoo"
+                ],
+                "score": 0.5,
+                "category": "general",
+                "published_date": null,
+                "_category": "official",
+                "_entity_score": 1,
+                "_location_score": 0.333,
+                "_final_score": 0.8833
+              },
+              {
+                "title": "Hotel New Saphir Yogyakarta - Dinas Pariwisata Daerah Istimewa Yogyakarta",
+                "url": "https://visitingjogja.jogjaprov.go.id/7989/hotel-new-saphir-yogyakarta/",
+                "snippet": "Jan 16, 2017 · Terletak di Jl. Laksda Adisucipto, Hotel New Saphir Yogyakarta hanya berjarak 10 menit dari Bandara. Dengan desain kamar yang modern, hotel ini memberikan fasilitas Live Music di Mirah Lounge setiap hari dari pukul 20.00 WIB sampai dengan pukul 23.00 WIB.",
+                "engines": [
+                  "duckduckgo",
+                  "yahoo"
+                ],
+                "score": 0.6857142857142857,
+                "category": "general",
+                "published_date": null,
+                "_category": "web",
+                "_entity_score": 1,
+                "_location_score": 1,
+                "_final_score": 0.8457
+              },
+              {
+                "title": "Hotel New Saphir Yogyakarta, Yogyakarta | 2026 Updated Prices, Deals",
+                "url": "https://www.agoda.com/hotel-new-saphir-yogyakarta/hotel/yogyakarta-id.html",
+                "snippet": "In a vibrant cultural hub near Malioboro, historic markets and batik workshops, this hotel is minutes from Plaza Ambarrukmo, Galeria Mall and the Yogyakarta Monument. Relax at the stylish bar and coffee shop, swim in the heated indoor pool, or join curated local tours.",
+                "engines": [
+                  "duckduckgo",
+                  "yahoo"
+                ],
+                "score": 0.8888888888888888,
+                "category": "general",
+                "published_date": null,
+                "_category": "web",
+                "_entity_score": 1,
+                "_location_score": 0.333,
+                "_final_score": 0.84
+              },
+              {
+                "title": "Hotel New Saphir Yogyakarta | Rekomendasi Hotel Bintang 4 Terbaik - New ...",
+                "url": "https://www.newsaphirhotel.com/homepage-saphir/",
+                "snippet": "Welcome to the New Saphir Hotel in Yogyakarta Located in a prime location on Jalan Laksda Adisucipto, the New Saphir Hotel Yogyakarta combines modern 4-star comfort with the warm hospitality characteristic of Yogyakarta. Just a few minutes from renowned shopping centers, the Malioboro tourist distri",
+                "engines": [
+                  "duckduckgo"
+                ],
+                "score": 0.5,
+                "category": "general",
+                "published_date": null,
+                "_category": "web",
+                "_entity_score": 1,
+                "_location_score": 1,
+                "_final_score": 0.79
+              },
+              {
+                "title": "Hotel New Saphir Yogyakarta (New Saphir Hotel Yogyakarta) Jl ...",
+                "url": "https://dinogo.com/hotels/53549-new-saphir-hotel-yogyakarta",
+                "snippet": "Welcome to Hotel New Saphir Yogyakarta, a stylish and inviting hotel nestled in the vibrant heart of Yogyakarta. Situated at Jl. Laksda Adisucipto No.38, Demangan, Kec.",
+                "engines": [
+                  "yahoo"
+                ],
+                "score": 0.16666666666666666,
+                "category": "general",
+                "published_date": null,
+                "_category": "web",
+                "_entity_score": 1,
+                "_location_score": 1,
+                "_final_score": 0.69
+              },
+              {
+                "title": "Hotel New Saphir Yogyakarta, Penginapan Bintang Empat Yang Cocok Untuk ...",
+                "url": "https://pergimulu.com/hotel-new-saphir-yogyakarta/",
+                "snippet": "Salah satunya adalah Hotel New Saphir Yogyakarta yang merupakan penginapan bintang empat di Jalan Laksda Adisucipto. Hotel ini cocok untuk segala jenis wisatawan dari yang bertujuan rekreasi maupun bisnis.",
+                "engines": [
+                  "duckduckgo"
+                ],
+                "score": 0.14285714285714285,
+                "category": "general",
+                "published_date": null,
+                "_category": "web",
+                "_entity_score": 1,
+                "_location_score": 1,
+                "_final_score": 0.6829
+              },
+              {
+                "title": "Hotel New Saphir Yogyakarta, Yogyakarta (updated prices 2027)",
+                "url": "https://www.booking.com/hotel/id/saphir-yogyakarta.html",
+                "snippet": "The Hotel New Saphir Yogyakarta is within walking distance of shops, mini markets and restaurants. It is a 20-minute drive from Adi Sucipto International Airport and a 30-minute drive from Prambanan Temple.",
+                "engines": [
+                  "duckduckgo"
+                ],
+                "score": 0.25,
+                "category": "general",
+                "published_date": null,
+                "_category": "web",
+                "_entity_score": 1,
+                "_location_score": 0.333,
+                "_final_score": 0.6483
+              },
+              {
+                "title": "Hotel New Saphir Yogyakarta - Tripadvisor",
+                "url": "https://www.tripadvisor.com/Hotel_Review-g294230-d307067-Reviews-Hotel_New_Saphir_Yogyakarta-Yogyakarta_Region_Java.html",
+                "snippet": "Book Hotel New Saphir Yogyakarta, Yogyakarta Region on Tripadvisor: See 266 traveler reviews, 214 candid photos, and great deals for Hotel New Saphir Yogyakarta, ranked #127 of 352 hotels in Yogyakarta Region and rated 3 of 5 at Tripadvisor.",
+                "engines": [
+                  "yahoo"
+                ],
+                "score": 0.2,
+                "category": "general",
+                "published_date": null,
+                "_category": "web",
+                "_entity_score": 1,
+                "_location_score": 0.333,
+                "_final_score": 0.6333
+              }
+            ]
+          }
+        },
+        "merged_evidence": {
+          "ok": true,
+          "query": "HOTEL NEW SAPHIR YOGYAKARTA Jl. Laksda Adisucipto No. 38, Yogyakarta",
+          "results": [],
+          "summary": "",
+          "entities_found": [],
+          "has_strong_verification": false,
+          "has_scam_indicators": false,
+          "total_results": 0
+        },
+        "verification_summary": "",
+        "entities_found": [],
+        "has_strong_verification": false,
+        "has_scam_indicators": false,
+        "total_raw_results": 10,
+        "total_extracted": 0
+      },
+      "search_intelligence": {
+        "digital_footprint": "strong",
+        "official_presence": true,
+        "marketplace_presence": false,
+        "social_presence": false,
+        "maps_presence": false,
+        "scam_mentions": 0,
+        "advice_only_scam": false,
+        "top_categories": [
+          "web",
+          "official"
+        ],
+        "risk_flags": [],
+        "safe_flags": [
+          "Ditemukan indikasi website/halaman resmi perusahaan."
+        ]
+      }
+    },
+    "social": {
+      "enabled": true,
+      "probe_status": "COMPLETED",
+      "evidence_status": "NO_RELEVANT_RESULTS",
+      "platform": "social_media",
+      "query": "HOTEL NEW SAPHIR YOGYAKARTA",
+      "found": false,
+      "social_found": false,
+      "official_social_found": false,
+      "public_footprint_found": false,
+      "authenticated": false,
+      "posts": [],
+      "profiles": [],
+      "platform_hits": {
+        "instagram": false,
+        "threads": false,
+        "tiktok": false,
+        "facebook": false,
+        "x_twitter": false
+      },
+      "official_platform_hits": {
+        "instagram": false,
+        "threads": false,
+        "tiktok": false,
+        "facebook": false,
+        "x_twitter": false
+      },
+      "public_platform_hits": {
+        "instagram": false,
+        "threads": false,
+        "tiktok": false,
+        "facebook": false,
+        "x_twitter": false
+      },
+      "evidence_counts": {
+        "public_posts": 0,
+        "public_profiles": 0,
+        "official_posts": 0,
+        "by_platform": {
+          "instagram": 0,
+          "threads": 0,
+          "tiktok": 0,
+          "facebook": 0,
+          "x_twitter": 0,
+          "other": 0
+        }
+      },
+      "search_diagnostics": {
+        "platforms_requested": [
+          "instagram",
+          "threads",
+          "tiktok",
+          "facebook",
+          "x_twitter"
+        ],
+        "search_engine": "lightpanda",
+        "note": "Hasil sosial diklasifikasikan terpisah dari portal loker dan aggregator."
+      },
+      "social_searches": [],
+      "risk_flags": [],
+      "errors": []
+    },
+    "evidence_policy": {
+      "mode": "factual_sources_only",
+      "note": "Semua temuan OSINT berasal dari fetch/scrape/API nyata (WHOIS, DNS, OSM, Kaspersky Who Calls, Scrapling, dan seluruh platform media sosial). LLM reasoner dilarang mengarang fakta di luar evidence.",
+      "social": "all_platforms"
+    },
+    "fraud_network": {
+      "nodes": [
+        {
+          "id": "HOTEL NEW SAPHIR YOGYAKARTA",
+          "type": "company",
+          "risk_score": 0,
+          "status": "CLEAN"
+        },
+        {
+          "id": "New Saphir Hotel Yogyakarta",
+          "type": "company",
+          "risk_score": 0,
+          "status": "CLEAN"
+        },
+        {
+          "id": "+6282323863434",
+          "type": "phone",
+          "risk_score": 0,
+          "status": "CLEAN"
+        },
+        {
+          "id": "hrm@newsaphirhotel.com",
+          "type": "email",
+          "risk_score": 0,
+          "status": "FREE_PROVIDER"
+        },
+        {
+          "id": "hr.coordinator@newsaphirhotel.com",
+          "type": "email",
+          "risk_score": 0,
+          "status": "FREE_PROVIDER"
+        },
+        {
+          "id": "Jl. Laksda Adisucipto No. 38, Yogyakarta",
+          "type": "address",
+          "risk_score": 0,
+          "status": "VALID_GIS"
+        }
+      ],
+      "edges": [
+        {
+          "source": "+6282323863434",
+          "target": "HOTEL NEW SAPHIR YOGYAKARTA",
+          "relation": "contact_of"
+        },
+        {
+          "source": "+6282323863434",
+          "target": "New Saphir Hotel Yogyakarta",
+          "relation": "contact_of"
+        },
+        {
+          "source": "hrm@newsaphirhotel.com",
+          "target": "HOTEL NEW SAPHIR YOGYAKARTA",
+          "relation": "email_of"
+        },
+        {
+          "source": "hr.coordinator@newsaphirhotel.com",
+          "target": "HOTEL NEW SAPHIR YOGYAKARTA",
+          "relation": "email_of"
+        },
+        {
+          "source": "hrm@newsaphirhotel.com",
+          "target": "New Saphir Hotel Yogyakarta",
+          "relation": "email_of"
+        },
+        {
+          "source": "hr.coordinator@newsaphirhotel.com",
+          "target": "New Saphir Hotel Yogyakarta",
+          "relation": "email_of"
+        },
+        {
+          "source": "Jl. Laksda Adisucipto No. 38, Yogyakarta",
+          "target": "HOTEL NEW SAPHIR YOGYAKARTA",
+          "relation": "location_of"
+        },
+        {
+          "source": "Jl. Laksda Adisucipto No. 38, Yogyakarta",
+          "target": "New Saphir Hotel Yogyakarta",
+          "relation": "location_of"
+        }
+      ],
+      "cluster_id": null,
+      "entity_in_fraud_network": false,
+      "total_case_count": 0,
+      "threat_level": "LOW",
+      "status": "NO_DATA"
+    },
+    "timing": {
+      "osint_parallel_sec": 28.842
+    },
+    "nlp": {
+      "enabled": true,
+      "status": "RULE_BASED_HEURISTIC",
+      "reason": "Taksonomi Pola Penipuan Kerja Indonesia (Paper22, GASA 2024, UNODC 2023)"
+    },
+    "syndicate_analysis": {
+      "syndicate_detected": false,
+      "syndicate_alerts": [],
+      "historical_associations_count": 0,
+      "data_source": "no_historical_data",
+      "note": "Belum ada data historis untuk analisis sindikat — hasil jujur kosong."
+    },
+    "persistence_status": "SAVED"
+  },
+  "shap_explanation": {
+    "model_type": "Evidence Attribution Engine (Feature Contribution Analysis)",
+    "base_value": 12,
+    "final_risk_score": 10,
+    "evidence_confidence": null,
+    "decision_confidence": null,
+    "confidence_method": "not_calibrated",
+    "evidence_coverage_percent": null,
+    "probe_hit_rate_percent": 80,
+    "probe_applicability": {
+      "applicable": 5,
+      "positive": 4,
+      "outcomes": {
+        "whois_domain": true,
+        "phone_reputation": true,
+        "address_geocoding": true,
+        "web_evidence": true,
+        "social_media": false
+      },
+      "excluded_not_provided": [
+        "legal_registry"
+      ]
+    },
+    "decision_path": [
+      {
+        "step": "1. OCR & Entity Extraction",
+        "status": "PASS",
+        "detail": "Entitas terdeteksi: HOTEL NEW SAPHIR YOGYAKARTA; 1 no HP, 1 perusahaan, 1 alamat."
+      },
+      {
+        "step": "2. Address OSM Geocoding",
+        "status": "AREA_ONLY",
+        "detail": "Wilayah/jalan ditemukan, tetapi titik exact belum terkonfirmasi."
+      },
+      {
+        "step": "3. Phone Kaspersky Who Calls Check",
+        "status": "PASS",
+        "detail": "Tidak ditemukan laporan penipuan pada Kaspersky Who Calls."
+      },
+      {
+        "step": "4. Email Domain Infrastructure Check",
+        "status": "PASS",
+        "detail": "Domain korporat newsaphirhotel.com; SPF aktif=True, DMARC aktif=True."
+      },
+      {
+        "step": "5. Fraud Network Case Memory",
+        "status": "NO_DATA",
+        "detail": "Belum ada data historis yang cocok."
+      },
+      {
+        "step": "6. Final Risk Level Evaluation",
+        "status": "LOW",
+        "detail": "Skor risiko akhir: 10 / 100 (Risiko Rendah); bukan probabilitas."
+      }
+    ],
+    "consistency_breakdown": [
+      {
+        "factor": "company_name_match",
+        "raw_score": 100,
+        "weight": 0.25,
+        "weighted_contribution": 25
+      },
+      {
+        "factor": "address_gis_match",
+        "raw_score": 30,
+        "weight": 0.2,
+        "weighted_contribution": 6
+      },
+      {
+        "factor": "phone_reputation",
+        "raw_score": 100,
+        "weight": 0.2,
+        "weighted_contribution": 20
+      },
+      {
+        "factor": "domain_security",
+        "raw_score": 95,
+        "weight": 0.15,
+        "weighted_contribution": 14.2
+      },
+      {
+        "factor": "social_footprint",
+        "raw_score": 40,
+        "weight": 0.2,
+        "weighted_contribution": 8
+      }
+    ],
+    "dns_records": {
+      "resolver": "system resolver",
+      "provider_type": "CORPORATE_DOMAIN",
+      "domain": "newsaphirhotel.com",
+      "spf_active": true,
+      "dmarc_active": true
+    },
+    "not_verified": [
+      {
+        "item": "Legal Entity AHU / OSS",
+        "reason": "Tidak ada API publik otomatis; perlu cek manual"
+      },
+      {
+        "item": "BPJS Employment Registration",
+        "reason": "Data internal perusahaan"
+      },
+      {
+        "item": "NPWP Tax Registration",
+        "reason": "Data terproteksi regulasi"
+      }
+    ],
+    "probe_weights": [
+      {
+        "probe": "Address Geocoding (OSM GIS)",
+        "weight": 0.25,
+        "configured_weight": 0.25,
+        "effective_weight": 0.25,
+        "execution_time_ms": null,
+        "status": "AREA_ONLY",
+        "applicable": true
+      },
+      {
+        "probe": "Phone Reputation (Kaspersky Who Calls)",
+        "weight": 0.2,
+        "configured_weight": 0.2,
+        "effective_weight": 0.2,
+        "execution_time_ms": null,
+        "status": "CLEAN",
+        "applicable": true,
+        "url": "https://whocalls.id.kaspersky.com/info/6282323863434"
+      },
+      {
+        "probe": "Web Evidence (SERP)",
+        "weight": 0.2,
+        "configured_weight": 0.2,
+        "effective_weight": 0.2,
+        "execution_time_ms": null,
+        "status": "VALID",
+        "applicable": true
+      },
+      {
+        "probe": "Email Security (DNS MX/SPF)",
+        "weight": 0.2,
+        "configured_weight": 0.2,
+        "effective_weight": 0.2,
+        "execution_time_ms": null,
+        "status": "CORPORATE",
+        "applicable": true
+      },
+      {
+        "probe": "Legal Entity (AHU/OSS)",
+        "weight": 0.15,
+        "configured_weight": 0.15,
+        "effective_weight": 0.15,
+        "execution_time_ms": 0,
+        "status": "UNKNOWN",
+        "applicable": true,
+        "note": "Tidak ada API publik otomatis"
+      }
+    ],
+    "community_bootstrap_strategy": {
+      "current_stage": "STAGE_1_PUBLIC_OSINT_BOOTSTRAP",
+      "public_osint_references_mined": 5,
+      "verified_candidate_reviews_count": 0,
+      "bootstrap_note": "Menggunakan rujukan OSINT publik sebelum ulasan pelamar terakumulasi."
+    },
+    "deduplication_engine": {
+      "sha256_text_hash": "n/a (dihitung di layer router/cache)",
+      "perceptual_hash_phash": "n/a (memerlukan imagehash; tidak dihitung di explainer)",
+      "crop_compression_invariant": false
+    },
+    "networkx_graph_analytics": {
+      "algorithm": "Connected Component Subgraph Analysis (nx.connected_components)",
+      "subgraph_id": "n/a (tidak ada kluster)",
+      "nodes_in_cluster": 6,
+      "entity_in_fraud_network": false,
+      "threat_level": "LOW",
+      "shared_identity_reuse": false
+    },
+    "checked_at": "2026-10-17T20:23:57.176623+00:00",
+    "ethical_safeguards": {
+      "human_review_recommended": true,
+      "cost_of_error": {
+        "false_positive_fatal_cost": 5,
+        "false_negative_cost": 10
+      }
+    },
+    "verdict": "AMAN",
+    "feature_contributions": [
+      {
+        "feature": "Alamat Fisik Belum Terverifikasi Exact",
+        "feature_key": "address_not_verified",
+        "value": 1,
+        "contribution": 10,
+        "impact": "risk",
+        "description": "Alamat tercantum, tetapi belum ditemukan kecocokan jalan dan nomor yang exact di peta",
+        "delta": 10
+      },
+      {
+        "feature": "Hasil Web Relevan Ditemukan",
+        "feature_key": "company_found_web",
+        "value": 1,
+        "contribution": 10,
+        "impact": "safe",
+        "description": "Ditemukan 10 hasil web relevan dengan nama perusahaan; keterkaitan resmi belum terverifikasi.",
+        "delta": -10
+      },
+      {
+        "feature": "Penyesuaian Penalaran AI",
+        "feature_key": "model_calibration",
+        "value": -2,
+        "contribution": 2,
+        "impact": "safe",
+        "description": "Penalaran AI atas seluruh teks dan bukti menilai risiko lebih rendah daripada jumlah bobot bukti terukur. Selisihnya ditampilkan terpisah agar skor akhir = nilai dasar + Σ kontribusi.",
+        "delta": -2
+      }
+    ],
+    "waterfall_chart": [
+      {
+        "label": "Alamat Fisik Belum Terverifikasi Exact",
+        "value": 10,
+        "cumulative": 22,
+        "impact": "risk",
+        "delta": 10
+      },
+      {
+        "label": "Hasil Web Relevan Ditemukan",
+        "value": 10,
+        "cumulative": 12,
+        "impact": "safe",
+        "delta": -10
+      },
+      {
+        "label": "Penyesuaian Penalaran AI",
+        "value": 2,
+        "cumulative": 10,
+        "impact": "safe",
+        "delta": -2
+      }
+    ],
+    "evidence_delta": 0,
+    "calibration_delta": -2,
+    "top_risk_features": [
+      "Alamat Fisik Belum Terverifikasi Exact"
+    ],
+    "top_safe_features": [
+      "Hasil Web Relevan Ditemukan"
+    ],
+    "summary": "Berdasarkan bukti publik independen yang berhasil dikumpulkan, lowongan ini dinilai aman — tidak ditemukan indikator kuat penipuan. Sistem tidak dapat menjamin legalitas perusahaan secara absolut karena beberapa sumber resmi (seperti registri AHU/OSS) tidak tersedia secara publik."
+  }
+}
