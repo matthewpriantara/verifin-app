@@ -1,21 +1,21 @@
 {
   "verdict": "WASPADA",
   "risk_score": 50,
-  "case_id": "9f24c25b-a4d6-453e-bb31-049f22b81811",
-  "summary": "Lowongan berstatus waspada karena mengklaim pabrik tanpa menyebutkan identitas perusahaan dan pendaftaran hanya melalui WhatsApp.",
+  "case_id": "f29bc146-c4a0-4f96-871a-12a3c29532dc",
+  "summary": "Lowongan mengaku pabrik tanpa menyebutkan nama entitas resmi dan hanya menyediakan kontak WhatsApp pribadi.",
   "risk_factors": [
     "Mengaku pabrik tanpa menyebutkan nama perusahaan",
-    "Pendaftaran hanya melalui kontak WhatsApp",
-    "Identitas legalitas pemberi kerja tidak jelas"
+    "Pendaftaran hanya melalui nomor WhatsApp pribadi",
+    "Alamat spesifik pabrik tidak dicantumkan"
   ],
   "safe_factors": [
-    "Tidak ada indikasi permintaan biaya transfer",
-    "Nomor telepon bersih dari laporan penipuan"
+    "Nomor kontak bersih dari laporan penipuan",
+    "Tidak ada indikasi permintaan biaya transfer"
   ],
   "recommendations": [
-    "Tanyakan nama resmi dan legalitas pabrik",
-    "Jangan kirim dokumen identitas pribadi sensitif",
-    "Tolak tegas jika diminta membayar biaya"
+    "Tanyakan nama pabrik dan lokasi spesifiknya",
+    "Jangan kirim dokumen pribadi yang sensitif",
+    "Tolak pembayaran biaya administrasi apa pun"
   ],
   "entities": {
     "companies": [],
@@ -245,7 +245,7 @@
       "status": "COMPLETED"
     },
     "timing": {
-      "osint_parallel_sec": 2.33
+      "osint_parallel_sec": 2.687
     },
     "nlp": {
       "enabled": true,
@@ -438,7 +438,7 @@
       "threat_level": "LOW",
       "shared_identity_reuse": false
     },
-    "checked_at": "2026-10-18T05:05:04.010333+00:00",
+    "checked_at": "2026-10-18T06:41:42.031112+00:00",
     "ethical_safeguards": {
       "human_review_recommended": true,
       "cost_of_error": {
@@ -449,12 +449,12 @@
     "verdict": "WASPADA",
     "feature_contributions": [
       {
-        "feature": "Pendaftaran via WhatsApp Langsung",
+        "feature": "Daftar Hanya via WhatsApp/Tautan Bio",
         "feature_key": "has_whatsapp_apply",
         "value": 1,
         "contribution": 20,
         "impact": "risk",
-        "description": "Alur rekrutmen tidak resmi — daftar langsung WA tanpa portal perusahaan",
+        "description": "Pendaftaran hanya lewat WhatsApp pribadi atau tautan di bio, tanpa email atau portal resmi perusahaan",
         "delta": 20
       },
       {
@@ -487,7 +487,7 @@
     ],
     "waterfall_chart": [
       {
-        "label": "Pendaftaran via WhatsApp Langsung",
+        "label": "Daftar Hanya via WhatsApp/Tautan Bio",
         "value": 20,
         "cumulative": 32,
         "impact": "risk",
@@ -518,7 +518,7 @@
     "evidence_delta": 36,
     "calibration_delta": 2,
     "top_risk_features": [
-      "Pendaftaran via WhatsApp Langsung",
+      "Daftar Hanya via WhatsApp/Tautan Bio",
       "Kata Kunci Penipuan (1 match)",
       "Gaji Ditawarkan tanpa Identitas Perusahaan"
     ],

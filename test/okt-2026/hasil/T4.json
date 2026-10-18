@@ -1,20 +1,21 @@
 {
   "verdict": "WASPADA",
-  "risk_score": 68,
-  "case_id": "11832db7-5b52-4d85-a963-f0a1d14fe5d8",
-  "summary": "Lowongan mencatut nama BUMN PT Pos Indonesia namun pendaftaran hanya diarahkan ke WhatsApp dan tautan bio.",
+  "risk_score": 65,
+  "case_id": "1ec34af5-1ab1-414b-89f1-7dd98b04440e",
+  "summary": "Lowongan mencatut nama BUMN PT Pos Indonesia namun pendaftaran hanya diarahkan melalui tautan bio dan WhatsApp pribadi.",
   "risk_factors": [
-    "Mencatut nama BUMN lewat pendaftaran WhatsApp",
-    "Banyak posisi beragam tanpa rincian resmi",
-    "Tidak memakai portal rekrutmen resmi BUMN"
+    "Mencatut nama BUMN lewat WhatsApp tidak resmi",
+    "Pendaftaran bukan melalui portal karir resmi BUMN",
+    "Posisi jabatan terlalu beragam dan tidak lazim"
   ],
   "safe_factors": [
-    "Tidak ada permintaan transfer biaya langsung"
+    "Tidak ada permintaan biaya pada teks",
+    "Mencantumkan nama badan usaha yang terdaftar"
   ],
   "recommendations": [
-    "Lamar hanya melalui situs rekrutmen resmi",
-    "Jangan kirim data pribadi via WhatsApp",
-    "Hindari mengeklik tautan bio tidak resmi"
+    "Cek lowongan resmi di situs PT Pos",
+    "Jangan kirim dokumen pribadi lewat WhatsApp",
+    "Waspadai penipuan biaya akomodasi atau travel"
   ],
   "entities": {
     "companies": [
@@ -497,9 +498,9 @@
       "fraud_case_count": 0,
       "matched_entities": [],
       "network_graph_summary": {
-        "total_nodes": 21,
-        "total_edges": 17,
-        "case_nodes": 6,
+        "total_nodes": 13,
+        "total_edges": 10,
+        "case_nodes": 3,
         "fraud_cases": 1
       },
       "syndicate_analysis": {
@@ -519,7 +520,7 @@
       "status": "COMPLETED"
     },
     "timing": {
-      "osint_parallel_sec": 11.837
+      "osint_parallel_sec": 12.528
     },
     "nlp": {
       "enabled": true,
@@ -538,7 +539,7 @@
   "shap_explanation": {
     "model_type": "Evidence Attribution Engine (Feature Contribution Analysis)",
     "base_value": 12,
-    "final_risk_score": 68,
+    "final_risk_score": 65,
     "evidence_confidence": null,
     "decision_confidence": null,
     "confidence_method": "not_calibrated",
@@ -587,7 +588,7 @@
       {
         "step": "6. Final Risk Level Evaluation",
         "status": "MEDIUM",
-        "detail": "Skor risiko akhir: 68 / 100 (Risiko Sedang); bukan probabilitas."
+        "detail": "Skor risiko akhir: 65 / 100 (Risiko Sedang); bukan probabilitas."
       }
     ],
     "consistency_breakdown": [
@@ -712,7 +713,7 @@
       "threat_level": "LOW",
       "shared_identity_reuse": false
     },
-    "checked_at": "2026-10-18T05:17:01.524620+00:00",
+    "checked_at": "2026-10-18T06:43:15.858770+00:00",
     "ethical_safeguards": {
       "human_review_recommended": true,
       "cost_of_error": {
@@ -723,22 +724,22 @@
     "verdict": "WASPADA",
     "feature_contributions": [
       {
-        "feature": "Penyesuaian Penalaran AI",
-        "feature_key": "model_calibration",
-        "value": 21,
-        "contribution": 21,
-        "impact": "risk",
-        "description": "Penalaran AI atas seluruh teks dan bukti menilai risiko lebih tinggi daripada jumlah bobot bukti terukur. Selisihnya ditampilkan terpisah agar skor akhir = nilai dasar + Σ kontribusi.",
-        "delta": 21
-      },
-      {
-        "feature": "Pendaftaran via WhatsApp Langsung",
+        "feature": "Daftar Hanya via WhatsApp/Tautan Bio",
         "feature_key": "has_whatsapp_apply",
         "value": 1,
         "contribution": 20,
         "impact": "risk",
-        "description": "Alur rekrutmen tidak resmi — daftar langsung WA tanpa portal perusahaan",
+        "description": "Pendaftaran hanya lewat WhatsApp pribadi atau tautan di bio, tanpa email atau portal resmi perusahaan",
         "delta": 20
+      },
+      {
+        "feature": "Penyesuaian Penalaran AI",
+        "feature_key": "model_calibration",
+        "value": 18,
+        "contribution": 18,
+        "impact": "risk",
+        "description": "Penalaran AI atas seluruh teks dan bukti menilai risiko lebih tinggi daripada jumlah bobot bukti terukur. Selisihnya ditampilkan terpisah agar skor akhir = nilai dasar + Σ kontribusi.",
+        "delta": 18
       },
       {
         "feature": "Nama BUMN/Tbk, Daftar lewat WhatsApp",
@@ -752,31 +753,31 @@
     ],
     "waterfall_chart": [
       {
-        "label": "Penyesuaian Penalaran AI",
-        "value": 21,
-        "cumulative": 33,
-        "impact": "risk",
-        "delta": 21
-      },
-      {
-        "label": "Pendaftaran via WhatsApp Langsung",
+        "label": "Daftar Hanya via WhatsApp/Tautan Bio",
         "value": 20,
-        "cumulative": 53,
+        "cumulative": 32,
         "impact": "risk",
         "delta": 20
       },
       {
+        "label": "Penyesuaian Penalaran AI",
+        "value": 18,
+        "cumulative": 50,
+        "impact": "risk",
+        "delta": 18
+      },
+      {
         "label": "Nama BUMN/Tbk, Daftar lewat WhatsApp",
         "value": 15,
-        "cumulative": 68,
+        "cumulative": 65,
         "impact": "risk",
         "delta": 15
       }
     ],
     "evidence_delta": 35,
-    "calibration_delta": 21,
+    "calibration_delta": 18,
     "top_risk_features": [
-      "Pendaftaran via WhatsApp Langsung",
+      "Daftar Hanya via WhatsApp/Tautan Bio",
       "Nama BUMN/Tbk, Daftar lewat WhatsApp"
     ],
     "top_safe_features": [],

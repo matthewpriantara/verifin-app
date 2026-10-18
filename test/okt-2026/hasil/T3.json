@@ -1,21 +1,20 @@
 {
   "verdict": "BAHAYA",
   "risk_score": 95,
-  "case_id": "daf32545-8d86-453f-b35d-c3b847f74ba5",
-  "summary": "Lowongan ini merupakan penipuan bermodus pencatutan nama BUMN Pertamina dengan pemerasan uang melalui reservasi tiket travel fiktif.",
+  "case_id": "9c2457d1-7676-4a85-9969-85459f105b21",
+  "summary": "Lowongan ini terindikasi kuat penipuan modus pemesanan tiket berbayar dengan mencatut nama PT Pertamina.",
   "risk_factors": [
-    "Kewajiban transfer tiket melalui agen travel tertentu.",
-    "Pencatutan nama BUMN via kontak WhatsApp pribadi.",
-    "Modus penipuan seleksi berkedok penggantian biaya travel."
+    "Wajib bayar tiket dengan modus reimburse",
+    "Mencatut BUMN melalui kontak WhatsApp pribadi",
+    "Undangan seleksi palsu meminta transfer uang"
   ],
   "safe_factors": [
-    "Nomor telepon belum tercatat laporan penipuan publik.",
-    "Alamat fisik mencatut nama gedung kantor nyata."
+    "Nomor telepon bersih di Kaspersky Who Calls",
+    "Nama jalan terkonfirmasi di peta digital"
   ],
   "recommendations": [
-    "Jangan transfer uang tiket atau biaya apa pun.",
-    "Abaikan surat panggilan dan segera blokir kontak.",
-    "Verifikasi informasi rekrutmen di situs resmi Pertamina."
+    "Jangan transfer uang untuk tiket atau akomodasi",
+    "Abaikan dan blokir kontak pengirim pesan"
   ],
   "entities": {
     "companies": [
@@ -28,7 +27,7 @@
     "emails": [],
     "urls": [],
     "addresses": [
-      "Gedung Perwira [...] 2 Jl. [...] Merdeka Timur [...], Jakarta Pusat 10110. Indonesia"
+      "Gedung Perwira [...] 2 Jl. [...] Merdeka Timur [...], Jakarta Pusat 10110"
     ],
     "location_candidates": [
       "Jakarta Pusat"
@@ -48,31 +47,32 @@
     },
     "address_validations": [
       {
-        "address_input": "Gedung Perwira [...] 2 Jl. [...] Merdeka Timur [...], Jakarta Pusat 10110. Indonesia",
+        "address_input": "Gedung Perwira [...] 2 Jl. [...] Merdeka Timur [...], Jakarta Pusat 10110",
         "company_name_input": "PT Pertamina (Persero)",
         "address_found": true,
         "address_details": {
           "found": true,
           "probe_status": "COMPLETED",
           "evidence_status": "FOUND",
-          "lat": -6.1934421,
-          "lon": 106.821941,
-          "display_name": "Plaza Indonesia, Jalan Haji Mohammad Saleh Ishak, RW 05, Gondangdia, Menteng, Jakarta Pusat, Daerah Khusus Ibukota Jakarta, 10350, Indonesia",
+          "lat": -6.1817,
+          "lon": 106.8207194,
+          "display_name": "Bank Indonesia, Gambir, Jakarta Pusat, Daerah Khusus Ibukota Jakarta, 10110, Indonesia",
           "country": "Indonesia",
-          "confidence_score": 0,
-          "matched_query": "Jakarta Pusat 10110. Indonesia, Indonesia",
-          "google_maps_url": "https://www.google.com/maps/search/?api=1&query=PT+Pertamina+%28Persero%29%2C+Gedung+Perwira+%5B...%5D+2+Jl.+%5B...%5D+Merdeka+Timur+%5B...%5D%2C+Jakarta+Pusat+10110.+Indonesia",
-          "osm_url": "https://www.openstreetmap.org/?mlat=-6.1934421&mlon=106.821941&zoom=17",
+          "confidence_score": 0.536,
+          "matched_query": "Jakarta Pusat 10110, Indonesia",
+          "google_maps_url": "https://www.google.com/maps/search/?api=1&query=PT+Pertamina+%28Persero%29%2C+Gedung+Perwira+%5B...%5D+2+Jl.+%5B...%5D+Merdeka+Timur+%5B...%5D%2C+Jakarta+Pusat+10110",
+          "osm_url": "https://www.openstreetmap.org/?mlat=-6.1817&mlon=106.8207194&zoom=17",
           "match_level": "area",
           "coordinates_exact": false,
           "house_number_match": false,
           "street_match": false,
-          "token_score": 0.286,
+          "token_score": 0.429,
           "matched_tokens": [
+            "10110",
             "jakarta",
             "pusat"
           ],
-          "coordinate_confidence": 0
+          "coordinate_confidence": 0.536
         },
         "risk_signals": [],
         "safe_signals": [],
@@ -84,7 +84,7 @@
           "found": true,
           "method": "google_maps_serp",
           "match_score": 1,
-          "matched_snippet": "kantor pusat pertamina berlokasi di mana? ini alamatnya 1. kantor pusat pertamina kantor pusat pt pertamina (persero) terletak di gedung perwira 6 lantai 2 di jalan medan merdeka timur 1a, jakarta pus",
+          "matched_snippet": "kantor pusat pertamina berlokasi di mana? ini alamatnya jul 1, 2022 · 1. kantor pusat pertamina kantor pusat pt pertamina (persero) terletak di gedung perwira 6 lantai 2 di jalan medan merdeka timur 1",
           "maps_match": false,
           "maps_url": null,
           "lat": null,
@@ -94,7 +94,7 @@
           "street_match": false,
           "house_number_match": false,
           "address_match_level": "none",
-          "discovered_street": "jl. medan merdeka timur no"
+          "discovered_street": "jalan medan merdeka timur 1a"
         },
         "business_found": true
       }
@@ -147,19 +147,19 @@
         },
         "stats": {
           "search_count": 1,
-          "public_mentions": 10,
+          "public_mentions": 6,
           "fraud_related_mentions": 0,
           "legality_mentions": 0,
           "successful_requests": 1,
-          "relevant_results": 4,
-          "cross_service_match_count": 10,
+          "relevant_results": 2,
+          "cross_service_match_count": 6,
           "social_public_mention_count": 0,
           "public_mentions_source": "web_evidence"
         },
         "neutral_notes": [],
         "risk_flags": [],
         "safe_flags": [
-          "Ditemukan 4 jejak publik di search (bukan klaim legalitas AHU)."
+          "Ditemukan 2 jejak publik di search (bukan klaim legalitas AHU)."
         ]
       }
     ],
@@ -179,15 +179,7 @@
           "status": "FOUND",
           "results": [
             {
-              "title": "Sejarah Dibalik Kantor Pusat Pertamina, Berdiri Sejak 1937 dan Diakui ...",
-              "url": "https://jambi.tribunnews.com/2023/07/17/sejarah-dibalik-kantor-pusat-pertamina-berdiri-sejak-1937-dan-diakui-sebagai-bangunan-cagar-budaya",
-              "snippet": "Jul 17, 2023 · Gedung-gedung tersebut memiliki sejarah yang panjang, dimulai dengan berdirinya gedung utama dan gedung Annex pada tahun 1937. Menurut keputusan Gubernur DKI Jakarta Nomor 475 Tahun 1993, semua...",
-              "source_type": "news",
-              "_final_score": 0.95,
-              "_entity_score": 1
-            },
-            {
-              "title": "Gedung Perwira Pertamina, Cagar Budaya Bekas Perusahaan Minyak Belanda",
+              "title": "Gedung Perwira Pertamina, Cagar Budaya Bekas Perusahaan ...",
               "url": "https://www.cnnindonesia.com/gaya-hidup/20240307083151-269-1071456/gedung-perwira-pertamina-cagar-budaya-bekas-perusahaan-minyak-belanda",
               "snippet": "Mar 7, 2024 · Gedung ini berada di Jalan Perwira 6, yang berdekatan dengan Jalan Medan Merdeka Timur, Gambir, Jakarta Pusat. Gedung Perwira ditetapkan sebagai cagar budaya berdasarkan keputusan Gubernur DKI Jakarta Nomor 475 Tahun 1993.",
               "source_type": "web",
@@ -195,27 +187,27 @@
               "_entity_score": 1
             },
             {
-              "title": "Mengungkap Sejarah Gedung Pertamina yang Bekas Markas Penjajah - detikcom",
+              "title": "Kantor Pusat Pertamina Berlokasi di Mana? Ini Alamatnya",
+              "url": "https://kumparan.com/berita-bisnis/kantor-pusat-pertamina-berlokasi-di-mana-ini-alamatnya-1yN7MCm7NHy",
+              "snippet": "Jul 1, 2022 · 1. Kantor Pusat Pertamina Kantor pusat PT Pertamina (Persero) terletak di Gedung Perwira 6 lantai 2 di Jalan Medan Merdeka Timur 1A, Jakarta Pusat 10110.",
+              "source_type": "web",
+              "_final_score": 0.79,
+              "_entity_score": 1
+            },
+            {
+              "title": "Sejarah Dibalik Kantor Pusat Pertamina, Berdiri Sejak 1937 ...",
+              "url": "https://jambi.tribunnews.com/2023/07/17/sejarah-dibalik-kantor-pusat-pertamina-berdiri-sejak-1937-dan-diakui-sebagai-bangunan-cagar-budaya",
+              "snippet": "Jul 17, 2023 · Gedung-gedung tersebut memiliki sejarah yang panjang, dimulai dengan berdirinya gedung utama dan gedung Annex pada tahun 1937. Menurut keputusan Gubernur DKI Jakarta Nomor 475 Tahun 1993, semua...",
+              "source_type": "news",
+              "_final_score": 0.75,
+              "_entity_score": 1
+            },
+            {
+              "title": "Mengungkap Sejarah Gedung Pertamina yang Bekas Markas Penjajah",
               "url": "https://www.detik.com/properti/berita/d-7360714/mengungkap-sejarah-gedung-pertamina-yang-bekas-markas-penjajah",
               "snippet": "May 28, 2024 · Gedung Pertamina memiliki sejarah panjang hingga ke masa kolonial Belanda sebelum menjadi kantor pusat perusahaan energi PT Pertamina (Persero). Gedung ini berada di Jl. Medan Merdeka Timur No. 1 atau Jl. Perwira No. 2 yang s",
               "source_type": "news",
-              "_final_score": 0.9033,
-              "_entity_score": 1
-            },
-            {
-              "title": "Gedung Perwira di Kantor Pusat Lama PT Pertamina Jakarta: Cagar Budaya ...",
-              "url": "https://www.suara.com/bisnis/2024/05/01/074707/gedung-perwira-di-kantor-pusat-lama-pt-pertamina-jakarta-cagar-budaya-dukung-produktivitas-pekerja",
-              "snippet": "Suara.com - Gedung Perwira berlokasi di kompleks kantor pusat lama PT Pertamina, Jakarta. Bangunan ini telah mengukir sejarah yang lekat dengan pertumbuhan perusahaan dalam mengelola minyak dan gas bumi Indonesia, sehingga senantiasa mendap",
-              "source_type": "web",
-              "_final_score": 0.8924,
-              "_entity_score": 1
-            },
-            {
-              "title": "Gedung Perwira. 2 PT. Pertamina (Persero Tbk) | Bank | Jakarta",
-              "url": "https://id.top10place.com/gedung-perwira-2-pt-pertamina-persero-tbk-1517416233.html",
-              "snippet": "How popular is Gedung Perwira. 2 PT. Pertamina (Persero Tbk) in Jakarta - View reviews, ratings, location maps, contact details",
-              "source_type": "official",
-              "_final_score": 0.78,
+              "_final_score": 0.7433,
               "_entity_score": 1
             },
             {
@@ -223,44 +215,20 @@
               "url": "https://www.detik.com/edu/foto/d-7228177/menilik-sejarah-gedung-perwira-pertamina-yang-jadi-cagar-budaya",
               "snippet": "Mar 6, 2024 · Setelah kemerdekaan, gedung bersejarah ini digunakan sebagai kantor staf umum TNI Angkatan Darat pada tahun 1950-an. Kemudian, pada tahun 1957, gedung ini diserahkan kepada PT Pertamina untuk dijadikan kantor pusat hingga saat",
               "source_type": "news",
-              "_final_score": 0.7267,
+              "_final_score": 0.7095,
               "_entity_score": 1
             },
             {
-              "title": "PT Pertamina (Persero) - RSUBIDADARI.ID",
-              "url": "https://www.rsubidadari.id/perusahaan/pt-pertamina-persero-2/",
-              "snippet": "PT Pertamina (Persero) adalah perusahaan energi nasional Indonesia yang berperan penting dalam memenuhi kebutuhan energi dan mendukung pertumbuhan ekonomi negara.",
+              "title": "Gedung Perwira di Kantor Pusat Lama PT Pertamina Jakarta ...",
+              "url": "https://www.suara.com/bisnis/2024/05/01/074707/gedung-perwira-di-kantor-pusat-lama-pt-pertamina-jakarta-cagar-budaya-dukung-produktivitas-pekerja",
+              "snippet": "May 1, 2024 · Lewat peremajaan serta perbaikan, diharapkan Gedung Perwira yang berada di kawasan ring satu, dekat Istana Presiden ini tetap aman, nyaman serta mampu mendukung produktivitas kerja para perwira Pertamina.",
               "source_type": "web",
-              "_final_score": 0.69,
-              "_entity_score": 1
-            },
-            {
-              "title": "Kantor Pusat PT Pertamina (Persero) Gedung Perwira 6 Lantai 2 Jl.",
-              "url": "https://startup.jobs/kantor-pusat-pt-pertamina-persero-gedung-perwira-6-lantai-2-jl-medan-merdeka-timur-1a-jakarta-pusat-10110-humanity-2-4144709",
-              "snippet": "PT Pertamina (Persero) merupakan Badan Usaha Milik Negara (BUMN) yang bergerak di bidang energi terintegrasi di Indonesia. Daftar Online : https://bit.ly/InfoBUMNPertamina",
-              "source_type": "web",
-              "_final_score": 0.69,
-              "_entity_score": 1
-            },
-            {
-              "title": "Kantor Pusat Pertamina Berlokasi di Mana? Ini Alamatnya",
-              "url": "https://kumparan.com/berita-bisnis/kantor-pusat-pertamina-berlokasi-di-mana-ini-alamatnya-1yN7MCm7NHy",
-              "snippet": "1. Kantor Pusat Pertamina Kantor pusat PT Pertamina (Persero) terletak di Gedung Perwira 6 lantai 2 di Jalan Medan Merdeka Timur 1A, Jakarta Pusat 10110.",
-              "source_type": "web",
-              "_final_score": 0.6733,
-              "_entity_score": 1
-            },
-            {
-              "title": "How to Get to PT. Pertamina (Persero) - Gedung Perwira 2-4 in ... - Moovit",
-              "url": "https://moovitapp.com/index/en/public_transit-PT_Pertamina_Persero_Gedung_Perwira_2_4-Jakarta-site_80264921-2044",
-              "snippet": "How to get to PT. Pertamina (Persero) - Gedung Perwira 2-4 by bus? Click on the bus route to see step by step directions with maps, line arrival times and updated time schedules.",
-              "source_type": "web",
-              "_final_score": 0.6233,
+              "_final_score": 0.6567,
               "_entity_score": 1
             }
           ],
-          "raw_result_count": 10,
-          "relevant_result_count": 10,
+          "raw_result_count": 6,
+          "relevant_result_count": 6,
           "error": null,
           "risk_flags": [],
           "fallback_kind": "intelligent_search",
@@ -269,42 +237,36 @@
       ],
       "social_searches": [],
       "evidence_counts": {
-        "relevant_results": 10,
+        "relevant_results": 6,
         "by_source_type": {
-          "news": 3,
-          "web": 6,
-          "official": 1
+          "web": 3,
+          "news": 3
         },
         "successful_requests": 1,
         "empty_searches": 0,
         "no_relevant_searches": 0,
         "unavailable_searches": 0,
         "digital_footprint": "strong",
-        "official_presence": true,
+        "official_presence": false,
         "marketplace_presence": false,
         "social_presence": false,
         "maps_presence": false
       },
       "risk_flags": [],
       "safe_flags": [
-        "Location candidate match: hasil web memuat token lokasi 'gedung, jakarta, pusat'; belum membuktikan alamat exact.",
         "Location candidate match: hasil web memuat token lokasi 'gedung, jakarta, merdeka, perwira, pusat, timur'; belum membuktikan alamat exact.",
-        "Location candidate match: hasil web memuat token lokasi 'gedung, merdeka, perwira, pusat, timur'; belum membuktikan alamat exact.",
-        "Location candidate match: hasil web memuat token lokasi 'gedung, indonesia, jakarta, perwira, pusat'; belum membuktikan alamat exact.",
-        "Location candidate match: hasil web memuat token lokasi 'gedung, jakarta, perwira'; belum membuktikan alamat exact.",
-        "Location candidate match: hasil web memuat token lokasi 'gedung, merdeka, perwira, pusat'; belum membuktikan alamat exact.",
-        "Location candidate match: hasil web memuat token lokasi 'gedung, indonesia, perwira, pusat'; belum membuktikan alamat exact.",
         "Location candidate match: hasil web memuat token lokasi '10110, gedung, jakarta, merdeka, perwira, pusat, timur'; belum membuktikan alamat exact.",
-        "Location candidate match: hasil web memuat token lokasi 'gedung, perwira'; belum membuktikan alamat exact.",
-        "Ditemukan 3 jejak publik.",
-        "Ditemukan 6 hasil web publik.",
-        "Ditemukan 1 jejak publik.",
-        "Ditemukan indikasi website/halaman resmi perusahaan."
+        "Location candidate match: hasil web memuat token lokasi 'gedung, jakarta, pusat'; belum membuktikan alamat exact.",
+        "Location candidate match: hasil web memuat token lokasi 'gedung, merdeka, perwira, pusat, timur'; belum membuktikan alamat exact.",
+        "Location candidate match: hasil web memuat token lokasi 'gedung, merdeka, perwira, pusat'; belum membuktikan alamat exact.",
+        "Location candidate match: hasil web memuat token lokasi 'gedung, jakarta, perwira, pusat'; belum membuktikan alamat exact.",
+        "Ditemukan 3 hasil web publik.",
+        "Ditemukan 3 jejak publik."
       ],
       "neutral_notes": [],
       "platform_evidence": {
         "ok": true,
-        "query": "PT Pertamina (Persero) Gedung Perwira [...] 2 Jl. [...] Merdeka Timur [...], Jakarta Pusat 10110. Indonesia",
+        "query": "PT Pertamina (Persero) Gedung Perwira [...] 2 Jl. [...] Merdeka Timur [...], Jakarta Pusat 10110",
         "platforms": {
           "google_maps": {
             "count": 0,
@@ -331,33 +293,16 @@
             "results": []
           },
           "web_search": {
-            "count": 10,
+            "count": 6,
             "results": [
               {
-                "title": "Sejarah Dibalik Kantor Pusat Pertamina, Berdiri Sejak 1937 dan Diakui ...",
-                "url": "https://jambi.tribunnews.com/2023/07/17/sejarah-dibalik-kantor-pusat-pertamina-berdiri-sejak-1937-dan-diakui-sebagai-bangunan-cagar-budaya",
-                "snippet": "Jul 17, 2023 · Gedung-gedung tersebut memiliki sejarah yang panjang, dimulai dengan berdirinya gedung utama dan gedung Annex pada tahun 1937. Menurut keputusan Gubernur DKI Jakarta Nomor 475 Tahun 1993, semua...",
-                "engines": [
-                  "duckduckgo",
-                  "yahoo"
-                ],
-                "score": 1,
-                "category": "general",
-                "published_date": null,
-                "_category": "news",
-                "_entity_score": 1,
-                "_location_score": 0.5,
-                "_final_score": 0.95
-              },
-              {
-                "title": "Gedung Perwira Pertamina, Cagar Budaya Bekas Perusahaan Minyak Belanda",
+                "title": "Gedung Perwira Pertamina, Cagar Budaya Bekas Perusahaan ...",
                 "url": "https://www.cnnindonesia.com/gaya-hidup/20240307083151-269-1071456/gedung-perwira-pertamina-cagar-budaya-bekas-perusahaan-minyak-belanda",
                 "snippet": "Mar 7, 2024 · Gedung ini berada di Jalan Perwira 6, yang berdekatan dengan Jalan Medan Merdeka Timur, Gambir, Jakarta Pusat. Gedung Perwira ditetapkan sebagai cagar budaya berdasarkan keputusan Gubernur DKI Jakarta Nomor 475 Tahun 1993.",
                 "engines": [
-                  "duckduckgo",
                   "yahoo"
                 ],
-                "score": 4,
+                "score": 1,
                 "category": "general",
                 "published_date": null,
                 "_category": "web",
@@ -366,56 +311,39 @@
                 "_final_score": 0.94
               },
               {
-                "title": "Mengungkap Sejarah Gedung Pertamina yang Bekas Markas Penjajah - detikcom",
-                "url": "https://www.detik.com/properti/berita/d-7360714/mengungkap-sejarah-gedung-pertamina-yang-bekas-markas-penjajah",
-                "snippet": "May 28, 2024 · Gedung Pertamina memiliki sejarah panjang hingga ke masa kolonial Belanda sebelum menjadi kantor pusat perusahaan energi PT Pertamina (Persero). Gedung ini berada di Jl. Medan Merdeka Timur No. 1 atau Jl. Perwira No. 2 yang sebelumnya bernama Willemslaan Straat.",
+                "title": "Kantor Pusat Pertamina Berlokasi di Mana? Ini Alamatnya",
+                "url": "https://kumparan.com/berita-bisnis/kantor-pusat-pertamina-berlokasi-di-mana-ini-alamatnya-1yN7MCm7NHy",
+                "snippet": "Jul 1, 2022 · 1. Kantor Pusat Pertamina Kantor pusat PT Pertamina (Persero) terletak di Gedung Perwira 6 lantai 2 di Jalan Medan Merdeka Timur 1A, Jakarta Pusat 10110.",
                 "engines": [
-                  "duckduckgo",
                   "yahoo"
                 ],
-                "score": 0.7333333333333334,
-                "category": "general",
-                "published_date": null,
-                "_category": "news",
-                "_entity_score": 1,
-                "_location_score": 0.833,
-                "_final_score": 0.9033
-              },
-              {
-                "title": "Gedung Perwira di Kantor Pusat Lama PT Pertamina Jakarta: Cagar Budaya ...",
-                "url": "https://www.suara.com/bisnis/2024/05/01/074707/gedung-perwira-di-kantor-pusat-lama-pt-pertamina-jakarta-cagar-budaya-dukung-produktivitas-pekerja",
-                "snippet": "Suara.com - Gedung Perwira berlokasi di kompleks kantor pusat lama PT Pertamina, Jakarta. Bangunan ini telah mengukir sejarah yang lekat dengan pertumbuhan perusahaan dalam mengelola minyak dan gas bumi Indonesia, sehingga senantiasa mendapatkan tempat spesial.",
-                "engines": [
-                  "duckduckgo",
-                  "yahoo"
-                ],
-                "score": 0.9523809523809523,
+                "score": 0.5,
                 "category": "general",
                 "published_date": null,
                 "_category": "web",
                 "_entity_score": 1,
-                "_location_score": 0.667,
-                "_final_score": 0.8924
+                "_location_score": 1,
+                "_final_score": 0.79
               },
               {
-                "title": "Gedung Perwira. 2 PT. Pertamina (Persero Tbk) | Bank | Jakarta",
-                "url": "https://id.top10place.com/gedung-perwira-2-pt-pertamina-persero-tbk-1517416233.html",
-                "snippet": "How popular is Gedung Perwira. 2 PT. Pertamina (Persero Tbk) in Jakarta - View reviews, ratings, location maps, contact details",
+                "title": "Sejarah Dibalik Kantor Pusat Pertamina, Berdiri Sejak 1937 ...",
+                "url": "https://jambi.tribunnews.com/2023/07/17/sejarah-dibalik-kantor-pusat-pertamina-berdiri-sejak-1937-dan-diakui-sebagai-bangunan-cagar-budaya",
+                "snippet": "Jul 17, 2023 · Gedung-gedung tersebut memiliki sejarah yang panjang, dimulai dengan berdirinya gedung utama dan gedung Annex pada tahun 1937. Menurut keputusan Gubernur DKI Jakarta Nomor 475 Tahun 1993, semua...",
                 "engines": [
-                  "duckduckgo"
+                  "yahoo"
                 ],
-                "score": 0.1,
+                "score": 0.3333333333333333,
                 "category": "general",
                 "published_date": null,
-                "_category": "official",
+                "_category": "news",
                 "_entity_score": 1,
                 "_location_score": 0.5,
-                "_final_score": 0.78
+                "_final_score": 0.75
               },
               {
-                "title": "Menilik Sejarah Gedung Perwira Pertamina yang Jadi ... - detikcom",
-                "url": "https://www.detik.com/edu/foto/d-7228177/menilik-sejarah-gedung-perwira-pertamina-yang-jadi-cagar-budaya",
-                "snippet": "Mar 6, 2024 · Setelah kemerdekaan, gedung bersejarah ini digunakan sebagai kantor staf umum TNI Angkatan Darat pada tahun 1950-an. Kemudian, pada tahun 1957, gedung ini diserahkan kepada PT Pertamina untuk dijadikan kantor pusat hingga saat ini.",
+                "title": "Mengungkap Sejarah Gedung Pertamina yang Bekas Markas Penjajah",
+                "url": "https://www.detik.com/properti/berita/d-7360714/mengungkap-sejarah-gedung-pertamina-yang-bekas-markas-penjajah",
+                "snippet": "May 28, 2024 · Gedung Pertamina memiliki sejarah panjang hingga ke masa kolonial Belanda sebelum menjadi kantor pusat perusahaan energi PT Pertamina (Persero). Gedung ini berada di Jl. Medan Merdeka Timur No. 1 atau Jl. Perwira No. 2 yang sebelumnya bernama Willemslaan Straat.",
                 "engines": [
                   "yahoo"
                 ],
@@ -424,75 +352,45 @@
                 "published_date": null,
                 "_category": "news",
                 "_entity_score": 1,
+                "_location_score": 0.833,
+                "_final_score": 0.7433
+              },
+              {
+                "title": "Menilik Sejarah Gedung Perwira Pertamina yang Jadi ... - detikcom",
+                "url": "https://www.detik.com/edu/foto/d-7228177/menilik-sejarah-gedung-perwira-pertamina-yang-jadi-cagar-budaya",
+                "snippet": "Mar 6, 2024 · Setelah kemerdekaan, gedung bersejarah ini digunakan sebagai kantor staf umum TNI Angkatan Darat pada tahun 1950-an. Kemudian, pada tahun 1957, gedung ini diserahkan kepada PT Pertamina untuk dijadikan kantor pusat hingga saat ini.",
+                "engines": [
+                  "yahoo"
+                ],
+                "score": 0.14285714285714285,
+                "category": "general",
+                "published_date": null,
+                "_category": "news",
+                "_entity_score": 1,
                 "_location_score": 0.667,
-                "_final_score": 0.7267
+                "_final_score": 0.7095
               },
               {
-                "title": "PT Pertamina (Persero) - RSUBIDADARI.ID",
-                "url": "https://www.rsubidadari.id/perusahaan/pt-pertamina-persero-2/",
-                "snippet": "PT Pertamina (Persero) adalah perusahaan energi nasional Indonesia yang berperan penting dalam memenuhi kebutuhan energi dan mendukung pertumbuhan ekonomi negara.",
+                "title": "Gedung Perwira di Kantor Pusat Lama PT Pertamina Jakarta ...",
+                "url": "https://www.suara.com/bisnis/2024/05/01/074707/gedung-perwira-di-kantor-pusat-lama-pt-pertamina-jakarta-cagar-budaya-dukung-produktivitas-pekerja",
+                "snippet": "May 1, 2024 · Lewat peremajaan serta perbaikan, diharapkan Gedung Perwira yang berada di kawasan ring satu, dekat Istana Presiden ini tetap aman, nyaman serta mampu mendukung produktivitas kerja para perwira Pertamina.",
                 "engines": [
-                  "duckduckgo"
-                ],
-                "score": 0.5,
-                "category": "general",
-                "published_date": null,
-                "_category": "web",
-                "_entity_score": 1,
-                "_location_score": 0,
-                "_final_score": 0.69
-              },
-              {
-                "title": "Kantor Pusat PT Pertamina (Persero) Gedung Perwira 6 Lantai 2 Jl.",
-                "url": "https://startup.jobs/kantor-pusat-pt-pertamina-persero-gedung-perwira-6-lantai-2-jl-medan-merdeka-timur-1a-jakarta-pusat-10110-humanity-2-4144709",
-                "snippet": "PT Pertamina (Persero) merupakan Badan Usaha Milik Negara (BUMN) yang bergerak di bidang energi terintegrasi di Indonesia. Daftar Online : https://bit.ly/InfoBUMNPertamina",
-                "engines": [
-                  "duckduckgo"
-                ],
-                "score": 0.3333333333333333,
-                "category": "general",
-                "published_date": null,
-                "_category": "web",
-                "_entity_score": 1,
-                "_location_score": 0.5,
-                "_final_score": 0.69
-              },
-              {
-                "title": "Kantor Pusat Pertamina Berlokasi di Mana? Ini Alamatnya",
-                "url": "https://kumparan.com/berita-bisnis/kantor-pusat-pertamina-berlokasi-di-mana-ini-alamatnya-1yN7MCm7NHy",
-                "snippet": "1. Kantor Pusat Pertamina Kantor pusat PT Pertamina (Persero) terletak di Gedung Perwira 6 lantai 2 di Jalan Medan Merdeka Timur 1A, Jakarta Pusat 10110.",
-                "engines": [
-                  "duckduckgo"
-                ],
-                "score": 0.1111111111111111,
-                "category": "general",
-                "published_date": null,
-                "_category": "web",
-                "_entity_score": 1,
-                "_location_score": 1,
-                "_final_score": 0.6733
-              },
-              {
-                "title": "How to Get to PT. Pertamina (Persero) - Gedung Perwira 2-4 in ... - Moovit",
-                "url": "https://moovitapp.com/index/en/public_transit-PT_Pertamina_Persero_Gedung_Perwira_2_4-Jakarta-site_80264921-2044",
-                "snippet": "How to get to PT. Pertamina (Persero) - Gedung Perwira 2-4 by bus? Click on the bus route to see step by step directions with maps, line arrival times and updated time schedules.",
-                "engines": [
-                  "duckduckgo"
+                  "yahoo"
                 ],
                 "score": 0.16666666666666666,
                 "category": "general",
                 "published_date": null,
                 "_category": "web",
                 "_entity_score": 1,
-                "_location_score": 0.333,
-                "_final_score": 0.6233
+                "_location_score": 0.667,
+                "_final_score": 0.6567
               }
             ]
           }
         },
         "merged_evidence": {
           "ok": true,
-          "query": "PT Pertamina (Persero) Gedung Perwira [...] 2 Jl. [...] Merdeka Timur [...], Jakarta Pusat 10110. Indonesia",
+          "query": "PT Pertamina (Persero) Gedung Perwira [...] 2 Jl. [...] Merdeka Timur [...], Jakarta Pusat 10110",
           "results": [],
           "summary": "",
           "entities_found": [],
@@ -504,12 +402,12 @@
         "entities_found": [],
         "has_strong_verification": false,
         "has_scam_indicators": false,
-        "total_raw_results": 10,
+        "total_raw_results": 6,
         "total_extracted": 0
       },
       "search_intelligence": {
         "digital_footprint": "strong",
-        "official_presence": true,
+        "official_presence": false,
         "marketplace_presence": false,
         "social_presence": false,
         "maps_presence": false,
@@ -517,13 +415,10 @@
         "advice_only_scam": false,
         "top_categories": [
           "web",
-          "news",
-          "official"
+          "news"
         ],
         "risk_flags": [],
-        "safe_flags": [
-          "Ditemukan indikasi website/halaman resmi perusahaan."
-        ]
+        "safe_flags": []
       }
     },
     "social": {
@@ -614,7 +509,7 @@
           "status": "CLEAN"
         },
         {
-          "id": "Gedung Perwira [...] 2 Jl. [...] Merdeka Timur [...], Jakarta Pusat 10110. Indonesia",
+          "id": "Gedung Perwira [...] 2 Jl. [...] Merdeka Timur [...], Jakarta Pusat 10110",
           "type": "address",
           "risk_score": 0,
           "status": "VALID_GIS"
@@ -632,12 +527,12 @@
           "relation": "contact_of"
         },
         {
-          "source": "Gedung Perwira [...] 2 Jl. [...] Merdeka Timur [...], Jakarta Pusat 10110. Indonesia",
+          "source": "Gedung Perwira [...] 2 Jl. [...] Merdeka Timur [...], Jakarta Pusat 10110",
           "target": "PT Pertamina (Persero)",
           "relation": "location_of"
         },
         {
-          "source": "Gedung Perwira [...] 2 Jl. [...] Merdeka Timur [...], Jakarta Pusat 10110. Indonesia",
+          "source": "Gedung Perwira [...] 2 Jl. [...] Merdeka Timur [...], Jakarta Pusat 10110",
           "target": "Pertamina Group",
           "relation": "location_of"
         }
@@ -650,9 +545,9 @@
       "fraud_case_count": 0,
       "matched_entities": [],
       "network_graph_summary": {
-        "total_nodes": 17,
-        "total_edges": 14,
-        "case_nodes": 5,
+        "total_nodes": 9,
+        "total_edges": 7,
+        "case_nodes": 2,
         "fraud_cases": 0
       },
       "syndicate_analysis": {
@@ -672,7 +567,7 @@
       "status": "COMPLETED"
     },
     "timing": {
-      "osint_parallel_sec": 18.444
+      "osint_parallel_sec": 17.129
     },
     "nlp": {
       "enabled": true,
@@ -847,7 +742,7 @@
     ],
     "community_bootstrap_strategy": {
       "current_stage": "STAGE_1_PUBLIC_OSINT_BOOTSTRAP",
-      "public_osint_references_mined": 13,
+      "public_osint_references_mined": 8,
       "verified_candidate_reviews_count": 0,
       "bootstrap_note": "Menggunakan rujukan OSINT publik sebelum ulasan pelamar terakumulasi."
     },
@@ -864,7 +759,7 @@
       "threat_level": "LOW",
       "shared_identity_reuse": false
     },
-    "checked_at": "2026-10-18T05:16:21.290178+00:00",
+    "checked_at": "2026-10-18T06:42:32.003384+00:00",
     "ethical_safeguards": {
       "human_review_recommended": true,
       "cost_of_error": {
@@ -884,12 +779,12 @@
         "delta": 40
       },
       {
-        "feature": "Pendaftaran via WhatsApp Langsung",
+        "feature": "Daftar Hanya via WhatsApp/Tautan Bio",
         "feature_key": "has_whatsapp_apply",
         "value": 1,
         "contribution": 20,
         "impact": "risk",
-        "description": "Alur rekrutmen tidak resmi — daftar langsung WA tanpa portal perusahaan",
+        "description": "Pendaftaran hanya lewat WhatsApp pribadi atau tautan di bio, tanpa email atau portal resmi perusahaan",
         "delta": 20
       },
       {
@@ -938,7 +833,7 @@
         "delta": 40
       },
       {
-        "label": "Pendaftaran via WhatsApp Langsung",
+        "label": "Daftar Hanya via WhatsApp/Tautan Bio",
         "value": 20,
         "cumulative": 72,
         "impact": "risk",
@@ -977,7 +872,7 @@
     "calibration_delta": -10,
     "top_risk_features": [
       "Permintaan Biaya/Transfer",
-      "Pendaftaran via WhatsApp Langsung",
+      "Daftar Hanya via WhatsApp/Tautan Bio",
       "Kata Kunci Penipuan (1 match)"
     ],
     "top_safe_features": [],

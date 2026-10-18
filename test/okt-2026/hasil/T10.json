@@ -1,0 +1,904 @@
+{
+  "verdict": "AMAN",
+  "risk_score": 8,
+  "case_id": "31bade94-afed-40e9-b0b8-fdade2767a12",
+  "summary": "Lowongan resmi dengan domain email korporat terverifikasi dan jejak digital perusahaan manufaktur yang konsisten.",
+  "risk_factors": [
+    "Titik nomor bangunan belum presisi di peta."
+  ],
+  "safe_factors": [
+    "Domain email yang tercantum berusia belasan tahun.",
+    "Nomor kontak bersih dari laporan penipuan.",
+    "Jejak digital publik perusahaan sangat kuat."
+  ],
+  "recommendations": [
+    "Kirim lamaran ke email yang tercantum perusahaan.",
+    "Waspadai bila ada permintaan biaya seleksi."
+  ],
+  "entities": {
+    "companies": [
+      "PT KOMITRANDO EMPORIO"
+    ],
+    "contacts": [
+      "+6288706405063"
+    ],
+    "emails": [
+      "komitrando@komitrando.com"
+    ],
+    "urls": [],
+    "addresses": [
+      "Jalan Wonosari Km 8, Potorono, Banguntapan, Kabupaten Bantul"
+    ],
+    "location_candidates": [
+      "PT Komitrando Emporio (Kantor Pusat) Jalan Wonosari Km 8, Potorono, Banguntapan, Kabupaten Bantul"
+    ],
+    "salaries": []
+  },
+  "model_used": "ag/gemini-3.8-flash-medium (Evidence Reasoning)",
+  "osint": {
+    "domain": {
+      "age_days": 5344,
+      "age_years": 14.64,
+      "is_new": false,
+      "created_at": "2012-03-01",
+      "source": "whois",
+      "domain": "komitrando.com"
+    },
+    "email_security": {
+      "spf_active": true,
+      "dmarc_active": true,
+      "mx_active": true,
+      "mx_provider": "alt1.aspmx.l.google.com",
+      "domain": "komitrando.com"
+    },
+    "address_validations": [
+      {
+        "address_input": "Jalan Wonosari Km 8, Potorono, Banguntapan, Kabupaten Bantul",
+        "company_name_input": "PT KOMITRANDO EMPORIO",
+        "address_found": true,
+        "address_details": {
+          "found": true,
+          "probe_status": "COMPLETED",
+          "evidence_status": "FOUND",
+          "lat": -7.8234732,
+          "lon": 110.4267432,
+          "display_name": "Jalan Wonosari, Potorono, Banguntapan, Bantul, Daerah Istimewa Yogyakarta, 55196, Indonesia",
+          "country": "Indonesia",
+          "confidence_score": 0.053,
+          "matched_query": "Jalan Wonosari Km 8, Potorono, Banguntapan, Kabupaten Bantul",
+          "google_maps_url": "https://www.google.com/maps/search/?api=1&query=PT+KOMITRANDO+EMPORIO%2C+Jalan+Wonosari+Km+8%2C+Potorono%2C+Banguntapan%2C+Kabupaten+Bantul",
+          "osm_url": "https://www.openstreetmap.org/?mlat=-7.8234732&mlon=110.4267432&zoom=17",
+          "match_level": "street",
+          "coordinates_exact": false,
+          "house_number_match": false,
+          "street_match": true,
+          "token_score": 0.8,
+          "matched_tokens": [
+            "banguntapan",
+            "bantul",
+            "potorono",
+            "wonosari"
+          ],
+          "coordinate_confidence": 0.053
+        },
+        "risk_signals": [],
+        "safe_signals": [],
+        "neutral_notes": [
+          "Nama jalan ditemukan, tetapi nomor bangunan belum cocok dengan hasil peta.",
+          "Nama bisnis ditemukan di web, tetapi koordinat Google Maps tidak tersedia (skor 0.8)."
+        ],
+        "web_verification": {
+          "found": true,
+          "method": "google_maps_serp",
+          "match_score": 0.8,
+          "matched_snippet": "pt. komitrando emporio, jl. wonosari km. 8, potorono ... komitrando emporio at jl. wonosari km. 8, potorono, banguntapan, bantul, yogyakarta, indonesia, 55196. find their customers, contact informatio",
+          "maps_match": false,
+          "maps_url": null,
+          "lat": null,
+          "lon": null,
+          "matched_name": null,
+          "name_match": false,
+          "street_match": false,
+          "house_number_match": false,
+          "address_match_level": "none",
+          "discovered_street": "jl. wonosari km"
+        },
+        "business_found": true
+      }
+    ],
+    "phones": [
+      {
+        "source": "kaspersky",
+        "phone": "+6288706405063",
+        "url": "https://whocalls.id.kaspersky.com/info/6288706405063",
+        "checked": true,
+        "probe_status": "COMPLETED",
+        "reputation_status": "CLEAN",
+        "danger_level": 0,
+        "category": "NETRAL",
+        "scam_confirmed": false,
+        "risk_flags": [],
+        "comments": [
+          "Tidak ada laporan spam.",
+          "Kode 887 ini digunakan operator seluler: Smartfren"
+        ],
+        "found": false,
+        "reported_fraud": false,
+        "serp_fallback": {
+          "serp_checked": true,
+          "serp_results": [],
+          "risk_flags": [],
+          "found_scam": false
+        }
+      }
+    ],
+    "phone_probe": {
+      "status": "COMPLETED",
+      "note": "Nomor HP ditemukan dan dikirim ke validator reputasi."
+    },
+    "companies": [
+      {
+        "name": "PT KOMITRANDO EMPORIO",
+        "checked": true,
+        "method": "public_web_only",
+        "registry": {
+          "pt_registry_verified": false,
+          "portal": {
+            "source": "ahu.go.id",
+            "ok": false,
+            "pt_registry_verified": false,
+            "note": "Legalitas formal PT (AHU/OSS) tidak diotomasi; hanya jejak web publik.",
+            "skipped": true
+          },
+          "disclaimer": "Legalitas formal PT (AHU/OSS) BELUM diverifikasi per-entitas. Hanya probe portal + jejak web publik."
+        },
+        "stats": {
+          "search_count": 1,
+          "public_mentions": 7,
+          "fraud_related_mentions": 0,
+          "legality_mentions": 0,
+          "successful_requests": 1,
+          "relevant_results": 7,
+          "cross_service_match_count": 7,
+          "social_public_mention_count": 0
+        },
+        "neutral_notes": [],
+        "risk_flags": [],
+        "safe_flags": [
+          "Ditemukan 7 jejak publik di search (bukan klaim legalitas AHU)."
+        ]
+      }
+    ],
+    "web": {
+      "enabled": true,
+      "engine": "searxng + lightpanda fallback",
+      "websites": [
+        {
+          "type": "website",
+          "url": "https://komitrando.com",
+          "ok": true,
+          "probe_status": "COMPLETED",
+          "website_status": "AVAILABLE",
+          "evidence_status": "FOUND",
+          "status": 200,
+          "title": "KOMITRANDO 코미트란도 | Bag Factory Indonesia",
+          "snippet": "A bag factory in Indonesia Fashion, daily, outdoor, travel. Could not load Google Sheet data. A Wide, Light Knowledge of Bags 코미트란도 — PT. Komitrando Emporio. Yogyakarta bag factory since 1990. Estimated shipping times Yogyakarta · since 1990 © 2026 PT. Komitrando Emporio",
+          "risk_flags": [],
+          "safe_flags": []
+        }
+      ],
+      "probe_status": "COMPLETED",
+      "gform_inspections": [],
+      "searches": [
+        {
+          "type": "search",
+          "query": "KOMITRANDO EMPORIO wonosari potorono banguntapan",
+          "ok": true,
+          "request_status": "COMPLETED",
+          "engine": "searxng-intelligent",
+          "status": "FOUND",
+          "results": [
+            {
+              "title": "PT. Komitrando Emporio, Jl. Wonosari km. 8, Potorono ...",
+              "url": "https://panjiva.com/PT-Komitrando-Emporio/1224945",
+              "snippet": "Komitrando Emporio at Jl. Wonosari km. 8, Potorono, banguntapan, Bantul, Yogyakarta, Indonesia, 55196. Find their customers, contact information, and details on 381 shipments.",
+              "source_type": "official",
+              "_final_score": 0.95,
+              "_entity_score": 1
+            },
+            {
+              "title": "KOMITRANDO 코미트란도 | Bag Factory Indonesia",
+              "url": "https://www.komitrando.com/",
+              "snippet": "코미트란도 (PT. Komitrando Emporio). A bag factory in Yogyakarta, Indonesia since 1990. Fashion, daily, outdoor and travel bags. OEM manufacturing.",
+              "source_type": "web",
+              "_final_score": 0.84,
+              "_entity_score": 1
+            },
+            {
+              "title": "PT.KOMITRANDO EMPORIO Profil, Telepon, Alamat - Indonetwork",
+              "url": "https://www.indonetwork.co.id/company/komitrando",
+              "snippet": "Kelompok Produk PT.KOMITRANDO EMPORIO jl.wonosari km.8 potorono,banguntapan-bantul Hubungi Kami",
+              "source_type": "web",
+              "_final_score": 0.74,
+              "_entity_score": 1
+            },
+            {
+              "title": "Pattern Maker jobs PT Komitrando Emporio | Job Portal ...",
+              "url": "https://www.hiredtoday.com/en/jobs-detail/pattern-maker-potorono",
+              "snippet": "PT Komitrando Emporio Address: Jl. Wonosari St No.KM. 8, RT.24/RW.01, Potorono, Banguntapan, Bantul Regency, Special Region of Yogyakarta 55196",
+              "source_type": "web",
+              "_final_score": 0.7,
+              "_entity_score": 1
+            },
+            {
+              "title": "PT Komitrando Emporio Yogyakarta - sistertech.com",
+              "url": "https://www.sistertech.com/87/19/29-komitrando-emporio-perhiasan-yogyakarta.htm",
+              "snippet": "PT Komitrando Emporio Yogyakarta Alamat lengkap Jl Wonosari Km 8 RT 001/01, Banguntapan, Bangun Tapan Kabupaten/Kota Yogyakarta Kode pos 55198 Fax 0274 371116 Nomor telepon/HP +6227432100002 PT Komitrando Emporio",
+              "source_type": "web",
+              "_final_score": 0.665,
+              "_entity_score": 1
+            },
+            {
+              "title": "Komitrando Emporio, Banguntapan, ID | Company Information",
+              "url": "https://www.infobel.com/en/indonesia/komitrando_emporio/potorono/ID100058803-0274376741/businessdetails.aspx",
+              "snippet": "In Banguntapan, Infobel has listed 83 registered companies. These companies have an estimated turnover of Rp 788.948 billions and employ a number of employees estimated at 857.",
+              "source_type": "web",
+              "_final_score": 0.615,
+              "_entity_score": 1
+            },
+            {
+              "title": "Pt. Komitrando Emporio - Company Profile",
+              "url": "https://komitrando.en.ec21.com/company_info.jsp",
+              "snippet": "KOMITRANDO EMPORIO is the leading of fashion jewelry manufacture in Indonesia since October 24, 1990 with good quality, price, and time of delivery. Improving quality and maintain teamwork in the company, June 5, 2004 we can achieve Certifi",
+              "source_type": "web",
+              "_final_score": 0.5829,
+              "_entity_score": 1
+            }
+          ],
+          "raw_result_count": 7,
+          "relevant_result_count": 7,
+          "error": null,
+          "risk_flags": [],
+          "fallback_kind": "intelligent_search",
+          "fallback_index": 0
+        }
+      ],
+      "social_searches": [],
+      "evidence_counts": {
+        "relevant_results": 7,
+        "by_source_type": {
+          "official": 1,
+          "web": 6
+        },
+        "successful_requests": 1,
+        "empty_searches": 0,
+        "no_relevant_searches": 0,
+        "unavailable_searches": 0,
+        "digital_footprint": "strong",
+        "official_presence": true,
+        "marketplace_presence": false,
+        "social_presence": false,
+        "maps_presence": false
+      },
+      "risk_flags": [],
+      "safe_flags": [
+        "Location candidate match: hasil web memuat token lokasi 'banguntapan, bantul, potorono, wonosari'; belum membuktikan alamat exact.",
+        "Location candidate match: hasil web memuat token lokasi 'banguntapan, kabupaten, wonosari'; belum membuktikan alamat exact.",
+        "Ditemukan 1 jejak publik.",
+        "Ditemukan 6 hasil web publik.",
+        "Ditemukan indikasi website/halaman resmi perusahaan."
+      ],
+      "neutral_notes": [],
+      "platform_evidence": {
+        "ok": true,
+        "query": "PT KOMITRANDO EMPORIO Jalan Wonosari Km 8, Potorono, Banguntapan, Kabupaten Bantul",
+        "platforms": {
+          "google_maps": {
+            "count": 0,
+            "results": []
+          },
+          "instagram": {
+            "count": 0,
+            "results": []
+          },
+          "facebook": {
+            "count": 0,
+            "results": []
+          },
+          "tiktok": {
+            "count": 0,
+            "results": []
+          },
+          "twitter": {
+            "count": 0,
+            "results": []
+          },
+          "job_portal": {
+            "count": 0,
+            "results": []
+          },
+          "web_search": {
+            "count": 7,
+            "results": [
+              {
+                "title": "PT. Komitrando Emporio, Jl. Wonosari km. 8, Potorono ...",
+                "url": "https://panjiva.com/PT-Komitrando-Emporio/1224945",
+                "snippet": "Komitrando Emporio at Jl. Wonosari km. 8, Potorono, banguntapan, Bantul, Yogyakarta, Indonesia, 55196. Find their customers, contact information, and details on 381 shipments.",
+                "engines": [
+                  "yahoo"
+                ],
+                "score": 0.5,
+                "category": "general",
+                "published_date": null,
+                "_category": "official",
+                "_entity_score": 1,
+                "_location_score": 1,
+                "_final_score": 0.95
+              },
+              {
+                "title": "KOMITRANDO 코미트란도 | Bag Factory Indonesia",
+                "url": "https://www.komitrando.com/",
+                "snippet": "코미트란도 (PT. Komitrando Emporio). A bag factory in Yogyakarta, Indonesia since 1990. Fashion, daily, outdoor and travel bags. OEM manufacturing.",
+                "engines": [
+                  "yahoo"
+                ],
+                "score": 1,
+                "category": "general",
+                "published_date": null,
+                "_category": "web",
+                "_entity_score": 1,
+                "_location_score": 0,
+                "_final_score": 0.84
+              },
+              {
+                "title": "PT.KOMITRANDO EMPORIO Profil, Telepon, Alamat - Indonetwork",
+                "url": "https://www.indonetwork.co.id/company/komitrando",
+                "snippet": "Kelompok Produk PT.KOMITRANDO EMPORIO jl.wonosari km.8 potorono,banguntapan-bantul Hubungi Kami",
+                "engines": [
+                  "yahoo"
+                ],
+                "score": 0.3333333333333333,
+                "category": "general",
+                "published_date": null,
+                "_category": "web",
+                "_entity_score": 1,
+                "_location_score": 1,
+                "_final_score": 0.74
+              },
+              {
+                "title": "Pattern Maker jobs PT Komitrando Emporio | Job Portal ...",
+                "url": "https://www.hiredtoday.com/en/jobs-detail/pattern-maker-potorono",
+                "snippet": "PT Komitrando Emporio Address: Jl. Wonosari St No.KM. 8, RT.24/RW.01, Potorono, Banguntapan, Bantul Regency, Special Region of Yogyakarta 55196",
+                "engines": [
+                  "yahoo"
+                ],
+                "score": 0.2,
+                "category": "general",
+                "published_date": null,
+                "_category": "web",
+                "_entity_score": 1,
+                "_location_score": 1,
+                "_final_score": 0.7
+              },
+              {
+                "title": "PT Komitrando Emporio Yogyakarta - sistertech.com",
+                "url": "https://www.sistertech.com/87/19/29-komitrando-emporio-perhiasan-yogyakarta.htm",
+                "snippet": "PT Komitrando Emporio Yogyakarta Alamat lengkap Jl Wonosari Km 8 RT 001/01, Banguntapan, Bangun Tapan Kabupaten/Kota Yogyakarta Kode pos 55198 Fax 0274 371116 Nomor telepon/HP +6227432100002 PT Komitrando Emporio",
+                "engines": [
+                  "yahoo"
+                ],
+                "score": 0.25,
+                "category": "general",
+                "published_date": null,
+                "_category": "web",
+                "_entity_score": 1,
+                "_location_score": 0.5,
+                "_final_score": 0.665
+              },
+              {
+                "title": "Komitrando Emporio, Banguntapan, ID | Company Information",
+                "url": "https://www.infobel.com/en/indonesia/komitrando_emporio/potorono/ID100058803-0274376741/businessdetails.aspx",
+                "snippet": "In Banguntapan, Infobel has listed 83 registered companies. These companies have an estimated turnover of Rp 788.948 billions and employ a number of employees estimated at 857.",
+                "engines": [
+                  "yahoo"
+                ],
+                "score": 0.16666666666666666,
+                "category": "general",
+                "published_date": null,
+                "_category": "web",
+                "_entity_score": 1,
+                "_location_score": 0.25,
+                "_final_score": 0.615
+              },
+              {
+                "title": "Pt. Komitrando Emporio - Company Profile",
+                "url": "https://komitrando.en.ec21.com/company_info.jsp",
+                "snippet": "KOMITRANDO EMPORIO is the leading of fashion jewelry manufacture in Indonesia since October 24, 1990 with good quality, price, and time of delivery. Improving quality and maintain teamwork in the company, June 5, 2004 we can achieve Certificate ISO 9001:2000 and still exist.",
+                "engines": [
+                  "yahoo"
+                ],
+                "score": 0.14285714285714285,
+                "category": "general",
+                "published_date": null,
+                "_category": "web",
+                "_entity_score": 1,
+                "_location_score": 0,
+                "_final_score": 0.5829
+              }
+            ]
+          }
+        },
+        "merged_evidence": {
+          "ok": true,
+          "query": "PT KOMITRANDO EMPORIO Jalan Wonosari Km 8, Potorono, Banguntapan, Kabupaten Bantul",
+          "results": [],
+          "summary": "",
+          "entities_found": [],
+          "has_strong_verification": false,
+          "has_scam_indicators": false,
+          "total_results": 0
+        },
+        "verification_summary": "",
+        "entities_found": [],
+        "has_strong_verification": false,
+        "has_scam_indicators": false,
+        "total_raw_results": 7,
+        "total_extracted": 0
+      },
+      "search_intelligence": {
+        "digital_footprint": "strong",
+        "official_presence": true,
+        "marketplace_presence": false,
+        "social_presence": false,
+        "maps_presence": false,
+        "scam_mentions": 0,
+        "advice_only_scam": false,
+        "top_categories": [
+          "web",
+          "official"
+        ],
+        "risk_flags": [],
+        "safe_flags": [
+          "Ditemukan indikasi website/halaman resmi perusahaan."
+        ]
+      }
+    },
+    "social": {
+      "enabled": true,
+      "probe_status": "COMPLETED",
+      "evidence_status": "NO_RELEVANT_RESULTS",
+      "platform": "social_media",
+      "query": "PT KOMITRANDO EMPORIO",
+      "found": false,
+      "social_found": false,
+      "official_social_found": false,
+      "public_footprint_found": false,
+      "authenticated": false,
+      "posts": [],
+      "profiles": [],
+      "platform_hits": {
+        "instagram": false,
+        "threads": false,
+        "tiktok": false,
+        "facebook": false,
+        "x_twitter": false
+      },
+      "official_platform_hits": {
+        "instagram": false,
+        "threads": false,
+        "tiktok": false,
+        "facebook": false,
+        "x_twitter": false
+      },
+      "public_platform_hits": {
+        "instagram": false,
+        "threads": false,
+        "tiktok": false,
+        "facebook": false,
+        "x_twitter": false
+      },
+      "evidence_counts": {
+        "public_posts": 0,
+        "public_profiles": 0,
+        "official_posts": 0,
+        "by_platform": {
+          "instagram": 0,
+          "threads": 0,
+          "tiktok": 0,
+          "facebook": 0,
+          "x_twitter": 0,
+          "other": 0
+        }
+      },
+      "search_diagnostics": {
+        "platforms_requested": [
+          "instagram",
+          "threads",
+          "tiktok",
+          "facebook",
+          "x_twitter"
+        ],
+        "search_engine": "lightpanda",
+        "note": "Hasil sosial diklasifikasikan terpisah dari portal loker dan aggregator."
+      },
+      "social_searches": [],
+      "risk_flags": [],
+      "errors": []
+    },
+    "evidence_policy": {
+      "mode": "factual_sources_only",
+      "note": "Semua temuan OSINT berasal dari fetch/scrape/API nyata (WHOIS, DNS, OSM, Kaspersky Who Calls, Scrapling, dan seluruh platform media sosial). LLM reasoner dilarang mengarang fakta di luar evidence.",
+      "social": "all_platforms"
+    },
+    "fraud_network": {
+      "nodes": [
+        {
+          "id": "PT KOMITRANDO EMPORIO",
+          "type": "company",
+          "risk_score": 0,
+          "status": "CLEAN"
+        },
+        {
+          "id": "+6288706405063",
+          "type": "phone",
+          "risk_score": 0,
+          "status": "CLEAN"
+        },
+        {
+          "id": "komitrando@komitrando.com",
+          "type": "email",
+          "risk_score": 0,
+          "status": "FREE_PROVIDER"
+        },
+        {
+          "id": "Jalan Wonosari Km 8, Potorono, Banguntapan, Kabupaten Bantul",
+          "type": "address",
+          "risk_score": 0,
+          "status": "VALID_GIS"
+        }
+      ],
+      "edges": [
+        {
+          "source": "+6288706405063",
+          "target": "PT KOMITRANDO EMPORIO",
+          "relation": "contact_of"
+        },
+        {
+          "source": "komitrando@komitrando.com",
+          "target": "PT KOMITRANDO EMPORIO",
+          "relation": "email_of"
+        },
+        {
+          "source": "Jalan Wonosari Km 8, Potorono, Banguntapan, Kabupaten Bantul",
+          "target": "PT KOMITRANDO EMPORIO",
+          "relation": "location_of"
+        }
+      ],
+      "cluster_id": null,
+      "entity_in_fraud_network": false,
+      "total_case_count": 0,
+      "threat_level": "LOW",
+      "entity_seen_multiple_cases": false,
+      "fraud_case_count": 0,
+      "matched_entities": [],
+      "network_graph_summary": {
+        "total_nodes": 26,
+        "total_edges": 17,
+        "case_nodes": 9,
+        "fraud_cases": 1
+      },
+      "syndicate_analysis": {
+        "syndicate_detected": false,
+        "syndicate_alerts": [],
+        "historical_associations_count": 0,
+        "data_source": "database_historical_cases",
+        "note": "Dihitung dari riwayat job_cases nyata."
+      },
+      "community_reports": {
+        "status": "COMPLETED",
+        "report_count": 0,
+        "pending_report_count": 0,
+        "reported_by_community": false,
+        "risk_signal": "NONE"
+      },
+      "status": "COMPLETED"
+    },
+    "timing": {
+      "osint_parallel_sec": 17.304
+    },
+    "nlp": {
+      "enabled": true,
+      "status": "RULE_BASED_HEURISTIC",
+      "reason": "Taksonomi Pola Penipuan Kerja Indonesia (Paper22, GASA 2024, UNODC 2023)"
+    },
+    "syndicate_analysis": {
+      "syndicate_detected": false,
+      "syndicate_alerts": [],
+      "historical_associations_count": 0,
+      "data_source": "database_historical_cases",
+      "note": "Dihitung dari riwayat job_cases nyata."
+    },
+    "persistence_status": "SAVED"
+  },
+  "shap_explanation": {
+    "model_type": "Evidence Attribution Engine (Feature Contribution Analysis)",
+    "base_value": 12,
+    "final_risk_score": 8,
+    "evidence_confidence": null,
+    "decision_confidence": null,
+    "confidence_method": "not_calibrated",
+    "evidence_coverage_percent": null,
+    "probe_hit_rate_percent": 80,
+    "probe_applicability": {
+      "applicable": 5,
+      "positive": 4,
+      "outcomes": {
+        "whois_domain": true,
+        "phone_reputation": true,
+        "address_geocoding": true,
+        "web_evidence": true,
+        "social_media": false
+      },
+      "excluded_not_provided": [
+        "legal_registry"
+      ]
+    },
+    "decision_path": [
+      {
+        "step": "1. OCR & Entity Extraction",
+        "status": "PASS",
+        "detail": "Entitas terdeteksi: PT KOMITRANDO EMPORIO; 1 no HP, 1 perusahaan, 1 alamat."
+      },
+      {
+        "step": "2. Address OSM Geocoding",
+        "status": "AREA_ONLY",
+        "detail": "Wilayah/jalan ditemukan, tetapi titik exact belum terkonfirmasi."
+      },
+      {
+        "step": "3. Phone Kaspersky Who Calls Check",
+        "status": "PASS",
+        "detail": "Tidak ditemukan laporan penipuan pada Kaspersky Who Calls."
+      },
+      {
+        "step": "4. Email Domain Infrastructure Check",
+        "status": "PASS",
+        "detail": "Domain korporat komitrando.com; SPF aktif=True, DMARC aktif=True."
+      },
+      {
+        "step": "5. Fraud Network Case Memory",
+        "status": "NO_MATCH",
+        "detail": "Status jaringan: tidak ada asosiasi fraud publik."
+      },
+      {
+        "step": "6. Final Risk Level Evaluation",
+        "status": "LOW",
+        "detail": "Skor risiko akhir: 8 / 100 (Risiko Rendah); bukan probabilitas."
+      }
+    ],
+    "consistency_breakdown": [
+      {
+        "factor": "company_name_match",
+        "raw_score": 100,
+        "weight": 0.25,
+        "weighted_contribution": 25
+      },
+      {
+        "factor": "address_gis_match",
+        "raw_score": 30,
+        "weight": 0.2,
+        "weighted_contribution": 6
+      },
+      {
+        "factor": "phone_reputation",
+        "raw_score": 100,
+        "weight": 0.2,
+        "weighted_contribution": 20
+      },
+      {
+        "factor": "domain_security",
+        "raw_score": 95,
+        "weight": 0.15,
+        "weighted_contribution": 14.2
+      },
+      {
+        "factor": "social_footprint",
+        "raw_score": 40,
+        "weight": 0.2,
+        "weighted_contribution": 8
+      }
+    ],
+    "dns_records": {
+      "resolver": "system resolver",
+      "provider_type": "CORPORATE_DOMAIN",
+      "domain": "komitrando.com",
+      "spf_active": true,
+      "dmarc_active": true
+    },
+    "not_verified": [
+      {
+        "item": "Legal Entity AHU / OSS",
+        "reason": "Tidak ada API publik otomatis; perlu cek manual"
+      },
+      {
+        "item": "BPJS Employment Registration",
+        "reason": "Data internal perusahaan"
+      },
+      {
+        "item": "NPWP Tax Registration",
+        "reason": "Data terproteksi regulasi"
+      }
+    ],
+    "probe_weights": [
+      {
+        "probe": "Address Geocoding (OSM GIS)",
+        "weight": 0.25,
+        "configured_weight": 0.25,
+        "effective_weight": 0.25,
+        "execution_time_ms": null,
+        "status": "AREA_ONLY",
+        "applicable": true
+      },
+      {
+        "probe": "Phone Reputation (Kaspersky Who Calls)",
+        "weight": 0.2,
+        "configured_weight": 0.2,
+        "effective_weight": 0.2,
+        "execution_time_ms": null,
+        "status": "CLEAN",
+        "applicable": true,
+        "url": "https://whocalls.id.kaspersky.com/info/6288706405063"
+      },
+      {
+        "probe": "Web Evidence (SERP)",
+        "weight": 0.2,
+        "configured_weight": 0.2,
+        "effective_weight": 0.2,
+        "execution_time_ms": null,
+        "status": "VALID",
+        "applicable": true
+      },
+      {
+        "probe": "Email Security (DNS MX/SPF)",
+        "weight": 0.2,
+        "configured_weight": 0.2,
+        "effective_weight": 0.2,
+        "execution_time_ms": null,
+        "status": "CORPORATE",
+        "applicable": true
+      },
+      {
+        "probe": "Legal Entity (AHU/OSS)",
+        "weight": 0.15,
+        "configured_weight": 0.15,
+        "effective_weight": 0.15,
+        "execution_time_ms": 0,
+        "status": "UNKNOWN",
+        "applicable": true,
+        "note": "Tidak ada API publik otomatis"
+      }
+    ],
+    "community_bootstrap_strategy": {
+      "current_stage": "STAGE_1_PUBLIC_OSINT_BOOTSTRAP",
+      "public_osint_references_mined": 5,
+      "verified_candidate_reviews_count": 0,
+      "bootstrap_note": "Menggunakan rujukan OSINT publik sebelum ulasan pelamar terakumulasi."
+    },
+    "deduplication_engine": {
+      "sha256_text_hash": "n/a (dihitung di layer router/cache)",
+      "perceptual_hash_phash": "n/a (memerlukan imagehash; tidak dihitung di explainer)",
+      "crop_compression_invariant": false
+    },
+    "networkx_graph_analytics": {
+      "algorithm": "Connected Component Subgraph Analysis (nx.connected_components)",
+      "subgraph_id": "n/a (tidak ada kluster)",
+      "nodes_in_cluster": 4,
+      "entity_in_fraud_network": false,
+      "threat_level": "LOW",
+      "shared_identity_reuse": false
+    },
+    "checked_at": "2026-10-18T06:48:20.696541+00:00",
+    "ethical_safeguards": {
+      "human_review_recommended": true,
+      "cost_of_error": {
+        "false_positive_fatal_cost": 5,
+        "false_negative_cost": 10
+      }
+    },
+    "verdict": "AMAN",
+    "feature_contributions": [
+      {
+        "feature": "Penyesuaian Penalaran AI",
+        "feature_key": "model_calibration",
+        "value": 20,
+        "contribution": 20,
+        "impact": "risk",
+        "description": "Penalaran AI atas seluruh teks dan bukti menilai risiko lebih tinggi daripada jumlah bobot bukti terukur. Selisihnya ditampilkan terpisah agar skor akhir = nilai dasar + Σ kontribusi.",
+        "delta": 20
+      },
+      {
+        "feature": "Ada Nama Usaha + Alamat Fisik",
+        "feature_key": "has_company_address",
+        "value": 1,
+        "contribution": 14,
+        "impact": "safe",
+        "description": "Lowongan menyebut nama usaha dan alamat fisik yang dapat diperiksa",
+        "delta": -14
+      },
+      {
+        "feature": "Alamat Fisik Belum Terverifikasi Exact",
+        "feature_key": "address_not_verified",
+        "value": 1,
+        "contribution": 10,
+        "impact": "risk",
+        "description": "Alamat tercantum, tetapi belum ditemukan kecocokan jalan dan nomor yang exact di peta",
+        "delta": 10
+      },
+      {
+        "feature": "Indikator Rekrutmen Wajar (2 sinyal)",
+        "feature_key": "safe_keyword_count",
+        "value": 2,
+        "contribution": 10,
+        "impact": "safe",
+        "description": "Menyebut BPJS/kontrak kerja, kualifikasi, portal karier, atau pernyataan tanpa biaya",
+        "delta": -10
+      },
+      {
+        "feature": "Hasil Web Relevan Ditemukan",
+        "feature_key": "company_found_web",
+        "value": 1,
+        "contribution": 10,
+        "impact": "safe",
+        "description": "Ditemukan 7 hasil web relevan dengan nama perusahaan; keterkaitan resmi belum terverifikasi.",
+        "delta": -10
+      }
+    ],
+    "waterfall_chart": [
+      {
+        "label": "Penyesuaian Penalaran AI",
+        "value": 20,
+        "cumulative": 32,
+        "impact": "risk",
+        "delta": 20
+      },
+      {
+        "label": "Ada Nama Usaha + Alamat Fisik",
+        "value": 14,
+        "cumulative": 18,
+        "impact": "safe",
+        "delta": -14
+      },
+      {
+        "label": "Alamat Fisik Belum Terverifikasi Exact",
+        "value": 10,
+        "cumulative": 28,
+        "impact": "risk",
+        "delta": 10
+      },
+      {
+        "label": "Indikator Rekrutmen Wajar (2 sinyal)",
+        "value": 10,
+        "cumulative": 18,
+        "impact": "safe",
+        "delta": -10
+      },
+      {
+        "label": "Hasil Web Relevan Ditemukan",
+        "value": 10,
+        "cumulative": 8,
+        "impact": "safe",
+        "delta": -10
+      }
+    ],
+    "evidence_delta": -24,
+    "calibration_delta": 20,
+    "top_risk_features": [
+      "Alamat Fisik Belum Terverifikasi Exact"
+    ],
+    "top_safe_features": [
+      "Ada Nama Usaha + Alamat Fisik",
+      "Indikator Rekrutmen Wajar (2 sinyal)",
+      "Hasil Web Relevan Ditemukan"
+    ],
+    "summary": "Berdasarkan bukti publik independen yang berhasil dikumpulkan, lowongan ini dinilai aman — tidak ditemukan indikator kuat penipuan. Sistem tidak dapat menjamin legalitas perusahaan secara absolut karena beberapa sumber resmi (seperti registri AHU/OSS) tidak tersedia secara publik."
+  }
+}
