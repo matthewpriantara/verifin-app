@@ -21,6 +21,9 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 COPY requirements.txt .
 RUN pip install --upgrade pip && pip install -r requirements.txt
 
+# Unduh model OCR saat build supaya permintaan poster pertama tidak menunggu unduhan.
+RUN python -c "from paddleocr import PaddleOCR; PaddleOCR(use_angle_cls=False, lang='en', show_log=False)"
+
 COPY . .
 
 # Folder untuk menyimpan bukti upload komunitas

@@ -93,8 +93,15 @@ def test_hybrid_drops_descriptive_location_and_case_duplicates():
 
 def test_ocr_split_company_name_is_merged_and_logo_acronym_dropped():
     from app.api.v1.verify.pipeline import _merge_company_fragments
-    ocr = "iGS\nPT.INDOKARYA\nKERJA STABIL\nLINGKUNGAN MODERN\nGLOBALSINERGI\nOPERATOR PACKING"
-    assert _merge_company_fragments(["PT.INDOKARYA", "GLOBALSINERGI", "iGS"], ocr) == ["PT INDOKARYA GLOBALSINERGI"]
+    # Urutan baca dari order_text_by_layout: baris kedua logo tepat di bawah baris pertama.
+    ocr = "iGS\nLOWONGAN KERJA\n\nPT.INDOKARYA\nGLOBAL SINERGI\nPEOPLESOLUTIONGROWTH\n\nKERJA STABIL"
+    assert _merge_company_fragments(["PT.INDOKARYA", "GLOBAL SINERGI", "iGS"], ocr) == ["PT INDOKARYA GLOBAL SINERGI"]
+
+
+def test_company_fragment_far_away_is_not_merged():
+    from app.api.v1.verify.pipeline import _merge_company_fragments
+    text = "PT.INDOKARYA\nOPERATOR PACKING\n\nKERJA STABIL\nGLOBAL SINERGI"
+    assert _merge_company_fragments(["PT.INDOKARYA", "GLOBAL SINERGI"], text) == ["PT INDOKARYA", "GLOBAL SINERGI"]
 
 
 def test_separate_companies_are_not_merged():
@@ -102,3 +109,9 @@ def test_separate_companies_are_not_merged():
     text = "Hotel New Saphir Yogyakarta\nAkun IG / Website: New Saphir Hotel Yogyakarta"
     names = ["HOTEL NEW SAPHIR YOGYAKARTA", "New Saphir Hotel Yogyakarta"]
     assert _merge_company_fragments(names, text) == names
+
+
+def test_company_spelling_variants_are_deduplicated():
+    from app.api.v1.verify.pipeline import _dedupe_companies
+    names = ["PT pos Indonesia persero", "PT POS INDONESIA", "PT Pos Indonesia (Persero)", "Pertamina Group"]
+    assert _dedupe_companies(names) == ["PT Pos Indonesia (Persero)", "Pertamina Group"]
