@@ -327,7 +327,27 @@ def _build_address_osint_section(address_validations: list) -> str:
     return "\n".join(lines) if lines else "- Validasi alamat tidak tersedia."
 
 
-def build_verify_prompt(entities: dict, osint_results: dict) -> str:
+def _build_text_signal_section(signals: dict | None) -> str:
+    """Sinyal teks deterministik dari classifier, supaya LLM tidak menebak ulang hal yang bisa dihitung."""
+    if not signals:
+        return ""
+
+    def yn(key: str) -> str:
+        return "YA" if signals.get(key) else "tidak"
+
+    return f"""
+## SINYAL TEKS (deterministik, dihitung sistem dari teks lowongan)
+- Meminta biaya/transfer: {yn("has_fee_request")}
+- Menyebut kerja di luar negeri / negara rawan TPPO: {yn("has_foreign_work")}
+- WhatsApp satu-satunya jalur melamar (tanpa email/portal/tautan resmi): {yn("has_whatsapp_apply")}
+- Menyebut nama badan usaha yang bisa diperiksa: {yn("has_company")}
+- Mengaku pabrik/perusahaan/kantor tetapi tidak menyebut namanya: {yn("anonymous_employer_claim")}
+- Menawarkan gaji tanpa nama badan usaha: {yn("salary_no_company")}
+- Mengatasnamakan BUMN/Persero/Tbk tetapi pendaftaran hanya lewat WhatsApp/tautan di bio: {yn("brand_unofficial_channel")}
+"""
+
+
+def build_verify_prompt(entities: dict, osint_results: dict, text_signals: dict | None = None) -> str:
     companies = entities.get("companies", [])
     contacts = entities.get("contacts") or entities.get("phones") or []
     emails = entities.get("emails", [])
@@ -379,7 +399,7 @@ Analisis secara mendalam, formal, dan berbasis evidence. Berikan keputusan apaka
 
 **Gaji yang Ditawarkan:**
 {salary_str}
-
+{_build_text_signal_section(text_signals)}
 **Indikasi Permintaan Biaya / Transfer:**
 {fee_str}
 
@@ -453,16 +473,21 @@ Jangan naikkan ke 25+ hanya karena Gmail / tanpa website / gaji kosong.
 
 Jika TIDAK ADA alamat OSM tapi SEMUA ini terpenuhi:
 - tidak ada nama PT/CV formal (hanya UMKM/perorangan/hiring pribadi), DAN
+- SINYAL TEKS "Mengaku pabrik/perusahaan/kantor tetapi tidak menyebut namanya" = tidak, DAN
 - HP tidak reported_fraud di Kaspersky Who Calls, DAN
 - tidak ada permintaan biaya/uang di teks, DAN
 - deskripsi pekerjaan wajar dan terperinci (jobdesk, syarat, sistem kerja jelas):
 ➔ verdict **AMAN**, risk_score **20–35** (aman dengan catatan — zero footprint UMKM normal).
 Jangan naikkan ke WASPADA hanya karena tidak ada alamat/PT/website — itu normal untuk UMKM kecil.
 
-PENGECUALIAN (bukan UMKM perorangan): jika teks MENGAKU sebagai perusahaan/pabrik/kantor (mis. "pabrik baru",
-"perusahaan kami", menyebut nama PT yang tidak ditemukan jejaknya) TETAPI tidak menyebut nama badan usaha yang bisa
-diperiksa, DAN satu-satunya jalur melamar adalah nomor WhatsApp pribadi (tanpa email/portal/alamat kantor):
-➔ verdict **WASPADA**, risk_score **45–60**. Pabrik dan perusahaan sungguhan selalu dapat menyebut nama dan alamatnya.
+Jika SINYAL TEKS "Mengaku pabrik/perusahaan/kantor tetapi tidak menyebut namanya" = YA DAN
+"WhatsApp satu-satunya jalur melamar" = YA, tanpa red flag keras:
+➔ verdict **WASPADA**, risk_score **45–60**. Pemberi kerja berbadan usaha bisa menyebut nama dan alamatnya;
+tanpa itu pelamar tidak punya apa pun untuk diperiksa sebelum mengirim data pribadi.
+
+Jika SINYAL TEKS "Mengatasnamakan BUMN/Persero/Tbk tetapi pendaftaran hanya lewat WhatsApp/tautan di bio" = YA:
+➔ minimal **WASPADA**, risk_score **60–74**; jejak web perusahaan besar itu TIDAK membuktikan lowongan ini asli,
+karena namanya sedang dicatut. Bila juga ada permintaan biaya/tiket/transfer ➔ **BAHAYA**.
 
 1. Red flag keras dulu: biaya, fraud HP, phishing form, scam SERP.
 2. Bedakan alamat exact dari area-only; hanya `match_level=exact` yang boleh disebut titik alamat terverifikasi.
@@ -502,8 +527,10 @@ Skor vs verdict:
     return prompt.strip()
 
 
-def build_text_verify_prompt(raw_text: str, entities: dict, osint_results: dict) -> str:
-    base_prompt = build_verify_prompt(entities, osint_results)
+def build_text_verify_prompt(
+    raw_text: str, entities: dict, osint_results: dict, text_signals: dict | None = None
+) -> str:
+    base_prompt = build_verify_prompt(entities, osint_results, text_signals)
 
     MAX_RAW = 2500
     raw_section = f"""

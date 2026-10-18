@@ -328,6 +328,7 @@ async def analyze_with_verifin(
     entities: dict,
     osint_results: dict | None = None,
     raw_text: str | None = None,
+    text_signals: dict | None = None,
 ) -> dict:
     if osint_results is None:
         osint_results = {
@@ -342,9 +343,9 @@ async def analyze_with_verifin(
         }
 
     if raw_text:
-        prompt = build_text_verify_prompt(raw_text, entities, osint_results)
+        prompt = build_text_verify_prompt(raw_text, entities, osint_results, text_signals)
     else:
-        prompt = build_verify_prompt(entities, osint_results)
+        prompt = build_verify_prompt(entities, osint_results, text_signals)
     allowed_tokens = {
         token.lower()
         for token in _re.findall(r"[A-Za-zÀ-ÿ]+", prompt)
