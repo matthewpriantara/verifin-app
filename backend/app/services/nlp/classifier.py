@@ -29,7 +29,8 @@ _WHATSAPP_APPLY_PATTERNS = [
     # "silakan WhatsApp admin", "konfirmasi kehadiran via WhatsApp", "daftar lewat link di bio"
     r"(?:silakan|silahkan|konfirmasi\s+\w+\s+(?:via|ke))\s+(?:wa|whatsapp)\b",
     r"\b(?:wa|whatsapp)\s+admin\b",
-    r"\blink\s+(?:yang\s+ada\s+)?di\s*bio\b",
+    # "link di bio", "link di. bio profil", "klik link dibio", "link bio", "link di profil"
+    r"\blink\s+(?:yang\s+ada\s+)?(?:di\W*)?(?:bio|profil)\b",
 ]
 
 # Nama BUMN/perusahaan terbuka. Nama ini mudah dicatut, jadi tidak boleh menjadi sinyal aman;
