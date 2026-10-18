@@ -1,20 +1,20 @@
 {
   "verdict": "WASPADA",
   "risk_score": 60,
-  "case_id": "60be7e03-1a6d-4ee1-bd2f-faa541a7826e",
-  "summary": "Lowongan terindikasi mencurigakan karena mensyaratkan akun LinkedIn matang tanpa transparansi identitas pemberi kerja maupun rincian tugas yang jelas.",
+  "case_id": "7b5a3254-a5d7-4e32-8caa-e76a597b2ed1",
+  "summary": "Lowongan berisiko tinggi penyalahgunaan akun LinkedIn karena identitas perekrut anonim dan rincian pekerjaan tidak dijelaskan sama sekali.",
   "risk_factors": [
-    "Syarat akun LinkedIn berindikasi penyalahgunaan profil",
-    "Identitas rekruter dan tugas tidak jelas",
-    "Tidak mencantumkan kontak dan legalitas usaha"
+    "Syarat akun LinkedIn berisiko eksploitasi digital",
+    "Identitas pemberi kerja sepenuhnya anonim",
+    "Rincian beban kerja tidak transparan"
   ],
   "safe_factors": [
-    "Tidak ada permintaan biaya pada teks"
+    "Tidak ada permintaan transfer biaya langsung"
   ],
   "recommendations": [
-    "Jangan serahkan akses akun LinkedIn pribadi",
-    "Abaikan tawaran kerja tanpa legalitas jelas",
-    "Waspadai modus penyewaan akun media sosial"
+    "Jangan serahkan akses kredensial akun LinkedIn",
+    "Tolak tawaran kerja dari akun anonim",
+    "Hindari modus penyewaan identitas akun digital"
   ],
   "entities": {
     "companies": [],
@@ -118,9 +118,9 @@
       "fraud_case_count": 0,
       "matched_entities": [],
       "network_graph_summary": {
-        "total_nodes": 14,
-        "total_edges": 11,
-        "case_nodes": 3,
+        "total_nodes": 20,
+        "total_edges": 15,
+        "case_nodes": 5,
         "fraud_cases": 1
       },
       "syndicate_analysis": {
@@ -139,6 +139,11 @@
     },
     "timing": {
       "osint_parallel_sec": 0.001
+    },
+    "nlp": {
+      "enabled": true,
+      "status": "RULE_BASED_HEURISTIC",
+      "reason": "Taksonomi Pola Penipuan Kerja Indonesia (Paper22, GASA 2024, UNODC 2023)"
     },
     "syndicate_analysis": {
       "syndicate_detected": false,
@@ -326,7 +331,7 @@
       "threat_level": "LOW",
       "shared_identity_reuse": false
     },
-    "checked_at": "2026-10-17T20:26:02.076425+00:00",
+    "checked_at": "2026-10-18T05:07:46.138624+00:00",
     "ethical_safeguards": {
       "human_review_recommended": true,
       "cost_of_error": {

@@ -1,19 +1,20 @@
 {
   "verdict": "AMAN",
   "risk_score": 12,
-  "case_id": "4ec65dc7-2399-4397-ad82-ba7800d9bf4e",
-  "summary": "Lowongan terverifikasi aman dengan domain email berumur panjang, nomor telepon bersih, dan jejak fisik bisnis yang nyata.",
+  "case_id": "37e046c5-c76f-4bd2-8452-3ed52023a757",
+  "summary": "Lowongan terindikasi aman dengan domain email berumur lama, nomor kontak bersih, dan entitas bisnis terkonfirmasi di Yogyakarta.",
   "risk_factors": [
-    "Proteksi SPF dan DMARC domain tidak aktif"
+    "Proteksi SPF dan DMARC email tidak aktif."
   ],
   "safe_factors": [
-    "Domain email yang tercantum berumur sembilan tahun",
-    "Nomor kontak bersih dari laporan penipuan",
-    "Alamat fisik dan profil bisnis terkonfirmasi valid"
+    "Domain email berumur lebih dari sembilan tahun.",
+    "Nomor WhatsApp bersih dari laporan penipuan.",
+    "Jejak bisnis dan lokasi fisik terkonfirmasi kuat."
   ],
   "recommendations": [
-    "Kirimkan lamaran kerja melalui alamat email yang tercantum",
-    "Jangan pernah membayar biaya administrasi apa pun"
+    "Kirim lamaran langsung ke email yang tercantum perusahaan.",
+    "Jangan pernah membayar biaya administrasi apa pun.",
+    "Konfirmasi jadwal seleksi melalui kanal publik Qhomemart."
   ],
   "entities": {
     "companies": [
@@ -52,7 +53,7 @@
       "spf_active": false,
       "dmarc_active": false,
       "mx_active": true,
-      "mx_provider": "alt4.aspmx.l.google.com",
+      "mx_provider": "alt3.aspmx.l.google.com",
       "domain": "qhomemart.co.id"
     },
     "address_validations": [
@@ -231,27 +232,19 @@
               "_entity_score": 1
             },
             {
-              "title": "QHOMEMART - Bahan Bangunan & Perlengkapan Rumah | Satu tempat ...",
-              "url": "https://www.instagram.com/reel/Dc0fD7cptqV/",
-              "snippet": "Sep 17, 2026 · Qhomemart hadir sebagai one stop shopping bahan bangunan untuk menemani setiap proses membangun dan melengkapi rumahmu. 🛒 Yuk, lengkapi kebutuhan bangunanmu di QHomeMart! Qhomemart Terbesar, Terlengkap, Terpercaya💯 📍Qhomemart",
+              "title": "ADMIN BAHAN BANGUNAN | Qhomemart | WhatsApp 0821-7739-288 Jl ...",
+              "url": "https://www.instagram.com/p/DeObkAHRVQz/",
+              "snippet": "Jl. Raya Janti Jl. Ringroad Timur No.96, Kanoman, Tegalpasar, Kec. Banguntapan, Kabupaten Bantul, Daerah Istimewa Yogyakarta 55198 7 days ago gomblodoang • Follow AI content More options Like Comment Share Save gomblodoang Qhomemart WhatsAp",
               "source_type": "social",
-              "_final_score": 0.79,
-              "_entity_score": 1
-            },
-            {
-              "title": "QHOMEMART - Bahan Bangunan & Perlengkapan Rumah | Indonesia ...",
-              "url": "https://www.instagram.com/p/Dbw2SZOCVEH/",
-              "snippet": "Indonesia lagi ter kimpul kimpul👀🍠Tapi ternyata ga semua hal bisa diganti sama kimpul hehe ️📍 Qhomemart Yogyakarta Jl. Raya Janti Ringroad Timur No.96, Karang Jambe, Banguntapan, Bantul, Daerah Istimewa Yogyakarta 55198⏰ Buka setiap Hari (0",
-              "source_type": "social",
-              "_final_score": 0.7829,
+              "_final_score": 0.8,
               "_entity_score": 1
             },
             {
               "title": "Qhomemart | Yogyakarta City - Facebook",
               "url": "https://www.facebook.com/qhomemartcom/",
-              "snippet": "2 days ago · Himbauan untuk semua Qhomelovers untuk berhati- hati⚠️ Jika menemukan akun, promo, atau penawaran yang mengatasnamakan Qhomemart, jangan langsung percaya begitu saja ya🚨 Sebelum melakukan transaksi, pastikan dulu akun, informas",
+              "snippet": "3 days ago · Himbauan untuk semua Qhomelovers untuk berhati- hati⚠️ Jika menemukan akun, promo, atau penawaran yang mengatasnamakan Qhomemart, jangan langsung percaya begitu saja ya🚨 Sebelum melakukan transaksi, pastikan dulu akun, informas",
               "source_type": "social",
-              "_final_score": 0.7333,
+              "_final_score": 0.7233,
               "_entity_score": 1
             },
             {
@@ -260,6 +253,14 @@
               "snippet": "Qhomemart BJ Home, Yogyakarta, ulasan pelanggan, peta lokasi, nomor telepon, jam kerja",
               "source_type": "web",
               "_final_score": 0.715,
+              "_entity_score": 1
+            },
+            {
+              "title": "Gudang Qhomemart 89, Jl. Raya Janti No.88, Jaranan, telepon ...",
+              "url": "https://idfirms.com/yogyakarta/gudang-qhomemart-89-276121",
+              "snippet": "Gudang Qhomemart 89, Yogyakarta, ulasan pelanggan, peta lokasi, nomor telepon, jam kerja",
+              "source_type": "web",
+              "_final_score": 0.6829,
               "_entity_score": 1
             }
           ],
@@ -291,28 +292,18 @@
               "_location_score": 1
             },
             {
-              "title": "QHOMEMART - Bahan Bangunan & Perlengkapan Rumah | Indonesia ...",
-              "url": "https://www.instagram.com/p/Dbw2SZOCVEH/",
-              "snippet": "Indonesia lagi ter kimpul kimpul👀🍠Tapi ternyata ga semua hal bisa diganti sama kimpul hehe ️📍 Qhomemart Yogyakarta Jl. Raya Janti Ringroad Timur No.96, Karang Jambe, Banguntapan, Bantul, Daerah Istimewa Yogyakarta 55198⏰ Buka setiap Hari (0",
+              "title": "ADMIN BAHAN BANGUNAN | Qhomemart | WhatsApp 0821-7739-288 Jl ...",
+              "url": "https://www.instagram.com/p/DeObkAHRVQz/",
+              "snippet": "Jl. Raya Janti Jl. Ringroad Timur No.96, Kanoman, Tegalpasar, Kec. Banguntapan, Kabupaten Bantul, Daerah Istimewa Yogyakarta 55198 7 days ago gomblodoang • Follow AI content More options Like Comment Share Save gomblodoang Qhomemart WhatsAp",
               "source_type": "social",
               "_final_score": 0.74,
               "_entity_score": 1,
               "_category": "social",
               "_location_score": 1
-            },
-            {
-              "title": "QHOMEMART - Bahan Bangunan & Perlengkapan Rumah | Satu tempat ...",
-              "url": "https://www.instagram.com/reel/Dc0fD7cptqV/",
-              "snippet": "Sep 17, 2026 · Qhomemart hadir sebagai one stop shopping bahan bangunan untuk menemani setiap proses membangun dan melengkapi rumahmu. 🛒 Yuk, lengkapi kebutuhan bangunanmu di QHomeMart! Qhomemart Terbesar, Terlengkap, Terpercaya💯 📍Qhomemart",
-              "source_type": "social",
-              "_final_score": 0.64,
-              "_entity_score": 1,
-              "_category": "social",
-              "_location_score": 0
             }
           ],
-          "raw_result_count": 3,
-          "relevant_result_count": 3,
+          "raw_result_count": 2,
+          "relevant_result_count": 2,
           "error": null,
           "fallback_kind": "intelligent_search_derived",
           "fallback_index": 0,
@@ -330,7 +321,7 @@
             {
               "title": "Qhomemart | Yogyakarta City - Facebook",
               "url": "https://www.facebook.com/qhomemartcom/",
-              "snippet": "2 days ago · Himbauan untuk semua Qhomelovers untuk berhati- hati⚠️ Jika menemukan akun, promo, atau penawaran yang mengatasnamakan Qhomemart, jangan langsung percaya begitu saja ya🚨 Sebelum melakukan transaksi, pastikan dulu akun, informas",
+              "snippet": "3 days ago · Himbauan untuk semua Qhomelovers untuk berhati- hati⚠️ Jika menemukan akun, promo, atau penawaran yang mengatasnamakan Qhomemart, jangan langsung percaya begitu saja ya🚨 Sebelum melakukan transaksi, pastikan dulu akun, informas",
               "source_type": "social",
               "_final_score": 0.6733,
               "_entity_score": 1,
@@ -351,8 +342,8 @@
         "relevant_results": 7,
         "by_source_type": {
           "official": 1,
-          "web": 2,
-          "social": 4
+          "web": 3,
+          "social": 3
         },
         "successful_requests": 1,
         "empty_searches": 0,
@@ -371,12 +362,11 @@
         "Terdeteksi profil sosial media / toko online publik aktif: Toko QHomeMart Official Online - Produk Lengkap & Harga ... (https://www.tokopedia.com/qhomemart)",
         "Location candidate match: hasil web memuat token lokasi 'janti, raya, yogyakarta'; belum membuktikan alamat exact.",
         "Terdeteksi hasil Instagram publik (status resmi belum terverifikasi): QHOMEMART - Bahan Bangunan & Perlengkapan Rumah | Hai Qhome ... (https://www.instagram.com/p/DQtUvB-ksOc/)",
-        "Terdeteksi hasil Instagram publik (status resmi belum terverifikasi): QHOMEMART - Bahan Bangunan & Perlengkapan Rumah | Satu tempat ... (https://www.instagram.com/reel/Dc0fD7cptqV/)",
-        "Terdeteksi hasil Instagram publik (status resmi belum terverifikasi): QHOMEMART - Bahan Bangunan & Perlengkapan Rumah | Indonesia ... (https://www.instagram.com/p/Dbw2SZOCVEH/)",
+        "Terdeteksi hasil Instagram publik (status resmi belum terverifikasi): ADMIN BAHAN BANGUNAN | Qhomemart | WhatsApp 0821-7739-288 Jl ... (https://www.instagram.com/p/DeObkAHRVQz/)",
         "Terdeteksi hasil media sosial publik (status resmi belum terverifikasi): https://www.facebook.com/qhomemartcom/",
         "Ditemukan 1 jejak publik.",
-        "Ditemukan 2 hasil web publik.",
-        "Ditemukan 4 jejak publik.",
+        "Ditemukan 3 hasil web publik.",
+        "Ditemukan 3 jejak publik.",
         "Ditemukan indikasi website/halaman resmi perusahaan.",
         "Ditemukan keberadaan di platform media sosial."
       ],
@@ -390,7 +380,7 @@
             "results": []
           },
           "instagram": {
-            "count": 3,
+            "count": 2,
             "results": [
               {
                 "title": "QHOMEMART - Bahan Bangunan & Perlengkapan Rumah | Hai Qhome ...",
@@ -408,34 +398,19 @@
                 "_final_score": 0.84
               },
               {
-                "title": "QHOMEMART - Bahan Bangunan & Perlengkapan Rumah | Satu tempat ...",
-                "url": "https://www.instagram.com/reel/Dc0fD7cptqV/",
-                "snippet": "Sep 17, 2026 · Qhomemart hadir sebagai one stop shopping bahan bangunan untuk menemani setiap proses membangun dan melengkapi rumahmu. 🛒 Yuk, lengkapi kebutuhan bangunanmu di QHomeMart! Qhomemart Terbesar, Terlengkap, Terpercaya💯 📍Qhomemart Yogyakarta Jl. Raya Janti Jl. Ringroad Timur No.96, Karang ",
+                "title": "ADMIN BAHAN BANGUNAN | Qhomemart | WhatsApp 0821-7739-288 Jl ...",
+                "url": "https://www.instagram.com/p/DeObkAHRVQz/",
+                "snippet": "Jl. Raya Janti Jl. Ringroad Timur No.96, Kanoman, Tegalpasar, Kec. Banguntapan, Kabupaten Bantul, Daerah Istimewa Yogyakarta 55198 7 days ago gomblodoang • Follow AI content More options Like Comment Share Save gomblodoang Qhomemart WhatsApp 082297191379",
                 "engines": [
                   "yahoo"
                 ],
-                "score": 0.16666666666666666,
+                "score": 0.2,
                 "category": "general",
                 "published_date": null,
                 "_category": "social",
                 "_entity_score": 1,
                 "_location_score": 1,
-                "_final_score": 0.79
-              },
-              {
-                "title": "QHOMEMART - Bahan Bangunan & Perlengkapan Rumah | Indonesia ...",
-                "url": "https://www.instagram.com/p/Dbw2SZOCVEH/",
-                "snippet": "Indonesia lagi ter kimpul kimpul👀🍠Tapi ternyata ga semua hal bisa diganti sama kimpul hehe ️📍 Qhomemart Yogyakarta Jl. Raya Janti Ringroad Timur No.96, Karang Jambe, Banguntapan, Bantul, Daerah Istimewa Yogyakarta 55198⏰ Buka setiap Hari (08.00 - 22.00)📞 Telp (WA) : 08112863773#Qhomemart#kimpul#tren",
-                "engines": [
-                  "yahoo"
-                ],
-                "score": 0.14285714285714285,
-                "category": "general",
-                "published_date": null,
-                "_category": "social",
-                "_entity_score": 1,
-                "_location_score": 1,
-                "_final_score": 0.7829
+                "_final_score": 0.8
               }
             ]
           },
@@ -445,17 +420,17 @@
               {
                 "title": "Qhomemart | Yogyakarta City - Facebook",
                 "url": "https://www.facebook.com/qhomemartcom/",
-                "snippet": "2 days ago · Himbauan untuk semua Qhomelovers untuk berhati- hati⚠️ Jika menemukan akun, promo, atau penawaran yang mengatasnamakan Qhomemart, jangan langsung percaya begitu saja ya🚨 Sebelum melakukan transaksi, pastikan dulu akun, informasi, dan kontak yang digunakan benar-benar berasal dari kanal ",
+                "snippet": "3 days ago · Himbauan untuk semua Qhomelovers untuk berhati- hati⚠️ Jika menemukan akun, promo, atau penawaran yang mengatasnamakan Qhomemart, jangan langsung percaya begitu saja ya🚨 Sebelum melakukan transaksi, pastikan dulu akun, informasi, dan kontak yang digunakan benar-benar berasal dari kanal ",
                 "engines": [
                   "yahoo"
                 ],
-                "score": 0.2,
+                "score": 0.16666666666666666,
                 "category": "general",
                 "published_date": null,
                 "_category": "social",
                 "_entity_score": 1,
                 "_location_score": 0.333,
-                "_final_score": 0.7333
+                "_final_score": 0.7233
               }
             ]
           },
@@ -472,7 +447,7 @@
             "results": []
           },
           "web_search": {
-            "count": 3,
+            "count": 4,
             "results": [
               {
                 "title": "Tentang Kami - Qhomemart",
@@ -518,6 +493,21 @@
                 "_entity_score": 1,
                 "_location_score": 1,
                 "_final_score": 0.715
+              },
+              {
+                "title": "Gudang Qhomemart 89, Jl. Raya Janti No.88, Jaranan, telepon ...",
+                "url": "https://idfirms.com/yogyakarta/gudang-qhomemart-89-276121",
+                "snippet": "Gudang Qhomemart 89, Yogyakarta, ulasan pelanggan, peta lokasi, nomor telepon, jam kerja",
+                "engines": [
+                  "yahoo"
+                ],
+                "score": 0.14285714285714285,
+                "category": "general",
+                "published_date": null,
+                "_category": "web",
+                "_entity_score": 1,
+                "_location_score": 1,
+                "_final_score": 0.6829
               }
             ]
           }
@@ -548,8 +538,8 @@
         "scam_mentions": 0,
         "advice_only_scam": false,
         "top_categories": [
-          "social",
           "web",
+          "social",
           "official"
         ],
         "risk_flags": [],
@@ -575,7 +565,7 @@
           "platform": "facebook",
           "source": "serp",
           "title": "Qhomemart | Yogyakarta City - Facebook",
-          "snippet": "2 days ago · Himbauan untuk semua Qhomelovers untuk berhati- hati⚠️ Jika menemukan akun, promo, atau penawaran yang mengatasnamakan Qhomemart, jangan langsung percaya begitu saja ya🚨 Sebelum melakukan transaksi, pastikan dulu akun, informas",
+          "snippet": "3 days ago · Himbauan untuk semua Qhomelovers untuk berhati- hati⚠️ Jika menemukan akun, promo, atau penawaran yang mengatasnamakan Qhomemart, jangan langsung percaya begitu saja ya🚨 Sebelum melakukan transaksi, pastikan dulu akun, informas",
           "url": "https://facebook.com/qhomemartcom",
           "fallback_kind": "intelligent_search_derived",
           "is_official": false,
@@ -593,7 +583,7 @@
           "platform": "facebook",
           "url": "https://facebook.com/qhomemartcom",
           "title": "Qhomemart | Yogyakarta City - Facebook",
-          "snippet": "2 days ago · Himbauan untuk semua Qhomelovers untuk berhati- hati⚠️ Jika menemukan akun, promo, atau penawaran yang mengatasnamakan Qhomemart, jangan langsung percaya begitu saja ya🚨 Sebelum melakukan transaksi, pastikan dulu akun, informas",
+          "snippet": "3 days ago · Himbauan untuk semua Qhomelovers untuk berhati- hati⚠️ Jika menemukan akun, promo, atau penawaran yang mengatasnamakan Qhomemart, jangan langsung percaya begitu saja ya🚨 Sebelum melakukan transaksi, pastikan dulu akun, informas",
           "source": "web_search",
           "is_official": false,
           "matched_tokens": [
@@ -667,28 +657,18 @@
               "_location_score": 1
             },
             {
-              "title": "QHOMEMART - Bahan Bangunan & Perlengkapan Rumah | Indonesia ...",
-              "url": "https://www.instagram.com/p/Dbw2SZOCVEH/",
-              "snippet": "Indonesia lagi ter kimpul kimpul👀🍠Tapi ternyata ga semua hal bisa diganti sama kimpul hehe ️📍 Qhomemart Yogyakarta Jl. Raya Janti Ringroad Timur No.96, Karang Jambe, Banguntapan, Bantul, Daerah Istimewa Yogyakarta 55198⏰ Buka setiap Hari (0",
+              "title": "ADMIN BAHAN BANGUNAN | Qhomemart | WhatsApp 0821-7739-288 Jl ...",
+              "url": "https://www.instagram.com/p/DeObkAHRVQz/",
+              "snippet": "Jl. Raya Janti Jl. Ringroad Timur No.96, Kanoman, Tegalpasar, Kec. Banguntapan, Kabupaten Bantul, Daerah Istimewa Yogyakarta 55198 7 days ago gomblodoang • Follow AI content More options Like Comment Share Save gomblodoang Qhomemart WhatsAp",
               "source_type": "social",
               "_final_score": 0.74,
               "_entity_score": 1,
               "_category": "social",
               "_location_score": 1
-            },
-            {
-              "title": "QHOMEMART - Bahan Bangunan & Perlengkapan Rumah | Satu tempat ...",
-              "url": "https://www.instagram.com/reel/Dc0fD7cptqV/",
-              "snippet": "Sep 17, 2026 · Qhomemart hadir sebagai one stop shopping bahan bangunan untuk menemani setiap proses membangun dan melengkapi rumahmu. 🛒 Yuk, lengkapi kebutuhan bangunanmu di QHomeMart! Qhomemart Terbesar, Terlengkap, Terpercaya💯 📍Qhomemart",
-              "source_type": "social",
-              "_final_score": 0.64,
-              "_entity_score": 1,
-              "_category": "social",
-              "_location_score": 0
             }
           ],
-          "raw_result_count": 3,
-          "relevant_result_count": 3,
+          "raw_result_count": 2,
+          "relevant_result_count": 2,
           "error": null,
           "fallback_kind": "intelligent_search_derived",
           "fallback_index": 0,
@@ -706,7 +686,7 @@
             {
               "title": "Qhomemart | Yogyakarta City - Facebook",
               "url": "https://www.facebook.com/qhomemartcom/",
-              "snippet": "2 days ago · Himbauan untuk semua Qhomelovers untuk berhati- hati⚠️ Jika menemukan akun, promo, atau penawaran yang mengatasnamakan Qhomemart, jangan langsung percaya begitu saja ya🚨 Sebelum melakukan transaksi, pastikan dulu akun, informas",
+              "snippet": "3 days ago · Himbauan untuk semua Qhomelovers untuk berhati- hati⚠️ Jika menemukan akun, promo, atau penawaran yang mengatasnamakan Qhomemart, jangan langsung percaya begitu saja ya🚨 Sebelum melakukan transaksi, pastikan dulu akun, informas",
               "source_type": "social",
               "_final_score": 0.6733,
               "_entity_score": 1,
@@ -783,9 +763,9 @@
       "fraud_case_count": 0,
       "matched_entities": [],
       "network_graph_summary": {
-        "total_nodes": 9,
-        "total_edges": 7,
-        "case_nodes": 2,
+        "total_nodes": 15,
+        "total_edges": 11,
+        "case_nodes": 4,
         "fraud_cases": 1
       },
       "syndicate_analysis": {
@@ -805,7 +785,12 @@
       "status": "COMPLETED"
     },
     "timing": {
-      "osint_parallel_sec": 20.026
+      "osint_parallel_sec": 18.37
+    },
+    "nlp": {
+      "enabled": true,
+      "status": "RULE_BASED_HEURISTIC",
+      "reason": "Taksonomi Pola Penipuan Kerja Indonesia (Paper22, GASA 2024, UNODC 2023)"
     },
     "syndicate_analysis": {
       "syndicate_detected": false,
@@ -975,7 +960,7 @@
     ],
     "community_bootstrap_strategy": {
       "current_stage": "STAGE_1_PUBLIC_OSINT_BOOTSTRAP",
-      "public_osint_references_mined": 11,
+      "public_osint_references_mined": 10,
       "verified_candidate_reviews_count": 0,
       "bootstrap_note": "Menggunakan rujukan OSINT publik sebelum ulasan pelamar terakumulasi."
     },
@@ -992,7 +977,7 @@
       "threat_level": "LOW",
       "shared_identity_reuse": false
     },
-    "checked_at": "2026-10-17T20:25:26.847746+00:00",
+    "checked_at": "2026-10-18T05:07:12.513587+00:00",
     "ethical_safeguards": {
       "human_review_recommended": true,
       "cost_of_error": {
@@ -1003,15 +988,6 @@
     "verdict": "AMAN",
     "feature_contributions": [
       {
-        "feature": "Penyesuaian Penalaran AI",
-        "feature_key": "model_calibration",
-        "value": -40,
-        "contribution": 40,
-        "impact": "safe",
-        "description": "Penalaran AI atas seluruh teks dan bukti menilai risiko lebih rendah daripada jumlah bobot bukti terukur. Selisihnya ditampilkan terpisah agar skor akhir = nilai dasar + Σ kontribusi.",
-        "delta": -40
-      },
-      {
         "feature": "Situs Web Tidak Dapat Diakses",
         "feature_key": "domain_unreachable",
         "value": 1,
@@ -1019,6 +995,24 @@
         "impact": "risk",
         "description": "Domain perusahaan tidak dapat diakses atau tidak terdaftar",
         "delta": 28
+      },
+      {
+        "feature": "Penyesuaian Penalaran AI",
+        "feature_key": "model_calibration",
+        "value": -26,
+        "contribution": 26,
+        "impact": "safe",
+        "description": "Penalaran AI atas seluruh teks dan bukti menilai risiko lebih rendah daripada jumlah bobot bukti terukur. Selisihnya ditampilkan terpisah agar skor akhir = nilai dasar + Σ kontribusi.",
+        "delta": -26
+      },
+      {
+        "feature": "Ada Nama Usaha + Alamat Fisik",
+        "feature_key": "has_company_address",
+        "value": 1,
+        "contribution": 14,
+        "impact": "safe",
+        "description": "Lowongan menyebut nama usaha dan alamat fisik yang dapat diperiksa",
+        "delta": -14
       },
       {
         "feature": "Tidak Ada SPF/DMARC pada Domain Korporat",
@@ -1050,18 +1044,25 @@
     ],
     "waterfall_chart": [
       {
-        "label": "Penyesuaian Penalaran AI",
-        "value": 40,
-        "cumulative": -28,
-        "impact": "safe",
-        "delta": -40
-      },
-      {
         "label": "Situs Web Tidak Dapat Diakses",
         "value": 28,
-        "cumulative": 0,
+        "cumulative": 40,
         "impact": "risk",
         "delta": 28
+      },
+      {
+        "label": "Penyesuaian Penalaran AI",
+        "value": 26,
+        "cumulative": 14,
+        "impact": "safe",
+        "delta": -26
+      },
+      {
+        "label": "Ada Nama Usaha + Alamat Fisik",
+        "value": 14,
+        "cumulative": 0,
+        "impact": "safe",
+        "delta": -14
       },
       {
         "label": "Tidak Ada SPF/DMARC pada Domain Korporat",
@@ -1085,14 +1086,15 @@
         "delta": -10
       }
     ],
-    "evidence_delta": 40,
-    "calibration_delta": -40,
+    "evidence_delta": 26,
+    "calibration_delta": -26,
     "top_risk_features": [
       "Situs Web Tidak Dapat Diakses",
       "Tidak Ada SPF/DMARC pada Domain Korporat",
       "Alamat Fisik Belum Terverifikasi Exact"
     ],
     "top_safe_features": [
+      "Ada Nama Usaha + Alamat Fisik",
       "Hasil Web Relevan Ditemukan"
     ],
     "summary": "Berdasarkan bukti publik independen yang berhasil dikumpulkan, lowongan ini dinilai aman — tidak ditemukan indikator kuat penipuan. Sistem tidak dapat menjamin legalitas perusahaan secara absolut karena beberapa sumber resmi (seperti registri AHU/OSS) tidak tersedia secara publik."
