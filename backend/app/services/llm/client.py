@@ -6,6 +6,8 @@ from typing import Any
 
 import httpx
 
+from app.services.pii import PiiMasker
+
 from app.config import LLM_API_KEY, LLM_BASE_URL, LLM_MODEL, LLM_TIMEOUT
 
 logger = logging.getLogger(__name__)
@@ -158,9 +160,12 @@ async def chat_completion(
         )
 
     url = f"{LLM_BASE_URL}/chat/completions"
+    # Data pribadi (nomor, email, NIK, rekening) dimasking sebelum keluar server; token di
+    # jawaban LLM dikembalikan ke nilai asli di bawah.
+    masker = PiiMasker()
     payload = {
         "model": model or LLM_MODEL,
-        "messages": messages,
+        "messages": masker.mask_messages(messages),
         "temperature": temperature,
         "max_tokens": max_tokens,
         "stream": False,
@@ -204,7 +209,7 @@ async def chat_completion(
                     logger.warning("LLM response terpotong (finish_reason=length) — repair akan dicoba")
                 if content is None:
                     content = ""
-                return content if isinstance(content, str) else json.dumps(content)
+                return masker.unmask(content if isinstance(content, str) else json.dumps(content))
             except (KeyError, IndexError, TypeError) as exc:
                 raise RuntimeError(f"Format respons LLM tidak dikenali: {data}") from exc
 
