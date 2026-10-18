@@ -1,0 +1,826 @@
+{
+  "verdict": "WASPADA",
+  "risk_score": 55,
+  "case_id": "814ebddf-d830-4b37-a7b7-86f8f37d1e47",
+  "summary": "Lowongan berstatus waspada karena mengatasnamakan merek besar namun pendaftaran hanya melalui tautan di bio tanpa kanal rekrutmen resmi.",
+  "risk_factors": [
+    "Pendaftaran hanya melalui tautan bio",
+    "Tidak ada kontak dan alamat resmi",
+    "Indikasi pencatutan merek ternama"
+  ],
+  "safe_factors": [
+    "Mencantumkan pendaftaran dan seragam gratis",
+    "Tidak ada permintaan transfer uang",
+    "Jejak merek ditemukan di web publik"
+  ],
+  "recommendations": [
+    "Periksa rekrutmen via situs resmi perusahaan",
+    "Hindari memasukkan data sensitif di bio",
+    "Abaikan tawaran jika meminta pungutan biaya"
+  ],
+  "entities": {
+    "companies": [
+      "ULTRA MILK"
+    ],
+    "contacts": [],
+    "emails": [],
+    "urls": [],
+    "addresses": [],
+    "location_candidates": [],
+    "salaries": [
+      "3,800,000 / bulan"
+    ]
+  },
+  "model_used": "ag/gemini-3.8-flash-medium (Evidence Reasoning)",
+  "osint": {
+    "domain": {
+      "age_years": null,
+      "created_at": "Tidak diketahui",
+      "is_new": false
+    },
+    "email_security": {
+      "spf_active": false,
+      "dmarc_active": false
+    },
+    "address_validations": [],
+    "phones": [],
+    "phone_probe": {
+      "status": "NOT_PROVIDED",
+      "note": "Nomor HP tidak tercantum pada input; pemeriksaan Kaspersky dilewati."
+    },
+    "companies": [
+      {
+        "name": "ULTRA MILK",
+        "checked": true,
+        "method": "public_web_only",
+        "registry": {
+          "pt_registry_verified": false,
+          "portal": {
+            "source": "ahu.go.id",
+            "ok": false,
+            "pt_registry_verified": false,
+            "note": "Legalitas formal PT (AHU/OSS) tidak diotomasi; hanya jejak web publik.",
+            "skipped": true
+          },
+          "disclaimer": "Legalitas formal PT (AHU/OSS) BELUM diverifikasi per-entitas. Hanya probe portal + jejak web publik."
+        },
+        "stats": {
+          "search_count": 1,
+          "public_mentions": 7,
+          "fraud_related_mentions": 0,
+          "legality_mentions": 0,
+          "successful_requests": 1,
+          "relevant_results": 6,
+          "cross_service_match_count": 7,
+          "social_public_mention_count": 1,
+          "public_mentions_source": "web_evidence"
+        },
+        "neutral_notes": [],
+        "risk_flags": [],
+        "safe_flags": [
+          "Ditemukan 6 jejak publik di search (bukan klaim legalitas AHU)."
+        ]
+      }
+    ],
+    "web": {
+      "enabled": true,
+      "engine": "searxng + lightpanda fallback",
+      "websites": [],
+      "probe_status": "COMPLETED",
+      "gform_inspections": [],
+      "searches": [
+        {
+          "type": "search",
+          "query": "ULTRA MILK",
+          "ok": true,
+          "request_status": "COMPLETED",
+          "engine": "searxng-intelligent",
+          "status": "FOUND",
+          "results": [
+            {
+              "title": "P.T. ULTRAJAYA MILK INDUSTRY & TRADING COMPANY, TBK. - HOME - ENG",
+              "url": "https://www.ultrajaya.co.id/",
+              "snippet": "Indonesia's leading producer of aseptic dairy products, beverages and healthy drink products with UHT (Ultra High Temperature) Technology and aseptic packaging.",
+              "source_type": "web",
+              "_final_score": 0.84,
+              "_entity_score": 1
+            },
+            {
+              "title": "Ultra Milk (@mymilk_id) • Instagram photos and videos",
+              "url": "https://www.instagram.com/mymilk_id/",
+              "snippet": "242K Followers, 16 Following, 4,481 Posts - Ultra Milk (@mymilk_id) on Instagram: \"🐄 Pionir Susu UHT No. 1 di Indonesia 🥛 100% Susu Sapi Segar Ini Ultra, Semua Bisa Jadi Ultra Jam operasional Admin: Mon-Fri 08.00-16.30\"",
+              "source_type": "social",
+              "_final_score": 0.74,
+              "_entity_score": 1
+            },
+            {
+              "title": "Ultra Milk Full Cream - PT Ultrajaya",
+              "url": "https://www.ultrajaya.co.id/products/ultra-milk-full-Cream/ind",
+              "snippet": "Ultra Milk Full cream mengandung berbagai kebaikan protein, vitamin dan mineral. Tersedia dalam bentuk susu segar maupun yang sudah dikemas dan memiliki umur penyimpanan lebih lama.",
+              "source_type": "web",
+              "_final_score": 0.69,
+              "_entity_score": 1
+            },
+            {
+              "title": "Ultrajaya Milk Industry - Wikipedia bahasa Indonesia ...",
+              "url": "https://id.wikipedia.org/wiki/Ultrajaya_Milk_Industry",
+              "snippet": "Pada pertengahan dekade 1970-an, perusahaan ini mulai menerapkan teknologi pengolahan Ultra High Temperature (UHT) dan teknologi pengemasan karton aseptik. Pada tahun 1975, perusahaan ini mulai memproduksi susu cair UHT dengan merek \"Ultra ",
+              "source_type": "wiki",
+              "_final_score": 0.64,
+              "_entity_score": 1
+            },
+            {
+              "title": "Is Ultra-Filtered Milk Healthier? We Asked Experts - Real Simple",
+              "url": "https://www.realsimple.com/what-is-ultra-filtered-milk-11711453",
+              "snippet": "Aug 24, 2026 · Discover what ultra-filtered milk is, and what makes it healthier than regular milk. Learn what ultra-filtered milk tastes like, how to use it, and where to buy it.",
+              "source_type": "web",
+              "_final_score": 0.615,
+              "_entity_score": 1
+            },
+            {
+              "title": "Abbigliamento, accessori e sneakers dei migliori brand ...",
+              "url": "https://ultramilk.it/",
+              "snippet": "Sep 28, 2026 · Scopri i migliori brand dedicati al mondo streetwear. Sneakers, Abbigliamento e Accessori.",
+              "source_type": "web",
+              "_final_score": 0.59,
+              "_entity_score": 1
+            },
+            {
+              "title": "ULTRA - Everyday Happy Healthy Living - Shelaidah Dairy |",
+              "url": "https://www.shelaidahdairy.com/",
+              "snippet": "Applied with consistency across our supply chain. The ULTRA mark signifies our continuous commitment to ensuring the natural quality of milk in every drop, across all our product ranges. A random sample is taken from milk collections and is",
+              "source_type": "web",
+              "_final_score": 0.5829,
+              "_entity_score": 1
+            }
+          ],
+          "raw_result_count": 7,
+          "relevant_result_count": 7,
+          "error": null,
+          "risk_flags": [],
+          "fallback_kind": "intelligent_search",
+          "fallback_index": 0
+        }
+      ],
+      "social_searches": [
+        {
+          "platform": "instagram",
+          "query": "ULTRA MILK",
+          "ok": true,
+          "request_status": "COMPLETED",
+          "engine": "searxng-intelligent",
+          "status": "FOUND",
+          "results": [
+            {
+              "title": "Ultra Milk (@mymilk_id) • Instagram photos and videos",
+              "url": "https://www.instagram.com/mymilk_id/",
+              "snippet": "242K Followers, 16 Following, 4,481 Posts - Ultra Milk (@mymilk_id) on Instagram: \"🐄 Pionir Susu UHT No. 1 di Indonesia 🥛 100% Susu Sapi Segar Ini Ultra, Semua Bisa Jadi Ultra Jam operasional Admin: Mon-Fri 08.00-16.30\"",
+              "source_type": "social",
+              "_final_score": 0.64,
+              "_entity_score": 1,
+              "_category": "social",
+              "_location_score": 0
+            }
+          ],
+          "raw_result_count": 1,
+          "relevant_result_count": 1,
+          "error": null,
+          "fallback_kind": "intelligent_search_derived",
+          "fallback_index": 0,
+          "attempt_count": 1,
+          "attempts": []
+        }
+      ],
+      "evidence_counts": {
+        "relevant_results": 7,
+        "by_source_type": {
+          "web": 5,
+          "social": 1,
+          "wiki": 1
+        },
+        "successful_requests": 1,
+        "empty_searches": 0,
+        "no_relevant_searches": 0,
+        "unavailable_searches": 0,
+        "digital_footprint": "strong",
+        "official_presence": false,
+        "marketplace_presence": false,
+        "social_presence": true,
+        "maps_presence": false
+      },
+      "risk_flags": [],
+      "safe_flags": [
+        "Terdeteksi hasil Instagram publik (status resmi belum terverifikasi): Ultra Milk (@mymilk_id) • Instagram photos and videos (https://www.instagram.com/mymilk_id/)",
+        "Ditemukan 5 hasil web publik.",
+        "Ditemukan 1 jejak publik.",
+        "Ditemukan keberadaan di platform media sosial."
+      ],
+      "neutral_notes": [],
+      "platform_evidence": {
+        "ok": true,
+        "query": "ULTRA MILK",
+        "platforms": {
+          "google_maps": {
+            "count": 0,
+            "results": []
+          },
+          "instagram": {
+            "count": 1,
+            "results": [
+              {
+                "title": "Ultra Milk (@mymilk_id) • Instagram photos and videos",
+                "url": "https://www.instagram.com/mymilk_id/",
+                "snippet": "242K Followers, 16 Following, 4,481 Posts - Ultra Milk (@mymilk_id) on Instagram: \"🐄 Pionir Susu UHT No. 1 di Indonesia 🥛 100% Susu Sapi Segar Ini Ultra, Semua Bisa Jadi Ultra Jam operasional Admin: Mon-Fri 08.00-16.30\"",
+                "engines": [
+                  "yahoo"
+                ],
+                "score": 0.3333333333333333,
+                "category": "general",
+                "published_date": null,
+                "_category": "social",
+                "_entity_score": 1,
+                "_location_score": 0,
+                "_final_score": 0.74
+              }
+            ]
+          },
+          "facebook": {
+            "count": 0,
+            "results": []
+          },
+          "tiktok": {
+            "count": 0,
+            "results": []
+          },
+          "twitter": {
+            "count": 0,
+            "results": []
+          },
+          "job_portal": {
+            "count": 0,
+            "results": []
+          },
+          "web_search": {
+            "count": 6,
+            "results": [
+              {
+                "title": "P.T. ULTRAJAYA MILK INDUSTRY & TRADING COMPANY, TBK. - HOME - ENG",
+                "url": "https://www.ultrajaya.co.id/",
+                "snippet": "Indonesia's leading producer of aseptic dairy products, beverages and healthy drink products with UHT (Ultra High Temperature) Technology and aseptic packaging.",
+                "engines": [
+                  "yahoo"
+                ],
+                "score": 1,
+                "category": "general",
+                "published_date": null,
+                "_category": "web",
+                "_entity_score": 1,
+                "_location_score": 0,
+                "_final_score": 0.84
+              },
+              {
+                "title": "Ultra Milk Full Cream - PT Ultrajaya",
+                "url": "https://www.ultrajaya.co.id/products/ultra-milk-full-Cream/ind",
+                "snippet": "Ultra Milk Full cream mengandung berbagai kebaikan protein, vitamin dan mineral. Tersedia dalam bentuk susu segar maupun yang sudah dikemas dan memiliki umur penyimpanan lebih lama.",
+                "engines": [
+                  "yahoo"
+                ],
+                "score": 0.5,
+                "category": "general",
+                "published_date": null,
+                "_category": "web",
+                "_entity_score": 1,
+                "_location_score": 0,
+                "_final_score": 0.69
+              },
+              {
+                "title": "Ultrajaya Milk Industry - Wikipedia bahasa Indonesia ...",
+                "url": "https://id.wikipedia.org/wiki/Ultrajaya_Milk_Industry",
+                "snippet": "Pada pertengahan dekade 1970-an, perusahaan ini mulai menerapkan teknologi pengolahan Ultra High Temperature (UHT) dan teknologi pengemasan karton aseptik. Pada tahun 1975, perusahaan ini mulai memproduksi susu cair UHT dengan merek \"Ultra Milk\".",
+                "engines": [
+                  "yahoo"
+                ],
+                "score": 0.2,
+                "category": "general",
+                "published_date": null,
+                "_category": "wiki",
+                "_entity_score": 1,
+                "_location_score": 0,
+                "_final_score": 0.64
+              },
+              {
+                "title": "Is Ultra-Filtered Milk Healthier? We Asked Experts - Real Simple",
+                "url": "https://www.realsimple.com/what-is-ultra-filtered-milk-11711453",
+                "snippet": "Aug 24, 2026 · Discover what ultra-filtered milk is, and what makes it healthier than regular milk. Learn what ultra-filtered milk tastes like, how to use it, and where to buy it.",
+                "engines": [
+                  "yahoo"
+                ],
+                "score": 0.25,
+                "category": "general",
+                "published_date": null,
+                "_category": "web",
+                "_entity_score": 1,
+                "_location_score": 0,
+                "_final_score": 0.615
+              },
+              {
+                "title": "Abbigliamento, accessori e sneakers dei migliori brand ...",
+                "url": "https://ultramilk.it/",
+                "snippet": "Sep 28, 2026 · Scopri i migliori brand dedicati al mondo streetwear. Sneakers, Abbigliamento e Accessori.",
+                "engines": [
+                  "yahoo"
+                ],
+                "score": 0.16666666666666666,
+                "category": "general",
+                "published_date": null,
+                "_category": "web",
+                "_entity_score": 1,
+                "_location_score": 0,
+                "_final_score": 0.59
+              },
+              {
+                "title": "ULTRA - Everyday Happy Healthy Living - Shelaidah Dairy |",
+                "url": "https://www.shelaidahdairy.com/",
+                "snippet": "Applied with consistency across our supply chain. The ULTRA mark signifies our continuous commitment to ensuring the natural quality of milk in every drop, across all our product ranges. A random sample is taken from milk collections and is tested daily.",
+                "engines": [
+                  "yahoo"
+                ],
+                "score": 0.14285714285714285,
+                "category": "general",
+                "published_date": null,
+                "_category": "web",
+                "_entity_score": 1,
+                "_location_score": 0,
+                "_final_score": 0.5829
+              }
+            ]
+          }
+        },
+        "merged_evidence": {
+          "ok": true,
+          "query": "ULTRA MILK",
+          "results": [],
+          "summary": "",
+          "entities_found": [],
+          "has_strong_verification": false,
+          "has_scam_indicators": false,
+          "total_results": 0
+        },
+        "verification_summary": "",
+        "entities_found": [],
+        "has_strong_verification": false,
+        "has_scam_indicators": false,
+        "total_raw_results": 7,
+        "total_extracted": 0
+      },
+      "search_intelligence": {
+        "digital_footprint": "strong",
+        "official_presence": false,
+        "marketplace_presence": false,
+        "social_presence": true,
+        "maps_presence": false,
+        "scam_mentions": 0,
+        "advice_only_scam": false,
+        "top_categories": [
+          "web",
+          "social",
+          "wiki"
+        ],
+        "risk_flags": [],
+        "safe_flags": [
+          "Ditemukan keberadaan di platform media sosial."
+        ]
+      }
+    },
+    "social": {
+      "enabled": true,
+      "probe_status": "COMPLETED",
+      "evidence_status": "FOUND",
+      "platform": "social_media",
+      "query": "ULTRA MILK",
+      "found": true,
+      "social_found": true,
+      "official_social_found": true,
+      "public_footprint_found": true,
+      "authenticated": false,
+      "posts": [
+        {
+          "platform": "instagram",
+          "source": "serp",
+          "title": "Ultra Milk (@mymilk_id) • Instagram photos and videos",
+          "snippet": "242K Followers, 16 Following, 4,481 Posts - Ultra Milk (@mymilk_id) on Instagram: \"🐄 Pionir Susu UHT No. 1 di Indonesia 🥛 100% Susu Sapi Segar Ini Ultra, Semua Bisa Jadi Ultra Jam operasional Admin: Mon-Fri 08.00-16.30\"",
+          "url": "https://instagram.com/mymilk_id",
+          "fallback_kind": "intelligent_search_derived",
+          "is_official": false,
+          "source_type": "public_search_result",
+          "match_confidence": 1,
+          "matched_tokens": [
+            "milk",
+            "ultra"
+          ],
+          "matched_email": false,
+          "matched_reason": "exact_tokens"
+        }
+      ],
+      "profiles": [
+        {
+          "platform": "instagram",
+          "url": "https://instagram.com/mymilk_id",
+          "title": "Ultra Milk (@mymilk_id) • Instagram photos and videos",
+          "snippet": "242K Followers, 16 Following, 4,481 Posts - Ultra Milk (@mymilk_id) on Instagram: \"🐄 Pionir Susu UHT No. 1 di Indonesia 🥛 100% Susu Sapi Segar Ini Ultra, Semua Bisa Jadi Ultra Jam operasional Admin: Mon-Fri 08.00-16.30\"",
+          "source": "web_search",
+          "is_official": false,
+          "matched_tokens": [
+            "milk",
+            "ultra"
+          ],
+          "match_confidence": 1
+        }
+      ],
+      "platform_hits": {
+        "instagram": true,
+        "threads": false,
+        "tiktok": false,
+        "facebook": false,
+        "x_twitter": false
+      },
+      "official_platform_hits": {
+        "instagram": true,
+        "threads": false,
+        "tiktok": false,
+        "facebook": false,
+        "x_twitter": false
+      },
+      "public_platform_hits": {
+        "instagram": true,
+        "threads": false,
+        "tiktok": false,
+        "facebook": false,
+        "x_twitter": false
+      },
+      "evidence_counts": {
+        "public_posts": 1,
+        "public_profiles": 1,
+        "official_posts": 0,
+        "by_platform": {
+          "instagram": 2,
+          "threads": 0,
+          "tiktok": 0,
+          "facebook": 0,
+          "x_twitter": 0,
+          "other": 0
+        }
+      },
+      "search_diagnostics": {
+        "platforms_requested": [
+          "instagram",
+          "threads",
+          "tiktok",
+          "facebook",
+          "x_twitter"
+        ],
+        "search_engine": "lightpanda",
+        "note": "Hasil sosial diklasifikasikan terpisah dari portal loker dan aggregator."
+      },
+      "social_searches": [
+        {
+          "platform": "instagram",
+          "query": "ULTRA MILK",
+          "ok": true,
+          "request_status": "COMPLETED",
+          "engine": "searxng-intelligent",
+          "status": "FOUND",
+          "results": [
+            {
+              "title": "Ultra Milk (@mymilk_id) • Instagram photos and videos",
+              "url": "https://www.instagram.com/mymilk_id/",
+              "snippet": "242K Followers, 16 Following, 4,481 Posts - Ultra Milk (@mymilk_id) on Instagram: \"🐄 Pionir Susu UHT No. 1 di Indonesia 🥛 100% Susu Sapi Segar Ini Ultra, Semua Bisa Jadi Ultra Jam operasional Admin: Mon-Fri 08.00-16.30\"",
+              "source_type": "social",
+              "_final_score": 0.64,
+              "_entity_score": 1,
+              "_category": "social",
+              "_location_score": 0
+            }
+          ],
+          "raw_result_count": 1,
+          "relevant_result_count": 1,
+          "error": null,
+          "fallback_kind": "intelligent_search_derived",
+          "fallback_index": 0,
+          "attempt_count": 1,
+          "attempts": []
+        }
+      ],
+      "risk_flags": [],
+      "errors": []
+    },
+    "evidence_policy": {
+      "mode": "factual_sources_only",
+      "note": "Semua temuan OSINT berasal dari fetch/scrape/API nyata (WHOIS, DNS, OSM, Kaspersky Who Calls, Scrapling, dan seluruh platform media sosial). LLM reasoner dilarang mengarang fakta di luar evidence.",
+      "social": "all_platforms"
+    },
+    "fraud_network": {
+      "nodes": [
+        {
+          "id": "ULTRA MILK",
+          "type": "company",
+          "risk_score": 0,
+          "status": "CLEAN"
+        }
+      ],
+      "edges": [],
+      "cluster_id": null,
+      "entity_in_fraud_network": false,
+      "total_case_count": 0,
+      "threat_level": "LOW",
+      "entity_seen_multiple_cases": false,
+      "fraud_case_count": 0,
+      "matched_entities": [],
+      "network_graph_summary": {
+        "total_nodes": 17,
+        "total_edges": 12,
+        "case_nodes": 5,
+        "fraud_cases": 1
+      },
+      "syndicate_analysis": {
+        "syndicate_detected": false,
+        "syndicate_alerts": [],
+        "historical_associations_count": 0,
+        "data_source": "database_historical_cases",
+        "note": "Dihitung dari riwayat job_cases nyata."
+      },
+      "community_reports": {
+        "status": "COMPLETED",
+        "report_count": 0,
+        "pending_report_count": 0,
+        "reported_by_community": false,
+        "risk_signal": "NONE"
+      },
+      "status": "COMPLETED"
+    },
+    "timing": {
+      "osint_parallel_sec": 22.381
+    },
+    "nlp": {
+      "enabled": true,
+      "status": "RULE_BASED_HEURISTIC",
+      "reason": "Taksonomi Pola Penipuan Kerja Indonesia (Paper22, GASA 2024, UNODC 2023)"
+    },
+    "syndicate_analysis": {
+      "syndicate_detected": false,
+      "syndicate_alerts": [],
+      "historical_associations_count": 0,
+      "data_source": "database_historical_cases",
+      "note": "Dihitung dari riwayat job_cases nyata."
+    },
+    "persistence_status": "SAVED"
+  },
+  "shap_explanation": {
+    "model_type": "Evidence Attribution Engine (Feature Contribution Analysis)",
+    "base_value": 12,
+    "final_risk_score": 55,
+    "evidence_confidence": null,
+    "decision_confidence": null,
+    "confidence_method": "not_calibrated",
+    "evidence_coverage_percent": null,
+    "probe_hit_rate_percent": 100,
+    "probe_applicability": {
+      "applicable": 2,
+      "positive": 2,
+      "outcomes": {
+        "web_evidence": true,
+        "social_media": true
+      },
+      "excluded_not_provided": [
+        "whois_domain",
+        "phone_reputation",
+        "address_geocoding",
+        "legal_registry"
+      ]
+    },
+    "decision_path": [
+      {
+        "step": "1. OCR & Entity Extraction",
+        "status": "PASS",
+        "detail": "Entitas terdeteksi: ULTRA MILK; 0 no HP, 1 perusahaan, 0 alamat."
+      },
+      {
+        "step": "2. Address OSM Geocoding",
+        "status": "NOT_PROVIDED",
+        "detail": "Alamat fisik tidak tercantum pada input."
+      },
+      {
+        "step": "3. Phone Kaspersky Who Calls Check",
+        "status": "NOT_PROVIDED",
+        "detail": "Nomor HP tidak tercantum pada input; pemeriksaan dilewati."
+      },
+      {
+        "step": "4. Email Domain Infrastructure Check",
+        "status": "NOT_PROVIDED",
+        "detail": "Email tidak tercantum pada input; pemeriksaan domain dilewati."
+      },
+      {
+        "step": "5. Fraud Network Case Memory",
+        "status": "NO_MATCH",
+        "detail": "Status jaringan: tidak ada asosiasi fraud publik."
+      },
+      {
+        "step": "6. Final Risk Level Evaluation",
+        "status": "MEDIUM",
+        "detail": "Skor risiko akhir: 55 / 100 (Risiko Sedang); bukan probabilitas."
+      }
+    ],
+    "consistency_breakdown": [
+      {
+        "factor": "company_name_match",
+        "raw_score": 100,
+        "weight": 0.25,
+        "weighted_contribution": 25
+      },
+      {
+        "factor": "address_gis_match",
+        "raw_score": null,
+        "weight": 0.2,
+        "weighted_contribution": 0,
+        "status": "NOT_PROVIDED"
+      },
+      {
+        "factor": "phone_reputation",
+        "raw_score": 50,
+        "weight": 0.2,
+        "weighted_contribution": 10
+      },
+      {
+        "factor": "domain_security",
+        "raw_score": 95,
+        "weight": 0.15,
+        "weighted_contribution": 14.2
+      },
+      {
+        "factor": "social_footprint",
+        "raw_score": 90,
+        "weight": 0.2,
+        "weighted_contribution": 18
+      }
+    ],
+    "dns_records": {
+      "resolver": "system resolver",
+      "provider_type": "CORPORATE_DOMAIN",
+      "domain": "n/a",
+      "spf_active": false,
+      "dmarc_active": false
+    },
+    "not_verified": [
+      {
+        "item": "Legal Entity AHU / OSS",
+        "reason": "Tidak ada API publik otomatis; perlu cek manual"
+      },
+      {
+        "item": "BPJS Employment Registration",
+        "reason": "Data internal perusahaan"
+      },
+      {
+        "item": "NPWP Tax Registration",
+        "reason": "Data terproteksi regulasi"
+      }
+    ],
+    "probe_weights": [
+      {
+        "probe": "Address Geocoding (OSM GIS)",
+        "weight": 0.25,
+        "configured_weight": 0.25,
+        "effective_weight": 0,
+        "execution_time_ms": null,
+        "status": "NOT_PROVIDED",
+        "applicable": false
+      },
+      {
+        "probe": "Phone Reputation (Kaspersky Who Calls)",
+        "weight": 0.2,
+        "configured_weight": 0.2,
+        "effective_weight": 0,
+        "execution_time_ms": null,
+        "status": "NOT_PROVIDED",
+        "applicable": false,
+        "url": null
+      },
+      {
+        "probe": "Web Evidence (SERP)",
+        "weight": 0.2,
+        "configured_weight": 0.2,
+        "effective_weight": 0.2,
+        "execution_time_ms": null,
+        "status": "VALID",
+        "applicable": true
+      },
+      {
+        "probe": "Email Security (DNS MX/SPF)",
+        "weight": 0.2,
+        "configured_weight": 0.2,
+        "effective_weight": 0,
+        "execution_time_ms": null,
+        "status": "NOT_PROVIDED",
+        "applicable": false
+      },
+      {
+        "probe": "Legal Entity (AHU/OSS)",
+        "weight": 0.15,
+        "configured_weight": 0.15,
+        "effective_weight": 0.15,
+        "execution_time_ms": 0,
+        "status": "UNKNOWN",
+        "applicable": true,
+        "note": "Tidak ada API publik otomatis"
+      }
+    ],
+    "community_bootstrap_strategy": {
+      "current_stage": "STAGE_1_PUBLIC_OSINT_BOOTSTRAP",
+      "public_osint_references_mined": 4,
+      "verified_candidate_reviews_count": 0,
+      "bootstrap_note": "Menggunakan rujukan OSINT publik sebelum ulasan pelamar terakumulasi."
+    },
+    "deduplication_engine": {
+      "sha256_text_hash": "n/a (dihitung di layer router/cache)",
+      "perceptual_hash_phash": "n/a (memerlukan imagehash; tidak dihitung di explainer)",
+      "crop_compression_invariant": false
+    },
+    "networkx_graph_analytics": {
+      "algorithm": "Connected Component Subgraph Analysis (nx.connected_components)",
+      "subgraph_id": "n/a (tidak ada kluster)",
+      "nodes_in_cluster": 1,
+      "entity_in_fraud_network": false,
+      "threat_level": "LOW",
+      "shared_identity_reuse": false
+    },
+    "checked_at": "2026-10-18T06:45:00.529160+00:00",
+    "ethical_safeguards": {
+      "human_review_recommended": true,
+      "cost_of_error": {
+        "false_positive_fatal_cost": 5,
+        "false_negative_cost": 10
+      }
+    },
+    "verdict": "WASPADA",
+    "feature_contributions": [
+      {
+        "feature": "Penyesuaian Penalaran AI",
+        "feature_key": "model_calibration",
+        "value": 33,
+        "contribution": 33,
+        "impact": "risk",
+        "description": "Penalaran AI atas seluruh teks dan bukti menilai risiko lebih tinggi daripada jumlah bobot bukti terukur. Selisihnya ditampilkan terpisah agar skor akhir = nilai dasar + Σ kontribusi.",
+        "delta": 33
+      },
+      {
+        "feature": "Daftar Hanya via WhatsApp/Tautan Bio",
+        "feature_key": "has_whatsapp_apply",
+        "value": 1,
+        "contribution": 20,
+        "impact": "risk",
+        "description": "Pendaftaran hanya lewat WhatsApp pribadi atau tautan di bio, tanpa email atau portal resmi perusahaan",
+        "delta": 20
+      },
+      {
+        "feature": "Hasil Web Relevan Ditemukan",
+        "feature_key": "company_found_web",
+        "value": 1,
+        "contribution": 10,
+        "impact": "safe",
+        "description": "Ditemukan 7 hasil web relevan dengan nama perusahaan; keterkaitan resmi belum terverifikasi.",
+        "delta": -10
+      }
+    ],
+    "waterfall_chart": [
+      {
+        "label": "Penyesuaian Penalaran AI",
+        "value": 33,
+        "cumulative": 45,
+        "impact": "risk",
+        "delta": 33
+      },
+      {
+        "label": "Daftar Hanya via WhatsApp/Tautan Bio",
+        "value": 20,
+        "cumulative": 65,
+        "impact": "risk",
+        "delta": 20
+      },
+      {
+        "label": "Hasil Web Relevan Ditemukan",
+        "value": 10,
+        "cumulative": 55,
+        "impact": "safe",
+        "delta": -10
+      }
+    ],
+    "evidence_delta": 10,
+    "calibration_delta": 33,
+    "top_risk_features": [
+      "Daftar Hanya via WhatsApp/Tautan Bio"
+    ],
+    "top_safe_features": [
+      "Hasil Web Relevan Ditemukan"
+    ],
+    "summary": "Berdasarkan bukti publik independen yang berhasil dikumpulkan, lowongan ini dinilai perlu diwaspadai — ditemukan sinyal risiko. Sistem tidak dapat menjamin legalitas perusahaan secara absolut karena beberapa sumber resmi (seperti registri AHU/OSS) tidak tersedia secara publik."
+  }
+}

@@ -1,6 +1,6 @@
 # Loker uji Oktober 2026
 
-Kumpulan loker nyata untuk menguji tiga kanal input Verifin (teks, link, poster). T1, T2, L1, L2, dan P1 diambil dari postingan publik Threads pada 18 Okt 2026, lalu dicek manual tanpa Verifin. T3 dan T4 adalah lowongan penipuan yang sudah dibantah resmi oleh perusahaan yang namanya dicatut. Set lama di `test/` (The Biker Shop, VinFast, PT SISI) tetap disimpan karena dipakai di Laporan Akhir Bab G.
+Kumpulan loker nyata untuk menguji tiga kanal input Verifin (teks, link, poster). T1, T2, L1, L2, dan P1 diambil dari postingan publik Threads pada 18 Okt 2026, lalu dicek manual tanpa Verifin. T3–T8 adalah lowongan penipuan yang sudah dibantah resmi oleh perusahaan atau instansi yang namanya dicatut. T9–T11 adalah lowongan asli dari pusat karier UAD (`cdc.uad.ac.id`). Set lama di `test/` (The Biker Shop, VinFast, PT SISI) tetap disimpan karena dipakai di Laporan Akhir Bab G.
 
 > Label "kesimpulan manual" adalah hasil pengecekan tim, bukan kebenaran mutlak. Untuk kasus yang tidak bisa dipastikan, labelnya ditulis apa adanya.
 
@@ -10,6 +10,13 @@ Kumpulan loker nyata untuk menguji tiga kanal input Verifin (teks, link, poster)
 | T2 | Teks | `T2-teks-packing-pasar-kemis.txt` | [Threads @fahadhamzah_, 9 Okt 2026](https://www.threads.com/@fahadhamzah_/post/DeQi-aTAX0G) | Kemungkinan asli (rekrutmen outsourcing PT IGS), tetapi teksnya sendiri tidak menyebut perusahaan | WASPADA (dari teks saja identitas tidak bisa dicek) |
 | T3 | Teks | `T3-teks-surat-panggilan-pertamina.txt` | [IDN Times, 2 Mar 2026](https://www.idntimes.com/business/economy/cek-fakta-waspada-surat-panggilan-seleksi-palsu-atas-nama-pertamina-00-bvq5c-pypb8n) | **Penipuan terkonfirmasi** (dicap HOAX oleh Pertamina) | BAHAYA |
 | T4 | Teks | `T4-teks-loker-pos-indonesia.txt` | [Jalahoaks DKI, 22 Mei 2026](https://jalahoaks.jakarta.go.id/detail/Hoaks-Pendaftaran-Lowongan-Pekerjaan-PT-Pos-Indonesia-2026-Melalui-Whatsapp) | **Penipuan terkonfirmasi** (dibantah Pos Indonesia) | WASPADA atau BAHAYA |
+| T5 | Teks | `T5-teks-loker-adaro.txt` | [TurnBackHoax, 10 Okt 2026](https://turnbackhoax.id/articles/37115-penipuan-tautan-lowongan-kerja-adaro-andalan-indonesia) | **Penipuan terkonfirmasi** (Adaro tidak membuka lowongan; tautan meminta KTP dan Telegram) | WASPADA atau BAHAYA |
+| T6 | Teks | `T6-teks-loker-ultra-milk.txt` | [TurnBackHoax, 20 Jul 2026](https://turnbackhoax.id/articles/35741-penipuan-tautan-pendaftaran-lowongan-ultra-milk-2026) | **Penipuan terkonfirmasi** (rekrutmen resmi hanya lewat DigitalCV) | WASPADA atau BAHAYA |
+| T7 | Teks | `T7-teks-loker-lansia.txt` | [TurnBackHoax, 11 Agu 2026](https://turnbackhoax.id/articles/36089-penipuan-tautan-lowongan-kerja-untuk-lansia-2026) | **Penipuan terkonfirmasi** (tiruan program Kemnaker; tautan phishing) | WASPADA atau BAHAYA |
+| T8 | Teks | `T8-teks-loker-pos-indonesia-gaji.txt` | [TurnBackHoax, 5 Mei 2026](https://turnbackhoax.id/articles/34055-penipuan-lowongan-kerja-pos-indonesia) | **Penipuan terkonfirmasi** (Pos Indonesia tidak membuka lowongan) | WASPADA atau BAHAYA |
+| T9 | Teks | `T9-teks-aam-sdp-2026.txt` | [CDC UAD](https://cdc.uad.ac.id/jobs/anugrah-argon-medica-aam-supervisory-development-program-sdp-2026) | Asli (situs `anugrah-argon.com` aktif; bagian dari grup Medela Potentia) | AMAN |
+| T10 | Teks | `T10-teks-komitrando-hr.txt` | [CDC UAD](https://cdc.uad.ac.id/jobs/pt-komitrando-emporio-hr-generalist) | Asli (situs `komitrando.com`: pabrik tas di Yogyakarta sejak 1990) | AMAN |
+| T11 | Teks | `T11-teks-dekayu-fulltime.txt` | [CDC UAD](https://cdc.uad.ac.id/jobs/dekayu-loker-full-time) | Asli menurut listing kampus; memakai email Gmail (identitas belum dicek ke luar listing) | AMAN atau WASPADA |
 | L1 | Link | `https://www.threads.com/@jogjalowker_official/post/DegeamfkV1w` | Threads @jogjalowker_official, 13 Okt 2026 | Asli | AMAN |
 | L2 | Link | `https://www.threads.com/@pastidapatuangg/post/DekRfpYEzzW` | Threads @pastidapatuangg, 17 Okt 2026 | Sangat mencurigakan (pola sewa akun LinkedIn) | WASPADA atau BAHAYA |
 | P1 | Poster | `P1-poster-packing-pasar-kemis.jpg` | Gambar lampiran postingan T2 (Threads @fahadhamzah_, 9 Okt 2026) | Kemungkinan asli (PT Indokarya Global Sinergi, perusahaan outsourcing di Cikupa, Tangerang) | AMAN atau WASPADA |
@@ -39,6 +46,14 @@ Kumpulan loker nyata untuk menguji tiga kanal input Verifin (teks, link, poster)
 - Teks ditranskripsi dari takarir dan poster pada gambar Jalahoaks (tanpa label HOAKS). Nomor WhatsApp tidak terlihat di gambar.
 - Pola: mencatut BUMN, daftar lewat "WhatsApp admin" dan "link di bio", tidak ada permintaan biaya di teks. Dari teks saja tidak ada bukti keras (biaya, nomor terlapor), sehingga WASPADA adalah batas atas yang jujur untuk input ini.
 
+### T5–T8 · Penipuan dari arsip TurnBackHoax (Mafindo)
+- Artikel TurnBackHoax hanya mengutip sebagian narasi unggahan. Teks uji disusun dari kutipan tersebut tanpa menambah klaim baru; baris yang tidak dikutip artikel tidak ditulis. Untuk T8, baris "Daftar lewat link di bio" diambil dari deskripsi artikel bahwa pendaftaran diarahkan ke tautan di bio akun.
+- Tidak satu pun dari keempat teks meminta biaya secara langsung; modusnya mengarahkan ke formulir yang meminta data pribadi (nama sesuai KTP, nomor Telegram).
+
+### T9–T11 · Lowongan asli dari pusat karier UAD
+- Disalin dari halaman CDC UAD pada 18 Okt 2026, disingkat tanpa mengubah isi (bagian benefit dan tautan flyer dibuang).
+- T9 dan T10 dicek ke situs perusahaan. T11 (Dekayu) memakai email Gmail dan hanya dicek sampai listing kampus.
+
 ### L1 · Qhomemart (Videographer)
 - Alamat Jl. Raya Janti No. 96, email `recruitment@qhomemart.co.id`, dan WA `0857-0129-9095` **semuanya cocok** dengan listing Qhomemart di pusat karier UAD (`cdc.uad.ac.id/jobs/qhomemart-5-positions`).
 - Kesimpulan: asli.
@@ -59,15 +74,33 @@ Kumpulan loker nyata untuk menguji tiga kanal input Verifin (teks, link, poster)
 
 Dijalankan lewat antarmuka web (Playwright) terhadap backend yang terhubung ke Supabase. Screenshot dan JSON run terakhir ada di `hasil/`; run sebelumnya diarsipkan di `hasil/run1/` dan `hasil/run2/`. Sebelum tiap run ulang, baris `job_cases` hasil run sebelumnya dihapus supaya tidak terbaca dari cache.
 
-| ID | Run 1 | Run 2 | Run 3 (final) | Durasi run 3 | Sesuai cek manual? |
-|---|---|---|---|---|---|
-| T1 | AMAN 8 | AMAN 10 | AMAN 10 | 34 dtk | Ya |
-| T2 | AMAN 28 | WASPADA 52 | **WASPADA 50** | 16 dtk | Run 1 terlalu longgar; run 2–3 ya |
-| T3 | — | — | **BAHAYA 95** | 40 dtk | Ya |
-| T4 | — | — | **WASPADA 68** | 28 dtk | Sebagian: lowongan ini penipuan, tetapi tanpa bukti keras di teks Verifin berhenti di WASPADA |
-| L1 | AMAN 10 | AMAN 12 | AMAN 12 | 40 dtk | Ya |
-| L2 | WASPADA 60 | WASPADA 60 | WASPADA 60 | 21 dtk | Ya |
-| P1 | AMAN 25 | AMAN 20 | AMAN 24 | 52 dtk | Ya |
+| ID | Status sebenarnya | Run 1 | Run 2 | Run 3 | **Run 5 (final)** | Durasi run 5 |
+|---|---|---|---|---|---|---|
+| T1 | Asli | AMAN 8 | AMAN 10 | AMAN 10 | **AMAN 10** | 41 dtk |
+| T9 | Asli | — | — | — | **AMAN 15** | 29 dtk |
+| T10 | Asli | — | — | — | **AMAN 8** | 34 dtk |
+| T11 | Asli | — | — | — | **AMAN 15** | 40 dtk |
+| L1 | Asli | AMAN 10 | AMAN 12 | AMAN 12 | **AMAN 12** | 52 dtk |
+| P1 | Asli | AMAN 25 | AMAN 20 | AMAN 24 | **AMAN 20** | 72 dtk |
+| T2 | Abu-abu (perusahaan nyata, teks anonim) | AMAN 28 | WASPADA 52 | WASPADA 50 | **WASPADA 50** | 18 dtk |
+| L2 | Abu-abu (pola sewa akun, belum terkonfirmasi) | WASPADA 60 | WASPADA 60 | WASPADA 60 | **WASPADA 55** | 21 dtk |
+| T3 | Penipuan | — | — | BAHAYA 95 | **BAHAYA 95** | 33 dtk |
+| T4 | Penipuan | — | — | WASPADA 68 | **WASPADA 65** | 31 dtk |
+| T5 | Penipuan | — | — | — | **WASPADA 65** | 29 dtk |
+| T6 | Penipuan | — | — | — | **WASPADA 55** | 43 dtk |
+| T7 | Penipuan | — | — | — | **WASPADA 45** | 24 dtk |
+| T8 | Penipuan | — | — | — | **WASPADA 52** | 50 dtk |
+
+Run 4 (arsip tidak disimpan) dipakai untuk menemukan dua celah yang diperbaiki sebelum run 5: frasa "link di. bio" tidak terbaca sebagai jalur tidak resmi, dan label XAI "Pendaftaran via WhatsApp" ikut muncul pada kasus tautan bio.
+
+**Ringkasan run 5** (kasus abu-abu tidak dihitung):
+- Penipuan yang ditandai (WASPADA atau BAHAYA): **6 dari 6**. Yang sampai BAHAYA hanya 1 dari 6 (T3, satu-satunya yang meminta biaya). Lima lainnya hanya mengarahkan ke WhatsApp/tautan bio tanpa bukti keras, sehingga berhenti di WASPADA.
+- Lowongan asli yang dinilai AMAN: **6 dari 6**; tidak ada lowongan asli yang ditandai.
+- Kalau T2 dihitung sebagai lowongan asli, ada 1 penandaan keliru (WASPADA) dari 7. Penandaan ini disengaja: dari teksnya saja, identitas pemberi kerja tidak bisa diperiksa.
+- Durasi analisis lengkap tanpa cache: 18–72 detik (poster P1 paling lama karena OCR).
+- Set ini masih kecil (14 kasus) dan dipilih tim, sehingga belum bisa dipakai untuk mengklaim akurasi umum.
+
+Celah yang masih terlihat: pada T6 (Ultra Milk) dan T8 (POS INDONESIA tanpa "Persero"), nama merek yang dicatut tidak memakai akhiran Persero/Tbk, sehingga sinyal pencatutan BUMN tidak menyala. Di T6, jejak web merek asli masih tercatat sebagai "Hasil Web Relevan Ditemukan" (−10). LLM tetap menilai keduanya WASPADA.
 
 ### Bug yang ditemukan run 1 (diperbaiki sebelum run 2)
 1. Penalti "Tidak Ada SPF/DMARC pada Domain Korporat" (+12) terpicu walau lowongan tidak punya domain sama sekali (T2).
@@ -84,4 +117,6 @@ Run 2 sudah benar, tetapi sebagian perbaikannya masih tambalan. Akar masalahnya:
 - **Nama BUMN dihitung sebagai sinyal aman** (`persero`, `bumn`, `tbk` di daftar kata aman), padahal penipu justru mencatut nama itu. Dihapus, diganti sinyal `brand_unofficial_channel` (nama BUMN/Tbk + daftar hanya lewat WhatsApp/tautan di bio). Kata "gratis" saja juga tidak lagi dihitung aman, dan jejak web atau alamat milik BUMN yang dicatut tidak lagi dihitung sebagai bukti aman di XAI.
 - Varian nama yang sama ("PT POS INDONESIA", "PT Pos Indonesia (Persero)") sekarang disatukan.
 
-Batasan yang tersisa: T4 menunjukkan bahwa penipuan yang mencatut BUMN tanpa meminta biaya di teks baru bisa dinaikkan ke WASPADA. Untuk BAHAYA, Verifin membutuhkan bukti keras (biaya, nomor terlapor, formulir phishing). Set uji ini masih kecil (7 kasus, 2 penipuan); belum bisa dipakai untuk mengklaim akurasi.
+### Perubahan sebelum run 5
+- Masking data pribadi: nomor telepon, bagian lokal email, NIK, dan rekening diganti token sebelum teks dikirim ke LLM.
+- OCR: `requirements.txt` dulu meminta PaddleOCR 3.x untuk semua platform, sedangkan uji lokal memakai 2.8.1. Di image Docker, Paddle 3.3 tanpa oneDNN butuh 90–125 dtk per poster, dan oneDNN-nya crash. Sekarang Linux/Windows dikunci ke Paddle 3.1.1 + PaddleOCR 3.7.0 dengan oneDNN dan model mobile (17,8 dtk per poster di container setelah model dimuat), sedangkan macOS Intel tetap 2.6.2 + 2.8.1.

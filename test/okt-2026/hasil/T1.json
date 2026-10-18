@@ -1,19 +1,19 @@
 {
   "verdict": "AMAN",
   "risk_score": 10,
-  "case_id": "6306467d-91c8-40fa-b14c-8fc17787515e",
-  "summary": "Lowongan kredibel dengan domain email perusahaan terverifikasi, reputasi kontak bersih, dan jejak web resmi yang kuat.",
+  "case_id": "483b506e-4904-411c-b247-65f41dddf139",
+  "summary": "Lowongan sangat kredibel menggunakan domain resmi berusia lebih dari 13 tahun tanpa indikasi pungutan biaya.",
   "risk_factors": [
-    "Titik nomor bangunan belum presisi di peta"
+    "Nomor bangunan belum terverifikasi presisi di peta"
   ],
   "safe_factors": [
-    "Domain email yang tercantum berumur 13 tahun",
-    "Reputasi nomor telepon bersih dari penipuan",
-    "Tersedia halaman karier di situs resmi"
+    "Domain email yang tercantum aktif belasan tahun",
+    "Pendaftaran melalui portal publik perusahaan",
+    "Nomor kontak bersih dari laporan penipuan"
   ],
   "recommendations": [
-    "Kirim lamaran melalui alamat email yang tercantum",
-    "Gunakan tautan karier resmi pada situs"
+    "Kirimkan lamaran melalui portal publik perusahaan",
+    "Konfirmasi berkas via nomor kontak resmi"
   ],
   "entities": {
     "companies": [
@@ -54,7 +54,7 @@
       "spf_active": true,
       "dmarc_active": true,
       "mx_active": true,
-      "mx_provider": "mail.newsaphirhotel.com",
+      "mx_provider": "baron.newsaphirhotel.com",
       "domain": "newsaphirhotel.com"
     },
     "address_validations": [
@@ -66,14 +66,14 @@
           "found": true,
           "probe_status": "COMPLETED",
           "evidence_status": "FOUND",
-          "lat": -7.7832303,
-          "lon": 110.3927041,
-          "display_name": "Gedung Wanita, Jalan Laksda Adisucipto, Papringan, Catur Tunggal, Depok, Sleman, Daerah Istimewa Yogyakarta, 55221, Indonesia",
+          "lat": -7.7830588,
+          "lon": 110.3939155,
+          "display_name": "De Britto, Jalan Laksda Adisucipto, Papringan, Catur Tunggal, Depok, Sleman, Daerah Istimewa Yogyakarta, 55221, Indonesia",
           "country": "Indonesia",
           "confidence_score": 0,
           "matched_query": "Jl. Laksda Adisucipto , Yogyakarta, Indonesia",
           "google_maps_url": "https://www.google.com/maps/search/?api=1&query=HOTEL+NEW+SAPHIR+YOGYAKARTA%2C+Jl.+Laksda+Adisucipto+No.+38%2C+Yogyakarta",
-          "osm_url": "https://www.openstreetmap.org/?mlat=-7.7832303&mlon=110.3927041&zoom=17",
+          "osm_url": "https://www.openstreetmap.org/?mlat=-7.7830588&mlon=110.3939155&zoom=17",
           "match_level": "street",
           "coordinates_exact": false,
           "house_number_match": false,
@@ -96,7 +96,7 @@
           "found": true,
           "method": "google_maps_serp",
           "match_score": 1,
-          "matched_snippet": "hotel new saphir yogyakarta - 4-star hotel in city center located in a prime location on jalan laksda adisucipto, the new saphir hotel yogyakarta combines modern 4-star comfort with the warm hospitali",
+          "matched_snippet": "hotel new saphir yogyakarta, yogyakarta - diskon s.d 50% - traveloka hotel new saphir yogyakarta terletak di jalan laksda adisucipto no. 38, depok, yogyakarta, daerah istimewa yogyakarta, indonesia. h",
           "maps_match": false,
           "maps_url": null,
           "lat": null,
@@ -106,7 +106,7 @@
           "street_match": false,
           "house_number_match": false,
           "address_match_level": "none",
-          "discovered_street": "jalan laksda adisucipto"
+          "discovered_street": "jalan laksda adisucipto no"
         },
         "business_found": true
       }
@@ -207,11 +207,11 @@
           "status": "FOUND",
           "results": [
             {
-              "title": "Hotel New Saphir Yogyakarta - 4-Star Hotel in City Center",
-              "url": "https://www.newsaphirhotel.com/",
-              "snippet": "Located in a prime location on Jalan Laksda Adisucipto, the New Saphir Hotel Yogyakarta combines modern 4-star comfort with the warm hospitality characteristic of Yogyakarta. Just a few minutes from renowned shopping centers, the Malioboro ",
-              "source_type": "web",
-              "_final_score": 0.94,
+              "title": "Contact Hotel New Saphir Yogyakarta | Address & Direct Phone",
+              "url": "https://www.newsaphirhotel.com/contact-us/",
+              "snippet": "Get in touch with Hotel New Saphir Yogyakarta. Find our direct phone numbers, email addresses, central Jogja map location, and online inquiry form. We are here to assist you 24/7.",
+              "source_type": "official",
+              "_final_score": 1.0333,
               "_entity_score": 1
             },
             {
@@ -223,11 +223,19 @@
               "_entity_score": 1
             },
             {
-              "title": "Contact Hotel New Saphir Yogyakarta | Address & Direct Phone",
-              "url": "https://www.newsaphirhotel.com/contact-us/",
-              "snippet": "Get in touch with Hotel New Saphir Yogyakarta. Find our direct phone numbers, email addresses, central Jogja map location, and online inquiry form. We are here to assist you 24/7.",
-              "source_type": "official",
-              "_final_score": 0.8833,
+              "title": "Hotel New Saphir Yogyakarta - Dinas Pariwisata Daerah Istimewa Yogyakarta",
+              "url": "https://visitingjogja.jogjaprov.go.id/7989/hotel-new-saphir-yogyakarta/",
+              "snippet": "Jan 16, 2017 · Terletak di Jl. Laksda Adisucipto, Hotel New Saphir Yogyakarta hanya berjarak 10 menit dari Bandara. Dengan desain kamar yang modern, hotel ini memberikan fasilitas Live Music di Mirah Lounge setiap hari dari pukul 20.00 WIB ",
+              "source_type": "web",
+              "_final_score": 0.94,
+              "_entity_score": 1
+            },
+            {
+              "title": "Hotel New Saphir Yogyakarta - 4-Star Hotel in City Center",
+              "url": "https://www.newsaphirhotel.com/",
+              "snippet": "Enjoy full amenities, spacious and elegant rooms, and a strategic location on Jalan Laksda Adisucipto. The perfect choice for both family vacations and business trips.",
+              "source_type": "web",
+              "_final_score": 0.94,
               "_entity_score": 1
             },
             {
@@ -235,23 +243,7 @@
               "url": "https://pergimulu.com/hotel-new-saphir-yogyakarta/",
               "snippet": "Oct 9, 2026 · Oleh karena itu, tidak heran apabila di kota ini ada banyak hotel. Salah satunya adalah Hotel New Saphir Yogyakarta yang merupakan penginapan bintang empat di Jalan Laksda Adisucipto. Hotel ini cocok untuk segala jenis wisataw",
               "source_type": "web",
-              "_final_score": 0.8007,
-              "_entity_score": 1
-            },
-            {
-              "title": "Hotel New Saphir Yogyakarta, Yogyakarta | 2026 Updated Prices, Deals",
-              "url": "https://www.agoda.com/hotel-new-saphir-yogyakarta/hotel/yogyakarta-id.html",
-              "snippet": "In a vibrant cultural hub near Malioboro, historic markets and batik workshops, this hotel is minutes from Plaza Ambarrukmo, Galeria Mall and the Yogyakarta Monument. Relax at the stylish bar and coffee shop, swim in the heated indoor pool,",
-              "source_type": "web",
-              "_final_score": 0.79,
-              "_entity_score": 1
-            },
-            {
-              "title": "Hotel New Saphir Yogyakarta | Rekomendasi Hotel Bintang 4 Terbaik - New ...",
-              "url": "https://www.newsaphirhotel.com/homepage-saphir/",
-              "snippet": "Welcome to the New Saphir Hotel in Yogyakarta Located in a prime location on Jalan Laksda Adisucipto, the New Saphir Hotel Yogyakarta combines modern 4-star comfort with the warm hospitality characteristic of Yogyakarta. Just a few minutes ",
-              "source_type": "web",
-              "_final_score": 0.74,
+              "_final_score": 0.86,
               "_entity_score": 1
             },
             {
@@ -259,23 +251,15 @@
               "url": "https://dinogo.com/hotels/53549-new-saphir-hotel-yogyakarta",
               "snippet": "Welcome to Hotel New Saphir Yogyakarta, a stylish and inviting hotel nestled in the vibrant heart of Yogyakarta. Situated at Jl. Laksda Adisucipto No.38, Demangan, Kec.",
               "source_type": "web",
-              "_final_score": 0.69,
+              "_final_score": 0.74,
               "_entity_score": 1
             },
             {
-              "title": "Hotel New Saphir Yogyakarta - Dinas Pariwisata Daerah Istimewa Yogyakarta",
-              "url": "https://visitingjogja.jogjaprov.go.id/7989/hotel-new-saphir-yogyakarta/",
-              "snippet": "Terletak di Jl. Laksda Adisucipto, Hotel New Saphir Yogyakarta hanya berjarak 10 menit dari Bandara. Dengan desain kamar yang modern, hotel ini memberikan fasilitas Live Music di Mirah Lounge setiap hari dari pukul 20.00 WIB sampai dengan p",
+              "title": "Hotel New Saphir Yogyakarta, Yogyakarta | 2026 Updated Prices, Deals",
+              "url": "https://www.agoda.com/hotel-new-saphir-yogyakarta/hotel/yogyakarta-id.html",
+              "snippet": "In a vibrant cultural hub near Malioboro, historic markets and batik workshops, this hotel is minutes from Plaza Ambarrukmo, Galeria Mall and the Yogyakarta Monument. Relax at the stylish bar and coffee shop, swim in the heated indoor pool,",
               "source_type": "web",
-              "_final_score": 0.6829,
-              "_entity_score": 1
-            },
-            {
-              "title": "Hotel New Saphir Yogyakarta",
-              "url": "https://new-saphir-yogyakarta.yogyakartahotel.net/en/",
-              "snippet": "Located in the Gondokusuman district, this Yogyakarta hotel boasts an outdoor swimming pool and an international cuisine is served at an Indonesian restaurant on site. The hotel is within 25 minutes' walk of the 54-acre Gembira Loka Zoo and",
-              "source_type": "web",
-              "_final_score": 0.6483,
+              "_final_score": 0.719,
               "_entity_score": 1
             },
             {
@@ -284,6 +268,22 @@
               "snippet": "Book Hotel New Saphir Yogyakarta, Yogyakarta Region on Tripadvisor: See 266 traveler reviews, 214 candid photos, and great deals for Hotel New Saphir Yogyakarta, ranked #127 of 352 hotels in Yogyakarta Region and rated 3 of 5 at Tripadvisor",
               "source_type": "web",
               "_final_score": 0.6333,
+              "_entity_score": 1
+            },
+            {
+              "title": "Hotel New Saphir Yogyakarta, Yogyakarta (harga terbaru)",
+              "url": "https://www.booking.com/hotel/id/saphir-yogyakarta.id.html",
+              "snippet": "Hotel New Saphir Yogyakarta berjarak beberapa menit jalan kaki dari berbagai toko, minimarket, dan restoran. Dibutuhkan waktu 20 menit berkendara dari Bandara Internasional Adi Sucipto dan 30 menit berkendara dari Candi Prambanan menuju hot",
+              "source_type": "web",
+              "_final_score": 0.6233,
+              "_entity_score": 1
+            },
+            {
+              "title": "Hotel New Saphir Yogyakarta, Yogyakarta (updated prices 2027)",
+              "url": "https://www.booking.com/hotel/id/saphir-yogyakarta.html",
+              "snippet": "The Hotel New Saphir Yogyakarta is within walking distance of shops, mini markets and restaurants. It is a 20-minute drive from Adi Sucipto International Airport and a 30-minute drive from Prambanan Temple.",
+              "source_type": "web",
+              "_final_score": 0.6162,
               "_entity_score": 1
             }
           ],
@@ -299,8 +299,8 @@
       "evidence_counts": {
         "relevant_results": 10,
         "by_source_type": {
-          "web": 9,
-          "official": 1
+          "official": 1,
+          "web": 9
         },
         "successful_requests": 1,
         "empty_searches": 0,
@@ -316,8 +316,8 @@
       "safe_flags": [
         "Website memuat indikasi halaman perusahaan/karir.",
         "Location candidate match: hasil web memuat token lokasi 'adisucipto, laksda, yogyakarta'; belum membuktikan alamat exact.",
-        "Ditemukan 9 hasil web publik.",
         "Ditemukan 1 jejak publik.",
+        "Ditemukan 9 hasil web publik.",
         "Ditemukan indikasi website/halaman resmi perusahaan."
       ],
       "neutral_notes": [],
@@ -353,20 +353,20 @@
             "count": 10,
             "results": [
               {
-                "title": "Hotel New Saphir Yogyakarta - 4-Star Hotel in City Center",
-                "url": "https://www.newsaphirhotel.com/",
-                "snippet": "Located in a prime location on Jalan Laksda Adisucipto, the New Saphir Hotel Yogyakarta combines modern 4-star comfort with the warm hospitality characteristic of Yogyakarta. Just a few minutes from renowned shopping centers, the Malioboro tourist district, and Lempuyangan Station, we offer the best",
+                "title": "Contact Hotel New Saphir Yogyakarta | Address & Direct Phone",
+                "url": "https://www.newsaphirhotel.com/contact-us/",
+                "snippet": "Get in touch with Hotel New Saphir Yogyakarta. Find our direct phone numbers, email addresses, central Jogja map location, and online inquiry form. We are here to assist you 24/7.",
                 "engines": [
                   "duckduckgo",
                   "yahoo"
                 ],
-                "score": 4,
+                "score": 3,
                 "category": "general",
                 "published_date": null,
-                "_category": "web",
+                "_category": "official",
                 "_entity_score": 1,
-                "_location_score": 1,
-                "_final_score": 0.94
+                "_location_score": 0.333,
+                "_final_score": 1.0333
               },
               {
                 "title": "Hotel New Saphir Yogyakarta, Yogyakarta - Diskon s.d 50% - Traveloka",
@@ -385,19 +385,35 @@
                 "_final_score": 0.94
               },
               {
-                "title": "Contact Hotel New Saphir Yogyakarta | Address & Direct Phone",
-                "url": "https://www.newsaphirhotel.com/contact-us/",
-                "snippet": "Get in touch with Hotel New Saphir Yogyakarta. Find our direct phone numbers, email addresses, central Jogja map location, and online inquiry form. We are here to assist you 24/7.",
+                "title": "Hotel New Saphir Yogyakarta - Dinas Pariwisata Daerah Istimewa Yogyakarta",
+                "url": "https://visitingjogja.jogjaprov.go.id/7989/hotel-new-saphir-yogyakarta/",
+                "snippet": "Jan 16, 2017 · Terletak di Jl. Laksda Adisucipto, Hotel New Saphir Yogyakarta hanya berjarak 10 menit dari Bandara. Dengan desain kamar yang modern, hotel ini memberikan fasilitas Live Music di Mirah Lounge setiap hari dari pukul 20.00 WIB sampai dengan pukul 23.00 WIB.",
                 "engines": [
+                  "duckduckgo",
                   "yahoo"
                 ],
-                "score": 0.5,
+                "score": 1,
                 "category": "general",
                 "published_date": null,
-                "_category": "official",
+                "_category": "web",
                 "_entity_score": 1,
-                "_location_score": 0.333,
-                "_final_score": 0.8833
+                "_location_score": 1,
+                "_final_score": 0.94
+              },
+              {
+                "title": "Hotel New Saphir Yogyakarta - 4-Star Hotel in City Center",
+                "url": "https://www.newsaphirhotel.com/",
+                "snippet": "Enjoy full amenities, spacious and elegant rooms, and a strategic location on Jalan Laksda Adisucipto. The perfect choice for both family vacations and business trips.",
+                "engines": [
+                  "duckduckgo"
+                ],
+                "score": 1,
+                "category": "general",
+                "published_date": null,
+                "_category": "web",
+                "_entity_score": 1,
+                "_location_score": 1,
+                "_final_score": 0.94
               },
               {
                 "title": "Hotel New Saphir Yogyakarta, Penginapan Bintang Empat Yang Cocok Untuk ...",
@@ -407,36 +423,20 @@
                   "duckduckgo",
                   "yahoo"
                 ],
-                "score": 0.5357142857142857,
+                "score": 0.7333333333333334,
                 "category": "general",
                 "published_date": null,
                 "_category": "web",
                 "_entity_score": 1,
                 "_location_score": 1,
-                "_final_score": 0.8007
+                "_final_score": 0.86
               },
               {
-                "title": "Hotel New Saphir Yogyakarta, Yogyakarta | 2026 Updated Prices, Deals",
-                "url": "https://www.agoda.com/hotel-new-saphir-yogyakarta/hotel/yogyakarta-id.html",
-                "snippet": "In a vibrant cultural hub near Malioboro, historic markets and batik workshops, this hotel is minutes from Plaza Ambarrukmo, Galeria Mall and the Yogyakarta Monument. Relax at the stylish bar and coffee shop, swim in the heated indoor pool, or join curated local tours.",
+                "title": "Hotel New Saphir Yogyakarta (New Saphir Hotel Yogyakarta) Jl ...",
+                "url": "https://dinogo.com/hotels/53549-new-saphir-hotel-yogyakarta",
+                "snippet": "Welcome to Hotel New Saphir Yogyakarta, a stylish and inviting hotel nestled in the vibrant heart of Yogyakarta. Situated at Jl. Laksda Adisucipto No.38, Demangan, Kec.",
                 "engines": [
-                  "duckduckgo",
                   "yahoo"
-                ],
-                "score": 0.7222222222222222,
-                "category": "general",
-                "published_date": null,
-                "_category": "web",
-                "_entity_score": 1,
-                "_location_score": 0.333,
-                "_final_score": 0.79
-              },
-              {
-                "title": "Hotel New Saphir Yogyakarta | Rekomendasi Hotel Bintang 4 Terbaik - New ...",
-                "url": "https://www.newsaphirhotel.com/homepage-saphir/",
-                "snippet": "Welcome to the New Saphir Hotel in Yogyakarta Located in a prime location on Jalan Laksda Adisucipto, the New Saphir Hotel Yogyakarta combines modern 4-star comfort with the warm hospitality characteristic of Yogyakarta. Just a few minutes from renowned shopping centers, the Malioboro tourist distri",
-                "engines": [
-                  "duckduckgo"
                 ],
                 "score": 0.3333333333333333,
                 "category": "general",
@@ -447,49 +447,20 @@
                 "_final_score": 0.74
               },
               {
-                "title": "Hotel New Saphir Yogyakarta (New Saphir Hotel Yogyakarta) Jl ...",
-                "url": "https://dinogo.com/hotels/53549-new-saphir-hotel-yogyakarta",
-                "snippet": "Welcome to Hotel New Saphir Yogyakarta, a stylish and inviting hotel nestled in the vibrant heart of Yogyakarta. Situated at Jl. Laksda Adisucipto No.38, Demangan, Kec.",
+                "title": "Hotel New Saphir Yogyakarta, Yogyakarta | 2026 Updated Prices, Deals",
+                "url": "https://www.agoda.com/hotel-new-saphir-yogyakarta/hotel/yogyakarta-id.html",
+                "snippet": "In a vibrant cultural hub near Malioboro, historic markets and batik workshops, this hotel is minutes from Plaza Ambarrukmo, Galeria Mall and the Yogyakarta Monument. Relax at the stylish bar and coffee shop, swim in the heated indoor pool, or join curated local tours.",
                 "engines": [
+                  "duckduckgo",
                   "yahoo"
                 ],
-                "score": 0.16666666666666666,
-                "category": "general",
-                "published_date": null,
-                "_category": "web",
-                "_entity_score": 1,
-                "_location_score": 1,
-                "_final_score": 0.69
-              },
-              {
-                "title": "Hotel New Saphir Yogyakarta - Dinas Pariwisata Daerah Istimewa Yogyakarta",
-                "url": "https://visitingjogja.jogjaprov.go.id/7989/hotel-new-saphir-yogyakarta/",
-                "snippet": "Terletak di Jl. Laksda Adisucipto, Hotel New Saphir Yogyakarta hanya berjarak 10 menit dari Bandara. Dengan desain kamar yang modern, hotel ini memberikan fasilitas Live Music di Mirah Lounge setiap hari dari pukul 20.00 WIB sampai dengan pukul 23.00 WIB.",
-                "engines": [
-                  "duckduckgo"
-                ],
-                "score": 0.14285714285714285,
-                "category": "general",
-                "published_date": null,
-                "_category": "web",
-                "_entity_score": 1,
-                "_location_score": 1,
-                "_final_score": 0.6829
-              },
-              {
-                "title": "Hotel New Saphir Yogyakarta",
-                "url": "https://new-saphir-yogyakarta.yogyakartahotel.net/en/",
-                "snippet": "Located in the Gondokusuman district, this Yogyakarta hotel boasts an outdoor swimming pool and an international cuisine is served at an Indonesian restaurant on site. The hotel is within 25 minutes' walk of the 54-acre Gembira Loka Zoo and 3.3 km from Pasar Beringharjo Market.",
-                "engines": [
-                  "duckduckgo"
-                ],
-                "score": 0.25,
+                "score": 0.4857142857142857,
                 "category": "general",
                 "published_date": null,
                 "_category": "web",
                 "_entity_score": 1,
                 "_location_score": 0.333,
-                "_final_score": 0.6483
+                "_final_score": 0.719
               },
               {
                 "title": "Hotel New Saphir Yogyakarta - Tripadvisor",
@@ -505,6 +476,36 @@
                 "_entity_score": 1,
                 "_location_score": 0.333,
                 "_final_score": 0.6333
+              },
+              {
+                "title": "Hotel New Saphir Yogyakarta, Yogyakarta (harga terbaru)",
+                "url": "https://www.booking.com/hotel/id/saphir-yogyakarta.id.html",
+                "snippet": "Hotel New Saphir Yogyakarta berjarak beberapa menit jalan kaki dari berbagai toko, minimarket, dan restoran. Dibutuhkan waktu 20 menit berkendara dari Bandara Internasional Adi Sucipto dan 30 menit berkendara dari Candi Prambanan menuju hotel. Halal, Asia, Buffet. Parkir gratis tersedia di hotel.",
+                "engines": [
+                  "duckduckgo"
+                ],
+                "score": 0.16666666666666666,
+                "category": "general",
+                "published_date": null,
+                "_category": "web",
+                "_entity_score": 1,
+                "_location_score": 0.333,
+                "_final_score": 0.6233
+              },
+              {
+                "title": "Hotel New Saphir Yogyakarta, Yogyakarta (updated prices 2027)",
+                "url": "https://www.booking.com/hotel/id/saphir-yogyakarta.html",
+                "snippet": "The Hotel New Saphir Yogyakarta is within walking distance of shops, mini markets and restaurants. It is a 20-minute drive from Adi Sucipto International Airport and a 30-minute drive from Prambanan Temple.",
+                "engines": [
+                  "duckduckgo"
+                ],
+                "score": 0.14285714285714285,
+                "category": "general",
+                "published_date": null,
+                "_category": "web",
+                "_entity_score": 1,
+                "_location_score": 0.333,
+                "_final_score": 0.6162
               }
             ]
           }
@@ -699,7 +700,7 @@
       "status": "NO_DATA"
     },
     "timing": {
-      "osint_parallel_sec": 18.83
+      "osint_parallel_sec": 24.446
     },
     "nlp": {
       "enabled": true,
@@ -891,7 +892,7 @@
       "threat_level": "LOW",
       "shared_identity_reuse": false
     },
-    "checked_at": "2026-10-18T05:04:36.116377+00:00",
+    "checked_at": "2026-10-18T06:41:09.067440+00:00",
     "ethical_safeguards": {
       "human_review_recommended": true,
       "cost_of_error": {

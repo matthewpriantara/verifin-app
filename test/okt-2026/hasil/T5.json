@@ -1,0 +1,729 @@
+{
+  "verdict": "WASPADA",
+  "risk_score": 65,
+  "case_id": "bde832d7-8960-465f-a78f-ad218bec15e1",
+  "summary": "Lowongan mencatut nama emiten Tbk dengan mengarahkan pelamar ke tautan bio alih-alih portal publik.",
+  "risk_factors": [
+    "Nama perusahaan Tbk terindikasi dicatut",
+    "Pendaftaran hanya melalui link di bio"
+  ],
+  "safe_factors": [
+    "Tidak ada permintaan transfer biaya",
+    "Entitas Adaro memiliki jejak publik kuat"
+  ],
+  "recommendations": [
+    "Hindari klik tautan di bio profil",
+    "Jangan berikan data pribadi sembarangan"
+  ],
+  "entities": {
+    "companies": [
+      "PT Adaro Andalan Indonesia Tbk"
+    ],
+    "contacts": [],
+    "emails": [],
+    "urls": [],
+    "addresses": [],
+    "location_candidates": [],
+    "salaries": []
+  },
+  "model_used": "ag/gemini-3.8-flash-medium (Evidence Reasoning)",
+  "osint": {
+    "domain": {
+      "age_years": null,
+      "created_at": "Tidak diketahui",
+      "is_new": false
+    },
+    "email_security": {
+      "spf_active": false,
+      "dmarc_active": false
+    },
+    "address_validations": [],
+    "phones": [],
+    "phone_probe": {
+      "status": "NOT_PROVIDED",
+      "note": "Nomor HP tidak tercantum pada input; pemeriksaan Kaspersky dilewati."
+    },
+    "companies": [
+      {
+        "name": "PT Adaro Andalan Indonesia Tbk",
+        "checked": true,
+        "method": "public_web_only",
+        "registry": {
+          "pt_registry_verified": false,
+          "portal": {
+            "source": "ahu.go.id",
+            "ok": false,
+            "pt_registry_verified": false,
+            "note": "Legalitas formal PT (AHU/OSS) tidak diotomasi; hanya jejak web publik.",
+            "skipped": true
+          },
+          "disclaimer": "Legalitas formal PT (AHU/OSS) BELUM diverifikasi per-entitas. Hanya probe portal + jejak web publik."
+        },
+        "stats": {
+          "search_count": 1,
+          "public_mentions": 7,
+          "fraud_related_mentions": 0,
+          "legality_mentions": 0,
+          "successful_requests": 1,
+          "relevant_results": 7,
+          "cross_service_match_count": 7,
+          "social_public_mention_count": 0
+        },
+        "neutral_notes": [],
+        "risk_flags": [],
+        "safe_flags": [
+          "Ditemukan 7 jejak publik di search (bukan klaim legalitas AHU)."
+        ]
+      }
+    ],
+    "web": {
+      "enabled": true,
+      "engine": "searxng + lightpanda fallback",
+      "websites": [],
+      "probe_status": "COMPLETED",
+      "gform_inspections": [],
+      "searches": [
+        {
+          "type": "search",
+          "query": "Adaro Andalan Indonesia",
+          "ok": true,
+          "request_status": "COMPLETED",
+          "engine": "searxng-intelligent",
+          "status": "FOUND",
+          "results": [
+            {
+              "title": "Adaro Andalan Indonesia",
+              "url": "https://www.adaroindonesia.com/",
+              "snippet": "Pendaftaran secara daring melalui situs web Adaro Career sebagai berikut: adarocareer.com. Adaro Group tidak pernah meminta calon pelamar untuk mengirimkan dan/atau membayarkan sejumlah dana sebagai bagian dari proses rekrutmen.",
+              "source_type": "official",
+              "_final_score": 1,
+              "_entity_score": 1
+            },
+            {
+              "title": "Adaro Andalan Indonesia - Wikipedia bahasa Indonesia ...",
+              "url": "https://id.wikipedia.org/wiki/Adaro_Andalan_Indonesia",
+              "snippet": "PT Adaro Andalan Indonesia Tbk adalah sebuah perusahaan pertambangan batu bara yang berkantor pusat di Jakarta. [3][4] Hingga akhir tahun 2024, perusahaan ini mengelola sejumlah tambang batu bara di Kalimantan Selatan serta masing-masing sa",
+              "source_type": "wiki",
+              "_final_score": 0.73,
+              "_entity_score": 1
+            },
+            {
+              "title": "AADI Buka Suara soal Pengumuman Forced Delisting yang Bikin ...",
+              "url": "https://www.idxchannel.com/market-news/aadi-buka-suara-soal-pengumuman-forced-delisting-yang-bikin-heboh-bukan-dari-perseroan",
+              "snippet": "Sep 26, 2026 · IDXChannel - PT Adaro Andalan Indonesia Tbk (AADI) buka suara terkait pengumuman Bursa Efek Indonesia (BEI) yang beredar di media sosial dan memuat informasi penghapusan pencatatan saham atau forced delisting AADI pada Sabtu ",
+              "source_type": "web",
+              "_final_score": 0.64,
+              "_entity_score": 1
+            },
+            {
+              "title": "Berita Adaro Andalan Indonesia Terkini dan Terbaru Hari Ini ...",
+              "url": "https://bisnis.com/topic/65108/adaro-andalan-indonesia",
+              "snippet": "Sep 3, 2026 · Berita Adaro Andalan Indonesia terkini dan terbaru hari ini. Simak informasi terlengkap dan tepercaya hanya di Bisnis.com.",
+              "source_type": "web",
+              "_final_score": 0.615,
+              "_entity_score": 1
+            },
+            {
+              "title": "PT Adaro Andalan Indonesia Tbk (IDX:AADI) - Stock Analysis",
+              "url": "https://stockanalysis.com/quote/idx/AADI/",
+              "snippet": "2 days ago · Get the latest PT Adaro Andalan Indonesia Tbk (IDX:AADI) stock price quote with financials, statistics, dividends, charts, historical data and more.",
+              "source_type": "web",
+              "_final_score": 0.6,
+              "_entity_score": 1
+            },
+            {
+              "title": "PT. Adaro Andalan Indonesia Tbk [AADI] | IDNFinancials",
+              "url": "https://www.idnfinancials.com/id/aadi/pt-adaro-andalan-indonesia-tbk",
+              "snippet": "Dec 5, 2024 · PT Adaro Andalan Indonesia Tbk (AADI) didirikan pada tahun 2004 di Jakarta. Sebagai bagian dari Adaro Group, perusahaan ini bertindak sebagai perusahaan induk yang mengoperasikan bisnis di segmen batubara termal, logistik, lah",
+              "source_type": "web",
+              "_final_score": 0.59,
+              "_entity_score": 1
+            },
+            {
+              "title": "PT Adaro Andalan Indonesia Tbk (AADI) Stock Price & News ...",
+              "url": "https://www.google.com/finance/quote/AADI:IDX",
+              "snippet": "Get real-time stock quotes, news, financial details, and analytics for PT Adaro Andalan Indonesia Tbk from Google Finance.",
+              "source_type": "web",
+              "_final_score": 0.5829,
+              "_entity_score": 1
+            }
+          ],
+          "raw_result_count": 7,
+          "relevant_result_count": 7,
+          "error": null,
+          "risk_flags": [],
+          "fallback_kind": "intelligent_search",
+          "fallback_index": 0
+        }
+      ],
+      "social_searches": [],
+      "evidence_counts": {
+        "relevant_results": 7,
+        "by_source_type": {
+          "official": 1,
+          "wiki": 1,
+          "web": 5
+        },
+        "successful_requests": 1,
+        "empty_searches": 0,
+        "no_relevant_searches": 0,
+        "unavailable_searches": 0,
+        "digital_footprint": "strong",
+        "official_presence": true,
+        "marketplace_presence": false,
+        "social_presence": false,
+        "maps_presence": false
+      },
+      "risk_flags": [],
+      "safe_flags": [
+        "Ditemukan 1 jejak publik.",
+        "Ditemukan 5 hasil web publik.",
+        "Ditemukan indikasi website/halaman resmi perusahaan."
+      ],
+      "neutral_notes": [],
+      "platform_evidence": {
+        "ok": true,
+        "query": "PT Adaro Andalan Indonesia Tbk",
+        "platforms": {
+          "google_maps": {
+            "count": 0,
+            "results": []
+          },
+          "instagram": {
+            "count": 0,
+            "results": []
+          },
+          "facebook": {
+            "count": 0,
+            "results": []
+          },
+          "tiktok": {
+            "count": 0,
+            "results": []
+          },
+          "twitter": {
+            "count": 0,
+            "results": []
+          },
+          "job_portal": {
+            "count": 0,
+            "results": []
+          },
+          "web_search": {
+            "count": 7,
+            "results": [
+              {
+                "title": "Adaro Andalan Indonesia",
+                "url": "https://www.adaroindonesia.com/",
+                "snippet": "Pendaftaran secara daring melalui situs web Adaro Career sebagai berikut: adarocareer.com. Adaro Group tidak pernah meminta calon pelamar untuk mengirimkan dan/atau membayarkan sejumlah dana sebagai bagian dari proses rekrutmen.",
+                "engines": [
+                  "yahoo"
+                ],
+                "score": 1,
+                "category": "general",
+                "published_date": null,
+                "_category": "official",
+                "_entity_score": 1,
+                "_location_score": 0,
+                "_final_score": 1
+              },
+              {
+                "title": "Adaro Andalan Indonesia - Wikipedia bahasa Indonesia ...",
+                "url": "https://id.wikipedia.org/wiki/Adaro_Andalan_Indonesia",
+                "snippet": "PT Adaro Andalan Indonesia Tbk adalah sebuah perusahaan pertambangan batu bara yang berkantor pusat di Jakarta. [3][4] Hingga akhir tahun 2024, perusahaan ini mengelola sejumlah tambang batu bara di Kalimantan Selatan serta masing-masing satu tambang batu bara di Sumatera Selatan dan Australia.",
+                "engines": [
+                  "yahoo"
+                ],
+                "score": 0.5,
+                "category": "general",
+                "published_date": null,
+                "_category": "wiki",
+                "_entity_score": 1,
+                "_location_score": 0,
+                "_final_score": 0.73
+              },
+              {
+                "title": "AADI Buka Suara soal Pengumuman Forced Delisting yang Bikin ...",
+                "url": "https://www.idxchannel.com/market-news/aadi-buka-suara-soal-pengumuman-forced-delisting-yang-bikin-heboh-bukan-dari-perseroan",
+                "snippet": "Sep 26, 2026 · IDXChannel - PT Adaro Andalan Indonesia Tbk (AADI) buka suara terkait pengumuman Bursa Efek Indonesia (BEI) yang beredar di media sosial dan memuat informasi penghapusan pencatatan saham atau forced delisting AADI pada Sabtu (26/9/2026).",
+                "engines": [
+                  "yahoo"
+                ],
+                "score": 0.3333333333333333,
+                "category": "general",
+                "published_date": null,
+                "_category": "web",
+                "_entity_score": 1,
+                "_location_score": 0,
+                "_final_score": 0.64
+              },
+              {
+                "title": "Berita Adaro Andalan Indonesia Terkini dan Terbaru Hari Ini ...",
+                "url": "https://bisnis.com/topic/65108/adaro-andalan-indonesia",
+                "snippet": "Sep 3, 2026 · Berita Adaro Andalan Indonesia terkini dan terbaru hari ini. Simak informasi terlengkap dan tepercaya hanya di Bisnis.com.",
+                "engines": [
+                  "yahoo"
+                ],
+                "score": 0.25,
+                "category": "general",
+                "published_date": null,
+                "_category": "web",
+                "_entity_score": 1,
+                "_location_score": 0,
+                "_final_score": 0.615
+              },
+              {
+                "title": "PT Adaro Andalan Indonesia Tbk (IDX:AADI) - Stock Analysis",
+                "url": "https://stockanalysis.com/quote/idx/AADI/",
+                "snippet": "2 days ago · Get the latest PT Adaro Andalan Indonesia Tbk (IDX:AADI) stock price quote with financials, statistics, dividends, charts, historical data and more.",
+                "engines": [
+                  "yahoo"
+                ],
+                "score": 0.2,
+                "category": "general",
+                "published_date": null,
+                "_category": "web",
+                "_entity_score": 1,
+                "_location_score": 0,
+                "_final_score": 0.6
+              },
+              {
+                "title": "PT. Adaro Andalan Indonesia Tbk [AADI] | IDNFinancials",
+                "url": "https://www.idnfinancials.com/id/aadi/pt-adaro-andalan-indonesia-tbk",
+                "snippet": "Dec 5, 2024 · PT Adaro Andalan Indonesia Tbk (AADI) didirikan pada tahun 2004 di Jakarta. Sebagai bagian dari Adaro Group, perusahaan ini bertindak sebagai perusahaan induk yang mengoperasikan bisnis di segmen batubara termal, logistik, lahan, investasi, dan kelistrikan.",
+                "engines": [
+                  "yahoo"
+                ],
+                "score": 0.16666666666666666,
+                "category": "general",
+                "published_date": null,
+                "_category": "web",
+                "_entity_score": 1,
+                "_location_score": 0,
+                "_final_score": 0.59
+              },
+              {
+                "title": "PT Adaro Andalan Indonesia Tbk (AADI) Stock Price & News ...",
+                "url": "https://www.google.com/finance/quote/AADI:IDX",
+                "snippet": "Get real-time stock quotes, news, financial details, and analytics for PT Adaro Andalan Indonesia Tbk from Google Finance.",
+                "engines": [
+                  "yahoo"
+                ],
+                "score": 0.14285714285714285,
+                "category": "general",
+                "published_date": null,
+                "_category": "web",
+                "_entity_score": 1,
+                "_location_score": 0,
+                "_final_score": 0.5829
+              }
+            ]
+          }
+        },
+        "merged_evidence": {
+          "ok": true,
+          "query": "PT Adaro Andalan Indonesia Tbk",
+          "results": [],
+          "summary": "",
+          "entities_found": [],
+          "has_strong_verification": false,
+          "has_scam_indicators": false,
+          "total_results": 0
+        },
+        "verification_summary": "",
+        "entities_found": [],
+        "has_strong_verification": false,
+        "has_scam_indicators": false,
+        "total_raw_results": 7,
+        "total_extracted": 0
+      },
+      "search_intelligence": {
+        "digital_footprint": "strong",
+        "official_presence": true,
+        "marketplace_presence": false,
+        "social_presence": false,
+        "maps_presence": false,
+        "scam_mentions": 0,
+        "advice_only_scam": false,
+        "top_categories": [
+          "web",
+          "official",
+          "wiki"
+        ],
+        "risk_flags": [],
+        "safe_flags": [
+          "Ditemukan indikasi website/halaman resmi perusahaan."
+        ]
+      }
+    },
+    "social": {
+      "enabled": true,
+      "probe_status": "COMPLETED",
+      "evidence_status": "NO_RELEVANT_RESULTS",
+      "platform": "social_media",
+      "query": "PT Adaro Andalan Indonesia Tbk",
+      "found": false,
+      "social_found": false,
+      "official_social_found": false,
+      "public_footprint_found": false,
+      "authenticated": false,
+      "posts": [],
+      "profiles": [],
+      "platform_hits": {
+        "instagram": false,
+        "threads": false,
+        "tiktok": false,
+        "facebook": false,
+        "x_twitter": false
+      },
+      "official_platform_hits": {
+        "instagram": false,
+        "threads": false,
+        "tiktok": false,
+        "facebook": false,
+        "x_twitter": false
+      },
+      "public_platform_hits": {
+        "instagram": false,
+        "threads": false,
+        "tiktok": false,
+        "facebook": false,
+        "x_twitter": false
+      },
+      "evidence_counts": {
+        "public_posts": 0,
+        "public_profiles": 0,
+        "official_posts": 0,
+        "by_platform": {
+          "instagram": 0,
+          "threads": 0,
+          "tiktok": 0,
+          "facebook": 0,
+          "x_twitter": 0,
+          "other": 0
+        }
+      },
+      "search_diagnostics": {
+        "platforms_requested": [
+          "instagram",
+          "threads",
+          "tiktok",
+          "facebook",
+          "x_twitter"
+        ],
+        "search_engine": "lightpanda",
+        "note": "Hasil sosial diklasifikasikan terpisah dari portal loker dan aggregator."
+      },
+      "social_searches": [],
+      "risk_flags": [],
+      "errors": []
+    },
+    "evidence_policy": {
+      "mode": "factual_sources_only",
+      "note": "Semua temuan OSINT berasal dari fetch/scrape/API nyata (WHOIS, DNS, OSM, Kaspersky Who Calls, Scrapling, dan seluruh platform media sosial). LLM reasoner dilarang mengarang fakta di luar evidence.",
+      "social": "all_platforms"
+    },
+    "fraud_network": {
+      "nodes": [
+        {
+          "id": "PT Adaro Andalan Indonesia Tbk",
+          "type": "company",
+          "risk_score": 0,
+          "status": "CLEAN"
+        }
+      ],
+      "edges": [],
+      "cluster_id": null,
+      "entity_in_fraud_network": false,
+      "total_case_count": 0,
+      "threat_level": "LOW",
+      "entity_seen_multiple_cases": false,
+      "fraud_case_count": 0,
+      "matched_entities": [],
+      "network_graph_summary": {
+        "total_nodes": 15,
+        "total_edges": 11,
+        "case_nodes": 4,
+        "fraud_cases": 1
+      },
+      "syndicate_analysis": {
+        "syndicate_detected": false,
+        "syndicate_alerts": [],
+        "historical_associations_count": 0,
+        "data_source": "database_historical_cases",
+        "note": "Dihitung dari riwayat job_cases nyata."
+      },
+      "community_reports": {
+        "status": "COMPLETED",
+        "report_count": 0,
+        "pending_report_count": 0,
+        "reported_by_community": false,
+        "risk_signal": "NONE"
+      },
+      "status": "COMPLETED"
+    },
+    "timing": {
+      "osint_parallel_sec": 11.968
+    },
+    "nlp": {
+      "enabled": true,
+      "status": "RULE_BASED_HEURISTIC",
+      "reason": "Taksonomi Pola Penipuan Kerja Indonesia (Paper22, GASA 2024, UNODC 2023)"
+    },
+    "syndicate_analysis": {
+      "syndicate_detected": false,
+      "syndicate_alerts": [],
+      "historical_associations_count": 0,
+      "data_source": "database_historical_cases",
+      "note": "Dihitung dari riwayat job_cases nyata."
+    },
+    "persistence_status": "SAVED"
+  },
+  "shap_explanation": {
+    "model_type": "Evidence Attribution Engine (Feature Contribution Analysis)",
+    "base_value": 12,
+    "final_risk_score": 65,
+    "evidence_confidence": null,
+    "decision_confidence": null,
+    "confidence_method": "not_calibrated",
+    "evidence_coverage_percent": null,
+    "probe_hit_rate_percent": 50,
+    "probe_applicability": {
+      "applicable": 2,
+      "positive": 1,
+      "outcomes": {
+        "web_evidence": true,
+        "social_media": false
+      },
+      "excluded_not_provided": [
+        "whois_domain",
+        "phone_reputation",
+        "address_geocoding",
+        "legal_registry"
+      ]
+    },
+    "decision_path": [
+      {
+        "step": "1. OCR & Entity Extraction",
+        "status": "PASS",
+        "detail": "Entitas terdeteksi: PT Adaro Andalan Indonesia Tbk; 0 no HP, 1 perusahaan, 0 alamat."
+      },
+      {
+        "step": "2. Address OSM Geocoding",
+        "status": "NOT_PROVIDED",
+        "detail": "Alamat fisik tidak tercantum pada input."
+      },
+      {
+        "step": "3. Phone Kaspersky Who Calls Check",
+        "status": "NOT_PROVIDED",
+        "detail": "Nomor HP tidak tercantum pada input; pemeriksaan dilewati."
+      },
+      {
+        "step": "4. Email Domain Infrastructure Check",
+        "status": "NOT_PROVIDED",
+        "detail": "Email tidak tercantum pada input; pemeriksaan domain dilewati."
+      },
+      {
+        "step": "5. Fraud Network Case Memory",
+        "status": "NO_MATCH",
+        "detail": "Status jaringan: tidak ada asosiasi fraud publik."
+      },
+      {
+        "step": "6. Final Risk Level Evaluation",
+        "status": "MEDIUM",
+        "detail": "Skor risiko akhir: 65 / 100 (Risiko Sedang); bukan probabilitas."
+      }
+    ],
+    "consistency_breakdown": [
+      {
+        "factor": "company_name_match",
+        "raw_score": 100,
+        "weight": 0.25,
+        "weighted_contribution": 25
+      },
+      {
+        "factor": "address_gis_match",
+        "raw_score": null,
+        "weight": 0.2,
+        "weighted_contribution": 0,
+        "status": "NOT_PROVIDED"
+      },
+      {
+        "factor": "phone_reputation",
+        "raw_score": 50,
+        "weight": 0.2,
+        "weighted_contribution": 10
+      },
+      {
+        "factor": "domain_security",
+        "raw_score": 95,
+        "weight": 0.15,
+        "weighted_contribution": 14.2
+      },
+      {
+        "factor": "social_footprint",
+        "raw_score": 40,
+        "weight": 0.2,
+        "weighted_contribution": 8
+      }
+    ],
+    "dns_records": {
+      "resolver": "system resolver",
+      "provider_type": "CORPORATE_DOMAIN",
+      "domain": "n/a",
+      "spf_active": false,
+      "dmarc_active": false
+    },
+    "not_verified": [
+      {
+        "item": "Legal Entity AHU / OSS",
+        "reason": "Tidak ada API publik otomatis; perlu cek manual"
+      },
+      {
+        "item": "BPJS Employment Registration",
+        "reason": "Data internal perusahaan"
+      },
+      {
+        "item": "NPWP Tax Registration",
+        "reason": "Data terproteksi regulasi"
+      }
+    ],
+    "probe_weights": [
+      {
+        "probe": "Address Geocoding (OSM GIS)",
+        "weight": 0.25,
+        "configured_weight": 0.25,
+        "effective_weight": 0,
+        "execution_time_ms": null,
+        "status": "NOT_PROVIDED",
+        "applicable": false
+      },
+      {
+        "probe": "Phone Reputation (Kaspersky Who Calls)",
+        "weight": 0.2,
+        "configured_weight": 0.2,
+        "effective_weight": 0,
+        "execution_time_ms": null,
+        "status": "NOT_PROVIDED",
+        "applicable": false,
+        "url": null
+      },
+      {
+        "probe": "Web Evidence (SERP)",
+        "weight": 0.2,
+        "configured_weight": 0.2,
+        "effective_weight": 0.2,
+        "execution_time_ms": null,
+        "status": "VALID",
+        "applicable": true
+      },
+      {
+        "probe": "Email Security (DNS MX/SPF)",
+        "weight": 0.2,
+        "configured_weight": 0.2,
+        "effective_weight": 0,
+        "execution_time_ms": null,
+        "status": "NOT_PROVIDED",
+        "applicable": false
+      },
+      {
+        "probe": "Legal Entity (AHU/OSS)",
+        "weight": 0.15,
+        "configured_weight": 0.15,
+        "effective_weight": 0.15,
+        "execution_time_ms": 0,
+        "status": "UNKNOWN",
+        "applicable": true,
+        "note": "Tidak ada API publik otomatis"
+      }
+    ],
+    "community_bootstrap_strategy": {
+      "current_stage": "STAGE_1_PUBLIC_OSINT_BOOTSTRAP",
+      "public_osint_references_mined": 3,
+      "verified_candidate_reviews_count": 0,
+      "bootstrap_note": "Menggunakan rujukan OSINT publik sebelum ulasan pelamar terakumulasi."
+    },
+    "deduplication_engine": {
+      "sha256_text_hash": "n/a (dihitung di layer router/cache)",
+      "perceptual_hash_phash": "n/a (memerlukan imagehash; tidak dihitung di explainer)",
+      "crop_compression_invariant": false
+    },
+    "networkx_graph_analytics": {
+      "algorithm": "Connected Component Subgraph Analysis (nx.connected_components)",
+      "subgraph_id": "n/a (tidak ada kluster)",
+      "nodes_in_cluster": 1,
+      "entity_in_fraud_network": false,
+      "threat_level": "LOW",
+      "shared_identity_reuse": false
+    },
+    "checked_at": "2026-10-18T06:44:01.852622+00:00",
+    "ethical_safeguards": {
+      "human_review_recommended": true,
+      "cost_of_error": {
+        "false_positive_fatal_cost": 5,
+        "false_negative_cost": 10
+      }
+    },
+    "verdict": "WASPADA",
+    "feature_contributions": [
+      {
+        "feature": "Daftar Hanya via WhatsApp/Tautan Bio",
+        "feature_key": "has_whatsapp_apply",
+        "value": 1,
+        "contribution": 20,
+        "impact": "risk",
+        "description": "Pendaftaran hanya lewat WhatsApp pribadi atau tautan di bio, tanpa email atau portal resmi perusahaan",
+        "delta": 20
+      },
+      {
+        "feature": "Penyesuaian Penalaran AI",
+        "feature_key": "model_calibration",
+        "value": 18,
+        "contribution": 18,
+        "impact": "risk",
+        "description": "Penalaran AI atas seluruh teks dan bukti menilai risiko lebih tinggi daripada jumlah bobot bukti terukur. Selisihnya ditampilkan terpisah agar skor akhir = nilai dasar + Σ kontribusi.",
+        "delta": 18
+      },
+      {
+        "feature": "Nama BUMN/Tbk, Daftar lewat WhatsApp",
+        "feature_key": "brand_unofficial_channel",
+        "value": 1,
+        "contribution": 15,
+        "impact": "risk",
+        "description": "Mengatasnamakan BUMN/perusahaan terbuka, tetapi pendaftaran hanya lewat WhatsApp atau tautan di bio",
+        "delta": 15
+      }
+    ],
+    "waterfall_chart": [
+      {
+        "label": "Daftar Hanya via WhatsApp/Tautan Bio",
+        "value": 20,
+        "cumulative": 32,
+        "impact": "risk",
+        "delta": 20
+      },
+      {
+        "label": "Penyesuaian Penalaran AI",
+        "value": 18,
+        "cumulative": 50,
+        "impact": "risk",
+        "delta": 18
+      },
+      {
+        "label": "Nama BUMN/Tbk, Daftar lewat WhatsApp",
+        "value": 15,
+        "cumulative": 65,
+        "impact": "risk",
+        "delta": 15
+      }
+    ],
+    "evidence_delta": 35,
+    "calibration_delta": 18,
+    "top_risk_features": [
+      "Daftar Hanya via WhatsApp/Tautan Bio",
+      "Nama BUMN/Tbk, Daftar lewat WhatsApp"
+    ],
+    "top_safe_features": [],
+    "summary": "Berdasarkan bukti publik independen yang berhasil dikumpulkan, lowongan ini dinilai perlu diwaspadai — ditemukan sinyal risiko. Sistem tidak dapat menjamin legalitas perusahaan secara absolut karena beberapa sumber resmi (seperti registri AHU/OSS) tidak tersedia secara publik."
+  }
+}

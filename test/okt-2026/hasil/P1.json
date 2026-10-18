@@ -1,21 +1,21 @@
 {
   "verdict": "AMAN",
-  "risk_score": 24,
-  "case_id": "aee594be-21f3-4ff1-a406-4fcb3b5d8253",
-  "summary": "Lowongan terindikasi aman dengan jejak perusahaan yang nyata dan nomor kontak bersih tanpa laporan penipuan.",
+  "risk_score": 20,
+  "case_id": "91f1f0ec-da03-41c5-a3d8-bb79ea2a520b",
+  "summary": "Lowongan tergolong aman dengan jejak publik perusahaan yang jelas, nomor kontak bersih, dan tanpa indikasi pungutan biaya.",
   "risk_factors": [
-    "Pendaftaran hanya melalui kontak WhatsApp personal.",
-    "Alamat spesifik pabrik belum tercantum detail."
+    "Pendaftaran hanya melalui kontak WhatsApp",
+    "Alamat spesifik pabrik belum tertera"
   ],
   "safe_factors": [
-    "Nomor telepon bersih dari riwayat penipuan.",
-    "Entitas perusahaan memiliki jejak digital kuat.",
-    "Tidak ada pungutan biaya pendaftaran apa pun."
+    "Nomor telepon bersih dari laporan penipuan",
+    "Jejak digital perusahaan teridentifikasi kuat",
+    "Tidak ada permintaan biaya apa pun"
   ],
   "recommendations": [
-    "Konfirmasi lowongan melalui situs resmi perusahaan.",
-    "Jangan pernah mengirimkan uang kepada perekrut.",
-    "Pastikan alamat wawancara fisik jelas dan aman."
+    "Konfirmasi lowongan melalui situs resmi perusahaan",
+    "Jangan pernah mentransfer biaya apa pun",
+    "Pastikan alamat kantor sebelum menghadiri seleksi"
   ],
   "entities": {
     "companies": [
@@ -241,11 +241,11 @@
               "_entity_score": 1
             },
             {
-              "title": "#operationsmanagement #operationalexcellence # ...",
-              "url": "https://www.linkedin.com/posts/fahad-hamzah_operationsmanagement-operationalexcellence-activity-7505860591106965504-iWI-",
-              "snippet": "Sebagai Operations Manager di PT Indokarya Global Sinergi, saya berada di titik di mana kebutuhan klien, kesiapan tenaga kerja, koordinasi tim, dan kualitas layanan harus berjalan dalam satu...",
+              "title": "Fahad Hamzah - Operations Manager at PT Indokarya Global ...",
+              "url": "https://id.linkedin.com/in/fahad-hamzah",
+              "snippet": "Operations Manager at PT Indokarya Global Sinergi, leading operational execution across workforce solutions, manpower outsourcing, recruitment support, and business support services. I focus...",
               "source_type": "job_portal",
-              "_final_score": 0.695,
+              "_final_score": 0.72,
               "_entity_score": 1
             },
             {
@@ -257,9 +257,9 @@
               "_entity_score": 1
             },
             {
-              "title": "Fahad Hamzah - Operations Manager at PT Indokarya Global ...",
-              "url": "https://id.linkedin.com/in/fahad-hamzah",
-              "snippet": "Operations Manager at PT Indokarya Global Sinergi, leading operational execution across workforce solutions, manpower outsourcing, recruitment support, and business support services. I focus...",
+              "title": "#operationsmanagement #operationalexcellence # ...",
+              "url": "https://www.linkedin.com/posts/fahad-hamzah_operationsmanagement-operationalexcellence-activity-7505860591106965504-iWI-",
+              "snippet": "Sebagai Operations Manager di PT Indokarya Global Sinergi, saya berada di titik di mana kebutuhan klien, kesiapan tenaga kerja, koordinasi tim, dan kualitas layanan harus berjalan dalam satu...",
               "source_type": "job_portal",
               "_final_score": 0.68,
               "_entity_score": 1
@@ -277,7 +277,7 @@
               "url": "https://www.instagram.com/indokarya.stationery/",
               "snippet": "Indokarya Global Raya (@indokarya.stationery) on Instagram: \"Est.1987 Aktif Kreatif #dirumahaja pakai Indokarya Stationery. 📱: +62 877 8636 8275\"",
               "source_type": "social",
-              "_final_score": 0.6067,
+              "_final_score": 0.5817,
               "_entity_score": 0.667
             },
             {
@@ -346,8 +346,8 @@
       },
       "risk_flags": [],
       "safe_flags": [
-        "Terdeteksi hasil media sosial publik (status resmi belum terverifikasi): https://www.linkedin.com/posts/fahad-hamzah_operationsmanagement-operationalexcellence-activity-7505860591106965504-iWI-",
         "Terdeteksi hasil media sosial publik (status resmi belum terverifikasi): https://id.linkedin.com/in/fahad-hamzah",
+        "Terdeteksi hasil media sosial publik (status resmi belum terverifikasi): https://www.linkedin.com/posts/fahad-hamzah_operationsmanagement-operationalexcellence-activity-7505860591106965504-iWI-",
         "Terdeteksi hasil Instagram publik (status resmi belum terverifikasi): CV. Indokarya Global Raya (@indokarya.stationery) - Instagram (https://www.instagram.com/indokarya.stationery/)",
         "Ditemukan 3 hasil web publik.",
         "Ditemukan 2 listing portal lowongan publik.",
@@ -374,13 +374,13 @@
                 "engines": [
                   "yahoo"
                 ],
-                "score": 0.3333333333333333,
+                "score": 0.25,
                 "category": "general",
                 "published_date": null,
                 "_category": "social",
                 "_entity_score": 0.667,
                 "_location_score": 0,
-                "_final_score": 0.6067
+                "_final_score": 0.5817
               }
             ]
           },
@@ -419,19 +419,19 @@
                 "_final_score": 0.84
               },
               {
-                "title": "#operationsmanagement #operationalexcellence # ...",
-                "url": "https://www.linkedin.com/posts/fahad-hamzah_operationsmanagement-operationalexcellence-activity-7505860591106965504-iWI-",
-                "snippet": "Sebagai Operations Manager di PT Indokarya Global Sinergi, saya berada di titik di mana kebutuhan klien, kesiapan tenaga kerja, koordinasi tim, dan kualitas layanan harus berjalan dalam satu...",
+                "title": "Fahad Hamzah - Operations Manager at PT Indokarya Global ...",
+                "url": "https://id.linkedin.com/in/fahad-hamzah",
+                "snippet": "Operations Manager at PT Indokarya Global Sinergi, leading operational execution across workforce solutions, manpower outsourcing, recruitment support, and business support services. I focus...",
                 "engines": [
                   "yahoo"
                 ],
-                "score": 0.25,
+                "score": 0.3333333333333333,
                 "category": "general",
                 "published_date": null,
                 "_category": "job_portal",
                 "_entity_score": 1,
                 "_location_score": 0,
-                "_final_score": 0.695
+                "_final_score": 0.72
               },
               {
                 "title": "PT. INDOKARYA GLOBAL SINERGI - Companies House",
@@ -449,9 +449,9 @@
                 "_final_score": 0.69
               },
               {
-                "title": "Fahad Hamzah - Operations Manager at PT Indokarya Global ...",
-                "url": "https://id.linkedin.com/in/fahad-hamzah",
-                "snippet": "Operations Manager at PT Indokarya Global Sinergi, leading operational execution across workforce solutions, manpower outsourcing, recruitment support, and business support services. I focus...",
+                "title": "#operationsmanagement #operationalexcellence # ...",
+                "url": "https://www.linkedin.com/posts/fahad-hamzah_operationsmanagement-operationalexcellence-activity-7505860591106965504-iWI-",
+                "snippet": "Sebagai Operations Manager di PT Indokarya Global Sinergi, saya berada di titik di mana kebutuhan klien, kesiapan tenaga kerja, koordinasi tim, dan kualitas layanan harus berjalan dalam satu...",
                 "engines": [
                   "yahoo"
                 ],
@@ -689,9 +689,9 @@
       "fraud_case_count": 0,
       "matched_entities": [],
       "network_graph_summary": {
-        "total_nodes": 21,
-        "total_edges": 16,
-        "case_nodes": 6,
+        "total_nodes": 41,
+        "total_edges": 29,
+        "case_nodes": 13,
         "fraud_cases": 1
       },
       "syndicate_analysis": {
@@ -711,12 +711,12 @@
       "status": "COMPLETED"
     },
     "timing": {
-      "osint_parallel_sec": 20.456,
+      "osint_parallel_sec": 17.185,
       "ocr": {
-        "preprocess_sec": 0.041,
+        "preprocess_sec": 0.076,
         "model_init_sec": 0,
-        "inference_sec": 12.951,
-        "total_sec": 12.994,
+        "inference_sec": 32.157,
+        "total_sec": 32.237,
         "image_shape": [
           1040,
           790,
@@ -742,7 +742,7 @@
   "shap_explanation": {
     "model_type": "Evidence Attribution Engine (Feature Contribution Analysis)",
     "base_value": 12,
-    "final_risk_score": 24,
+    "final_risk_score": 20,
     "evidence_confidence": null,
     "decision_confidence": null,
     "confidence_method": "not_calibrated",
@@ -791,7 +791,7 @@
       {
         "step": "6. Final Risk Level Evaluation",
         "status": "LOW",
-        "detail": "Skor risiko akhir: 24 / 100 (Risiko Rendah); bukan probabilitas."
+        "detail": "Skor risiko akhir: 20 / 100 (Risiko Rendah); bukan probabilitas."
       }
     ],
     "consistency_breakdown": [
@@ -916,7 +916,7 @@
       "threat_level": "LOW",
       "shared_identity_reuse": false
     },
-    "checked_at": "2026-10-18T05:08:49.779421+00:00",
+    "checked_at": "2026-10-18T06:52:23.010319+00:00",
     "ethical_safeguards": {
       "human_review_recommended": true,
       "cost_of_error": {
@@ -927,12 +927,12 @@
     "verdict": "AMAN",
     "feature_contributions": [
       {
-        "feature": "Pendaftaran via WhatsApp Langsung",
+        "feature": "Daftar Hanya via WhatsApp/Tautan Bio",
         "feature_key": "has_whatsapp_apply",
         "value": 1,
         "contribution": 20,
         "impact": "risk",
-        "description": "Alur rekrutmen tidak resmi — daftar langsung WA tanpa portal perusahaan",
+        "description": "Pendaftaran hanya lewat WhatsApp pribadi atau tautan di bio, tanpa email atau portal resmi perusahaan",
         "delta": 20
       },
       {
@@ -945,6 +945,15 @@
         "delta": -10
       },
       {
+        "feature": "Penyesuaian Penalaran AI",
+        "feature_key": "model_calibration",
+        "value": -10,
+        "contribution": 10,
+        "impact": "safe",
+        "description": "Penalaran AI atas seluruh teks dan bukti menilai risiko lebih rendah daripada jumlah bobot bukti terukur. Selisihnya ditampilkan terpisah agar skor akhir = nilai dasar + Σ kontribusi.",
+        "delta": -10
+      },
+      {
         "feature": "Kata Kunci Penipuan (1 match)",
         "feature_key": "fraud_keyword_count",
         "value": 1,
@@ -952,20 +961,11 @@
         "impact": "risk",
         "description": "Terdeteksi 1 pola kata kunci penipuan loker Indonesia",
         "delta": 8
-      },
-      {
-        "feature": "Penyesuaian Penalaran AI",
-        "feature_key": "model_calibration",
-        "value": -6,
-        "contribution": 6,
-        "impact": "safe",
-        "description": "Penalaran AI atas seluruh teks dan bukti menilai risiko lebih rendah daripada jumlah bobot bukti terukur. Selisihnya ditampilkan terpisah agar skor akhir = nilai dasar + Σ kontribusi.",
-        "delta": -6
       }
     ],
     "waterfall_chart": [
       {
-        "label": "Pendaftaran via WhatsApp Langsung",
+        "label": "Daftar Hanya via WhatsApp/Tautan Bio",
         "value": 20,
         "cumulative": 32,
         "impact": "risk",
@@ -979,24 +979,24 @@
         "delta": -10
       },
       {
-        "label": "Kata Kunci Penipuan (1 match)",
-        "value": 8,
-        "cumulative": 30,
-        "impact": "risk",
-        "delta": 8
+        "label": "Penyesuaian Penalaran AI",
+        "value": 10,
+        "cumulative": 12,
+        "impact": "safe",
+        "delta": -10
       },
       {
-        "label": "Penyesuaian Penalaran AI",
-        "value": 6,
-        "cumulative": 24,
-        "impact": "safe",
-        "delta": -6
+        "label": "Kata Kunci Penipuan (1 match)",
+        "value": 8,
+        "cumulative": 20,
+        "impact": "risk",
+        "delta": 8
       }
     ],
     "evidence_delta": 18,
-    "calibration_delta": -6,
+    "calibration_delta": -10,
     "top_risk_features": [
-      "Pendaftaran via WhatsApp Langsung",
+      "Daftar Hanya via WhatsApp/Tautan Bio",
       "Kata Kunci Penipuan (1 match)"
     ],
     "top_safe_features": [
