@@ -5,7 +5,8 @@ WORKDIR /app
 
 ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1 \
-    PIP_NO_CACHE_DIR=1
+    PIP_NO_CACHE_DIR=1 \
+    PADDLE_PDX_DISABLE_MODEL_SOURCE_CHECK=True
 
 # System deps untuk opencv + paddle + curl (healthcheck)
 RUN apt-get update && apt-get install -y --no-install-recommends \
@@ -21,10 +22,11 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 COPY requirements.txt .
 RUN pip install --upgrade pip && pip install -r requirements.txt
 
-# Unduh model OCR saat build supaya permintaan poster pertama tidak menunggu unduhan.
-RUN python -c "from paddleocr import PaddleOCR; PaddleOCR(use_angle_cls=False, lang='en', show_log=False)"
-
 COPY . .
+
+# Unduh model OCR saat build (lewat konfigurasi yang sama dengan aplikasi) supaya permintaan
+# poster pertama tidak menunggu unduhan.
+RUN python -c "from app.services.ocr import get_ocr_model; get_ocr_model()"
 
 # Folder untuk menyimpan bukti upload komunitas
 RUN mkdir -p /app/uploads/evidence

@@ -1,6 +1,7 @@
 import os
 import cv2
 import logging
+import paddleocr
 from paddleocr import PaddleOCR
 import numpy as np
 import threading
@@ -11,28 +12,54 @@ logging.getLogger("ppocr").setLevel(logging.ERROR)
 logger = logging.getLogger(__name__)
 
 ocr_model = None
+MIN_TEXT_SCORE = 0.5
 # RLock: extract_text_from_image memegang lock ini lalu memanggil get_ocr_model(),
 # yang juga mengambilnya saat model belum dimuat. Lock biasa akan deadlock di situ.
 ocr_lock = threading.RLock()
+
+_PADDLEOCR_MAJOR = int((getattr(paddleocr, "__version__", "2") or "2").split(".")[0])
+
+
+def _ocr_kwargs() -> dict:
+    """Parameter PaddleOCR untuk versi 2.x (macOS Intel, venv lokal) dan 3.x (image Docker).
+
+    Rekognisi memakai kamus "en": model "latin" v3 yang dipakai lang="id" menghapus spasi pada
+    judul berhuruf besar ("LOWONGANKERJA", "GLOBALSINERGI"), sehingga nama perusahaan yang dicari
+    di web jadi salah. Bahasa Indonesia tidak memakai diakritik, jadi kamus "en" cukup.
+    """
+    if _PADDLEOCR_MAJOR >= 3:
+        # Model mobile + oneDNN: sekitar 18 dtk per poster di CPU, vs 90-125 dtk untuk model
+        # bawaan tanpa oneDNN. Butuh paddlepaddle 3.1.x (oneDNN di 3.3.x crash).
+        return {
+            "text_detection_model_name": "PP-OCRv5_mobile_det",
+            "text_recognition_model_name": "en_PP-OCRv5_mobile_rec",
+            "use_doc_orientation_classify": False,
+            "use_doc_unwarping": False,
+            "use_textline_orientation": False,
+            "text_det_thresh": 0.2,
+            "text_det_box_thresh": 0.4,
+            "text_det_unclip_ratio": 1.8,
+            "enable_mkldnn": True,
+            "cpu_threads": min(8, os.cpu_count() or 4),
+        }
+    return {
+        "use_angle_cls": False,
+        "lang": "en",
+        "enable_mkldnn": False,
+        "det_db_thresh": 0.2,
+        "det_db_box_thresh": 0.4,
+        "det_db_unclip_ratio": 1.8,
+        "rec_batch_num": 6,
+        "show_log": False,
+    }
+
 
 def get_ocr_model():
     global ocr_model
     if ocr_model is None:
         with ocr_lock:
             if ocr_model is None:
-                # Model rekognisi "en" (PP-OCRv4). Model "latin" v3 yang dipakai lang="id" sering
-                # menghapus spasi pada judul berhuruf besar ("LOWONGANKERJA", "GLOBALSINERGI"),
-                # sehingga nama perusahaan yang dicari di web jadi salah. Bahasa Indonesia tidak
-                # memakai diakritik, jadi kamus "en" cukup.
-                ocr_model = PaddleOCR(
-                    use_angle_cls=False,
-                    lang="en",
-                    enable_mkldnn=False,
-                    det_db_thresh=0.2,
-                    det_db_box_thresh=0.4,
-                    det_db_unclip_ratio=1.8,
-                    rec_batch_num=6,
-                )
+                ocr_model = PaddleOCR(**_ocr_kwargs())
     return ocr_model
 
 def enhance_contrast(img_bgr: np.ndarray) -> np.ndarray:
@@ -182,13 +209,24 @@ def extract_text_from_image(image_path: str, metrics: dict | None = None) -> str
             result = ocr.ocr(processed_img)
             inference_elapsed = time.perf_counter() - inference_started
 
+            # Teks dengan skor keyakinan rendah (ikon, ornamen) dibuang sebelum disusun.
             items: list[tuple[list, str]] = []
             if result and len(result) > 0 and result[0]:
                 res = result[0]
-                if isinstance(res, dict):
-                    items = list(zip(res.get("rec_polys", []), res.get("rec_texts", [])))
+                if isinstance(res, dict) or hasattr(res, "get"):
+                    scores = res.get("rec_scores")
+                    scores = [1.0] * len(res.get("rec_texts", [])) if scores is None else list(scores)
+                    items = [
+                        (poly, text)
+                        for poly, text, score in zip(res.get("rec_polys", []), res.get("rec_texts", []), scores)
+                        if score >= MIN_TEXT_SCORE
+                    ]
                 elif isinstance(res, list):
-                    items = [(line[0], line[1][0]) for line in res if line and len(line) > 1]
+                    items = [
+                        (line[0], line[1][0])
+                        for line in res
+                        if line and len(line) > 1 and line[1][1] >= MIN_TEXT_SCORE
+                    ]
             text = order_text_by_layout(items)
             line_count = sum(1 for l in text.splitlines() if l.strip())
 
