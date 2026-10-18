@@ -21,12 +21,17 @@ psycopg2-binary>=2.9.10
 python-dotenv==1.0.1
 
 # === OCR Engine (PaddleOCR + OpenCV) ===
-# paddlepaddle 2.6.2 + paddleocr 2.8.1: Stable, full support macOS Intel/Windows
-# Windows: pip install paddlepaddle (3.x juga bisa)
-# macOS Intel: wajib paddlepaddle==2.6.2 (3.x tidak tersedia)
-paddlepaddle>=3.0.0
-paddleocr>=3.0.0
-opencv-python>=4.9.0
+# macOS Intel: paddlepaddle 3.x tidak tersedia, jadi tetap 2.6.2 + 2.8.1 (numpy < 2).
+# Linux/Windows (termasuk image Docker): 3.1.1 + paddleocr 3.7.0. Versi 3.3.x dihindari karena
+# oneDNN crash ("ConvertPirAttribute2RuntimeAttribute"); tanpa oneDNN satu poster butuh 90-125 dtk,
+# dengan oneDNN + model mobile sekitar 18 dtk (diuji 18 Okt 2026). paddlepaddle 2.6.2 di Linux
+# segfault saat dipadukan dengan pyclipper/scipy terbaru.
+paddlepaddle==2.6.2; sys_platform == "darwin"
+paddleocr==2.8.1; sys_platform == "darwin"
+numpy==1.26.4; sys_platform == "darwin"
+paddlepaddle==3.1.1; sys_platform != "darwin"
+paddleocr==3.7.0; sys_platform != "darwin"
+opencv-python>=4.9.0,<4.12
 Pillow>=10.0.0
 
 # === NLP & ML Layer (Layer 1 Classifier — rule-based, roadmap: IndoBERT) ===
