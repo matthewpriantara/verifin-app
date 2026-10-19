@@ -129,11 +129,11 @@ const VERDICT_CHIPS = [
 
 function SloganSteps({ stage }: { stage: VerifyStage }) {
   // Saat input kosong, sorotan berjalan 01 → 02 → 03 sebagai contoh alur.
-  // Cukup satu interval ringan; berhenti saat pengguna mulai mengisi atau memilih kurangi gerakan.
+  // Cukup satu interval ringan; berhenti saat pengguna mulai mengisi. Untuk "kurangi gerakan"
+  // siklus tetap jalan tapi hanya berganti warna: isian garis dan putaran ikon dimatikan lewat motion-reduce.
   const [demo, setDemo] = useState(0);
   useEffect(() => {
     if (stage !== 0) return;
-    if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
     const iv = setInterval(() => {
       if (!document.hidden) setDemo((d) => (d + 1) % SLOGAN.length);
     }, 1800);
@@ -178,7 +178,7 @@ function SloganSteps({ stage }: { stage: VerifyStage }) {
               {done ? (
                 <Check size={14} weight="bold" />
               ) : running ? (
-                <CircleNotch size={15} weight="bold" className="animate-spin" />
+                <CircleNotch size={15} weight="bold" className="animate-spin motion-reduce:animate-none" />
               ) : (
                 `0${i + 1}`
               )}
