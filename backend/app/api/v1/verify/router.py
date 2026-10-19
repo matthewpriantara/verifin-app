@@ -36,6 +36,7 @@ from app.api.v1.verify.pipeline import (
     attach_shap_explanation,
 )
 from app.services.db_cache import _save_case_to_db, _get_cached_case_from_db, _get_cached_case_by_url
+from app.services.llm.verifin_reasoning import _soften_summary_claims
 from app.services.web_fetcher import _fetch_url_content_and_image
 from app.config import RATE_LIMIT_VERIFY_PER_MIN, VERIFIN_DEBUG_RAW_JSON
 from app.services.security import RateLimiter, require_admin
@@ -658,7 +659,7 @@ def get_case_by_id(case_id: str, db: Session = Depends(get_db)):
         "salaries": db_case.salaries,
         "verdict": db_case.verdict,
         "risk_score": db_case.risk_score,
-        "summary": llm_output.get("summary", ""),
+        "summary": _soften_summary_claims(llm_output.get("summary", "")),
         "risk_factors": llm_output.get("risk_factors", []),
         "safe_factors": llm_output.get("safe_factors", []),
         "recommendations": llm_output.get("recommendations", []),

@@ -499,6 +499,7 @@ karena namanya sedang dicatut. Bila juga ada permintaan biaya/tiket/transfer ➔
 8. risk_score HARUS selaras verdict dan band di atas.
 9. Jika semua query web berstatus `NO_RESULTS`/`UNAVAILABLE`, gunakan istilah `bukti publik tidak tersedia pada run ini`, bukan `zero footprint` atau `nihil jejak`.
 10. Jika `evidence_counts.relevant_results > 0` atau `social.evidence_counts.public_posts > 0`, DILARANG menulis `bukti publik tidak tersedia` atau `zero footprint`.
+11. `summary` menjelaskan bukti, bukan status hukum. DILARANG menyebut lowongan/perusahaan "resmi", "terverifikasi", "legal", "sah", "terpercaya", atau "pasti aman". Contoh benar: "Domain email perusahaan sudah lama terdaftar dan jejak digitalnya konsisten; tidak ditemukan tanda bahaya."
 
 ---
 

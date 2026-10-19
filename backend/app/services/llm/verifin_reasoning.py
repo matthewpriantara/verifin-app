@@ -221,6 +221,22 @@ def _is_valid_llm_output(
     return True
 
 
+# Label AMAN bukan jaminan legalitas, jadi ringkasan tidak boleh memberi status hukum
+# yang tidak dibuktikan pemeriksaan (prompt melarangnya; ini jaring pengaman).
+_SUMMARY_CLAIM_FIXES = (
+    (_re.compile(r"\b(lowongan|perusahaan)\s+(?:resmi|terpercaya|legal|sah)\b", _re.I), r"\1"),
+    (_re.compile(r"\b(?:yang\s+)?terverifikasi\b", _re.I), "yang tercatat di sumber publik"),
+    (_re.compile(r"\bpasti\s+aman\b", _re.I), "tanpa tanda bahaya"),
+)
+
+
+def _soften_summary_claims(text: str) -> str:
+    for pattern, repl in _SUMMARY_CLAIM_FIXES:
+        text = pattern.sub(repl, text)
+    text = _re.sub(r"\s{2,}", " ", text).strip()
+    return text[:1].upper() + text[1:] if text else text
+
+
 def _sanitize_llm_output(
     parsed: dict,
     entities: dict,
@@ -297,6 +313,9 @@ def _sanitize_llm_output(
             if not _has_corrupt_text(text, entities, allowed_tokens):
                 cleaned.append(text)
         parsed[field] = cleaned if isinstance(value, list) else (cleaned[0] if cleaned else "")
+
+    if isinstance(parsed.get("summary"), str):
+        parsed["summary"] = _soften_summary_claims(parsed["summary"])
 
     if phone_state == "CLEAN":
         for field in ("risk_factors", "summary"):
