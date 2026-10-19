@@ -152,7 +152,7 @@ function AnimatedScoreGauge({
         >
           {displayScore}
         </motion.span>
-        <span className="mt-1 text-[9px] font-medium uppercase tracking-wide text-text-muted">
+        <span className="mt-1 text-[11px] font-medium uppercase tracking-wide text-text-muted">
           / 100
         </span>
       </div>
@@ -355,7 +355,7 @@ export default function ReportPage() {
       <div className="mb-6 flex items-center justify-between border-b border-border-focus/40 pb-4">
         <Link
           href="/"
-          className="inline-flex items-center gap-2 rounded-xl bg-text-primary px-3.5 py-2 text-[13px] font-semibold text-bg-elevated shadow-sm transition-all hover:bg-text-secondary active:scale-[0.98]"
+          className="inline-flex min-h-11 items-center gap-2 rounded-xl bg-text-primary px-3.5 py-2 text-[13px] font-semibold text-bg-elevated shadow-sm transition-all hover:bg-text-secondary active:scale-[0.98]"
         >
           <ArrowLeft size={15} weight="bold" /> Cek lowongan lain
         </Link>
@@ -409,7 +409,7 @@ export default function ReportPage() {
 
       {/* ── Faktor Penilaian (satu blok, dua kolom) ── */}
       {(safeFactors.length > 0 || riskFactors.length > 0) && (
-        <Section icon={ShieldCheck} title="Faktor Penilaian" subtitle="Alasan utama di balik verdict ini" delay={0.08}>
+        <Section icon={ShieldCheck} title="Faktor Penilaian" subtitle="Alasan utama di balik hasil ini" delay={0.08}>
           <div className="grid gap-6 sm:gap-8 md:grid-cols-2">
             <div>
               <p className="mb-3 flex items-center gap-2 text-sm font-bold text-aman-fg">
@@ -461,7 +461,7 @@ export default function ReportPage() {
 
       {/* ── Perusahaan & Lokasi (satu blok, grid) ── */}
       <div className="mt-6">
-        <Section icon={Buildings} title="Perusahaan & Lokasi" subtitle="Identitas dan titik geografis yang terverifikasi" delay={0.16}>
+        <Section icon={Buildings} title="Perusahaan & Lokasi" subtitle="Identitas dan titik lokasi dari sumber publik" delay={0.16}>
           <div className="grid gap-6 sm:gap-8 md:grid-cols-2">
             {/* Perusahaan */}
             <div>
@@ -502,7 +502,7 @@ export default function ReportPage() {
                   </span>
                 )}
                 {addrDetails.match_level === "exact" && (
-                  <span className="rounded-md bg-aman-bg px-2 py-0.5 text-[10px] font-semibold text-aman-fg">
+                  <span className="rounded-md bg-aman-bg px-2 py-0.5 text-[11px] font-semibold text-aman-fg">
                     Titik Presisi
                   </span>
                 )}
@@ -535,7 +535,7 @@ export default function ReportPage() {
                     }
                     target="_blank"
                     rel="noreferrer"
-                    className="inline-flex items-center gap-2 rounded-xl bg-text-primary px-4 py-2.5 text-sm font-semibold text-bg-elevated transition-all hover:opacity-90"
+                    className="inline-flex min-h-11 items-center gap-2 rounded-xl bg-text-primary px-4 py-2.5 text-sm font-semibold text-bg-elevated transition-all hover:opacity-90"
                   >
                     <MapPin size={15} weight="bold" /> Google Maps <ArrowSquareOut size={13} />
                   </a>
@@ -544,7 +544,7 @@ export default function ReportPage() {
                       href={addrDetails.osm_url as string}
                       target="_blank"
                       rel="noreferrer"
-                      className="inline-flex items-center gap-2 rounded-xl border border-border bg-bg-subtle px-4 py-2.5 text-sm font-semibold text-text-secondary transition-all hover:bg-bg-elevated"
+                      className="inline-flex min-h-11 items-center gap-2 rounded-xl border border-border bg-bg-subtle px-4 py-2.5 text-sm font-semibold text-text-secondary transition-all hover:bg-bg-elevated"
                     >
                       <MapPin size={15} weight="bold" /> OpenStreetMap <ArrowSquareOut size={13} />
                     </a>
@@ -556,7 +556,7 @@ export default function ReportPage() {
                   href={bizDetails.maps_url}
                   target="_blank"
                   rel="noreferrer"
-                  className="mt-4 inline-flex items-center gap-2 rounded-xl bg-text-primary px-4 py-2.5 text-sm font-semibold text-bg-elevated transition-all hover:opacity-90"
+                  className="mt-4 inline-flex min-h-11 items-center gap-2 rounded-xl bg-text-primary px-4 py-2.5 text-sm font-semibold text-bg-elevated transition-all hover:opacity-90"
                 >
                   <MapPin size={15} weight="bold" /> Buka di Google Maps <ArrowSquareOut size={13} />
                 </a>
@@ -597,9 +597,9 @@ export default function ReportPage() {
 
       {/* ── Jejak Digital ── */}
       <div className="mt-6">
-        <Section icon={ShareNetwork} title="Jejak Digital" subtitle="Profil media sosial dan situs resmi yang ditemukan publik" delay={0.2}>
+        <Section icon={ShareNetwork} title="Jejak Digital" subtitle="Profil media sosial dan situs web dari pencarian publik" delay={0.2}>
           {hasDigitalFootprint ? (
-            <div className="grid gap-3 sm:grid-cols-2">
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
               {/* Profil sosial terderivasi */}
               {socialProfiles.map((p, i) => (
                 <a
@@ -607,7 +607,7 @@ export default function ReportPage() {
                   href={p.url}
                   target="_blank"
                   rel="noreferrer"
-                  className="group flex items-center gap-3 rounded-2xl border border-border bg-bg-subtle/50 px-4 py-3.5 transition-all hover:border-border-focus hover:bg-bg-subtle"
+                  className="group flex min-w-0 items-center gap-3 rounded-2xl border border-border bg-bg-subtle/50 px-4 py-3.5 transition-all hover:border-border-focus hover:bg-bg-subtle"
                 >
                   <SocialPlatformIcon size={18} platform={detectPlatform(p.url ?? "")} />
                   <div className="min-w-0 flex-1">
@@ -624,7 +624,7 @@ export default function ReportPage() {
                   href={r.url}
                   target="_blank"
                   rel="noreferrer"
-                  className="group flex items-center gap-3 rounded-2xl border border-border bg-bg-subtle/50 px-4 py-3.5 transition-all hover:border-border-focus hover:bg-bg-subtle"
+                  className="group flex min-w-0 items-center gap-3 rounded-2xl border border-border bg-bg-subtle/50 px-4 py-3.5 transition-all hover:border-border-focus hover:bg-bg-subtle"
                 >
                   <SocialPlatformIcon size={18} platform={detectPlatform(r.url ?? "")} />
                   <div className="min-w-0 flex-1">
@@ -643,7 +643,7 @@ export default function ReportPage() {
                   ? isPost
                     ? `Postingan ${platform}`
                     : `Kanal ${platform}`
-                  : "Situs resmi";
+                  : "Situs web";
 
                 return (
                   <a
@@ -651,7 +651,7 @@ export default function ReportPage() {
                     href={w.url}
                     target="_blank"
                     rel="noreferrer"
-                    className="group flex items-center gap-3 rounded-2xl border border-border bg-bg-subtle/50 px-4 py-3.5 transition-all hover:border-border-focus hover:bg-bg-subtle"
+                    className="group flex min-w-0 items-center gap-3 rounded-2xl border border-border bg-bg-subtle/50 px-4 py-3.5 transition-all hover:border-border-focus hover:bg-bg-subtle"
                   >
                     {isSocial ? (
                       <SocialPlatformIcon size={18} platform={platform} />
@@ -676,7 +676,7 @@ export default function ReportPage() {
                 Belum Ditemukan Jejak Digital Publik
               </p>
               <p className="mt-1 max-w-md text-[12px] leading-relaxed text-text-muted">
-                Tidak ditemukan profil media sosial terverifikasi atau website resmi publik yang terhubung dengan entitas ini pada penelusuran terbuka.
+                Pencarian publik tidak menemukan profil media sosial atau situs web yang terhubung dengan nama, nomor, atau email di lowongan ini.
               </p>
             </div>
           )}

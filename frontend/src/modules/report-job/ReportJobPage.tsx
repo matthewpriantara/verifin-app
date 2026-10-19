@@ -30,7 +30,7 @@ const REPORT_TYPES: { value: ReportType; label: string; desc: string }[] = [
   {
     value: "perusahaan_fiktif",
     label: "Perusahaan Fiktif",
-    desc: "Nama tidak terdaftar di AHU atau kantor tidak ditemukan.",
+    desc: "Nama tidak terdaftar di AHU (database badan hukum resmi) atau kantornya tidak ditemukan.",
   },
   {
     value: "tppo_eksploitasi",
@@ -39,7 +39,7 @@ const REPORT_TYPES: { value: ReportType; label: string; desc: string }[] = [
   },
   {
     value: "pencurian_data_scam",
-    label: "Pencurian Data & Task Scam",
+    label: "Pencurian Data & Penipuan Tugas",
     desc: "Meminta data sensitif (KTP) atau penipuan tugas online.",
   },
 ];
@@ -156,7 +156,7 @@ function ReportJobPageInner() {
       });
       setSuccess(true);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Terjadi kesalahan saat mengirim laporan.");
+      setError(err instanceof Error ? err.message : "Laporan belum terkirim. Coba lagi sebentar lagi; isian kamu tidak hilang.");
     } finally {
       setLoading(false);
     }
@@ -176,7 +176,7 @@ function ReportJobPageInner() {
           </div>
           <h2 className="text-xl font-bold text-text-primary">Laporan Terkirim</h2>
           <p className="mt-2 text-[14px] leading-relaxed text-text-secondary">
-            Laporan Anda mengenai <span className="font-semibold">{companyName}</span> telah berhasil kami terima.
+            Laporanmu tentang <span className="font-semibold">{companyName}</span> telah berhasil kami terima.
             Admin akan meninjaunya dulu. Setelah disetujui, laporan ini menjadi bukti tambahan saat lowongan dengan kontak yang sama diperiksa.
           </p>
 
@@ -249,14 +249,14 @@ function ReportJobPageInner() {
           <button
             type="button"
             onClick={() => router.back()}
-            className="inline-flex items-center gap-2 rounded-xl bg-text-primary px-4 py-2 text-[13px] font-semibold text-bg-elevated shadow-sm transition-all hover:bg-text-secondary active:scale-[0.98]"
+            className="inline-flex min-h-11 items-center gap-2 rounded-xl bg-text-primary px-4 py-2 text-[13px] font-semibold text-bg-elevated shadow-sm transition-all hover:bg-text-secondary active:scale-[0.98]"
           >
             <ArrowLeft size={15} weight="bold" /> Kembali
           </button>
         ) : (
           <Link
             href="/"
-            className="inline-flex items-center gap-2 rounded-xl bg-text-primary px-4 py-2 text-[13px] font-semibold text-bg-elevated shadow-sm transition-all hover:bg-text-secondary active:scale-[0.98]"
+            className="inline-flex min-h-11 items-center gap-2 rounded-xl bg-text-primary px-4 py-2 text-[13px] font-semibold text-bg-elevated shadow-sm transition-all hover:bg-text-secondary active:scale-[0.98]"
           >
             <ArrowLeft size={15} weight="bold" /> Kembali
           </Link>
@@ -319,7 +319,7 @@ function ReportJobPageInner() {
               >
                 <span className="text-[13px] font-semibold text-text-primary">Dari Riwayat Verifikasi</span>
                 <span className="mt-1 text-[11px] leading-snug text-text-muted">
-                  Pilih dari hasil verifikasi yang sudah Anda lakukan
+                  Pilih dari lowongan yang sudah kamu cek
                 </span>
               </button>
               <button
@@ -453,7 +453,7 @@ function ReportJobPageInner() {
 
             <div>
               <label className="mb-1.5 block text-[12px] font-medium text-text-secondary">
-                Jelaskan kronologis kejadian secara jelas dan rinci <span className="text-bahaya-fg">*</span>
+                Ceritakan urutan kejadiannya <span className="text-bahaya-fg">*</span>
               </label>
               <div className="relative">
                 <span className="absolute left-3.5 top-3.5 text-text-muted">
@@ -464,7 +464,7 @@ function ReportJobPageInner() {
                   rows={8}
                   value={description}
                   onChange={(e) => setDescription(e.target.value)}
-                  placeholder="Tuliskan secara lengkap bagaimana modus terjadi. Misalnya: Saya dihubungi via WA untuk interview kerja, lalu diminta mentransfer biaya penginapan hotel melalui agen travel palsu..."
+                  placeholder="Contoh: Saya dihubungi via WA untuk interview kerja, lalu diminta mentransfer biaya penginapan hotel melalui agen travel palsu..."
                   className="w-full resize-none rounded-xl border border-border bg-bg pl-9 pr-4 py-3 text-[13px] text-text-primary placeholder:text-text-muted outline-none transition-colors focus:border-border-focus"
                 />
               </div>
@@ -486,7 +486,7 @@ function ReportJobPageInner() {
               {/* Upload Gambar Bukti */}
               <div>
                 <label className="mb-1.5 block text-[12px] font-medium text-text-secondary">
-                  Upload Gambar Bukti <span className="text-text-muted">(opsional, max 5MB)</span>
+                  Unggah gambar bukti <span className="text-text-muted">(opsional, maks 5 MB)</span>
                 </label>
                 <input
                   ref={fileInputRef}
@@ -516,8 +516,8 @@ function ReportJobPageInner() {
                     className="flex w-full flex-col items-center justify-center gap-2 rounded-xl border border-dashed border-border bg-bg py-6 text-text-muted transition-colors hover:border-border-focus hover:text-text-secondary"
                   >
                     <UploadSimple size={20} weight="bold" />
-                    <span className="text-[11px] font-medium">Klik untuk upload gambar</span>
-                    <span className="text-[10px] text-text-muted">JPG, PNG, WebP · maks 5MB</span>
+                    <span className="text-[12px] font-medium">Pilih gambar</span>
+                    <span className="text-[12px] text-text-muted">JPG, PNG, atau WEBP, maks 5 MB</span>
                   </button>
                 )}
               </div>
@@ -549,7 +549,7 @@ function ReportJobPageInner() {
           <div className="flex items-start gap-3 rounded-xl border border-waspada-border bg-waspada-bg/30 p-4">
             <Warning size={18} className="mt-0.5 shrink-0 text-waspada-fg" />
             <p className="text-[12px] leading-relaxed text-waspada-fg">
-              <strong>Pernyataan Kebenaran Data:</strong> Pastikan seluruh data dan penjelasan yang Anda sampaikan didasari kejadian nyata dan bukti yang sah. Laporan yang bersifat fitnah atau penyebaran data palsu dapat berimplikasi pada sanksi hukum sesuai peraturan yang berlaku di Indonesia.
+              <strong>Tulis yang benar-benar terjadi.</strong> Admin memeriksa setiap laporan sebelum dipakai, dan laporan tanpa dasar tidak akan disetujui. Menuduh tanpa bukti juga bisa berujung masalah hukum.
             </p>
           </div>
 

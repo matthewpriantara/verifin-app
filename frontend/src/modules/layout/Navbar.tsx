@@ -27,7 +27,7 @@ export function Navbar() {
   return (
     <header className="sticky top-0 z-50 border-b border-border bg-bg/90 backdrop-blur-md">
       <div className="mx-auto flex h-14 max-w-6xl items-center justify-between px-4 sm:px-6">
-        <Link href="/" className="inline-flex items-center no-underline">
+        <Link href="/" className="inline-flex min-h-11 items-center no-underline">
           <Logo size="sm" />
         </Link>
 
@@ -35,7 +35,7 @@ export function Navbar() {
           {!onSearch && (
             <Link
               href="/cari"
-              className="flex items-center gap-1.5 rounded-lg border border-border px-3 py-1.5 text-[13px] font-medium text-text-secondary transition-colors hover:border-border-focus hover:text-text-primary"
+              className="flex h-11 items-center gap-1.5 whitespace-nowrap rounded-lg border border-border px-3 text-[13px] font-medium text-text-secondary transition-colors hover:border-border-focus hover:text-text-primary"
             >
               <MagnifyingGlass size={15} weight="bold" />
               Cari loker
@@ -44,10 +44,12 @@ export function Navbar() {
           {showLapor && (
             <Link
               href={reportJobHref}
-              className="flex items-center gap-1.5 rounded-lg bg-text-primary px-3.5 py-1.5 text-[13px] font-semibold text-bg-elevated shadow-sm transition-all hover:bg-text-secondary active:scale-[0.98]"
+              className="flex h-11 items-center gap-1.5 whitespace-nowrap rounded-lg bg-text-primary px-3 text-[13px] font-semibold sm:px-3.5 text-bg-elevated shadow-sm transition-all hover:bg-text-secondary active:scale-[0.98]"
             >
               <ChatTeardropText size={15} weight="bold" />
-              Lapor komunitas
+              {/* Label pendek di HP supaya tombol tidak pecah dua baris */}
+              <span className="sm:hidden">Lapor</span>
+              <span className="hidden sm:inline">Lapor komunitas</span>
             </Link>
           )}
         </div>
