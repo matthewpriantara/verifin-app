@@ -12,3 +12,9 @@ def test_removes_official_claim_from_summary():
 def test_keeps_risk_summary_untouched():
     text = "Nomor terindikasi penipuan dan lowongan meminta biaya seleksi."
     assert _soften_summary_claims(text) == text
+
+
+def test_removes_credibility_and_official_domain_claims():
+    text = "Lowongan sangat kredibel menggunakan domain resmi berusia lebih dari 13 tahun tanpa indikasi pungutan biaya."
+    out = _soften_summary_claims(text)
+    assert out == "Lowongan menggunakan domain berusia lebih dari 13 tahun tanpa indikasi pungutan biaya."
