@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useSyncExternalStore } from "react";
+import { useEffect, useState, useSyncExternalStore } from "react";
 import { useRouter } from "next/navigation";
 import { motion, AnimatePresence } from "motion/react";
 import {
@@ -21,6 +21,7 @@ import {
   removeHistory,
   clearHistory,
   formatTimeAgo,
+  cn,
   type HistoryItem,
 } from "@/lib/utils";
 
@@ -41,9 +42,19 @@ const pageVariants = {
   }),
 };
 
+const noopSubscribe = () => () => {};
+
 export function SearchHistory() {
   const router = useRouter();
   const history = useSyncExternalStore(subscribeHistory, getHistory, getServerHistory);
+  // Di server riwayat selalu kosong; tahan empty state sampai localStorage terbaca
+  const hydrated = useSyncExternalStore(noopSubscribe, () => true, () => false);
+  // Perbarui label "x menit lalu" tiap menit
+  const [, setTick] = useState(0);
+  useEffect(() => {
+    const iv = setInterval(() => setTick((t) => t + 1), 60_000);
+    return () => clearInterval(iv);
+  }, []);
   const [currentPage, setCurrentPage] = useState(1);
   const [direction, setDirection] = useState(0);
 
@@ -60,12 +71,9 @@ export function SearchHistory() {
     setDirection(newPage > safeCurrentPage ? 1 : -1);
     setCurrentPage(newPage);
   };
+  // Tanpa case_id laporan tidak tersimpan di server; jangan buka laporan terakhir milik lowongan lain
   const handleSelectHistory = (item: HistoryItem) => {
-    if (item.case_id) {
-      router.push(`/report/${item.case_id}`);
-    } else {
-      router.push("/report");
-    }
+    if (item.case_id) router.push(`/report/${item.case_id}`);
   };
 
   const handleRemove = (e: React.MouseEvent, id: string) => {
@@ -117,7 +125,7 @@ export function SearchHistory() {
         </div>
         <div className="flex items-center gap-2">
           <span className="font-mono text-[12px] text-text-muted">
-            {history.length} lowongan
+            {hydrated ? `${history.length} lowongan` : ""}
           </span>
           {history.length > 0 && (
             <button
@@ -136,7 +144,9 @@ export function SearchHistory() {
       {/* Main Card */}
       <div className="w-full rounded-2xl bg-bg-elevated p-3">
         <div className="overflow-hidden">
-          {history.length === 0 ? (
+          {!hydrated ? (
+            <div className="h-24 animate-pulse rounded-xl bg-bg-subtle/60" aria-hidden />
+          ) : history.length === 0 ? (
             /* Empty state */
             <div className="flex flex-col items-center justify-center py-6 text-center">
               <div className="mb-2 flex h-9 w-9 items-center justify-center rounded-xl bg-bg-subtle">
@@ -152,7 +162,7 @@ export function SearchHistory() {
           ) : (
             <AnimatePresence mode="wait" custom={direction} initial={false}>
               <motion.div
-                key={currentPage}
+                key={safeCurrentPage}
                 custom={direction}
                 variants={pageVariants}
                 initial="enter"
@@ -165,9 +175,9 @@ export function SearchHistory() {
                   <div
                     key={item.id}
                     onClick={() => handleSelectHistory(item)}
-                    role="button"
-                    tabIndex={0}
-                    aria-label={`Buka laporan ${item.title}, ${item.verdict} skor ${item.risk_score}`}
+                    role={item.case_id ? "button" : undefined}
+                    tabIndex={item.case_id ? 0 : undefined}
+                    aria-label={item.case_id ? `Buka laporan ${item.title}, ${item.verdict} skor ${item.risk_score}` : undefined}
                     onKeyDown={(e) => {
                       if (e.target !== e.currentTarget) return;
                       if (e.key === "Enter" || e.key === " ") {
@@ -175,14 +185,17 @@ export function SearchHistory() {
                         handleSelectHistory(item);
                       }
                     }}
-                    className="group flex cursor-pointer items-center justify-between gap-2.5 rounded-xl border border-border/50 bg-bg-subtle/30 px-3 py-2.5 transition-all hover:border-border-focus hover:bg-bg-subtle hover:shadow-xs active:scale-[0.99]"
+                    className={cn(
+                      "group flex items-center justify-between gap-2.5 rounded-xl border border-border/50 bg-bg-subtle/30 px-3 py-2.5 transition-all",
+                      item.case_id && "cursor-pointer hover:border-border-focus hover:bg-bg-subtle hover:shadow-xs active:scale-[0.99]",
+                    )}
                   >
                     <div className="min-w-0 flex-1">
-                      <h5 className="text-[11.5px] font-medium text-text-primary truncate group-hover:text-text-primary">
+                      <h5 className="text-[13px] font-medium text-text-primary truncate">
                         {item.title}
                       </h5>
                       <p className="text-[12px] text-text-muted truncate mt-0.5">
-                        {formatTimeAgo(item.timestamp)} • {item.entitiesSummary}
+                        {formatTimeAgo(item.timestamp)} • {item.case_id ? item.entitiesSummary : "Laporan tidak tersimpan, cek ulang lowongannya"}
                       </p>
                     </div>
 
@@ -209,7 +222,7 @@ export function SearchHistory() {
         {totalPages > 1 && (
           <div className="mt-2.5 flex items-center justify-between border-t border-border/50 pt-2 px-1">
             <span className="font-mono text-[12px] text-text-muted">
-              Halaman {currentPage} dari {totalPages}
+              Halaman {safeCurrentPage} dari {totalPages}
             </span>
 
             <div className="flex items-center gap-1">
