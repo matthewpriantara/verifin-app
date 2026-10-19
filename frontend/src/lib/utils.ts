@@ -88,7 +88,16 @@ export function getHistory(): HistoryItem[] {
       return EMPTY_HISTORY;
     }
     const cutoff = Date.now() - HISTORY_TTL_DAYS * 86400000;
-    const fresh = items.filter((item) => item.timestamp > cutoff);
+    // Buang entri rusak (mis. diedit manual atau format lama) supaya daftar tidak error
+    const fresh = items.filter(
+      (item) =>
+        item != null &&
+        typeof item === "object" &&
+        typeof item.id === "string" &&
+        typeof item.timestamp === "number" &&
+        ["AMAN", "WASPADA", "BAHAYA"].includes(item.verdict) &&
+        item.timestamp > cutoff,
+    );
     if (fresh.length !== items.length) {
       const serialized = JSON.stringify(fresh);
       localStorage.setItem(HISTORY_STORAGE_KEY, serialized);
