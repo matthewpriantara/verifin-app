@@ -316,8 +316,11 @@ function LoadingModal({
   );
 }
 
+/** 0 = kosong, 1 = ada teks/gambar, 2 = sedang dianalisis. Dipakai hero "Tempel. Tunggu. Tahu." */
+export type VerifyStage = 0 | 1 | 2;
+
 /* ─── Main Component ────────────────────────────────────────────────────── */
-export function VerifyBox() {
+export function VerifyBox({ onStageChange }: { onStageChange?: (stage: VerifyStage) => void } = {}) {
   const router = useRouter();
   const fileInputRef = useRef<HTMLInputElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
@@ -339,6 +342,11 @@ export function VerifyBox() {
       ? "url"
       : "text";
   const steps = getSteps(inputSource);
+
+  const hasInput = Boolean(file) || text.trim().length > 0;
+  useEffect(() => {
+    onStageChange?.(loading ? 2 : hasInput ? 1 : 0);
+  }, [loading, hasInput, onStageChange]);
 
   useEffect(() => {
     return () => { if (preview) URL.revokeObjectURL(preview); };

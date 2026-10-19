@@ -1,8 +1,8 @@
 "use client";
 
-import { useRef } from "react";
+import { useCallback, useRef, useState } from "react";
 import { motion } from "motion/react";
-import { VerifyBox } from "@/modules/verify/VerifyBox";
+import { VerifyBox, type VerifyStage } from "@/modules/verify/VerifyBox";
 import { SearchHistory } from "@/modules/home/SearchHistory";
 import {
   Scan,
@@ -11,7 +11,10 @@ import {
   Cpu,
   ArrowDown,
   ShieldCheck,
+  Check,
+  CircleNotch,
 } from "@phosphor-icons/react";
+import { cn } from "@/lib/utils";
 
 const STEPS = [
   {
@@ -110,8 +113,92 @@ function StepCard({
   );
 }
 
+/* Slogan "Tempel. Tunggu. Tahu." (sama dengan video) sebagai jalur langkah yang
+   mengikuti keadaan kotak input: langkah aktif menyala, yang selesai diberi centang. */
+const SLOGAN = [
+  { word: "Tempel.", desc: "Teks, poster, atau link lowongan" },
+  { word: "Tunggu.", desc: "Verifin mengecek ke sumber publik" },
+  { word: "Tahu.", desc: "Skor risiko dan alasannya" },
+] as const;
+
+const VERDICT_CHIPS = [
+  { label: "AMAN", cls: "border-aman-border bg-aman-bg text-aman-fg" },
+  { label: "WASPADA", cls: "border-waspada-border bg-waspada-bg text-waspada-fg" },
+  { label: "BAHAYA", cls: "border-bahaya-border bg-bahaya-bg text-bahaya-fg" },
+];
+
+function SloganSteps({ stage }: { stage: VerifyStage }) {
+  // stage 0: langkah 1 aktif; 1: langkah 1 selesai, 2 aktif; 2: langkah 2 berjalan
+  const current = stage === 0 ? 0 : 1;
+  return (
+    <ol className="mt-5 grid grid-cols-3 gap-2 sm:mt-9 sm:block" aria-label="Cara pakai Verifin">
+      {SLOGAN.map((step, i) => {
+        const done = i < current;
+        const active = i === current;
+        const running = active && stage === 2;
+        const isLast = i === SLOGAN.length - 1;
+        return (
+          <li key={step.word} className="relative flex flex-col gap-2 sm:flex-row sm:gap-5 sm:pb-6 sm:last:pb-0" aria-current={active ? "step" : undefined}>
+            {!isLast && (
+              <span
+                aria-hidden
+                className={cn(
+                  // HP: garis mendatar ke langkah berikutnya; sm ke atas: garis tegak
+                  "absolute left-10 right-0 top-4 h-px sm:left-[17px] sm:right-auto sm:top-10 sm:bottom-1 sm:h-auto sm:w-px",
+                  done ? "bg-text-primary" : "bg-border",
+                )}
+              />
+            )}
+            <span
+              aria-hidden
+              className={cn(
+                "relative z-10 flex h-8 w-8 shrink-0 items-center justify-center rounded-full border font-mono text-[12px] font-semibold transition-colors duration-300 sm:h-9 sm:w-9",
+                done && "border-text-primary bg-text-primary text-bg-elevated",
+                active && "border-text-primary bg-bg-elevated text-text-primary ring-4 ring-text-primary/10",
+                !done && !active && "border-border bg-bg text-text-muted",
+              )}
+            >
+              {done ? (
+                <Check size={14} weight="bold" />
+              ) : running ? (
+                <CircleNotch size={15} weight="bold" className="animate-spin" />
+              ) : (
+                `0${i + 1}`
+              )}
+            </span>
+            <div className="min-w-0 sm:pt-0.5">
+              <p
+                className={cn(
+                  "text-[17px] font-semibold leading-tight tracking-tight transition-colors duration-300 sm:text-2xl",
+                  done || active ? "text-text-primary" : "text-text-muted",
+                )}
+              >
+                {step.word}
+              </p>
+              <p className="mt-1 hidden text-[15px] text-text-secondary sm:block">
+                {running ? "Sedang mengecek, biasanya sekitar satu menit" : step.desc}
+              </p>
+              {isLast && (
+                <div className="mt-2.5 hidden flex-wrap gap-1.5 sm:flex">
+                  {VERDICT_CHIPS.map((c) => (
+                    <span key={c.label} className={cn("rounded-full border px-2.5 py-0.5 font-mono text-[11px] font-bold", c.cls)}>
+                      {c.label}
+                    </span>
+                  ))}
+                </div>
+              )}
+            </div>
+          </li>
+        );
+      })}
+    </ol>
+  );
+}
+
 export default function HomePage() {
   const howRef = useRef<HTMLDivElement>(null);
+  const [stage, setStage] = useState<VerifyStage>(0);
+  const handleStage = useCallback((next: VerifyStage) => setStage(next), []);
 
   return (
     <div className="flex flex-1 flex-col">
@@ -141,21 +228,7 @@ export default function HomePage() {
             Verifin memeriksa nomor, perusahaan, alamat, dan email di lowongan lewat sumber publik, lalu menjelaskan alasan di balik skornya. Hasilnya penilaian risiko, bukan jaminan legalitas.
           </motion.p>
 
-          {/* Slogan tiga langkah, sama dengan video 60 detik dan 10 menit */}
-          <ol className="mt-5 grid gap-2 sm:mt-8 sm:gap-3">
-            {[
-              { word: "Tempel.", desc: "Teks, poster, atau link lowongan" },
-              { word: "Tunggu.", desc: "Verifin mengecek ke sumber publik" },
-              { word: "Tahu.", desc: "Skor risiko dan alasannya" },
-            ].map(({ word, desc }) => (
-              <li key={word} className="flex items-baseline gap-3">
-                <span className="w-[4.5rem] shrink-0 text-[15px] font-semibold text-text-primary sm:w-20 sm:text-lg">
-                  {word}
-                </span>
-                <span className="text-[14px] text-text-secondary sm:text-[15px]">{desc}</span>
-              </li>
-            ))}
-          </ol>
+          <SloganSteps stage={stage} />
 
           <motion.button
             initial={{ opacity: 0 }}
@@ -189,7 +262,7 @@ export default function HomePage() {
               Cek risiko lowongan
             </span>
           </div>
-          <VerifyBox />
+          <VerifyBox onStageChange={handleStage} />
           <SearchHistory />
         </motion.div>
       </section>
