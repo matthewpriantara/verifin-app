@@ -227,6 +227,8 @@ _SUMMARY_CLAIM_FIXES = (
     (_re.compile(r"\b(lowongan|perusahaan)\s+(?:resmi|terpercaya|legal|sah)\b", _re.I), r"\1"),
     (_re.compile(r"\b(?:yang\s+)?terverifikasi\b", _re.I), "yang tercatat di sumber publik"),
     (_re.compile(r"\bpasti\s+aman\b", _re.I), "tanpa tanda bahaya"),
+    (_re.compile(r"\b(domain|situs|website|akun|email|kanal|profil|portal)\s+resmi\b", _re.I), r"\1"),
+    (_re.compile(r"\s*\b(?:sangat\s+|cukup\s+)?(?:kredibel|terpercaya)\b", _re.I), ""),
 )
 
 
