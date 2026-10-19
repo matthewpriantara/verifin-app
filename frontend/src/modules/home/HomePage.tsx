@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { motion } from "motion/react";
 import { VerifyBox, type VerifyStage } from "@/modules/verify/VerifyBox";
 import { SearchHistory } from "@/modules/home/SearchHistory";
@@ -128,8 +128,20 @@ const VERDICT_CHIPS = [
 ];
 
 function SloganSteps({ stage }: { stage: VerifyStage }) {
-  // stage 0: langkah 1 aktif; 1: langkah 1 selesai, 2 aktif; 2: langkah 2 berjalan
-  const current = stage === 0 ? 0 : 1;
+  // Saat input kosong, sorotan berjalan 01 → 02 → 03 sebagai contoh alur.
+  // Cukup satu interval ringan; berhenti saat pengguna mulai mengisi atau memilih kurangi gerakan.
+  const [demo, setDemo] = useState(0);
+  useEffect(() => {
+    if (stage !== 0) return;
+    if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
+    const iv = setInterval(() => {
+      if (!document.hidden) setDemo((d) => (d + 1) % SLOGAN.length);
+    }, 1800);
+    return () => clearInterval(iv);
+  }, [stage]);
+
+  // stage 0: contoh berjalan; 1: langkah 1 selesai, 2 aktif; 2: langkah 2 berjalan
+  const current = stage === 0 ? demo : 1;
   return (
     <ol className="mt-5 grid grid-cols-3 gap-2 sm:mt-9 sm:block" aria-label="Cara pakai Verifin">
       {SLOGAN.map((step, i) => {
@@ -140,14 +152,19 @@ function SloganSteps({ stage }: { stage: VerifyStage }) {
         return (
           <li key={step.word} className="relative flex flex-col gap-2 sm:flex-row sm:gap-5 sm:pb-6 sm:last:pb-0" aria-current={active ? "step" : undefined}>
             {!isLast && (
+              // HP: garis mendatar ke langkah berikutnya; sm ke atas: garis tegak.
+              // Isian garis bergerak lewat transform saja supaya ringan.
               <span
                 aria-hidden
-                className={cn(
-                  // HP: garis mendatar ke langkah berikutnya; sm ke atas: garis tegak
-                  "absolute left-10 right-0 top-4 h-px sm:left-[17px] sm:right-auto sm:top-10 sm:bottom-1 sm:h-auto sm:w-px",
-                  done ? "bg-text-primary" : "bg-border",
-                )}
-              />
+                className="absolute left-10 right-0 top-4 h-px overflow-hidden bg-border sm:left-[17px] sm:right-auto sm:top-10 sm:bottom-1 sm:h-auto sm:w-px"
+              >
+                <span
+                  className={cn(
+                    "block h-full w-full origin-left bg-text-primary transition-transform duration-700 ease-out sm:origin-top motion-reduce:transition-none",
+                    done ? "scale-100" : "scale-x-0 sm:scale-x-100 sm:scale-y-0",
+                  )}
+                />
+              </span>
             )}
             <span
               aria-hidden
@@ -179,7 +196,12 @@ function SloganSteps({ stage }: { stage: VerifyStage }) {
                 {running ? "Sedang mengecek, biasanya sekitar satu menit" : step.desc}
               </p>
               {isLast && (
-                <div className="mt-2.5 hidden flex-wrap gap-1.5 sm:flex">
+                <div
+                  className={cn(
+                    "mt-2.5 hidden flex-wrap gap-1.5 transition-opacity duration-500 sm:flex",
+                    active ? "opacity-100" : "opacity-60",
+                  )}
+                >
                   {VERDICT_CHIPS.map((c) => (
                     <span key={c.label} className={cn("rounded-full border px-2.5 py-0.5 font-mono text-[11px] font-bold", c.cls)}>
                       {c.label}
