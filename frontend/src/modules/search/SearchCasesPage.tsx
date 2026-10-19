@@ -122,7 +122,7 @@ function SearchCasesInner() {
         <button
           type="button"
           onClick={goBack}
-          className="inline-flex items-center gap-2 rounded-xl bg-text-primary px-3.5 py-2 text-[13px] font-semibold text-bg-elevated shadow-sm transition-all hover:bg-text-secondary active:scale-[0.98]"
+          className="inline-flex min-h-11 items-center gap-2 rounded-xl bg-text-primary px-3.5 py-2 text-[13px] font-semibold text-bg-elevated shadow-sm transition-all hover:bg-text-secondary active:scale-[0.98]"
         >
           <ArrowLeft size={15} weight="bold" /> Kembali
         </button>
@@ -166,7 +166,7 @@ function SearchCasesInner() {
         </button>
       </form>
 
-      <div className="mt-3 flex flex-wrap gap-1.5" role="group" aria-label="Saring verdict">
+      <div className="mt-3 flex flex-wrap gap-2" role="group" aria-label="Saring hasil">
         {FILTERS.map((f) => (
           <button
             key={f.value || "all"}
@@ -174,7 +174,7 @@ function SearchCasesInner() {
             aria-pressed={verdict === f.value}
             onClick={() => pushParams(q, f.value)}
             className={cn(
-              "rounded-lg border px-3 py-1 text-[12px] font-medium transition-colors",
+              "min-h-11 rounded-lg border px-3.5 text-[13px] font-medium transition-colors",
               verdict === f.value
                 ? "border-text-primary bg-text-primary text-bg-elevated"
                 : "border-border bg-bg-elevated text-text-secondary hover:border-border-focus hover:text-text-primary",
@@ -188,7 +188,7 @@ function SearchCasesInner() {
       <p className="mt-5 flex gap-2 rounded-xl bg-bg-subtle px-3.5 py-3 text-[12.5px] leading-relaxed text-text-secondary">
         <Info size={16} weight="bold" className="mt-0.5 shrink-0 text-text-muted" />
         <span>
-          Verdict menilai <strong className="font-semibold text-text-primary">isi lowongan yang pernah dianalisis</strong>,
+          Hasil ini menilai <strong className="font-semibold text-text-primary">isi lowongan yang pernah dianalisis</strong>,
           bukan perusahaannya. Penipu sering memakai nama perusahaan asli. Kalau teks, nomor, atau link yang kamu
           terima berbeda, cek ulang lowongan itu.
         </span>
@@ -233,7 +233,7 @@ function SearchCasesInner() {
                 disabled={page === 0}
                 onClick={() => pushParams(q, verdict, page - 1)}
                 aria-label="Halaman sebelumnya"
-                className="flex h-8 w-8 items-center justify-center rounded-lg border border-border bg-bg-elevated text-text-secondary transition-colors hover:border-border-focus hover:text-text-primary disabled:pointer-events-none disabled:opacity-30"
+                className="flex h-11 w-11 items-center justify-center rounded-lg border border-border bg-bg-elevated text-text-secondary transition-colors hover:border-border-focus hover:text-text-primary disabled:pointer-events-none disabled:opacity-30"
               >
                 <CaretLeft size={14} weight="bold" />
               </button>
@@ -245,7 +245,7 @@ function SearchCasesInner() {
                 disabled={page + 1 >= totalPages}
                 onClick={() => pushParams(q, verdict, page + 1)}
                 aria-label="Halaman berikutnya"
-                className="flex h-8 w-8 items-center justify-center rounded-lg border border-border bg-bg-elevated text-text-secondary transition-colors hover:border-border-focus hover:text-text-primary disabled:pointer-events-none disabled:opacity-30"
+                className="flex h-11 w-11 items-center justify-center rounded-lg border border-border bg-bg-elevated text-text-secondary transition-colors hover:border-border-focus hover:text-text-primary disabled:pointer-events-none disabled:opacity-30"
               >
                 <CaretRight size={14} weight="bold" />
               </button>

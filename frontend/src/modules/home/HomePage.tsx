@@ -17,29 +17,29 @@ const STEPS = [
   {
     num: "01",
     icon: Scan,
-    title: "Ekstraksi Entitas",
-    desc: "Teks, gambar, atau URL diproses untuk mengidentifikasi nama perusahaan, nomor HP, email, tautan, alamat, dan besaran gaji.",
+    title: "Membaca isi lowongan",
+    desc: "Dari teks, poster, atau link, Verifin mengambil nama perusahaan, nomor HP, email, tautan, alamat, dan gaji yang tertulis.",
     tags: ["PaddleOCR bila gambar", "Hybrid NER", "Entity Extraction"],
   },
   {
     num: "02",
     icon: MagnifyingGlass,
-    title: "Validasi OSINT Real-time",
-    desc: "Enam kanal publik diperiksa paralel: WHOIS/DNS domain, reputasi nomor, peta OSM, pencarian web, media sosial, dan inspeksi Google Forms bila ada.",
+    title: "Cek ke sumber publik",
+    desc: "Enam pemeriksaan berjalan bersamaan: umur domain, reputasi nomor, alamat di peta, pencarian web, media sosial, dan isi Google Form bila ada.",
     tags: ["WHOIS/DNS", "Kaspersky Who Calls", "OpenStreetMap", "Web & Social"],
   },
   {
     num: "03",
     icon: Graph,
-    title: "Analisis Jaringan Penipuan",
-    desc: "Graf NetworkX mencocokkan entitas dengan memori kasus untuk mendeteksi keterhubungan ke penipuan yang pernah dilaporkan.",
+    title: "Cocokkan dengan kasus lama",
+    desc: "Nomor, email, dan nama yang sama dicocokkan dengan lowongan yang pernah dicek atau dilaporkan sebagai penipuan.",
     tags: ["NetworkX", "Case Memory", "Fraud Graph"],
   },
   {
     num: "04",
     icon: Cpu,
-    title: "Penilaian Risiko & Penjelasan",
-    desc: "LLM menyusun verdict AMAN/WASPADA/BAHAYA hanya dari bukti yang terkumpul, lalu Evidence Attribution menunjukkan kontribusi tiap sinyal.",
+    title: "Skor dan alasannya",
+    desc: "AI memberi hasil AMAN, WASPADA, atau BAHAYA hanya dari bukti yang terkumpul, lalu menunjukkan seberapa besar tiap bukti memengaruhi skor.",
     tags: ["LLM Reasoning", "Evidence Attribution", "Explainable AI"],
   },
 ];
@@ -90,7 +90,7 @@ function StepCard({
         >
           <Icon size={15} weight="bold" className="text-bg-elevated" />
         </motion.div>
-        <span className="font-mono text-[10px] font-semibold tracking-widest text-text-muted">
+        <span className="font-mono text-[11px] font-semibold tracking-widest text-text-muted">
           {step.num}
         </span>
       </div>
@@ -100,7 +100,7 @@ function StepCard({
         {step.tags.map((tag) => (
           <span
             key={tag}
-            className="rounded border border-border bg-bg-subtle px-1.5 py-0.5 font-mono text-[10px] text-text-muted"
+            className="rounded border border-border bg-bg-subtle px-1.5 py-0.5 font-mono text-[11px] text-text-muted"
           >
             {tag}
           </span>
@@ -117,14 +117,15 @@ export default function HomePage() {
     <div className="flex flex-1 flex-col">
 
       {/* ── Hero ─────────────────────────────────────────────────────── */}
-      <section className="mx-auto flex w-full max-w-6xl flex-col items-center gap-10 px-4 py-14 sm:px-6 sm:py-14 lg:flex-row lg:items-start lg:gap-16 lg:py-20">
+      <section className="mx-auto flex w-full max-w-6xl flex-col items-center gap-7 px-4 py-8 sm:px-6 sm:py-14 lg:flex-row lg:items-start lg:gap-16 lg:py-20">
 
         {/* Kiri — headline */}
         <div className="w-full flex-1">
 
+          {/* Hero tanpa opacity awal: HTML server langsung terbaca walau JS belum termuat */}
           <motion.h1
-            initial={{ opacity: 0, y: 16 }}
-            animate={{ opacity: 1, y: 0 }}
+            initial={{ y: 12 }}
+            animate={{ y: 0 }}
             transition={{ duration: 0.5, delay: 0.06, ease: [0.16, 1, 0.3, 1] }}
             className="text-[2rem] font-semibold leading-[1.15] tracking-tight text-text-primary sm:text-5xl lg:text-6xl"
           >
@@ -132,34 +133,29 @@ export default function HomePage() {
           </motion.h1>
 
           <motion.p
-            initial={{ opacity: 0, y: 12 }}
-            animate={{ opacity: 1, y: 0 }}
+            initial={{ y: 8 }}
+            animate={{ y: 0 }}
             transition={{ duration: 0.5, delay: 0.12, ease: [0.16, 1, 0.3, 1] }}
-            className="mt-4 max-w-lg text-[14px] leading-relaxed text-text-secondary sm:mt-5 sm:text-[15px]"
+            className="mt-3 max-w-lg text-[15px] leading-relaxed text-text-secondary sm:mt-5"
           >
-            Lindungi perjalanan karirmu dari bahaya lowongan kerja palsu dan penipuan digital. Verifin memanfaatkan kecerdasan AI dan OSINT untuk memverifikasi profil perusahaan, keabsahan lokasi, nomor kontak, hingga jejak reputasi digital secara instan. Dapatkan rangkuman bukti risiko yang transparan dan dapat diaudit agar kamu bisa melamar kerja dengan percaya diri tanpa rasa cemas.
+            Verifin memeriksa nomor, perusahaan, alamat, dan email di lowongan lewat sumber publik, lalu menjelaskan alasan di balik skornya. Hasilnya penilaian risiko, bukan jaminan legalitas.
           </motion.p>
 
-          <motion.div
-            initial={{ opacity: 0, y: 8 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.4, delay: 0.22 }}
-            className="mt-7 flex flex-wrap gap-x-6 gap-y-4 sm:mt-8 sm:gap-6"
-          >
+          {/* Slogan tiga langkah, sama dengan video 60 detik dan 10 menit */}
+          <ol className="mt-5 grid gap-2 sm:mt-8 sm:gap-3">
             {[
-              { val: "6", unit: "Kanal", label: "Pemeriksaan OSINT" },
-              { val: "4", unit: "Tahap", label: "Analisis Verifin" },
-              { val: "3", unit: "Jenis input", label: "Teks, poster, atau link" },
-            ].map(({ val, unit, label }) => (
-              <div key={label}>
-                <p className="font-mono text-xl font-semibold text-text-primary sm:text-2xl">
-                  {val}{" "}
-                  <span className="text-[12px] font-normal text-text-muted sm:text-[13px]">{unit}</span>
-                </p>
-                <p className="text-[11px] text-text-muted sm:text-[12px]">{label}</p>
-              </div>
+              { word: "Tempel.", desc: "Teks, poster, atau link lowongan" },
+              { word: "Tunggu.", desc: "Verifin mengecek ke sumber publik" },
+              { word: "Tahu.", desc: "Skor risiko dan alasannya" },
+            ].map(({ word, desc }) => (
+              <li key={word} className="flex items-baseline gap-3">
+                <span className="w-[4.5rem] shrink-0 text-[15px] font-semibold text-text-primary sm:w-20 sm:text-lg">
+                  {word}
+                </span>
+                <span className="text-[14px] text-text-secondary sm:text-[15px]">{desc}</span>
+              </li>
             ))}
-          </motion.div>
+          </ol>
 
           <motion.button
             initial={{ opacity: 0 }}
@@ -180,8 +176,8 @@ export default function HomePage() {
 
         {/* Kanan — VerifyBox */}
         <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
+          initial={{ y: 12 }}
+          animate={{ y: 0 }}
           transition={{ duration: 0.6, delay: 0.18, ease: [0.16, 1, 0.3, 1] }}
           className="w-full lg:max-w-md"
         >
@@ -212,7 +208,7 @@ export default function HomePage() {
               Cara Verifin menilai risiko
             </h2>
             <p className="mx-auto mt-2 max-w-xl text-[13px] leading-relaxed text-text-secondary sm:text-[14px]">
-              Ekstraksi, pemeriksaan publik, pemetaan relasi, dan reasoning dirangkai menjadi satu penilaian yang bisa kamu audit.
+              Empat langkah yang dijalankan untuk setiap lowongan. Setiap skor disertai bukti yang bisa kamu periksa sendiri.
             </p>
           </motion.div>
 

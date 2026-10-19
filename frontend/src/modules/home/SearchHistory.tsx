@@ -81,21 +81,21 @@ export function SearchHistory() {
     switch (verdict) {
       case "BAHAYA":
         return (
-          <span className="inline-flex items-center gap-1 rounded-full border border-bahaya-border bg-bahaya-bg px-2 py-0.5 font-mono text-[9px] font-bold text-bahaya-fg">
+          <span className="inline-flex items-center gap-1 rounded-full border border-bahaya-border bg-bahaya-bg px-2 py-0.5 font-mono text-[11px] font-bold text-bahaya-fg">
             <WarningOctagon size={10} weight="fill" />
             BAHAYA ({score})
           </span>
         );
       case "WASPADA":
         return (
-          <span className="inline-flex items-center gap-1 rounded-full border border-waspada-border bg-waspada-bg px-2 py-0.5 font-mono text-[9px] font-bold text-waspada-fg">
+          <span className="inline-flex items-center gap-1 rounded-full border border-waspada-border bg-waspada-bg px-2 py-0.5 font-mono text-[11px] font-bold text-waspada-fg">
             <Warning size={10} weight="fill" />
             WASPADA ({score})
           </span>
         );
       case "AMAN":
         return (
-          <span className="inline-flex items-center gap-1 rounded-full border border-aman-border bg-aman-bg px-2 py-0.5 font-mono text-[9px] font-bold text-aman-fg">
+          <span className="inline-flex items-center gap-1 rounded-full border border-aman-border bg-aman-bg px-2 py-0.5 font-mono text-[11px] font-bold text-aman-fg">
             <ShieldCheck size={10} weight="fill" />
             AMAN ({score})
           </span>
@@ -116,18 +116,18 @@ export function SearchHistory() {
           </span>
         </div>
         <div className="flex items-center gap-2">
-          <span className="font-mono text-[10px] text-text-muted">
-            {history.length} Total
+          <span className="font-mono text-[12px] text-text-muted">
+            {history.length} lowongan
           </span>
           {history.length > 0 && (
             <button
               type="button"
               onClick={handleClearAll}
-              className="flex h-5 w-5 items-center justify-center rounded-md text-text-muted transition-colors hover:bg-bahaya-bg hover:text-bahaya-fg"
+              className="-my-3 flex h-11 w-11 items-center justify-center rounded-md text-text-muted transition-colors hover:bg-bahaya-bg hover:text-bahaya-fg"
               title="Hapus semua riwayat"
               aria-label="Hapus semua riwayat"
             >
-              <Trash size={11} weight="bold" />
+              <Trash size={14} weight="bold" />
             </button>
           )}
         </div>
@@ -145,7 +145,7 @@ export function SearchHistory() {
               <p className="text-[12px] font-medium text-text-secondary">
                 Belum ada riwayat
               </p>
-              <p className="mt-0.5 text-[10px] text-text-muted">
+              <p className="mt-0.5 text-[12px] text-text-muted">
                 Verifikasi lowongan untuk mulai melacak
               </p>
             </div>
@@ -181,7 +181,7 @@ export function SearchHistory() {
                       <h5 className="text-[11.5px] font-medium text-text-primary truncate group-hover:text-text-primary">
                         {item.title}
                       </h5>
-                      <p className="text-[10px] text-text-muted truncate mt-0.5">
+                      <p className="text-[12px] text-text-muted truncate mt-0.5">
                         {formatTimeAgo(item.timestamp)} • {item.entitiesSummary}
                       </p>
                     </div>
@@ -191,13 +191,13 @@ export function SearchHistory() {
                       <button
                         type="button"
                         onClick={(e) => handleRemove(e, item.id)}
-                        className="flex h-5 w-5 items-center justify-center rounded-md text-text-muted opacity-0 transition-all hover:bg-bahaya-bg hover:text-bahaya-fg group-hover:opacity-100 group-focus-within:opacity-100 focus-visible:opacity-100"
+                        className="-my-2 flex h-11 w-11 items-center justify-center rounded-md text-text-muted transition-all hover:bg-bahaya-bg hover:text-bahaya-fg sm:opacity-0 sm:group-hover:opacity-100 sm:group-focus-within:opacity-100 focus-visible:opacity-100"
                         title="Hapus riwayat ini"
                         aria-label="Hapus riwayat ini"
                       >
-                        <Trash size={10} weight="bold" />
+                        <Trash size={14} weight="bold" />
                       </button>
-                      <ArrowUpRight size={12} weight="bold" className="text-text-muted opacity-0 transition-opacity group-hover:opacity-100" />
+                      <ArrowUpRight size={12} weight="bold" className="hidden text-text-muted opacity-0 transition-opacity group-hover:opacity-100 sm:block" />
                     </div>
                   </div>
                 ))}
@@ -208,7 +208,7 @@ export function SearchHistory() {
 
         {totalPages > 1 && (
           <div className="mt-2.5 flex items-center justify-between border-t border-border/50 pt-2 px-1">
-            <span className="font-mono text-[10px] text-text-muted">
+            <span className="font-mono text-[12px] text-text-muted">
               Halaman {currentPage} dari {totalPages}
             </span>
 
@@ -217,7 +217,7 @@ export function SearchHistory() {
                 type="button"
                 disabled={currentPage === 1}
                 onClick={() => handlePageChange(Math.max(currentPage - 1, 1))}
-                className="flex h-6 w-6 items-center justify-center rounded-lg border border-border bg-bg-subtle text-text-muted transition-colors hover:border-border-focus hover:text-text-primary disabled:opacity-30 disabled:pointer-events-none active:scale-95"
+                className="flex h-11 w-11 items-center justify-center rounded-lg border border-border bg-bg-subtle text-text-muted transition-colors hover:border-border-focus hover:text-text-primary disabled:opacity-30 disabled:pointer-events-none active:scale-95"
                 title="Halaman sebelumnya"
               >
                 <CaretLeft size={12} weight="bold" />
@@ -226,7 +226,7 @@ export function SearchHistory() {
                 type="button"
                 disabled={currentPage === totalPages}
                 onClick={() => handlePageChange(Math.min(currentPage + 1, totalPages))}
-                className="flex h-6 w-6 items-center justify-center rounded-lg border border-border bg-bg-subtle text-text-muted transition-colors hover:border-border-focus hover:text-text-primary disabled:opacity-30 disabled:pointer-events-none active:scale-95"
+                className="flex h-11 w-11 items-center justify-center rounded-lg border border-border bg-bg-subtle text-text-muted transition-colors hover:border-border-focus hover:text-text-primary disabled:opacity-30 disabled:pointer-events-none active:scale-95"
                 title="Halaman selanjutnya"
               >
                 <CaretRight size={12} weight="bold" />

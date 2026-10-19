@@ -38,41 +38,41 @@ function getSteps(source: InputSource) {
   const firstStep = source === "image"
     ? {
       id: "ocr",
-      label: "OCR + Ekstraksi Entitas",
-      detail: "PaddleOCR membaca gambar untuk mengekstrak nama perusahaan, HP, email, URL, dan alamat",
+      label: "Membaca poster",
+      detail: "Teks di gambar dibaca, lalu nama perusahaan, nomor HP, email, link, dan alamat diambil",
     }
     : source === "url"
       ? {
         id: "fetch",
-        label: "Ambil Konten + Ekstraksi Entitas",
-        detail: "Konten link diambil; OCR berjalan bila ditemukan gambar poster, lalu entitas diekstrak",
+        label: "Membuka link",
+        detail: "Isi postingan diambil, poster di dalamnya ikut dibaca, lalu data penting diambil",
       }
       : {
         id: "extract",
-        label: "Ekstraksi Entitas",
-        detail: "Teks diproses langsung untuk mengekstrak nama perusahaan, HP, email, URL, dan alamat",
+        label: "Membaca isi lowongan",
+        detail: "Nama perusahaan, nomor HP, email, link, dan alamat diambil dari teks",
       };
 
   return [
     { ...firstStep, icon: Scan, duration: 350 },
     {
       id: "osint",
-      label: "Pemeriksaan OSINT",
-      detail: "WHOIS/DNS, reputasi nomor, OSM, web evidence, media sosial, dan inspeksi Google Forms bila relevan",
+      label: "Cek ke sumber publik",
+      detail: "Umur domain, reputasi nomor, alamat di peta, pencarian web, media sosial, dan Google Form bila ada",
       icon: MagnifyingGlass,
       duration: 5500,
     },
     {
       id: "graph",
-      label: "Pemetaan Relasi Entitas",
-      detail: "Membangun graf koneksi antar entitas yang ditemukan dari sumber publik",
+      label: "Cocokkan kasus lama",
+      detail: "Nomor, email, dan nama dicocokkan dengan lowongan yang pernah dicek atau dilaporkan",
       icon: Graph,
       duration: 1500,
     },
     {
       id: "ai",
-      label: "Reasoning + Penjelasan Bukti",
-      detail: "Verifin AI menyusun penilaian dari fakta OSINT dan menghitung kontribusi sinyal risiko",
+      label: "Menyusun skor",
+      detail: "Penilaian disusun dari bukti yang terkumpul, beserta pengaruh tiap bukti pada skor",
       icon: Cpu,
       duration: 3000,
     },
@@ -124,10 +124,10 @@ function LoadingModal({
               </div>
               <div className="min-w-0">
                 <h3 className="text-base font-bold text-text-primary">
-                  Proses Verifikasi AI
+                  Memeriksa lowongan
                 </h3>
                 <p className="text-[12px] text-text-muted">
-                  Analisis data & bukti OSINT paralel
+                  Biasanya sekitar satu menit
                 </p>
               </div>
             </div>
@@ -147,7 +147,7 @@ function LoadingModal({
               <button
                 type="button"
                 onClick={onCancel}
-                className="ml-2 flex items-center gap-1.5 rounded-xl border border-bahaya-border bg-bahaya-bg/60 px-3 py-1.5 text-[12px] font-medium text-bahaya-fg transition-colors hover:bg-bahaya-bg hover:border-bahaya-fg/30 active:scale-95 shadow-none outline-none ring-0"
+                className="ml-2 flex h-11 items-center gap-1.5 rounded-xl border border-bahaya-border bg-bahaya-bg/60 px-3.5 text-[13px] font-medium text-bahaya-fg transition-colors hover:bg-bahaya-bg hover:border-bahaya-fg/30 active:scale-95 shadow-none outline-none ring-0"
               >
                 <X size={14} weight="bold" />
                 Batal
@@ -272,7 +272,7 @@ function LoadingModal({
                       <div className="flex items-center justify-between gap-1 mb-1.5">
                         <span
                           className={cn(
-                            "rounded-full px-2 py-0.5 text-[9px] font-semibold uppercase tracking-wide",
+                            "rounded-full px-2 py-0.5 text-[11px] font-semibold",
                             isDone && "bg-aman-bg text-aman-fg border border-aman-border",
                             isActive && "bg-text-primary text-bg-elevated font-bold animate-pulse",
                             isPending && "bg-bg-muted text-text-muted"
@@ -280,7 +280,7 @@ function LoadingModal({
                         >
                           {isDone ? "Selesai" : isActive ? "Proses..." : "Menunggu"}
                         </span>
-                        <span className="font-mono text-[10px] text-text-muted">Step {i + 1}</span>
+                        <span className="font-mono text-[11px] text-text-muted">Langkah {i + 1}</span>
                       </div>
 
                       <h4
@@ -293,7 +293,7 @@ function LoadingModal({
                         {isActive && <span className="ml-1 text-text-muted">{".".repeat(dotCount)}</span>}
                       </h4>
 
-                      <p className="mt-1.5 text-[11px] leading-relaxed text-text-muted">
+                      <p className="mt-1.5 text-[12px] leading-relaxed text-text-muted">
                         {step.detail}
                       </p>
                     </div>
@@ -306,9 +306,9 @@ function LoadingModal({
 
         {/* Footer info */}
         <div className="border-t border-border bg-bg-subtle/30 px-6 py-3 text-center">
-          <p className="text-[11px] font-medium text-text-muted flex items-center justify-center gap-1.5">
+          <p className="text-[12px] font-medium text-text-muted flex items-center justify-center gap-1.5">
             <span className="h-1.5 w-1.5 rounded-full bg-aman-fg motion-safe:animate-pulse" aria-hidden />
-            {stageMessage || "Harap tunggu, Verifin AI sedang memverifikasi bukti OSINT secara mendalam..."}
+            {stageMessage || "Jangan tutup halaman ini. Hasil muncul otomatis setelah selesai."}
           </p>
         </div>
       </motion.div>
@@ -356,17 +356,17 @@ export function VerifyBox() {
     if (inputSource !== "url") {
       t1 = setTimeout(() => {
         setStepIndex((prev) => Math.max(prev, 1));
-        setStageMessage("Menjalankan investigasi OSINT paralel (DNS, Whois, Kaspersky, SearXNG)...");
+        setStageMessage("Mengecek nomor, domain, alamat, dan jejak di web...");
       }, 3500);
 
       t2 = setTimeout(() => {
         setStepIndex((prev) => Math.max(prev, 2));
-        setStageMessage("Menganalisis relasi entitas & pemetaan Fraud Network Graph...");
+        setStageMessage("Mencocokkan dengan laporan penipuan yang pernah masuk...");
       }, 14000);
 
       t3 = setTimeout(() => {
         setStepIndex((prev) => Math.max(prev, 3));
-        setStageMessage("Sintesis penalaran Explainable AI & perhitungan skor risiko aditif...");
+        setStageMessage("Menyusun penilaian dan alasannya...");
       }, 22000);
     }
 
@@ -441,7 +441,7 @@ export function VerifyBox() {
         break;
       }
       case "error":
-        setError(event.data.message || "Terjadi kesalahan saat memproses.");
+        setError(event.data.message || "Analisis gagal. Coba lagi sebentar lagi. Kalau masih gagal, tempel ulang teksnya.");
         break;
     }
   };
@@ -536,7 +536,7 @@ export function VerifyBox() {
     setError(null);
     const trimmed = text.trim();
     if (!trimmed && !file) {
-      setError("Tempel teks lowongan atau lampirkan screenshot terlebih dahulu.");
+      setError("Tempel teks lowongan atau lampirkan screenshot dulu.");
       return;
     }
     isDoneRef.current = false;
@@ -580,10 +580,10 @@ export function VerifyBox() {
       if (err instanceof DOMException && err.name === "AbortError") {
         // silent — sudah di-handle oleh handleCancel
       } else {
-        const rawMsg = err instanceof Error ? err.message : "Terjadi kesalahan saat memproses.";
+        const rawMsg = err instanceof Error ? err.message : "Analisis gagal. Coba lagi sebentar lagi. Kalau masih gagal, tempel ulang teksnya.";
         const displayMsg =
           rawMsg === "Failed to fetch" || rawMsg.includes("Failed to fetch")
-            ? "Gagal terhubung ke server verifikasi. Periksa koneksi internet Anda atau coba beberapa saat lagi."
+            ? "Gagal terhubung ke server verifikasi. Periksa koneksi internetmu atau coba lagi sebentar lagi."
             : rawMsg;
         setError(displayMsg);
       }
@@ -641,29 +641,36 @@ export function VerifyBox() {
                   }}
                   placeholder="Tempel teks lowongan, URL postingan, atau lampirkan screenshot..."
                   rows={5}
-                  className="max-h-80 w-full resize-none overflow-y-auto rounded-xl bg-transparent p-4 pb-10 text-[14px] leading-relaxed text-text-primary placeholder:text-text-muted focus:outline-none focus:ring-0 focus-visible:outline-none focus-visible:ring-0"
+                  className="max-h-80 w-full resize-none overflow-y-auto rounded-xl bg-transparent p-4 text-[14px] leading-relaxed text-text-primary placeholder:text-text-muted focus:outline-none focus:ring-0 focus-visible:outline-none focus-visible:ring-0"
                 />
-                <button
-                  type="button"
-                  onClick={handlePaste}
-                  title="Tempel teks atau gambar dari clipboard (Paste)"
-                  className="absolute right-3 bottom-3 z-10 flex items-center justify-center rounded-md border border-border bg-bg-subtle/80 px-2.5 py-1 text-[11px] font-medium text-text-muted transition-colors hover:border-border-focus hover:bg-bg-subtle hover:text-text-primary active:scale-95 shadow-none outline-none ring-0"
-                >
-                  Paste
-                </button>
               </div>
-              {!text.trim() && (
-                <div className="flex items-center justify-between border-t border-border px-3 py-2.5">
+              {/* Baris aksi di bawah textarea, tidak menimpa teks yang sudah diketik */}
+              <div className="flex items-center justify-between gap-2 border-t border-border px-2 py-1.5">
+                {!text.trim() ? (
                   <button
                     type="button"
                     onClick={() => fileInputRef.current?.click()}
-                    className="flex items-center gap-1.5 rounded-md px-2.5 py-1.5 text-[12px] text-text-muted transition-colors hover:bg-bg-subtle hover:text-text-secondary"
+                    className="flex min-h-11 items-center gap-2 whitespace-nowrap rounded-md px-2.5 text-[13px] text-text-secondary transition-colors hover:bg-bg-subtle hover:text-text-primary"
                   >
-                    <ImageSquare size={14} />
+                    <ImageSquare size={16} />
                     Lampirkan gambar
                   </button>
-                  <span className="text-[11px] text-text-muted">JPG · PNG · WEBP · maks 20 MB</span>
-                </div>
+                ) : (
+                  <span className="px-2.5 text-[12px] text-text-muted">{text.trim().length} karakter</span>
+                )}
+                <button
+                  type="button"
+                  onClick={handlePaste}
+                  title="Tempel teks atau gambar dari clipboard"
+                  className="flex min-h-11 items-center justify-center whitespace-nowrap rounded-md border border-border bg-bg-subtle/80 px-3.5 text-[13px] font-medium text-text-secondary transition-colors hover:border-border-focus hover:bg-bg-subtle hover:text-text-primary active:scale-95 shadow-none outline-none ring-0"
+                >
+                  Tempel
+                </button>
+              </div>
+              {!text.trim() && (
+                <p className="border-t border-border px-4 py-2 text-[12px] text-text-muted">
+                  Gambar: JPG, PNG, atau WEBP, maks 20 MB
+                </p>
               )}
             </>
           ) : (
@@ -679,7 +686,8 @@ export function VerifyBox() {
               <button
                 type="button"
                 onClick={() => attachFile(null)}
-                className="rounded-md p-1 text-text-muted transition-colors hover:bg-bg-subtle hover:text-text-primary"
+                aria-label="Hapus gambar"
+                className="flex h-11 w-11 items-center justify-center rounded-md text-text-muted transition-colors hover:bg-bg-subtle hover:text-text-primary"
               >
                 <X size={14} />
               </button>

@@ -12,7 +12,7 @@ export default function NotFound() {
         Halaman Tidak Ditemukan
       </h1>
       <p className="mt-2.5 max-w-md text-[13px] leading-relaxed text-text-muted sm:text-[14px]">
-        Tautan yang Anda tuju mungkin salah, telah dipindahkan, atau laporan verifikasi tidak lagi tersedia.
+        Tautan yang kamu buka mungkin salah, telah dipindahkan, atau laporan verifikasi tidak lagi tersedia.
       </p>
       <div className="mt-8 flex items-center gap-3">
         <Link href="/">

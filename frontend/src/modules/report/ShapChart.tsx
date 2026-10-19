@@ -25,10 +25,10 @@ export function ShapChart({ shap }: ShapChartProps) {
     <div className="space-y-3">
       {/* Header */}
       <div className="flex items-center justify-between">
-        <p className="text-[11px] text-text-muted">
-          Base nilai: <span className="font-mono text-text-secondary">{shap.base_value}</span>
+        <p className="text-[12px] text-text-muted">
+          Nilai dasar: <span className="font-mono text-text-secondary">{shap.base_value}</span>
         </p>
-        <p className="text-[11px] text-text-muted">
+        <p className="text-[12px] text-text-muted">
           Skor akhir: <span className="font-mono font-semibold text-text-primary">{shap.final_risk_score}/100</span>
         </p>
       </div>
@@ -55,7 +55,7 @@ export function ShapChart({ shap }: ShapChartProps) {
                   {c.feature}
                 </p>
                 <span className={cn(
-                  "shrink-0 font-mono text-[11px] font-medium",
+                  "shrink-0 font-mono text-[12px] font-medium",
                   isCalibration ? "text-text-muted" : isRisk ? "text-bahaya-fg" : "text-aman-fg"
                 )}>
                   {formatSigned(c.delta)}
@@ -79,7 +79,7 @@ export function ShapChart({ shap }: ShapChartProps) {
 
       {/* Rekonsiliasi: skor akhir = base + Σ kontribusi */}
       <div className="border-t border-border pt-3">
-        <p className="font-mono text-[11px] text-text-muted">
+        <p className="font-mono text-[12px] text-text-muted">
           {shap.base_value} {formatSigned(totalDelta)} ={" "}
           <span className="font-semibold text-text-primary">
             {Math.round(shap.base_value + totalDelta)}
@@ -87,7 +87,7 @@ export function ShapChart({ shap }: ShapChartProps) {
           <span className="font-sans"> (nilai dasar + Σ kontribusi)</span>
         </p>
         {hasCalibration && (
-          <p className="mt-1 text-[11px] leading-relaxed text-text-muted">
+          <p className="mt-1 text-[12px] leading-relaxed text-text-muted">
             &ldquo;Penyesuaian Penalaran AI&rdquo; adalah selisih antara skor dari AI dan jumlah bobot bukti terukur.
           </p>
         )}

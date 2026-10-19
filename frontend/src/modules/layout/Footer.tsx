@@ -13,7 +13,7 @@ export function Footer() {
 
           {/* Col 1: Branding & Description */}
           <div className="md:col-span-5 space-y-4">
-            <Link href="/" className="inline-flex items-center group">
+            <Link href="/" className="inline-flex min-h-11 items-center group">
               <Logo size="md" inverted />
             </Link>
             <p className="text-[13px] leading-relaxed text-bg/70 max-w-sm">
@@ -27,19 +27,19 @@ export function Footer() {
             <h4 className="text-[12px] font-semibold tracking-wider uppercase text-bg">
               Navigasi
             </h4>
-            <ul className="space-y-2 text-[13px]">
+            <ul className="text-[14px]">
               <li>
-                <Link href="/" className="text-bg/70 hover:text-bg transition-colors">
+                <Link href="/" className="flex min-h-11 items-center text-bg/70 hover:text-bg transition-colors">
                   Cek lowongan
                 </Link>
               </li>
               <li>
-                <Link href="/cari" className="text-bg/70 hover:text-bg transition-colors">
+                <Link href="/cari" className="flex min-h-11 items-center text-bg/70 hover:text-bg transition-colors">
                   Cari loker
                 </Link>
               </li>
               <li>
-                <Link href="/report-job" className="text-bg/70 hover:text-bg transition-colors">
+                <Link href="/report-job" className="flex min-h-11 items-center text-bg/70 hover:text-bg transition-colors">
                   Lapor komunitas
                 </Link>
               </li>
@@ -55,7 +55,7 @@ export function Footer() {
               {["PaddleOCR", "SearXNG", "OpenStreetMap", "Kaspersky Who Calls", "WHOIS/RDAP", "NetworkX", "LLM"].map((tech) => (
                 <span
                   key={tech}
-                  className="rounded bg-bg/5 border border-bg/10 px-2.5 py-1 font-mono text-[10px] text-bg/70 hover:bg-bg/10 transition-colors"
+                  className="rounded bg-bg/5 border border-bg/10 px-2.5 py-1 font-mono text-[11px] text-bg/70 hover:bg-bg/10 transition-colors"
                 >
                   {tech}
                 </span>
@@ -71,11 +71,11 @@ export function Footer() {
             <p className="text-[12px] text-bg/60 font-medium">
               &copy; {new Date().getFullYear()} VERIFIN. Hak Cipta Dilindungi.
             </p>
-            <p className="text-[11px] text-bg/60">
+            <p className="text-[12px] text-bg/60">
               Tim Three Achilles · Universitas Gadjah Mada
             </p>
           </div>
-          <p className="text-[11px] md:text-[12px] leading-relaxed text-bg/60 max-w-md md:text-right">
+          <p className="text-[12px] leading-relaxed text-bg/60 max-w-md md:text-right">
             Hasil Verifin adalah penilaian risiko otomatis dari bukti publik, bukan putusan hukum
             dan bukan jaminan legalitas perusahaan.
           </p>
