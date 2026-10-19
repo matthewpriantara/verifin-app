@@ -12,6 +12,7 @@ from app.config import LLM_MODEL
 from app.database.models import JobCase
 from app.services.hasher import compute_content_sha256
 from app.api.v1.verify.pipeline import _build_osint_summary, _to_response
+from app.services.llm.verifin_reasoning import _soften_summary_claims
 
 logger = logging.getLogger(__name__)
 CACHE_SCHEMA_VERSION = 9
@@ -132,7 +133,8 @@ def _job_case_to_response(cached: JobCase) -> VerifyResponse | None:
         "case_id": str(cached.id),
         "verdict": cached.verdict,
         "risk_score": cached.risk_score,
-        "summary": llm_payload.get("summary", ""),
+        # Kasus lama di cache tetap dirapikan agar tidak menyebut lowongan "resmi"
+        "summary": _soften_summary_claims(llm_payload.get("summary", "")),
         "risk_factors": llm_payload.get("risk_factors", []),
         "safe_factors": llm_payload.get("safe_factors", []),
         "recommendations": llm_payload.get("recommendations", []),
