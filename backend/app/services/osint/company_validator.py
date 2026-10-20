@@ -105,13 +105,16 @@ def validate_company_public(
 
         risk_flags.extend(s.get("risk_flags") or [])
 
+    # Angka yang sama dengan "Pencarian web" supaya laporan tidak menampilkan dua hitungan berbeda
+    web_total = (web_evidence.get("evidence_counts") or {}).get("relevant_results") or mention_count
+
     if fraud_mentions >= 1:
         risk_flags.append(
             f"Pencarian web memuat {fraud_mentions} hasil indikasi penipuan spesifik terkait {name}."
         )
     elif mention_count >= 1:
         safe_flags.append(
-            f"Ditemukan {mention_count} jejak publik di search (bukan klaim legalitas AHU)."
+            f"Pencarian web menemukan {web_total} hasil yang menyebut perusahaan ini (bukan bukti legalitas)."
         )
 
     if legality_mentions >= 1:
@@ -143,7 +146,7 @@ def validate_company_public(
         },
         "stats": {
             "search_count": len(searches),
-            "public_mentions": mention_count,
+            "public_mentions": web_total,
             "fraud_related_mentions": fraud_mentions,
             "legality_mentions": legality_mentions,
             "successful_requests": successful_requests,

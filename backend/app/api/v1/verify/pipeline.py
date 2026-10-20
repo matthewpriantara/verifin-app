@@ -292,7 +292,7 @@ async def _extract_entities_hybrid(text: str) -> dict:
 
     # Gaji: gabungan keduanya, wajib memuat angka atau UMR/UMK/UMP.
     salaries = (merged.get("salaries") or []) + accept(llm_extracted.get("salaries") or [])
-    merged["salaries"] = [v for v in _uniq(salaries) if _SALARY_HINT.search(v)]
+    merged["salaries"] = _dedupe_salaries([v for v in _uniq(salaries) if _SALARY_HINT.search(v)])
     dropped["junk"] += [v for v in _uniq(salaries) if not _SALARY_HINT.search(v)]
 
     if merged.get("emails"):
@@ -601,3 +601,16 @@ def _build_osint_summary(osint_results: dict | None) -> dict | None:
             "is_new": (osint_results.get("domain") or {}).get("is_new"),
         },
     }
+
+def _dedupe_salaries(values: list[str]) -> list[str]:
+    """Regex menulis "Rp3.500.000–Rp4.500.000", LLM menulis "± Rp3.500.000–Rp4.500.000":
+    angka yang sama dihitung sekali, versi pertama (regex) yang dipertahankan."""
+    seen: set[str] = set()
+    out: list[str] = []
+    for value in values:
+        key = "-".join(re.findall(r"\d+", re.sub(r"(?<=\d)[.,](?=\d{3})", "", value))) or value.lower()
+        if key in seen:
+            continue
+        seen.add(key)
+        out.append(value)
+    return out

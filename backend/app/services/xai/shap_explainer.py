@@ -257,17 +257,17 @@ def explain_verification_shap(
             1,
             12.0,
             "safe",
-            "Alamat fisik ditemukan dan valid di OpenStreetMap — mengurangi risiko loker fiktif",
+            "Jalan dan nomor bangunan cocok di OpenStreetMap",
         ))
 
     if entities is not None and input_addresses and not exact_address:
         contributions.append(_make_contrib(
-            "Alamat Fisik Belum Terverifikasi Exact",
+            "Nomor Alamat Belum Pasti di Peta",
             "address_not_verified",
             1,
             10.0,
             "risk",
-            "Alamat tercantum, tetapi belum ditemukan kecocokan jalan dan nomor yang exact di peta",
+            "Alamat tercantum, tetapi jalan dan nomor bangunannya belum cocok persis di peta",
         ))
 
     companies = osint_results.get("companies") or []
@@ -447,7 +447,7 @@ def _build_forensic_metadata(
     )
     has_area_address = any(
         (a.get("found") or a.get("address_found"))
-        and (a.get("match_level") or (a.get("address_details") or {}).get("match_level")) in {"area", "street"}
+        and (a.get("match_level") or (a.get("address_details") or {}).get("match_level")) in {"area", "street", "business"}
         for a in addr
         if isinstance(a, dict)
     )
@@ -546,9 +546,9 @@ def _build_forensic_metadata(
         {
             "name": "address_geocoding",
             "label": "Geocoding alamat",
-            "status": "EXACT" if exact_address else "STREET_LEVEL" if address_match_level == "street" else "AREA_ONLY" if has_area_address else "COMPLETED_NO_MATCH" if address_completed else "NOT_PROVIDED" if not input_addresses else "UNAVAILABLE",
+            "status": "EXACT" if exact_address else "BUSINESS_POI" if address_match_level == "business" else "STREET_LEVEL" if address_match_level == "street" else "AREA_ONLY" if has_area_address else "COMPLETED_NO_MATCH" if address_completed else "NOT_PROVIDED" if not input_addresses else "UNAVAILABLE",
             "applicable": bool(input_addresses),
-            "hit": address_completed and bool(address_match_level in {"exact", "street", "area"}),
+            "hit": address_completed and bool(address_match_level in {"exact", "business", "street", "area"}),
         },
         {
             "name": "web_evidence",

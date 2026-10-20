@@ -9,18 +9,58 @@ NOMINATIM_HEADERS = {
     "User-Agent": OSINT_USER_AGENT
 }
 
-async def _geocode_single(address: str, client: httpx.AsyncClient) -> dict | None:
+async def _geocode_candidates(address: str, client: httpx.AsyncClient) -> list[dict]:
+    # Beberapa kandidat: dengan limit 1 Nominatim sering mengembalikan POI acak di jalan yang
+    # sama (mis. sekolah "De Britto" untuk Jl. Laksda Adisucipto) alih-alih ruas jalannya.
     params = {
         "q": address,
         "format": "json",
-        "limit": 1,
+        "limit": 5,
         "countrycodes": "id",
-        "addressdetails": 1
+        "addressdetails": 1,
     }
     response = await client.get(NOMINATIM_URL, params=params)
     response.raise_for_status()
-    results = response.json()
-    return results[0] if results else None
+    return response.json() or []
+
+
+_BUSINESS_GENERIC = {
+    "persero", "tbk", "group", "indonesia", "kantor", "pusat", "cabang", "toko", "hotel",
+    "rumah", "makan", "jakarta", "yogyakarta", "jogja", "bandung", "surabaya", "official",
+}
+
+
+def _business_tokens(company_name: str | None) -> list[str]:
+    name = re.sub(r"\([^)]*\)", " ", company_name or "")
+    name = re.sub(r"\b(?:pt|cv|ud|pd|tbk|persero)\b\.?", " ", name, flags=re.I)
+    return [t for t in re.findall(r"[a-z0-9]+", name.lower()) if len(t) >= 4 and t not in _BUSINESS_GENERIC]
+
+
+def _is_business_match(result: dict, tokens: list[str]) -> bool:
+    if not tokens:
+        return False
+    name = str(result.get("name") or (result.get("display_name") or "").split(",")[0]).lower()
+    hits = [t for t in tokens if t in name]
+    return bool(hits) and len(hits) * 2 >= len(tokens)
+
+
+def _plain_display_name(result: dict) -> str:
+    """Nama tempat tanpa POI lain di depannya, untuk kecocokan tingkat jalan/wilayah."""
+    display = result.get("display_name") or ""
+    name = str(result.get("name") or "").strip()
+    road = str((result.get("address") or {}).get("road") or "").strip()
+    if name and name != road and display.startswith(name + ", "):
+        return display[len(name) + 2:]
+    return display
+
+
+def _candidate_preference(result: dict, level: str) -> int:
+    cls = result.get("class") or result.get("category") or ""
+    if level == "street":
+        return 1 if cls == "highway" else 0
+    if level == "area":
+        return 1 if cls in ("place", "boundary") else 0
+    return 0
 
 
 def _address_tokens(value: str) -> set[str]:
@@ -192,20 +232,29 @@ async def geocode_address(address: str, company_name: str | None = None) -> dict
                     *queries,
                 ]
 
+            business_tokens = _business_tokens(company_name)
+            if business_tokens:
+                parts = [p.strip() for p in _clean_address_input(address).split(",") if p.strip()]
+                region = ", ".join(parts[-2:]) if len(parts) >= 2 else (parts[-1] if parts else "")
+                brand = " ".join(business_tokens)
+                queries = [q for q in (f"{brand}, {region}" if region else "", brand) if q] + queries
+
             best_result = None
             best_match = None
             best_query = None
-            match_rank = {"area": 0, "street": 1, "exact": 2}
+            best_rank = (-1, -1)
+            match_rank = {"area": 0, "street": 1, "business": 2, "exact": 3}
             for query in queries:
-                result = await _geocode_single(query, client)
-                if result:
+                for result in await _geocode_candidates(query, client):
                     match = _classify_geocode_match(address, result)
-                    if best_match is None or match_rank[match["match_level"]] > match_rank[best_match["match_level"]]:
-                        best_result = result
-                        best_match = match
-                        best_query = query
-                    if match["match_level"] == "exact":
-                        break
+                    if _is_business_match(result, business_tokens):
+                        match = {**match, "match_level": "business", "business_match": True,
+                                 "matched_name": result.get("name") or (result.get("display_name") or "").split(",")[0]}
+                    rank = (match_rank[match["match_level"]], _candidate_preference(result, match["match_level"]))
+                    if rank > best_rank:
+                        best_result, best_match, best_query, best_rank = result, match, query, rank
+                if best_match and best_match["match_level"] in ("exact", "business"):
+                    break
 
             if best_result and best_match:
                 result = best_result
@@ -222,7 +271,11 @@ async def geocode_address(address: str, company_name: str | None = None) -> dict
                     "evidence_status": FOUND,
                     "lat": float(result["lat"]),
                     "lon": float(result["lon"]),
-                    "display_name": result.get("display_name", ""),
+                    "display_name": (
+                        result.get("display_name", "")
+                        if best_match["match_level"] in ("exact", "business")
+                        else _plain_display_name(result)
+                    ),
                     "country": country,
                     "confidence_score": round(importance, 3),
                     "matched_query": best_query,
@@ -371,20 +424,20 @@ async def validate_address_and_business(address: str, company_name: str = None, 
             result["safe_signals"].append(
                 f"Alamat jalan dan nomor cocok dengan hasil peta: {geo.get('display_name', '')[:120]}"
             )
+        elif geo.get("match_level") == "business":
+            # Titik usaha bernama sama di OSM. Netral: penipu juga memakai alamat kantor asli
+            # perusahaan yang dicatut, jadi ini bukan bukti lowongannya asli.
+            result["neutral_notes"].append(
+                f"Peta menemukan tempat bernama '{geo.get('matched_name')}' di wilayah ini."
+            )
         elif geo.get("match_level") == "street":
             result["neutral_notes"].append(
-                "Nama jalan ditemukan, tetapi nomor bangunan belum cocok dengan hasil peta."
+                "Nama jalan ditemukan di peta; titik di peta adalah perkiraan di ruas jalan itu, nomor bangunan belum cocok."
             )
         else:
-            addr_has_street = bool(re.search(r"\b(?:jl\.?|jln\.?|jalan)\b", address, re.I))
-            if addr_has_street:
-                result["neutral_notes"].append(
-                    "Nama jalan terdeteksi di alamat input; wilayah sekitar terkonfirmasi di peta."
-                )
-            else:
-                result["neutral_notes"].append(
-                    "Peta menemukan wilayah sekitar; titik exact belum terkonfirmasi."
-                )
+            result["neutral_notes"].append(
+                "Peta hanya mencocokkan wilayah atau kode pos; nama jalan belum terkonfirmasi."
+            )
 
     if company_name:
         web = _verify_address_via_web(address, company_name, web_results)

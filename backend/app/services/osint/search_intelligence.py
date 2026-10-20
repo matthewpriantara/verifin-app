@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import logging
 import re
+from urllib.parse import urlparse
 from typing import Any
 
 logger = logging.getLogger(__name__)
@@ -17,10 +18,6 @@ _SCAM_TOKENS = {
 _ADVICE_TOKENS = {
     "cara", "tips", "ciri", "mengenali", "menghindari", "waspadai",
     "contoh", "panduan", "edukasi",
-}
-_OFFICIAL_TOKENS = {
-    "official", "resmi", "career", "karir", "recruitment", "rekrutmen",
-    "tentang", "about", "kontak", "contact",
 }
 _LOCATION_STOPWORDS = {
     "jalan", "jl", "jln", "no", "nomor", "rt", "rw", "kec", "kecamatan",
@@ -90,9 +87,25 @@ def extract_location_tokens(address: str) -> list[str]:
         if len(w) >= 4 and w not in _LOCATION_STOPWORDS and not w.isdigit()
     ]
 
-def classify_result(url: str, title: str = "", snippet: str = "") -> str:
+def _host(url: str) -> str:
+    host = (urlparse(url).netloc or "").lower().split(":")[0]
+    return host[4:] if host.startswith("www.") else host
+
+
+def classify_result(
+    url: str,
+    title: str = "",
+    snippet: str = "",
+    official_domains: tuple[str, ...] | list[str] = (),
+) -> str:
     url_lower = url.lower()
     text = f"{title} {snippet}".lower()
+
+    # "Resmi" hanya bila host sama dengan domain email/link di lowongan; kata "official"
+    # atau "contact" di judul agregator (Panjiva, direktori) bukan bukti situs perusahaan.
+    host = _host(url)
+    if host and any(host == d or host.endswith("." + d) for d in official_domains):
+        return "official"
 
     for domains, category in _DOMAIN_CATEGORY:
         if any(d in url_lower for d in domains):
@@ -100,10 +113,18 @@ def classify_result(url: str, title: str = "", snippet: str = "") -> str:
 
     if any(t in text for t in _SCAM_TOKENS):
         return "advice_article" if any(t in text for t in _ADVICE_TOKENS) else "scam_report"
-    if any(t in text for t in _OFFICIAL_TOKENS):
-        return "official"
 
     return "web"
+
+
+# Varian bahasa dari halaman yang sama (booking.com/...id.html vs ...html) dihitung sekali
+_LANG_SUFFIX_RE = re.compile(r"\.[a-z]{2}(?:-[a-z]{2})?(\.html?)$")
+
+
+def _url_key(url: str) -> str:
+    parsed = urlparse(url)
+    path = _LANG_SUFFIX_RE.sub(r"\1", parsed.path.rstrip("/").lower())
+    return f"{_host(url)}{path}"
 
 _CATEGORY_WEIGHTS: dict[str, float] = {
     "official":      1.5,
@@ -180,6 +201,7 @@ def rerank_results(
     *,
     max_results: int = 10,
     drop_irrelevant: bool = True,
+    official_domains: tuple[str, ...] | list[str] = (),
 ) -> list[dict[str, Any]]:
     if not results:
         return []
@@ -195,7 +217,7 @@ def rerank_results(
         title = r.get("title", "")
         snippet = r.get("snippet", "")
 
-        category = classify_result(url, title, snippet)
+        category = classify_result(url, title, snippet, official_domains)
         ent_score = _entity_match_score(
             ent_tokens, url, title, snippet,
             canonical=_canonical, brand=_brand,
@@ -214,6 +236,15 @@ def rerank_results(
         })
 
     scored.sort(key=lambda x: x["_final_score"], reverse=True)
+    deduped: list[dict[str, Any]] = []
+    seen_keys: set[str] = set()
+    for item in scored:
+        key = _url_key(item.get("url", ""))
+        if key in seen_keys:
+            continue
+        seen_keys.add(key)
+        deduped.append(item)
+    scored = deduped
     if drop_irrelevant and ent_tokens:
         relevant = [
             s for s in scored
@@ -285,7 +316,7 @@ def aggregate_signals(reranked_results: list[dict[str, Any]]) -> dict[str, Any]:
         risk_flags.append("Jejak digital sangat minim — sulit diverifikasi.")
 
     if official:
-        safe_flags.append("Ditemukan indikasi website/halaman resmi perusahaan.")
+        safe_flags.append("Ditemukan situs dengan domain yang sama dengan email/link di lowongan.")
     if marketplace:
         safe_flags.append("Ditemukan keberadaan di marketplace publik.")
     if maps:
@@ -311,6 +342,7 @@ def intelligent_search(
     raw_address: str = "",
     *,
     max_results: int = 10,
+    official_domains: tuple[str, ...] | list[str] = (),
 ) -> dict[str, Any]:
     from app.services.osint.searxng_client import searxng_search, is_searxng_available
 
@@ -338,7 +370,9 @@ def intelligent_search(
     res = searxng_search(used_query, max_results=max_results * 2)
     reranked: list[dict[str, Any]] = []
     if res.get("ok") and res.get("results"):
-        reranked = rerank_results(res["results"], entity, loc_tokens, max_results=max_results)
+        reranked = rerank_results(
+            res["results"], entity, loc_tokens, max_results=max_results, official_domains=official_domains,
+        )
         if not reranked:
             logger.info("[IntelligentSearch] Query '%s' menghasilkan %d hasil tapi 0 relevan.", used_query, len(res["results"]))
 
@@ -353,4 +387,59 @@ def intelligent_search(
         "signals": signals,
         "engine": "searxng",
         "error": None if reranked else "Tidak ada hasil relevan.",
+    }
+
+
+_WARNING_TOKENS = (
+    "hoaks", "hoax", "palsu", "penipuan", "penipu", "bukan resmi", "tidak benar",
+    "mengatasnamakan", "catut", "mencatut", "waspada", "scam",
+)
+
+
+def scam_report_search(raw_company: str, *, max_results: int = 5) -> dict[str, Any]:
+    """Cari peringatan/bantahan lowongan palsu atas nama perusahaan.
+
+    Hasilnya dipisah dari jejak digital: artikel peringatan membuktikan nama itu sering
+    dicatut, bukan bahwa lowongan yang sedang diperiksa pasti palsu.
+    """
+    from app.services.osint.searxng_client import searxng_search, is_searxng_available
+
+    entity = resolve_entity(raw_company)
+    name = entity["brand"] or entity["canonical"] or (entity["search_names"] or [""])[0]
+    if not name:
+        return {"status": "SKIPPED", "query": "", "results": [], "warnings": 0}
+    query = f'"{name}" lowongan penipuan OR hoaks OR palsu'
+    if not is_searxng_available():
+        return {"status": "UNAVAILABLE", "query": query, "results": [], "warnings": 0,
+                "error": "Mesin pencari (SearXNG) tidak dapat dihubungi."}
+    res = searxng_search(query, max_results=max_results * 3)
+    if not res.get("ok"):
+        return {"status": "UNAVAILABLE", "query": query, "results": [], "warnings": 0,
+                "error": res.get("error") or "Pencarian gagal."}
+    name_tokens = [t for t in (entity.get("tokens") or []) if len(t) > 2] or [name.lower()]
+    matched: list[dict[str, Any]] = []
+    seen: set[str] = set()
+    for r in res.get("results") or []:
+        url = r.get("url", "")
+        title = (r.get("title") or "").strip()
+        snippet = (r.get("snippet") or "").strip()
+        blob = f"{title} {snippet}".lower()
+        key = _url_key(url)
+        if not url or key in seen:
+            continue
+        if not all(t in blob for t in name_tokens[:2]):
+            continue
+        if not any(w in blob for w in _WARNING_TOKENS):
+            continue
+        if not any(w in blob for w in ("lowongan", "loker", "rekrutmen", "recruitment", "seleksi", "kerja")):
+            continue
+        seen.add(key)
+        matched.append({"title": title[:160], "url": url, "snippet": snippet[:240]})
+        if len(matched) >= max_results:
+            break
+    return {
+        "status": "FOUND" if matched else "NO_RESULTS",
+        "query": query,
+        "results": matched,
+        "warnings": len(matched),
     }
