@@ -73,12 +73,34 @@ def is_searxng_available() -> bool:
     _AVAILABILITY_CACHE = (now, available)
     return available
 
+_RETRY_DELAY_SECONDS = 1.5
+
+
 def searxng_search(
     query: str,
     *,
     max_results: int = 10,
     engines: str | None = None,
     language: str = "id",
+) -> dict[str, Any]:
+    # Engine yang di-scrape (Google, DuckDuckGo) kadang menolak sesaat; ulangi sekali
+    # kalau tidak ada hasil karena engine tidak merespons, bukan karena query-nya kosong.
+    result = _searxng_search_once(query, max_results=max_results, engines=engines, language=language)
+    if result.get("results") or result.get("cached"):
+        return result
+    if not (result.get("unresponsive_engines") or result.get("error") == "Timeout."):
+        return result
+    time.sleep(_RETRY_DELAY_SECONDS)
+    retry = _searxng_search_once(query, max_results=max_results, engines=engines, language=language)
+    return retry if retry.get("results") else result
+
+
+def _searxng_search_once(
+    query: str,
+    *,
+    max_results: int,
+    engines: str | None,
+    language: str,
 ) -> dict[str, Any]:
     q = (query or "").strip()
     if not q:

@@ -87,7 +87,7 @@ def explain_verification_shap(
         if fraud_kw > 0:
             contrib_val = min(fraud_kw * _FEATURE_WEIGHTS["fraud_keyword_count"], 32.0)
             contributions.append(_make_contrib(
-                f"Kata Kunci Penipuan ({int(fraud_kw)} match)",
+                f"Kata Kunci Penipuan ({int(fraud_kw)} kata)",
                 "fraud_keyword_count",
                 int(fraud_kw),
                 contrib_val,

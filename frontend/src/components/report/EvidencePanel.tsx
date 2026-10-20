@@ -35,7 +35,9 @@ function isJunkSnippet(s?: string): boolean {
     ["adsbygoogle", "function timer", "setinterval", "window.location", "document.getelementbyid",
       "mutationobserver", "you are being redirected", '{"require":', "could not load"]
       .some((token) => low.includes(token)) ||
-    /function\s*\(|var\s+\w+|const\s+\w+/i.test(s)
+    /function\s*\(|var\s+\w+|const\s+\w+/i.test(s) ||
+    // selector CSS seperti ".elementor-26052 .elementor-element > .x"
+    /(?:\.[\w-]+\s*(?:>|,|\s)\s*){4,}|:not\(|var\(--|\{[^}]*:[^}]*;/.test(s)
   );
 }
 
