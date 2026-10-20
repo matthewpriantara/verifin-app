@@ -42,8 +42,17 @@ export interface OsintWebsite {
 export interface OsintSearch {
   query?: string;
   ok?: boolean;
-  results?: { title?: string; url?: string; snippet?: string }[];
+  status?: string;
+  results?: { title?: string; url?: string; snippet?: string; source_type?: string }[];
   risk_flags?: string[];
+}
+
+export interface OsintScamCheck {
+  status?: string;
+  query?: string;
+  warnings?: number;
+  error?: string;
+  results?: { title?: string; url?: string; snippet?: string }[];
 }
 
 export interface SocialSearchAudit {
@@ -66,8 +75,11 @@ export interface OsintPayload {
     enabled?: boolean;
     websites?: OsintWebsite[];
     searches?: OsintSearch[];
+    scam_check?: OsintScamCheck;
+    evidence_counts?: { relevant_results?: number; scam_warnings?: number };
     risk_flags?: string[];
     safe_flags?: string[];
+    neutral_notes?: string[];
     error?: string;
   };
   social?: {
@@ -83,6 +95,8 @@ export interface OsintPayload {
       url?: string;
     }[];
     profiles?: { username?: string; url?: string; title?: string }[];
+    found_by_name_only?: boolean;
+    linked_profiles?: string[];
     platform_hits?: Record<string, boolean>;
     social_searches?: SocialSearchAudit[];
     risk_flags?: string[];
