@@ -177,7 +177,10 @@ def _extract_companies(text: str) -> list[str]:
         form = m.group(1).upper()
         raw = m.group(2).strip()
         core = re.split(r"\s+(?:membuka|buka|sedang|mencari|butuh|membutuhkan|lowongan|rekrut|hiring|open|dibutuhkan|,|\.|$)\b", raw, flags=re.I)[0].strip()
-        if form == "CV" and re.search(r"^(?:ke|anda|terbaru|lamaran|dan|atau|terupdate)\b", core, re.I):
+        if form == "CV" and re.search(r"^(?:ke|anda|terbaru|terbaik|lengkap|kamu|lamaran|dan|atau|terupdate|via|beserta|serta)\b", core, re.I):
+            continue
+        # "Kirim CV terbaik Anda": nama badan usaha ditulis dengan huruf awal kapital atau angka.
+        if form == "CV" and not (core[:1].isupper() or core[:1].isdigit()):
             continue
         if len(core) >= 3 and not re.search(r"^(?:ke|dari|untuk|di|dengan|pada)\b", core, re.I):
             prefix = f"{form}. " if form in {"PT", "CV", "UD"} else f"{form.title()} "

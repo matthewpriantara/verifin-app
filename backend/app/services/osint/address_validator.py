@@ -325,6 +325,9 @@ async def geocode_address(address: str, company_name: str | None = None) -> dict
                     failures += 1
                     continue
                 for result in candidates:
+                    # Hasil setingkat negara ("Indonesia") tidak memberi informasi lokasi.
+                    if (result.get("addresstype") or result.get("type")) == "country":
+                        continue
                     match = _classify_geocode_match(address, result)
                     if _is_business_match(result, business_tokens, address):
                         match = {**match, "match_level": "business", "business_match": True,
