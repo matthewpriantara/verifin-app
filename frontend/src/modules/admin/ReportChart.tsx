@@ -72,9 +72,9 @@ function Bar({
         />
       </div>
       {/* total count */}
-      <span className="font-mono text-[11px] font-semibold text-text-secondary">{total}</span>
+      <span className="text-[11px] font-semibold tabular-nums text-text-secondary">{total}</span>
       {/* date label */}
-      <span className="text-center font-mono text-[9px] leading-tight text-text-muted">{label}</span>
+      <span className="text-center text-[10px] leading-tight text-text-muted">{label}</span>
     </div>
   );
 }
@@ -112,8 +112,8 @@ export default function ReportChart({
       {/* header */}
       <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
         <div>
-          <p className="font-mono text-[10px] uppercase tracking-widest text-text-muted">
-            Aktivitas Verifikasi
+          <p className="text-[13px] font-medium text-text-muted">
+            Aktivitas verifikasi
           </p>
           <p className="mt-0.5 text-[22px] font-semibold tabular-nums text-text-primary">
             {totalAll}{" "}
@@ -124,15 +124,15 @@ export default function ReportChart({
         {/* summary pills */}
         <div className="flex flex-wrap gap-3">
           <div className="flex flex-col items-end">
-            <span className="font-mono text-[18px] font-semibold text-aman-fg">{totalAman}</span>
+            <span className="text-[18px] font-semibold tabular-nums text-aman-fg">{totalAman}</span>
             <span className="text-[10px] text-text-muted">Aman</span>
           </div>
           <div className="flex flex-col items-end">
-            <span className="font-mono text-[18px] font-semibold text-waspada-fg">{totalWaspada}</span>
+            <span className="text-[18px] font-semibold tabular-nums text-waspada-fg">{totalWaspada}</span>
             <span className="text-[10px] text-text-muted">Waspada</span>
           </div>
           <div className="flex flex-col items-end">
-            <span className="font-mono text-[18px] font-semibold text-bahaya-fg">{totalBahaya}</span>
+            <span className="text-[18px] font-semibold tabular-nums text-bahaya-fg">{totalBahaya}</span>
             <span className="text-[10px] text-text-muted">Bahaya</span>
           </div>
         </div>

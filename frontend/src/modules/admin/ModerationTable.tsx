@@ -39,6 +39,7 @@ function useEscape(onClose: () => void) {
 
 /* ── Helpers ──────────────────────────────────────────────────────────────── */
 const REPORT_TYPE_LABEL: Record<string, string> = {
+  penipuan: "Penipuan (umum)",
   biaya_travel: "Penipuan Biaya & Travel",
   perusahaan_fiktif: "Perusahaan Fiktif",
   tppo_eksploitasi: "Indikasi TPPO & Eksploitasi",
@@ -59,7 +60,7 @@ function StatusBadge({ status }: { status: ReportStatus }) {
   return (
     <span
       className={cn(
-        "inline-flex items-center gap-1 rounded-md px-2 py-0.5 text-[11px] font-semibold uppercase tracking-wide",
+        "inline-flex items-center gap-1 whitespace-nowrap rounded-md px-2 py-0.5 text-[12px] font-medium",
         status === "pending" && "bg-waspada-bg text-waspada-fg",
         status === "approved" && "bg-aman-bg text-aman-fg",
         status === "rejected" && "bg-bahaya-bg text-bahaya-fg",
@@ -76,7 +77,7 @@ function StatusBadge({ status }: { status: ReportStatus }) {
 /* ── Report type badge ────────────────────────────────────────────────────── */
 function TypeBadge({ type }: { type: ReportType }) {
   return (
-    <span className="inline-flex items-center rounded border border-border bg-bg-subtle px-2 py-0.5 font-mono text-[10px] uppercase text-text-muted">
+    <span className="inline-flex items-center rounded border border-border bg-bg-subtle px-2 py-0.5 text-[11px] text-text-muted">
       {reportTypeLabel(type)}
     </span>
   );
@@ -129,48 +130,48 @@ function DetailModal({
           {/* Metadata Grid */}
           <div className="grid grid-cols-2 gap-3 rounded-xl border border-border bg-bg-subtle/50 p-3">
             <div>
-              <span className="text-[11px] font-medium text-text-muted block uppercase tracking-wider">Perusahaan</span>
+              <span className="text-[12px] font-medium text-text-muted block">Perusahaan</span>
               <span className="font-semibold text-text-primary flex items-center gap-1 mt-0.5">
                 <Buildings size={12} /> {report.company_name}
               </span>
             </div>
             <div>
-              <span className="text-[11px] font-medium text-text-muted block uppercase tracking-wider">Tipe Laporan</span>
+              <span className="text-[12px] font-medium text-text-muted block">Tipe Laporan</span>
               <span className="font-semibold text-text-primary block mt-0.5">
                 {reportTypeLabel(report.report_type)}
               </span>
             </div>
             {report.phone && (
               <div>
-                <span className="text-[11px] font-medium text-text-muted block uppercase tracking-wider">Nomor terlapor</span>
+                <span className="text-[12px] font-medium text-text-muted block">Nomor terlapor</span>
                 <span className="font-mono text-text-primary block mt-0.5">{report.phone}</span>
               </div>
             )}
             {report.email && (
               <div>
-                <span className="text-[11px] font-medium text-text-muted block uppercase tracking-wider">Email terlapor</span>
+                <span className="text-[12px] font-medium text-text-muted block">Email terlapor</span>
                 <span className="font-mono text-text-primary block mt-0.5 break-all">{report.email}</span>
               </div>
             )}
             <div>
-              <span className="text-[11px] font-medium text-text-muted block uppercase tracking-wider">Pelapor (IP)</span>
+              <span className="text-[12px] font-medium text-text-muted block">Pelapor (IP)</span>
               <span className="font-mono text-text-primary flex items-center gap-1 mt-0.5">
                 <Globe size={12} /> {report.reporter_ip}
               </span>
             </div>
             <div>
-              <span className="text-[11px] font-medium text-text-muted block uppercase tracking-wider">Waktu Kirim</span>
+              <span className="text-[12px] font-medium text-text-muted block">Waktu Kirim</span>
               <span className="text-text-primary flex items-center gap-1 mt-0.5">
                 <CalendarBlank size={12} /> {new Date(report.created_at).toLocaleString("id-ID")}
               </span>
             </div>
             <div>
-              <span className="text-[11px] font-medium text-text-muted block uppercase tracking-wider">Status</span>
+              <span className="text-[12px] font-medium text-text-muted block">Status</span>
               <span className="block mt-0.5"><StatusBadge status={report.status} /></span>
             </div>
             {report.url && (
               <div>
-                <span className="text-[11px] font-medium text-text-muted block uppercase tracking-wider">Tautan Bukti</span>
+                <span className="text-[12px] font-medium text-text-muted block">Tautan Bukti</span>
                 <a
                   href={report.url}
                   target="_blank"
@@ -185,7 +186,7 @@ function DetailModal({
 
           {/* Description / Kronologi */}
           <div>
-            <span className="text-[11px] font-medium text-text-muted block uppercase tracking-wider mb-1">Kronologi Kejadian</span>
+            <span className="text-[12px] font-medium text-text-muted block mb-1">Kronologi Kejadian</span>
             <div className="rounded-xl border border-border bg-bg-elevated p-3 text-[13px] leading-relaxed text-text-secondary max-h-48 overflow-y-auto">
               {report.description || "-"}
             </div>
@@ -194,7 +195,7 @@ function DetailModal({
           {/* Bukti Gambar (evidence_file_url) */}
           {report.evidence_file_url && (
             <div>
-              <span className="text-[11px] font-medium text-text-muted block uppercase tracking-wider mb-1.5">Bukti Gambar</span>
+              <span className="text-[12px] font-medium text-text-muted block mb-1.5">Bukti Gambar</span>
               <a
                 href={evidenceSrc(report.evidence_file_url)}
                 target="_blank"
@@ -205,7 +206,7 @@ function DetailModal({
                 <img
                   src={evidenceSrc(report.evidence_file_url)}
                   alt="Bukti komunitas"
-                  className="h-48 w-full object-cover"
+                  className="max-h-80 w-full object-contain"
                 />
               </a>
             </div>
@@ -214,7 +215,7 @@ function DetailModal({
           {/* Case ID (link ke report) */}
           {report.case_id && (
             <div>
-              <span className="text-[11px] font-medium text-text-muted block uppercase tracking-wider mb-1">Terkait Kasus Verifikasi</span>
+              <span className="text-[12px] font-medium text-text-muted block mb-1">Terkait Kasus Verifikasi</span>
               <a
                 href={`/report/${report.case_id}`}
                 className="inline-flex items-center gap-1.5 rounded-lg border border-border bg-bg-subtle px-3 py-2 font-mono text-[12px] text-text-primary transition-colors hover:border-border-focus"
@@ -229,7 +230,7 @@ function DetailModal({
           {/* Reviewer Note */}
           {report.reviewer_note && (
             <div>
-              <span className="text-[11px] font-medium text-text-muted block uppercase tracking-wider mb-1">Catatan Reviewer</span>
+              <span className="text-[12px] font-medium text-text-muted block mb-1">Catatan Reviewer</span>
               <div className="flex items-start gap-1.5 rounded-xl border border-border bg-bg-subtle p-3 text-[12px] italic text-text-secondary">
                 <ChatText size={14} className="mt-0.5 shrink-0 text-text-muted" />
                 <p>{report.reviewer_note}</p>
@@ -413,16 +414,16 @@ function ReportRow({
       </td>
 
       {/* Deskripsi */}
-      <td className="px-4 py-3 align-top">
+      <td className="min-w-[240px] px-4 py-3 align-top">
         <div className="flex flex-col items-start gap-1">
           <p className="max-w-[240px] text-[12px] leading-relaxed text-text-muted line-clamp-2">
             {report.description || "-"}
           </p>
           <button
             onClick={() => onViewDetail(report)}
-            className="inline-flex items-center gap-1 text-[11px] font-medium text-text-primary hover:underline"
+            className="inline-flex items-center gap-1 whitespace-nowrap text-[12px] font-medium text-text-primary hover:underline"
           >
-            <Eye size={11} /> Detail Deskripsi
+            <Eye size={12} /> Lihat detail
           </button>
         </div>
 
@@ -431,14 +432,14 @@ function ReportRow({
             href={report.url}
             target="_blank"
             rel="noopener noreferrer"
-            className="mt-1 inline-flex items-center gap-1 text-[11px] text-text-secondary underline-offset-2 hover:underline"
+            className="mt-1 flex w-fit items-center gap-1 text-[11px] text-text-secondary underline-offset-2 hover:underline"
           >
             <LinkSimple size={10} />
             Bukti
           </a>
         )}
         {report.evidence_file_url && (
-          <span className="mt-1 inline-flex items-center gap-1 text-[11px] text-text-secondary">
+          <span className="mt-1 flex items-center gap-1 text-[11px] text-text-secondary">
             <ImageSquare size={10} />
             <a
               href={evidenceSrc(report.evidence_file_url)}
@@ -451,7 +452,7 @@ function ReportRow({
           </span>
         )}
         {report.case_id && (
-          <span className="mt-1 inline-flex items-center gap-1 font-mono text-[10px] text-text-muted">
+          <span className="mt-1 flex items-center gap-1 font-mono text-[11px] text-text-muted">
             <ArrowSquareOut size={9} />
             <a href={`/report/${report.case_id}`} className="hover:underline">
               {report.case_id.slice(0, 8)}…
@@ -461,7 +462,7 @@ function ReportRow({
         {report.reviewer_note && (
           <div className="mt-1.5 flex items-start gap-1 rounded-md bg-bg-subtle px-2 py-1">
             <ChatText size={10} className="mt-0.5 shrink-0 text-text-muted" />
-            <p className="text-[11px] italic text-text-muted">{report.reviewer_note}</p>
+            <p className="text-[12px] leading-snug text-text-muted">{report.reviewer_note}</p>
           </div>
         )}
       </td>
@@ -576,19 +577,6 @@ export default function ModerationTable() {
           {loadError}
         </div>
       )}
-      <div className="grid grid-cols-3 gap-3">
-        {[
-          { label: "Menunggu Review", value: pending, color: "text-waspada-fg", bg: "bg-waspada-bg border-waspada-border" },
-          { label: "Disetujui", value: approved, color: "text-aman-fg", bg: "bg-aman-bg border-aman-border" },
-          { label: "Ditolak", value: rejected, color: "text-bahaya-fg", bg: "bg-bahaya-bg border-bahaya-border" },
-        ].map(({ label, value, color, bg }) => (
-          <div key={label} className={cn("rounded-xl border p-4", bg)}>
-            <p className="text-[11px] font-medium text-text-muted">{label}</p>
-            <p className={cn("mt-1 font-mono text-2xl font-semibold tabular-nums", color)}>{value}</p>
-          </div>
-        ))}
-      </div>
-
       {/* filter row */}
       <div className="flex items-center gap-2">
         <FunnelSimple size={13} className="text-text-muted" />
@@ -606,7 +594,7 @@ export default function ModerationTable() {
             >
               {opt.label}
               {opt.value !== "all" && (
-                <span className="ml-1.5 font-mono text-[10px]">
+                <span className="ml-1.5 tabular-nums text-[11px]">
                   ({opt.value === "pending" ? pending : opt.value === "approved" ? approved : rejected})
                 </span>
               )}
