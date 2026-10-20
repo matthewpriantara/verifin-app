@@ -25,6 +25,11 @@ def _case_hash(raw_input: str) -> str:
     return compute_content_sha256(f"{normalized}\nmodel:{LLM_MODEL}")
 
 
+def _legacy_case_hash(raw_input: str) -> str:
+    """Hash sebelum normalisasi spasi; dipakai agar run ulang memperbarui baris lama, bukan menambah."""
+    return compute_content_sha256(f"{raw_input}\nmodel:{LLM_MODEL}")
+
+
 def _osint_has_failures(osint_results: dict | None) -> bool:
     """True bila ada pemeriksaan yang gagal dijalankan (bukan sekadar tidak menemukan apa-apa)."""
     if not osint_results:
@@ -92,7 +97,10 @@ def _save_case_to_db(
             preview = preview[:2000] + "..."
 
         existing = db.query(JobCase).filter(JobCase.raw_text_hash == text_hash).first()
+        if not existing:
+            existing = db.query(JobCase).filter(JobCase.raw_text_hash == _legacy_case_hash(raw_text)).first()
         if existing:
+            existing.raw_text_hash = text_hash
             existing.source = source
             existing.raw_text_preview = preview or None
             existing.company_name = companies[0] if companies else analysis.get("corrected_company_name")
