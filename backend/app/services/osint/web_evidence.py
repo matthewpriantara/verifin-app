@@ -143,6 +143,9 @@ def _is_script_or_ad_junk(t: str) -> bool:
         return True
     if re.search(r"function\s+\w+\s*\(|var\s+count\s*=|window\.location\.href\s*=|document\.getElementById\(|MutationObserver\(|\(adsbygoogle\s*=", t, re.I):
         return True
+    # Cuplikan berisi selector CSS (mis. ".elementor-26052 .elementor-element > .x"), bukan teks halaman.
+    if re.search(r"(?:\.[\w-]+\s*(?:>|,|\s)\s*){4,}|:not\(|var\(--|\{[^}]*:[^}]*;", t):
+        return True
     return False
 
 

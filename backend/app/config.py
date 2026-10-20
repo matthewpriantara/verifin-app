@@ -20,7 +20,7 @@ OSINT_TIMEOUT_SEC = float(os.getenv("OSINT_TIMEOUT_SEC", "15.0"))
 OSINT_USER_AGENT = os.getenv("OSINT_USER_AGENT", "Verifin-OSINT-App/1.0 (gemastik; contact@verifin.app)")
 
 SEARXNG_TIMEOUT = int(os.getenv("SEARXNG_TIMEOUT", "15"))
-SEARXNG_CACHE_TTL = int(os.getenv("SEARXNG_CACHE_TTL", "600"))
+SEARXNG_CACHE_TTL = int(os.getenv("SEARXNG_CACHE_TTL", "21600"))
 SEARXNG_MIN_INTERVAL = float(os.getenv("SEARXNG_MIN_INTERVAL", "0.8"))
 
 UPLOAD_DIR = Path(os.getenv("UPLOAD_DIR", BASE_DIR / "uploads" / "evidence"))
