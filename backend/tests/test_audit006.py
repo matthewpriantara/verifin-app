@@ -159,3 +159,9 @@ def test_country_or_company_phrases_are_not_places():
     from app.services.osint.runner import _NOT_A_PLACE
     assert _NOT_A_PLACE.search("Indonesia") and _NOT_A_PLACE.search("Wilayah Kerja PT. Pos Indonesia (Persero)")
     assert not _NOT_A_PLACE.search("Jakarta Selatan")
+
+
+def test_recruiting_line_keeps_phone_even_if_line_above_mentions_admin_group():
+    text = "Bawa bukti pembayaran dari admin grup.\nKonfirmasi kehadiran via WhatsApp +62 822-2133-3836"
+    e = extract_entities_from_text(text)
+    assert e["phones"] == ["+6282221333836"] and e["promoter_phones"] == []
