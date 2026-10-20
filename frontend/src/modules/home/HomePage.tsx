@@ -54,11 +54,14 @@ const STEPS = [
   },
 ] as const;
 
+// Kontribusi kasus T4 (run 9, 20 Okt 2026): 12 + 20 + 15 + 15 + 11 = 73.
 const EXAMPLE_BARS = [
-  { label: "Penyesuaian penalaran AI", value: 26, ai: true },
   { label: "Daftar hanya via WhatsApp/tautan bio", value: 20, ai: false },
   { label: "Nama BUMN, daftar lewat WhatsApp", value: 15, ai: false },
+  { label: "Nama pernah dicatut lowongan palsu", value: 15, ai: false },
+  { label: "Penyesuaian penalaran AI", value: 11, ai: true },
 ];
+const EXAMPLE_BAR_MAX = Math.max(...EXAMPLE_BARS.map((b) => b.value));
 
 function StepExample({ index }: { index: number }) {
   if (index === 0) {
@@ -101,7 +104,7 @@ function StepExample({ index }: { index: number }) {
             <span className="mt-1 block h-1 rounded-full bg-border">
               <span
                 className={cn("block h-full rounded-full", bar.ai ? "bg-text-muted" : "bg-bahaya-fg")}
-                style={{ width: `${(bar.value / 26) * 100}%` }}
+                style={{ width: `${(bar.value / EXAMPLE_BAR_MAX) * 100}%` }}
               />
             </span>
           </li>

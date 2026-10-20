@@ -2,7 +2,7 @@
 
 Tanggal: 20 Okt 2026 (malam). User: "Kerjakan semua". Semua 58 nomor audit-006 dikerjakan, ditambah satu temuan baru (no. 59) yang muncul saat perbaikan.
 
-Belum di-commit dan belum dideploy.
+Status akhir: di-commit, di-push (main + hafidz), dan dideploy ke produksi (`0ce41d9`). Lihat bagian "Setelah deploy" di bawah.
 
 **Verifikasi:**
 - Backend: 127 tes lulus (105 lama + 22 regresi baru di `tests/test_audit006.py`); coverage 39%.
@@ -95,3 +95,36 @@ Belum di-commit dan belum dideploy.
 2. **Run 9 set uji 14 kasus.** `CACHE_SCHEMA_VERSION` naik, jadi semua kasus produksi dihitung ulang saat dikirim lagi (baris yang sama diperbarui, `case_id` tetap). Angka di Laporan Akhir (Tabel uji-okt, tangkapan layar) dan contoh T4 di beranda (`HomePage.tsx`, `EXAMPLE_REPORT` + angka kontribusi) perlu disamakan dengan hasil run 9.
 3. **Checklist admin** di `test/skema-fitur-2026-10-20.md` Bagian 4 dijalankan tim, karena login memakai password.
 4. **Halaman Laporan Akhir.** Sebelum perubahan ini 33 halaman, sekarang 34. Panduan 2026 menyebut batas 30 halaman untuk proposal; untuk laporan akhir tidak ada batas tertulis. Perlu keputusan tim apakah tetap dipangkas ke 30.
+
+## Setelah deploy (20 Okt 2026, malam)
+
+User: "Langsung saja commit push lalu jalankan ulang, dan test semua skema fitur".
+
+- **Commit:** `85268e2` (backend), `0124bc9` (frontend), `f14ee19` (dokumen), lalu dua perbaikan dari run 9: `f5be179` dan `0ce41d9`. Semua di-push ke main dan hafidz, lalu dideploy ke fizualinux.
+- **Run 9:** seluruh 14 kasus dijalankan di produksi. 6/6 penipuan ditandai, 6/6 lowongan asli AMAN, durasi 15–52 dtk. Detail di `test/okt-2026/README.md`.
+
+### Temuan baru dari run 9 (diperbaiki)
+
+| No | Temuan | Perbaikan |
+|---|---|---|
+| 60 | Kota penempatan "Wilayah Kerja PT. Pos Indonesia (Persero)" dipetakan ke Tuban, dan "Indonesia" ke titik tengah negara | Wilayah yang memuat nama badan usaha, "seluruh", atau hanya "Indonesia" tidak dipetakan; hasil geocode setingkat negara dibuang (`runner.py`, `address_validator.py`) |
+| 61 | "Kirim CV terbaik Anda" terbaca sebagai badan usaha CV (muncul saat LLM sempat error 520) | CV harus diikuti kata berhuruf kapital/angka; kata "terbaik", "lengkap", "kamu" dikecualikan (`ner.py`) |
+| 62 | Regresi no. 31: nomor T3 hilang karena baris di atasnya menyebut "admin grup" | Baris di atas hanya dipakai bila baris nomor itu bukan kalimat rekrutmen (`ner.py`) |
+
+Setiap temuan diberi tes regresi; total 130 tes lulus.
+
+### Uji skema fitur di produksi
+
+| Fitur | Hasil |
+|---|---|
+| Health, `/docs`, semua halaman (`/`, `/cari`, `/report-job`, `/admin`, `/privasi`, laporan, 404) | OK |
+| Verifikasi teks, gambar (P1), tautan stream (L1); cache 0,5 dtk | OK |
+| Validasi input: teks pendek 422, tipe gambar 400, URL internal ditolak | OK |
+| Cari: nama, nomor, tautan; `%` ditolak sebagai terlalu pendek | OK |
+| `/cases/{id}` tanpa teks mentah | OK |
+| Endpoint admin tanpa sesi/token (cases, lookup, proxy, login salah) | 401 semua |
+| Form lapor: panjang kolom, jenis laporan, dan format nomor divalidasi (422); laporan nyata nomor T3 tersimpan *pending* | OK |
+| `/community/check` publik hanya menghitung laporan yang disetujui | OK (0) |
+| Pencocokan nomor laporan ke verifikasi | OK: T3 menampilkan "1 laporan menunggu tinjauan admin" |
+| Laporan T3 di browser: panel riwayat & komunitas, kontribusi "Nama pernah dicatut", reputasi nomor | OK |
+| Login admin dengan password, moderasi, gambar bukti | **Belum**: login memakai password tim, dijalankan tim sesuai checklist di `test/skema-fitur-2026-10-20.md` Bagian 4 (termasuk menyetujui atau menolak laporan T3) |
