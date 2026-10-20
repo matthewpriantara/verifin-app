@@ -196,22 +196,26 @@ function HowItWorks() {
                 current ? "border-text-primary/50" : "border-border",
               )}
             >
-              <div className="mb-2 flex items-center gap-2 text-text-muted">
-                <Icon size={16} weight="bold" className={cn("transition-colors duration-300", current && "text-text-primary")} />
-                <span className="font-mono text-[11px] font-semibold">{step.num}</span>
-              </div>
-              <h3 className="text-[15px] font-semibold text-text-primary">{step.title}</h3>
+              <h3 className="flex items-center gap-2 text-[15px] font-semibold text-text-primary">
+                <Icon
+                  size={16}
+                  weight="bold"
+                  aria-hidden
+                  className={cn("shrink-0 transition-colors duration-300", current ? "text-text-primary" : "text-text-muted")}
+                />
+                {step.title}
+              </h3>
               <p className="mt-1.5 text-[13px] leading-relaxed text-text-secondary">{step.desc}</p>
               <div
                 className={cn(
-                  "mt-4 flex-1 rounded-xl border border-dashed p-3 text-[12px] leading-relaxed transition-colors duration-300",
-                  current ? "border-text-primary/30 bg-bg-subtle" : "border-border",
+                  "mt-4 rounded-xl border p-3 text-[12px] leading-relaxed transition-colors duration-300",
+                  current ? "border-text-primary/25 bg-bg-subtle" : "border-border bg-bg-subtle/40",
                 )}
               >
                 <p className="mb-1.5 text-[11px] font-medium text-text-muted">{EXAMPLE_LABELS[i]}</p>
                 <StepExample index={i} />
               </div>
-              <div className="mt-3 flex flex-wrap gap-1">
+              <div className="mt-auto flex flex-wrap gap-1 pt-3">
                 {step.tags.map((tag) => (
                   <span key={tag} className="rounded border border-border bg-bg-subtle px-1.5 py-0.5 font-mono text-[11px] text-text-muted">
                     {tag}
@@ -417,7 +421,7 @@ export default function HomePage() {
             </h2>
             <p className="mx-auto mt-2 max-w-xl text-[13px] leading-relaxed text-text-secondary sm:text-[14px]">
               Empat langkah yang dijalankan untuk setiap lowongan. Contoh di tiap langkah diambil dari laporan
-              nyata: lowongan palsu atas nama Pos Indonesia.
+              nyata: lowongan palsu yang mencatut nama Pos Indonesia.
             </p>
             <Link
               href={EXAMPLE_REPORT}
