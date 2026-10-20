@@ -18,9 +18,19 @@ from pydantic import ValidationError
 from app.api.v1.community.schema import CommunityReportIn, CommunityReportOut, CommunityReportPublic, ModerationUpdate, REPORT_TYPES
 from app.config import UPLOAD_DIR, MAX_UPLOAD_SIZE_BYTES, RATE_LIMIT_REPORT_PER_MIN
 from app.services.security import RateLimiter, client_ip, require_admin
+from app.services.community_refresh import refresh_cases_for_report
 logger = logging.getLogger(__name__)
 router = APIRouter()
 _report_limit = RateLimiter(RATE_LIMIT_REPORT_PER_MIN).dependency("community-report")
+
+def _refresh_related_cases(db: Session, report: CommunityReport) -> None:
+    """Laporan kasus terkait langsung memakai status laporan terbaru (tanpa menunggu verifikasi ulang)."""
+    try:
+        refresh_cases_for_report(db, report)
+    except Exception as exc:
+        db.rollback()
+        logger.warning("[Community] sinkron kasus gagal untuk %s: %s", report.id, exc)
+
 
 @router.post("/community/report", status_code=201, dependencies=[Depends(_report_limit)], summary="Kirim Laporan Penipuan Komunitas")
 async def submit_report(
@@ -110,6 +120,7 @@ async def submit_report(
         db.rollback()
         logger.warning("[Community] simpan gagal: %s", exc)
         raise HTTPException(status_code=500, detail="Gagal menyimpan laporan. Coba lagi sebentar lagi.") from exc
+    _refresh_related_cases(db, report)
 
     return {
         "status": "ok",
@@ -255,6 +266,7 @@ def review_report(
         db.rollback()
         logger.warning("[Community] review gagal: %s", exc)
         raise HTTPException(status_code=500, detail="Gagal menyimpan review.") from exc
+    _refresh_related_cases(db, report)
 
     return {
         "status": "ok",
