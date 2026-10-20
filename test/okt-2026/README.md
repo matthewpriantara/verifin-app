@@ -101,6 +101,31 @@ Run 4 (arsip tidak disimpan) dipakai untuk menemukan dua celah yang diperbaiki s
 
 **Run 8 (20 Okt 2026, sore): T3 dan T4 diulang** setelah bug "(Persero)" diperbaiki. Sebelumnya `resolve_entity` memakai isi kurung sebagai nama, jadi T3 dan T4 dicari sebagai "Persero" dan bukti peringatan T4 berisi artikel hoaks Pertamina dan PLN, bukan Pos Indonesia. Setelah perbaikan, T3 dicari sebagai "Pertamina" (5 artikel bantahan Pertamina; tetap BAHAYA 95) dan T4 sebagai "Pos Indonesia" (5 artikel bantahan Pos Indonesia dari Komdigi, RRI, dan pemda; WASPADA 73). JSON: `hasil/run8.json`. Klaim run 6–7 bahwa "Komdigi dan RRI untuk Pos Indonesia" ditemukan berlaku untuk T8; untuk T4 baru benar sejak run 8.
 
+**Run 9 (20 Okt 2026, malam): seluruh 14 kasus dijalankan ulang di produksi setelah audit-006** (`570583c` → `0ce41d9`). Versi skema cache naik, jadi setiap kasus dihitung ulang dan baris yang sama diperbarui (`case_id` tetap). JSON: `hasil/run9.json`.
+
+| ID | Status sebenarnya | Run 6–8 | **Run 9** | Durasi |
+|---|---|---|---|---|
+| T1 | Asli | AMAN 12 | **AMAN 12** | 40 dtk |
+| T9 | Asli | AMAN 30 | **AMAN 25** | 49 dtk |
+| T10 | Asli | AMAN 12 | **AMAN 10** | 37 dtk |
+| T11 | Asli | AMAN 20 | **AMAN 22** | 31 dtk |
+| L1 | Asli | AMAN 15 | **AMAN 18** | 43 dtk |
+| P1 | Asli | AMAN 28 | **AMAN 28** | 52 dtk |
+| T2 | Abu-abu | WASPADA 50 | **WASPADA 52** | 38 dtk |
+| L2 | Abu-abu | WASPADA 58 | **WASPADA 55** | 21 dtk |
+| T3 | Penipuan | BAHAYA 95 | **BAHAYA 92** | 46 dtk |
+| T4 | Penipuan | WASPADA 73 | **WASPADA 73** | 31 dtk |
+| T5 | Penipuan | WASPADA 73 | **WASPADA 74** | 33 dtk |
+| T6 | Penipuan | WASPADA 72 | **WASPADA 72** | 42 dtk |
+| T7 | Penipuan | WASPADA 45 | **WASPADA 45** | 15 dtk |
+| T8 | Penipuan | WASPADA 72 | **WASPADA 72** | 27 dtk |
+
+- Penipuan yang ditandai: **6 dari 6**. Lowongan asli yang dinilai AMAN: **6 dari 6**. Durasi tanpa cache 15–52 dtk; dengan cache 0,5 dtk.
+- Artikel bantahan kini punya kontribusi XAI sendiri ("Nama pernah dicatut", +15), jadi porsi "Penyesuaian Penalaran AI" mengecil (T4: +26 → +11).
+- T3 sekarang membawa nomor WhatsApp-nya (`+62 822-2133-3836`, Kaspersky NETRAL). Pada run pertama hari ini nomor itu sempat hilang karena baris di atasnya menyebut "admin grup"; diperbaiki di `0ce41d9` dan T3 dihitung ulang.
+- Percobaan pertama run 9 (`hasil/run9-percobaan1`, tidak disimpan) dihentikan karena tiga bug: kota penempatan "Wilayah Kerja PT. Pos Indonesia (Persero)" dipetakan ke Tuban, "Indonesia" dipetakan ke titik tengah negara, dan "Kirim CV terbaik Anda" terbaca sebagai badan usaha. Saat itu penyedia LLM juga sempat membalas error 520, sehingga T11 jatuh ke penilaian aturan. Ketiga bug diperbaiki (`f5be179`) sebelum run final.
+- Laporan komunitas nyata untuk nomor T3 (sumber: IDN Times) dikirim lewat form produksi dan berstatus *menunggu* moderasi; laporan T3 menampilkannya sebagai "1 laporan menunggu tinjauan admin", belum dipakai sebagai bukti.
+
 **Ringkasan run 5** (kasus abu-abu tidak dihitung):
 - Penipuan yang ditandai (WASPADA atau BAHAYA): **6 dari 6**. Yang sampai BAHAYA hanya 1 dari 6 (T3, satu-satunya yang meminta biaya). Lima lainnya hanya mengarahkan ke WhatsApp/tautan bio tanpa bukti keras, sehingga berhenti di WASPADA.
 - Lowongan asli yang dinilai AMAN: **6 dari 6**; tidak ada lowongan asli yang ditandai.
