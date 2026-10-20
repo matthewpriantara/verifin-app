@@ -10,6 +10,8 @@ logger = logging.getLogger(__name__)
 
 _LEGAL_PREFIX_RE = re.compile(r"\b(pt|cv|ud|pd|tbk|firma|yayasan|koperasi)\b\.?", re.I)
 _PAREN_ALIAS_RE = re.compile(r"\(([^()]{2,80})\)")
+# Isi kurung yang hanya bentuk badan usaha, mis. "PT Pos Indonesia (Persero)", bukan nama merek.
+_LEGAL_ALIAS_WORDS = {"persero", "perseroan", "tbk", "ltd", "inc", "pt", "cv"}
 
 _SCAM_TOKENS = {
     "penipuan", "penipu", "scam", "fraud", "palsu", "modus", "korban",
@@ -45,11 +47,15 @@ def resolve_entity(raw_company: str) -> dict[str, Any]:
     legal_match = _LEGAL_PREFIX_RE.search(raw)
     legal_form = legal_match.group(1).upper().rstrip(".") if legal_match else None
 
-    aliases = _PAREN_ALIAS_RE.findall(raw)
-    brand = aliases[0].strip() if aliases else None
+    aliases = [
+        a.strip() for a in _PAREN_ALIAS_RE.findall(raw)
+        if not set(re.findall(r"[a-z]+", a.lower())) <= _LEGAL_ALIAS_WORDS
+    ]
+    brand = aliases[0] if aliases else None
 
     canonical = _LEGAL_PREFIX_RE.sub("", raw)
     canonical = _PAREN_ALIAS_RE.sub("", canonical)
+    canonical = re.sub(r"\bpersero(?:an)?\b", "", canonical, flags=re.I)
     canonical = re.sub(r"[^\w\s]", " ", canonical)
     canonical = re.sub(r"\s+", " ", canonical).strip()
 

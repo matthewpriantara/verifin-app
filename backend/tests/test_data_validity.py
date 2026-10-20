@@ -102,3 +102,14 @@ def test_scam_check_ignores_generic_disclaimers(monkeypatch):
     urls = [r["url"] for r in out["results"]]
     assert "https://arest.web.id/content/lowongan-hr-generalist-di-pt-komitrando-emporio" not in urls
     assert len(urls) == 2
+
+
+def test_legal_form_in_parentheses_is_not_brand():
+    from app.services.osint.search_intelligence import resolve_entity
+
+    pos = resolve_entity("PT Pos Indonesia (Persero)")
+    assert pos["brand"] is None
+    assert pos["canonical"] == "Pos Indonesia"
+    assert pos["search_names"][0] == "Pos Indonesia"
+    assert resolve_entity("PT Pertamina (Persero) Tbk")["canonical"] == "Pertamina"
+    assert resolve_entity("Anugrah Argon Medica (AAM)")["brand"] == "AAM"

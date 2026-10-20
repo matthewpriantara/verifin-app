@@ -48,6 +48,13 @@ Tanggal: 20 Okt 2026. User menyetujui semua nomor 1–28. Semua sudah dikerjakan
   - DuckDuckGo memberi captcha setelah beberapa query beruntun.
   - Bing dimatikan di konfigurasi padahal selalu menjawab.
 
-  Perubahan di `~/Docker/searxng/core-config/settings.yml` (server): Brave dan Qwant dimatikan, Bing dinyalakan, DuckDuckGo lewat IP rumah, Google tetap lewat proxy sebagai bonus. Uji 12 query beruntun: semua dapat 9–17 hasil dari Bing + Yahoo walau Google dan DuckDuckGo menolak.
+  Perubahan di `~/Docker/searxng/core-config/settings.yml` (server): Brave dan Qwant dimatikan, Bing sempat dinyalakan (lalu dimatikan lagi, lihat di bawah), DuckDuckGo lewat IP rumah, Google tetap lewat proxy sebagai bonus. Uji 12 query beruntun: semua dapat 9–17 hasil dari Bing + Yahoo walau Google dan DuckDuckGo menolak.
 
   Di backend: satu kali ulang (jeda 1,5 dtk) bila hasil kosong karena engine tidak merespons, dan cache query naik dari 10 menit ke 6 jam (`SEARXNG_CACHE_TTL=21600`).
+
+## Koreksi 20 Okt (sore)
+
+- **Bing dimatikan lagi.** Uji 14 query: Bing mengembalikan halaman acak pada 5 query, termasuk situs dewasa untuk "Dekayu Yogyakarta" dan "lowongan Hotel New Saphir hoaks penipuan"; query yang sama bisa benar di percobaan berikutnya. Yahoo bersih pada semua query uji. Engine aktif: Yahoo, DuckDuckGo (IP rumah), Google (proxy), Mojeek, Wikipedia.
+- **Saringan domain dewasa** di `searxng_client.py` sebagai pengaman bila engine lain ikut kacau. Tes: `test_adult_hosts_are_dropped`.
+- **Backend tidak membombardir SearXNG.** Diukur di container produksi: satu cek lowongan = 2 request (nama perusahaan + bantahan hoaks), berjeda beberapa detik (T1, T4, T10). Blokir berasal dari engine.
+- **Bug "(Persero)".** `resolve_entity` menganggap isi kurung sebagai merek, sehingga "PT Pos Indonesia (Persero)" dan "PT Pertamina (Persero)" dicari sebagai "Persero". Akibatnya laporan T4 (Pos Indonesia) di run 6–7 menampilkan artikel hoaks Pertamina dan PLN sebagai peringatan atas nama Pos. Diperbaiki: isi kurung yang hanya bentuk badan usaha diabaikan, kata "Persero" dibuang dari nama kanonik. Tes: `test_legal_form_in_parentheses_is_not_brand`. Setelah perbaikan, query T4 menjadi "lowongan Pos Indonesia hoaks penipuan" dan menemukan artikel Komdigi dan RRI. **T3 dan T4 perlu dijalankan ulang setelah deploy**, lalu tabel dan teks Laporan Akhir disesuaikan.
