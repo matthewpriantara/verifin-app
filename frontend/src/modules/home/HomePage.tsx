@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
+import Link from "next/link";
 import { motion } from "motion/react";
 import { VerifyBox, type VerifyStage } from "@/modules/verify/VerifyBox";
 import { SearchHistory } from "@/modules/home/SearchHistory";
@@ -8,7 +9,8 @@ import {
   Scan,
   MagnifyingGlass,
   Graph,
-  Cpu,
+  Gauge,
+  ArrowUpRight,
   ArrowDown,
   ShieldCheck,
   Check,
@@ -16,100 +18,211 @@ import {
 } from "@phosphor-icons/react";
 import { cn } from "@/lib/utils";
 
+// Contoh di tiap langkah diambil dari laporan nyata T4 (lowongan palsu atas nama Pos Indonesia,
+// dibantah Pos Indonesia), run 8 di server produksi 20 Okt 2026.
+const EXAMPLE_REPORT = "/report/1ec34af5-1ab1-414b-89f1-7dd98b04440e";
+
 const STEPS = [
   {
     num: "01",
     icon: Scan,
     title: "Membaca isi lowongan",
     desc: "Dari teks, poster, atau link, Verifin mengambil nama perusahaan, nomor HP, email, tautan, alamat, dan gaji yang tertulis.",
-    tags: ["PaddleOCR bila gambar", "Hybrid NER", "Entity Extraction"],
+    tags: ["PaddleOCR", "Hybrid NER"],
   },
   {
     num: "02",
     icon: MagnifyingGlass,
     title: "Cek ke sumber publik",
-    desc: "Enam pemeriksaan berjalan bersamaan: umur domain, reputasi nomor, alamat di peta, pencarian web, media sosial, dan isi Google Form bila ada.",
-    tags: ["WHOIS/DNS", "Kaspersky Who Calls", "OpenStreetMap", "Web & Social"],
+    desc: "Tujuh pemeriksaan berjalan bersamaan: umur domain, reputasi nomor, alamat di peta, pencarian web, media sosial, artikel bantahan atas nama perusahaan, dan isi Google Form bila ada.",
+    tags: ["WHOIS/DNS", "Kaspersky Who Calls", "OpenStreetMap", "SearXNG"],
   },
   {
     num: "03",
     icon: Graph,
     title: "Cocokkan dengan kasus lama",
     desc: "Nomor, email, dan nama yang sama dicocokkan dengan lowongan yang pernah dicek atau dilaporkan sebagai penipuan.",
-    tags: ["NetworkX", "Case Memory", "Fraud Graph"],
+    tags: ["NetworkX", "Case Memory"],
   },
   {
     num: "04",
-    icon: Cpu,
+    icon: Gauge,
     title: "Skor dan alasannya",
-    desc: "AI memberi hasil AMAN, WASPADA, atau BAHAYA hanya dari bukti yang terkumpul, lalu menunjukkan seberapa besar tiap bukti memengaruhi skor.",
-    tags: ["LLM Reasoning", "Evidence Attribution", "Explainable AI"],
+    desc: "AI memberi hasil AMAN, WASPADA, atau BAHAYA dari bukti yang terkumpul, lalu menunjukkan seberapa besar tiap bukti memengaruhi skor.",
+    tags: ["LLM Reasoning", "Explainable AI"],
   },
+] as const;
+
+const EXAMPLE_BARS = [
+  { label: "Penyesuaian penalaran AI", value: 26, ai: true },
+  { label: "Daftar hanya via WhatsApp/tautan bio", value: 20, ai: false },
+  { label: "Nama BUMN, daftar lewat WhatsApp", value: 15, ai: false },
 ];
 
-/* Titik cahaya mengalir di connector garis */
-function FlowConnector({ delay }: { delay: number }) {
+function StepExample({ index }: { index: number }) {
+  if (index === 0) {
+    return (
+      <>
+        <div className="flex flex-wrap gap-1.5">
+          {["PT Pos Indonesia (Persero)", "Daftar via WhatsApp admin", "Tautan di bio"].map((item) => (
+            <span key={item} className="rounded-md border border-border bg-bg-elevated px-2 py-0.5 text-text-primary">
+              {item}
+            </span>
+          ))}
+        </div>
+        <p className="mt-2 text-text-muted">Tanpa email, situs, atau alamat kantor.</p>
+      </>
+    );
+  }
+  if (index === 1) {
+    return (
+      <>
+        <p className="font-medium text-text-primary">[HOAKS] Tautan Lowongan Kerja Pos Indonesia</p>
+        <p className="mt-0.5 text-text-muted">komdigi.go.id · 1 dari 5 artikel bantahan atas nama ini</p>
+      </>
+    );
+  }
+  if (index === 2) {
+    return <p className="text-text-primary">Nama ini belum pernah muncul di kasus lain yang tersimpan di Verifin.</p>;
+  }
   return (
-    <div className="relative mx-2 hidden h-0.5 w-12 flex-shrink-0 overflow-hidden bg-border lg:block">
-      <motion.div
-        className="absolute inset-y-0 w-8 bg-gradient-to-r from-transparent via-text-primary/50 to-transparent"
-        animate={{ x: ["-32px", "48px"] }}
-        transition={{
-          duration: 1.6,
-          delay,
-          repeat: Infinity,
-          repeatDelay: 1.4,
-          ease: "easeInOut",
-        }}
-      />
-    </div>
+    <>
+      <span className="inline-flex rounded-md border border-waspada-border bg-waspada-bg px-2 py-0.5 font-semibold text-waspada-fg">
+        WASPADA 73
+      </span>
+      <ul className="mt-2.5 space-y-2">
+        {EXAMPLE_BARS.map((bar) => (
+          <li key={bar.label}>
+            <div className="flex justify-between gap-2">
+              <span className={cn("min-w-0", bar.ai ? "italic text-text-muted" : "text-text-primary")}>{bar.label}</span>
+              <span className={cn("font-mono", bar.ai ? "text-text-muted" : "text-bahaya-fg")}>+{bar.value}</span>
+            </div>
+            <span className="mt-1 block h-1 rounded-full bg-border">
+              <span
+                className={cn("block h-full rounded-full", bar.ai ? "bg-text-muted" : "bg-bahaya-fg")}
+                style={{ width: `${(bar.value / 26) * 100}%` }}
+              />
+            </span>
+          </li>
+        ))}
+      </ul>
+    </>
   );
 }
 
-function StepCard({
-  step,
-  index,
-}: {
-  step: (typeof STEPS)[number];
-  index: number;
-}) {
-  const Icon = step.icon;
+const EXAMPLE_LABELS = ["Yang terbaca", "Yang ditemukan", "Hasil pencocokan", "Skor akhir"];
+
+/* Langkah menyala bergiliran 01 → 04 seperti pemeriksaan yang sedang berjalan.
+   Hanya jalan saat section terlihat dan tab aktif; berhenti saat kursor di atas kartu.
+   Gerakan cuma transform dan warna. Untuk "kurangi gerakan" giliran tetap jalan,
+   tapi isian garis dan putaran ikon dimatikan lewat motion-reduce. */
+function HowItWorks() {
+  const listRef = useRef<HTMLOListElement>(null);
+  const [active, setActive] = useState(0);
+  const [visible, setVisible] = useState(false);
+  const [paused, setPaused] = useState(false);
+
+  useEffect(() => {
+    const el = listRef.current;
+    if (!el) return;
+    const io = new IntersectionObserver(([entry]) => setVisible(entry.isIntersecting), { threshold: 0.3 });
+    io.observe(el);
+    return () => io.disconnect();
+  }, []);
+
+  useEffect(() => {
+    if (!visible || paused) return;
+    const iv = setInterval(() => {
+      if (!document.hidden) setActive((a) => (a + 1) % STEPS.length);
+    }, 2600);
+    return () => clearInterval(iv);
+  }, [visible, paused]);
 
   return (
-    <motion.div
-      initial={{ opacity: 0, y: 24 }}
-      whileInView={{ opacity: 1, y: 0 }}
-      viewport={{ once: true, amount: 0.3 }}
-      transition={{ duration: 0.5, delay: index * 0.1, ease: [0.16, 1, 0.3, 1] }}
-      className="flex h-full flex-col rounded-2xl border border-border bg-bg-elevated p-5 transition-colors hover:border-border-focus"
+    <ol
+      ref={listRef}
+      className="grid grid-cols-1 lg:grid-cols-4 lg:gap-4"
+      onMouseLeave={() => setPaused(false)}
     >
-      <div className="mb-3 flex items-center gap-2.5">
-        <motion.div
-          initial={{ scale: 0.7, opacity: 0 }}
-          whileInView={{ scale: 1, opacity: 1 }}
-          viewport={{ once: true }}
-          transition={{ duration: 0.4, delay: index * 0.1 + 0.15 }}
-          className="flex h-8 w-8 items-center justify-center rounded-lg bg-text-primary"
-        >
-          <Icon size={15} weight="bold" className="text-bg-elevated" />
-        </motion.div>
-        <span className="font-mono text-[11px] font-semibold tracking-widest text-text-muted">
-          {step.num}
-        </span>
-      </div>
-      <h3 className="text-[15px] font-semibold text-text-primary">{step.title}</h3>
-      <p className="mt-1.5 flex-1 text-[13px] leading-relaxed text-text-secondary">{step.desc}</p>
-      <div className="mt-4 flex flex-wrap gap-1">
-        {step.tags.map((tag) => (
-          <span
-            key={tag}
-            className="rounded border border-border bg-bg-subtle px-1.5 py-0.5 font-mono text-[11px] text-text-muted"
+      {STEPS.map((step, i) => {
+        const Icon = step.icon;
+        const done = i < active;
+        const current = i === active;
+        const isLast = i === STEPS.length - 1;
+        return (
+          <li
+            key={step.num}
+            className="relative flex gap-3 pb-4 last:pb-0 lg:flex-col lg:gap-4 lg:pb-0"
+            aria-current={current ? "step" : undefined}
+            onMouseEnter={() => {
+              setActive(i);
+              setPaused(true);
+            }}
           >
-            {tag}
-          </span>
-        ))}
-      </div>
-    </motion.div>
+            {!isLast && (
+              // HP: garis tegak ke langkah berikutnya; lg: garis mendatar di atas kartu.
+              <span
+                aria-hidden
+                className="absolute bottom-0 left-[17px] top-10 w-px overflow-hidden bg-border lg:-right-4 lg:bottom-auto lg:left-12 lg:top-[17px] lg:h-px lg:w-auto"
+              >
+                <span
+                  className={cn(
+                    "block h-full w-full origin-top bg-text-primary transition-transform duration-700 ease-out motion-reduce:transition-none lg:origin-left",
+                    done ? "scale-100" : "scale-y-0 lg:scale-x-0 lg:scale-y-100",
+                  )}
+                />
+              </span>
+            )}
+            <span
+              aria-hidden
+              className={cn(
+                "relative z-10 flex h-9 w-9 shrink-0 items-center justify-center rounded-full border font-mono text-[12px] font-semibold transition-colors duration-300",
+                done && "border-text-primary bg-text-primary text-bg-elevated",
+                current && "border-text-primary bg-bg-elevated text-text-primary ring-4 ring-text-primary/10",
+                !done && !current && "border-border bg-bg text-text-muted",
+              )}
+            >
+              {done ? (
+                <Check size={14} weight="bold" />
+              ) : current ? (
+                <CircleNotch size={15} weight="bold" className="animate-spin motion-reduce:animate-none" />
+              ) : (
+                step.num
+              )}
+            </span>
+            <div
+              className={cn(
+                "flex min-w-0 flex-1 flex-col rounded-2xl border bg-bg-elevated p-5 transition-colors duration-300",
+                current ? "border-text-primary/50" : "border-border",
+              )}
+            >
+              <div className="mb-2 flex items-center gap-2 text-text-muted">
+                <Icon size={16} weight="bold" className={cn("transition-colors duration-300", current && "text-text-primary")} />
+                <span className="font-mono text-[11px] font-semibold">{step.num}</span>
+              </div>
+              <h3 className="text-[15px] font-semibold text-text-primary">{step.title}</h3>
+              <p className="mt-1.5 text-[13px] leading-relaxed text-text-secondary">{step.desc}</p>
+              <div
+                className={cn(
+                  "mt-4 flex-1 rounded-xl border border-dashed p-3 text-[12px] leading-relaxed transition-colors duration-300",
+                  current ? "border-text-primary/30 bg-bg-subtle" : "border-border",
+                )}
+              >
+                <p className="mb-1.5 text-[11px] font-medium text-text-muted">{EXAMPLE_LABELS[i]}</p>
+                <StepExample index={i} />
+              </div>
+              <div className="mt-3 flex flex-wrap gap-1">
+                {step.tags.map((tag) => (
+                  <span key={tag} className="rounded border border-border bg-bg-subtle px-1.5 py-0.5 font-mono text-[11px] text-text-muted">
+                    {tag}
+                  </span>
+                ))}
+              </div>
+            </div>
+          </li>
+        );
+      })}
+    </ol>
   );
 }
 
@@ -303,25 +416,19 @@ export default function HomePage() {
               Cara Verifin menilai risiko
             </h2>
             <p className="mx-auto mt-2 max-w-xl text-[13px] leading-relaxed text-text-secondary sm:text-[14px]">
-              Empat langkah yang dijalankan untuk setiap lowongan. Setiap skor disertai bukti yang bisa kamu periksa sendiri.
+              Empat langkah yang dijalankan untuk setiap lowongan. Contoh di tiap langkah diambil dari laporan
+              nyata: lowongan palsu atas nama Pos Indonesia.
             </p>
+            <Link
+              href={EXAMPLE_REPORT}
+              className="mt-3 inline-flex min-h-11 items-center gap-1.5 text-[13px] font-medium text-text-primary underline-offset-4 hover:underline"
+            >
+              Lihat laporan lengkapnya
+              <ArrowUpRight size={14} weight="bold" />
+            </Link>
           </motion.div>
 
-          {/* Cards + connector mengalir */}
-          <div className="flex flex-col gap-3 sm:gap-4 lg:flex-row lg:items-stretch lg:justify-between">
-            {STEPS.map((step, i) => (
-              <div key={step.num} className="flex flex-1 flex-col lg:flex-row lg:items-stretch">
-                <div className="w-full lg:w-[220px] xl:w-[240px] flex-shrink-0">
-                  <StepCard step={step} index={i} />
-                </div>
-                {i < STEPS.length - 1 && (
-                  <div className="flex items-center justify-center">
-                    <FlowConnector delay={i * 0.5} />
-                  </div>
-                )}
-              </div>
-            ))}
-          </div>
+          <HowItWorks />
 
         </div>
       </section>
