@@ -85,52 +85,6 @@ def _sync_scrapling_fetch(url: str) -> tuple[str, list[str]]:
         "Accept-Language": "id-ID,id;q=0.9,en-US;q=0.8,en;q=0.7",
     }
 
-    try:
-        from app.services.osint.lightpanda_client import lightpanda_fetch, is_lightpanda_available
-        if is_lightpanda_available():
-            lp_result = lightpanda_fetch(url, output="html", wait_ms=4000)
-            if lp_result.get("ok") and lp_result.get("content"):
-                soup = BeautifulSoup(lp_result["content"], "html.parser")
-                text_parts = []
-                for prop in ("og:title", "og:description"):
-                    meta = soup.find("meta", property=prop)
-                    if meta and meta.get("content"):
-                        cont = meta["content"].strip()
-                        if not _is_script_or_ad_junk(cont):
-                            text_parts.append(cont)
-
-                for tag in soup(["script", "style", "nav", "footer", "header", "noscript", "template", "iframe"]):
-                    tag.decompose()
-                body_text = soup.get_text(separator="\n", strip=True)
-                if body_text:
-                    lines = []
-                    for line in body_text.splitlines():
-                        if any(re.search(pat, line, re.I) for pat in _IG_NOISE_PATTERNS):
-                            break
-                        if _is_script_or_ad_junk(line):
-                            continue
-                        lines.append(line)
-                    filtered = " ".join(lines).strip()
-                    if filtered and len(filtered) > 30:
-                        text_parts.append(filtered[:3000])
-
-                if text_parts:
-                    combined_caption_text = "\n".join(text_parts).strip()
-
-                for img in soup.find_all("img"):
-                    src = img.get("src") or img.get("data-src")
-                    if src and ("scontent" in src or "cdninstagram" in src or "fbcdn" in src):
-                        image_urls.append(src)
-
-                og_img = soup.find("meta", property="og:image")
-                if og_img and og_img.get("content"):
-                    image_urls.append(og_img["content"].strip())
-
-                if combined_caption_text:
-                    logger.info("[Lightpanda Fetch] berhasil render %s (%d chars)", url, len(combined_caption_text))
-    except Exception as exc:
-        logger.warning("[Lightpanda Fetch] gagal: %s", exc)
-
     if not combined_caption_text:
         ig_match = re.search(r"instagram\.com/(?:p|reel|tv)/([^/?#&]+)", url, re.I)
         if ig_match:

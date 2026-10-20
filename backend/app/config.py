@@ -13,8 +13,6 @@ LLM_EXTRACTOR_MODEL = os.getenv("LLM_EXTRACTOR_MODEL") or LLM_MODEL
 
 DATABASE_URL = os.getenv("DATABASE_URL", "")
 
-LIGHTPANDA_CONTAINER = os.getenv("LIGHTPANDA_CONTAINER", "lightpanda")
-LIGHTPANDA_CDP_URL = os.getenv("LIGHTPANDA_CDP_URL", "http://127.0.0.1:9222")
 SEARXNG_URL = os.getenv("SEARXNG_URL", "").rstrip("/")
 
 NOMINATIM_URL = os.getenv("NOMINATIM_URL", "https://nominatim.openstreetmap.org/search")
