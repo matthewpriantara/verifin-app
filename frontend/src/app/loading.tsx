@@ -27,7 +27,7 @@ export default function RootLoading() {
 
         {/* Right Column: Verify Box */}
         <div className="w-full lg:max-w-lg lg:w-[480px] space-y-4">
-          <div className="rounded-3xl border border-border bg-bg-elevated p-6 sm:p-7 space-y-5">
+          <div className="rounded-2xl border border-border bg-bg-elevated p-6 sm:p-7 space-y-5">
             <div className="flex justify-between items-center border-b border-border/50 pb-3">
               <Skeleton className="h-4 w-32" />
               <Skeleton className="h-4 w-20" />

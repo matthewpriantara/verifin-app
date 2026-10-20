@@ -2,6 +2,7 @@
 
 import { Suspense, useEffect, useState } from "react";
 import Link from "next/link";
+import { buttonClass } from "@/components/ui/Button";
 import { useRouter, useSearchParams } from "next/navigation";
 import {
   ArrowLeft,
@@ -122,7 +123,7 @@ function SearchCasesInner() {
         <button
           type="button"
           onClick={goBack}
-          className="inline-flex min-h-11 items-center gap-2 rounded-xl bg-text-primary px-3.5 py-2 text-[13px] font-semibold text-bg-elevated shadow-sm transition-all hover:bg-text-secondary active:scale-[0.98]"
+          className={buttonClass()}
         >
           <ArrowLeft size={15} weight="bold" /> Kembali
         </button>
@@ -155,12 +156,12 @@ function SearchCasesInner() {
             onChange={(e) => setInput(e.target.value)}
             placeholder="Nama perusahaan, nomor WA, email, atau link postingan"
             maxLength={300}
-            className="h-11 w-full rounded-xl border border-border bg-bg-elevated pl-10 pr-3 text-[14px] text-text-primary placeholder:text-text-muted focus:border-border-focus focus:outline-none"
+            className="h-11 w-full rounded-lg border border-border bg-bg-elevated pl-10 pr-3 text-[14px] text-text-primary placeholder:text-text-muted focus:border-border-focus focus:outline-none"
           />
         </div>
         <button
           type="submit"
-          className="h-11 shrink-0 rounded-xl bg-text-primary px-4 text-[14px] font-semibold text-bg-elevated transition-opacity hover:opacity-90 active:scale-[0.98]"
+          className={buttonClass({ className: "shrink-0" })}
         >
           Cari
         </button>
@@ -316,7 +317,7 @@ function EmptyState({ searching }: { searching: boolean }) {
       </p>
       <Link
         href="/"
-        className="mt-4 inline-flex rounded-xl bg-text-primary px-4 py-2 text-[13px] font-semibold text-bg-elevated no-underline hover:opacity-90"
+        className={buttonClass({ className: "mt-4 no-underline" })}
       >
         Cek lowongan sekarang
       </Link>

@@ -10,7 +10,7 @@ export default function ReportLoading() {
       </div>
 
       {/* Hero Verdict Banner */}
-      <div className="rounded-3xl border border-border bg-bg-elevated p-6 sm:p-8 lg:p-10">
+      <div className="rounded-2xl border border-border bg-bg-elevated p-6 sm:p-8 lg:p-10">
         <div className="flex flex-col gap-6 lg:flex-row lg:items-center lg:justify-between">
           <div className="flex items-center gap-4">
             <Skeleton className="h-16 w-16 rounded-2xl" />

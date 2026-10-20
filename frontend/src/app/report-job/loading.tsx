@@ -27,7 +27,7 @@ export default function ReportJobLoading() {
       </div>
 
       {/* Form Fields */}
-      <div className="rounded-3xl border border-border bg-bg-elevated p-6 space-y-5">
+      <div className="rounded-2xl border border-border bg-bg-elevated p-6 space-y-5">
         <div className="space-y-2">
           <Skeleton className="h-4 w-32" />
           <Skeleton className="h-10 w-full rounded-xl" />
