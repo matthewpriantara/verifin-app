@@ -227,6 +227,7 @@ _SUMMARY_CLAIM_FIXES = (
     (_re.compile(r"\b(lowongan|perusahaan)\s+(?:resmi|terpercaya|legal|sah)\b", _re.I), r"\1"),
     (_re.compile(r"\b(?:yang\s+)?terverifikasi\b", _re.I), "yang tercatat di sumber publik"),
     (_re.compile(r"\bpasti\s+aman\b", _re.I), "tanpa tanda bahaya"),
+    (_re.compile(r"\b(jejak digital|jejak publik|data|domain|alamat|nomor)\s+(?:yang\s+)?valid\b", _re.I), r"\1 yang konsisten"),
     (_re.compile(r"\b(domain|situs|website|akun|email|kanal|profil|portal)\s+resmi\b", _re.I), r"\1"),
     (_re.compile(r"\s*\b(?:sangat\s+|cukup\s+)?(?:kredibel|terpercaya)\b", _re.I), ""),
 )
@@ -257,6 +258,8 @@ def _sanitize_llm_output(
         "akun resmi": "akun publik",
         "Website resmi": "Website publik",
         "website resmi": "website publik",
+        "Email resmi perusahaan": "Email perusahaan yang tercantum",
+        "email resmi perusahaan": "email perusahaan yang tercantum",
         "Email resmi": "Email yang tercantum",
         "email resmi": "email yang tercantum",
         "Kanal resmi": "Kanal publik",
@@ -345,6 +348,28 @@ def _sanitize_llm_output(
     return parsed
 
 
+def _mark_social_link_status(osint_results: dict, entities: dict, raw_text: str, text_signals: dict) -> None:
+    """Tandai apakah akun medsos yang ditemukan memang ditautkan lowongan.
+
+    Akun hasil pencarian nama (mis. akun resmi Pos Indonesia) tidak membuktikan lowongan
+    atas nama itu asli; penipu justru memakai nama merek besar. Penanda ini dipakai prompt
+    dan halaman laporan.
+    """
+    social = osint_results.get("social")
+    if not isinstance(social, dict):
+        return
+    haystack = " ".join([raw_text.lower(), *[str(u).lower() for u in entities.get("urls") or []]])
+    linked = []
+    for profile in social.get("profiles") or []:
+        url = str(profile.get("url") or "").lower()
+        handle = url.rstrip("/").rsplit("/", 1)[-1].lstrip("@")
+        if handle and (handle in haystack or url in haystack):
+            linked.append(profile.get("url"))
+    social["linked_profiles"] = linked
+    social["found_by_name_only"] = bool(social.get("profiles")) and not linked
+    social["brand_impersonation_risk"] = bool(text_signals.get("brand_unofficial_channel"))
+
+
 async def analyze_with_verifin(
     entities: dict,
     osint_results: dict | None = None,
@@ -362,6 +387,8 @@ async def analyze_with_verifin(
             "address_validations": [],
             "social": {},
         }
+
+    _mark_social_link_status(osint_results, entities, raw_text or "", text_signals or {})
 
     if raw_text:
         prompt = build_text_verify_prompt(raw_text, entities, osint_results, text_signals)
