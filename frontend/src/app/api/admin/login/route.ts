@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { ADMIN_COOKIE, adminConfigured, expectedAdminToken, safeEqual } from "@/lib/adminAuth";
+import { ADMIN_COOKIE, ADMIN_SESSION_SECONDS, adminConfigured, issueAdminToken, safeEqual } from "@/lib/adminAuth";
 
 // Password dibaca dari env SERVER-SIDE (tanpa prefix NEXT_PUBLIC_),
 // sehingga tidak pernah dibundle ke client.
@@ -58,12 +58,12 @@ export async function POST(request: Request) {
 
   failures.delete(ip);
   const res = NextResponse.json({ ok: true });
-  res.cookies.set(ADMIN_COOKIE, expectedAdminToken() as string, {
+  res.cookies.set(ADMIN_COOKIE, issueAdminToken() as string, {
     httpOnly: true,
     sameSite: "lax",
     secure: process.env.NODE_ENV === "production",
     path: "/",
-    maxAge: 60 * 60 * 8, // 8 jam
+    maxAge: ADMIN_SESSION_SECONDS,
   });
   return res;
 }

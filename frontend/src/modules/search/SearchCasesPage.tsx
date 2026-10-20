@@ -215,6 +215,13 @@ function SearchCasesInner() {
           <p className="rounded-xl border border-border bg-bg-elevated px-4 py-5 text-[13px] text-text-secondary">
             Kata kunci terlalu pendek. Ketik minimal 3 huruf nama perusahaan, atau minimal 8 digit nomor HP.
           </p>
+        ) : data && data.cases.length === 0 && data.total > 0 ? (
+          <p className="rounded-xl border border-border bg-bg-elevated px-4 py-5 text-[13px] text-text-secondary">
+            Halaman ini kosong.{" "}
+            <button type="button" onClick={() => pushParams(q, verdict, 0)} className="font-medium text-text-primary underline">
+              Kembali ke halaman pertama
+            </button>
+          </p>
         ) : data && data.cases.length === 0 ? (
           <EmptyState searching={searching} />
         ) : (
@@ -223,7 +230,7 @@ function SearchCasesInner() {
           </ul>
         )}
 
-        {data && !loading && data.total > 0 && (
+        {data && !loading && data.total > 0 && data.cases.length > 0 && (
           <nav className="mt-3 flex items-center justify-between gap-3" aria-label="Halaman hasil">
             <span className="font-mono text-[11px] text-text-muted">
               {page * PAGE_SIZE + 1}–{Math.min((page + 1) * PAGE_SIZE, data.total)} dari {data.total}

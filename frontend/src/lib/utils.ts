@@ -15,7 +15,7 @@ export function normalizeVerdict(v: string): Verdict {
 
 export function verdictLabel(v: string): string {
   switch (normalizeVerdict(v)) {
-    case "AMAN": return "Aman Terverifikasi";
+    case "AMAN": return "Aman (tidak ada tanda bahaya)";
     case "WASPADA": return "Waspada (Indikasi Awal)";
     case "BAHAYA": return "Bahaya / Terindikasi Penipuan";
     case "ERROR": return "Gagal Analisis";

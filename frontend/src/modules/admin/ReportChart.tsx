@@ -6,22 +6,31 @@ import type { AdminCase } from "@/types/admin";
 
 /* ── helpers ──────────────────────────────────────────────────────────────── */
 function groupByDate(cases: AdminCase[]): { label: string; total: number; aman: number; waspada: number; bahaya: number }[] {
+  // Dikelompokkan per tanggal WIB lalu diurutkan lama → baru, supaya grafik dibaca kiri ke kanan
+  // dan potongan 14 titik terakhir benar-benar 14 hari terbaru.
   const map = new Map<string, { total: number; aman: number; waspada: number; bahaya: number }>();
-
   cases.forEach((c) => {
-    const d = new Date(c.created_at);
-    const label = d.toLocaleDateString("id-ID", { day: "2-digit", month: "short" });
-    const prev = map.get(label) ?? { total: 0, aman: 0, waspada: 0, bahaya: 0 };
+    const key = new Date(c.created_at).toLocaleDateString("en-CA", { timeZone: "Asia/Jakarta" });
+    const prev = map.get(key) ?? { total: 0, aman: 0, waspada: 0, bahaya: 0 };
     const v = c.verdict.toUpperCase();
-    map.set(label, {
+    map.set(key, {
       total: prev.total + 1,
       aman: prev.aman + (v === "AMAN" ? 1 : 0),
       waspada: prev.waspada + (v === "WASPADA" ? 1 : 0),
       bahaya: prev.bahaya + (v === "BAHAYA" ? 1 : 0),
     });
   });
-
-  return Array.from(map.entries()).map(([label, val]) => ({ label, ...val }));
+  const keys = Array.from(map.keys()).sort();
+  const multiYear = new Set(keys.map((k) => k.slice(0, 4))).size > 1;
+  return keys.map((key) => ({
+    label: new Date(`${key}T00:00:00+07:00`).toLocaleDateString("id-ID", {
+      day: "2-digit",
+      month: "short",
+      ...(multiYear ? { year: "2-digit" as const } : {}),
+      timeZone: "Asia/Jakarta",
+    }),
+    ...map.get(key)!,
+  }));
 }
 
 /* ── Bar ──────────────────────────────────────────────────────────────────── */

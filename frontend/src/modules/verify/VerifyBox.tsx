@@ -619,6 +619,10 @@ export function VerifyBox({ onStageChange }: { onStageChange?: (stage: VerifySta
           (event) => { _handleSSEEvent(event); },
           controller.signal,
         );
+        // Stream selesai tanpa event "done": koneksi putus di tengah jalan (mis. proxy memutus).
+        if (!isDoneRef.current && !controller.signal.aborted) {
+          setError((prev) => prev ?? "Koneksi ke server terputus sebelum hasil keluar. Coba lagi; hasil yang sudah selesai akan muncul dari riwayat.");
+        }
       } else {
         const result = await verifyText({ text: trimmed, include_raw_text: true }, controller.signal);
         isDoneRef.current = true;

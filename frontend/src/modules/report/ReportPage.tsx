@@ -278,6 +278,7 @@ export default function ReportPage() {
   const [ready, setReady] = useState(false);
   const [showAudit, setShowAudit] = useState(false);
   const [showEntities, setShowEntities] = useState(false);
+  const [loadFailed, setLoadFailed] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
@@ -286,8 +287,20 @@ export default function ReportPage() {
       void (async () => {
         try {
           if (caseId) {
-            const persisted = await getCaseById(caseId);
-            if (!cancelled) setReport(persisted);
+            try {
+              const persisted = await getCaseById(caseId);
+              if (!cancelled) setReport(persisted);
+            } catch (err) {
+              // Server tidak terjangkau: pakai salinan hasil yang baru saja diterima, bila kasusnya sama.
+              const raw = sessionStorage.getItem(REPORT_STORAGE_KEY);
+              const local = raw ? (JSON.parse(raw) as VerifyResponse) : null;
+              if (local && local.case_id === caseId) {
+                if (!cancelled) setReport(local);
+              } else {
+                if (!cancelled) setLoadFailed(!(err instanceof Error && /tidak ditemukan|404/i.test(err.message)));
+                throw err;
+              }
+            }
           } else {
             const raw = sessionStorage.getItem(REPORT_STORAGE_KEY);
             if (!cancelled) setReport(raw ? (JSON.parse(raw) as VerifyResponse) : null);
@@ -306,8 +319,12 @@ export default function ReportPage() {
 
   if (!report) return (
     <div className="mx-auto max-w-lg px-4 py-20 text-center sm:px-6">
-      <h1 className="text-2xl font-semibold text-text-primary">Belum ada laporan</h1>
-      <p className="mt-2 text-[15px] text-text-secondary">Laporan tidak ditemukan atau sudah tidak tersedia.</p>
+      <h1 className="text-2xl font-semibold text-text-primary">{loadFailed ? "Laporan belum bisa dimuat" : "Belum ada laporan"}</h1>
+      <p className="mt-2 text-[15px] text-text-secondary">
+        {loadFailed
+          ? "Server verifikasi sedang tidak terjangkau. Coba muat ulang halaman ini sebentar lagi."
+          : "Laporan tidak ditemukan atau sudah tidak tersedia."}
+      </p>
       <div className="mt-8"><Link href="/" className={buttonClass()}>Ke verifikasi</Link></div>
     </div>
   );
@@ -325,8 +342,12 @@ export default function ReportPage() {
   const primaryAddr = addrs[0] || {};
   const bizDetails = (primaryAddr.business_details as Record<string, unknown>) || {};
   const addrDetails = (primaryAddr.address_details as Record<string, unknown>) || {};
-  const companyName = String(bizDetails.matched_name ?? entities?.companies?.[0] ?? "Perusahaan");
-  const address = String(primaryAddr.address_input ?? entities?.addresses?.[0] ?? "");
+  // Nama dari lowongan, bukan judul hasil Google Maps; nama tempat di peta ditampilkan terpisah.
+  const companyName = entities?.companies?.[0] ?? "Nama perusahaan tidak disebut";
+  const mapsPlaceName = typeof bizDetails.matched_name === "string" ? bizDetails.matched_name : null;
+  const addressSource = primaryAddr.address_source as string | undefined;
+  const addressFromPosting = !addressSource || addressSource === "posting_address" || addressSource === "posting_address_refined";
+  const address = entities?.addresses?.[0] ?? "";
   const hasBusinessPoint = bizDetails.source === "google_maps_serp" && bizDetails.lat != null;
   const hasCoords = typeof addrDetails.lat === "number" && typeof addrDetails.lon === "number";
 
@@ -339,7 +360,10 @@ export default function ReportPage() {
       return ["instagram.com", "facebook.com", "linkedin.com", "tiktok.com", "threads.net", "threads.com", "twitter.com", "x.com"].some((d) => url.includes(d));
     })
     .slice(0, 6);
-  const officialWebsites = (osint?.web?.websites ?? []).filter((w) => w.ok && w.url);
+  const officialWebsites = (osint?.web?.websites ?? []).filter((w) => w.website_status === "AVAILABLE" && w.url);
+  const searches = osint?.web?.searches ?? [];
+  const searchUnavailable = searches.length > 0 && searches.every((s) => s.status === "UNAVAILABLE");
+  const nothingToSearch = searches.length === 0 && !entities?.companies?.length;
   const hasDigitalFootprint = socialProfiles.length > 0 || socialWebResults.length > 0 || officialWebsites.length > 0;
 
   const riskFactors = report.risk_factors ?? [];
@@ -467,21 +491,22 @@ export default function ReportPage() {
             <div>
               <p className="text-xs font-bold uppercase tracking-wider text-text-muted">Perusahaan</p>
               <p className="mt-2 text-xl font-bold text-text-primary">{companyName}</p>
-              {address && <p className="mt-1 text-sm text-text-secondary">{address}</p>}
+              <p className="mt-1 text-sm text-text-secondary">{address || "Lowongan tidak mencantumkan alamat."}</p>
+              {/* Temuan ini netral: penipu memakai nama, alamat, dan akun perusahaan asli. Warnanya tidak hijau. */}
               <div className="mt-4 flex flex-wrap gap-2">
                 {hasBusinessPoint && (
-                  <span className="inline-flex items-center gap-1.5 rounded-full bg-aman-bg px-3 py-1 text-xs font-semibold text-aman-fg">
-                    <MapPin size={12} weight="fill" /> Titik Maps ditemukan
+                  <span className="inline-flex items-center gap-1.5 rounded-full bg-bg-subtle px-3 py-1 text-xs font-semibold text-text-secondary">
+                    <MapPin size={12} weight="fill" /> Ada di Google Maps
                   </span>
                 )}
                 {phones.length > 0 && phones.every((p) => getPhoneStatus(p).kind === "safe") && (
-                  <span className="inline-flex items-center gap-1.5 rounded-full bg-aman-bg px-3 py-1 text-xs font-semibold text-aman-fg">
-                    <Phone size={12} weight="fill" /> Nomor bersih
+                  <span className="inline-flex items-center gap-1.5 rounded-full bg-bg-subtle px-3 py-1 text-xs font-semibold text-text-secondary">
+                    <Phone size={12} weight="fill" /> Nomor tanpa laporan
                   </span>
                 )}
                 {hasDigitalFootprint && (
-                  <span className="inline-flex items-center gap-1.5 rounded-full bg-aman-bg px-3 py-1 text-xs font-semibold text-aman-fg">
-                    <ShareNetwork size={12} weight="fill" /> Jejak digital
+                  <span className="inline-flex items-center gap-1.5 rounded-full bg-bg-subtle px-3 py-1 text-xs font-semibold text-text-secondary">
+                    <ShareNetwork size={12} weight="fill" /> Ada jejak publik
                   </span>
                 )}
               </div>
@@ -512,6 +537,16 @@ export default function ReportPage() {
                   </span>
                 )}
               </div>
+              {!addressFromPosting && addrs.length > 0 && (
+                <p className="mt-2 rounded-lg bg-bg-subtle px-3 py-2 text-[13px] leading-relaxed text-text-secondary">
+                  {addressSource === "web_search"
+                    ? "Lowongan tidak mencantumkan alamat. Titik di bawah adalah alamat dari hasil pencarian web tentang nama perusahaan, bukan lokasi yang ditulis lowongan."
+                    : "Lowongan hanya menyebut wilayah penempatan. Titik di bawah adalah hasil pencarian wilayah atau nama usaha di wilayah itu, bukan alamat kantor dari lowongan."}
+                </p>
+              )}
+              {mapsPlaceName && addrDetails.match_level === "business" && (
+                <p className="mt-2 text-[13px] text-text-muted">Tempat di peta: {mapsPlaceName}</p>
+              )}
               {typeof addrDetails.display_name === "string" && addrDetails.display_name ? (
                 <p className="mt-2 text-sm leading-relaxed text-text-secondary">{addrDetails.display_name}</p>
               ) : address ? (
@@ -533,7 +568,7 @@ export default function ReportPage() {
                       addrDetails.match_level === "exact" || addrDetails.match_level === "business"
                         ? `https://www.google.com/maps?q=${(addrDetails.lat as number).toFixed(6)},${(addrDetails.lon as number).toFixed(6)}`
                         : `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(
-                            `${companyName !== "Perusahaan" ? companyName : ""}, ${
+                            `${entities?.companies?.[0] ?? ""}, ${
                               (addrDetails.display_name as string) || address
                             }`.trim().replace(/^,\s*/, "")
                           )}`
@@ -561,7 +596,7 @@ export default function ReportPage() {
                   href={bizDetails.maps_url}
                   target="_blank"
                   rel="noreferrer"
-                  className="mt-4 inline-flex min-h-11 items-center gap-2 rounded-xl bg-text-primary px-4 py-2.5 text-sm font-semibold text-bg-elevated transition-all hover:opacity-90"
+                  className={buttonClass({ className: "mt-4" })}
                 >
                   <MapPin size={15} weight="bold" /> Buka di Google Maps <ArrowSquareOut size={13} />
                 </a>
@@ -678,6 +713,14 @@ export default function ReportPage() {
                 );
               })}
             </div>
+          ) : nothingToSearch ? (
+            <p className="rounded-2xl border border-dashed border-border bg-bg-subtle/30 px-6 py-6 text-center text-[13px] text-text-muted">
+              Lowongan tidak menyebut nama perusahaan, jadi tidak ada nama yang bisa dicari jejaknya.
+            </p>
+          ) : searchUnavailable ? (
+            <p className="rounded-2xl border border-dashed border-border bg-bg-subtle/30 px-6 py-6 text-center text-[13px] text-text-muted">
+              Mesin pencari tidak dapat dihubungi saat pemeriksaan, jadi jejak digital belum bisa dicek. Ini bukan berarti tidak ada jejak.
+            </p>
           ) : (
             <div className="flex flex-col items-center justify-center rounded-2xl border border-dashed border-border bg-bg-subtle/30 px-6 py-8 text-center">
               <div className="flex h-10 w-10 items-center justify-center rounded-xl border border-border bg-bg-elevated text-text-muted shadow-2xs">
@@ -696,7 +739,7 @@ export default function ReportPage() {
 
       {/* ── Entitas lowongan (collapse) ── */}
       <motion.div {...fadeUp} transition={{ delay: 0.24 }} className="mt-6 overflow-hidden rounded-2xl border border-border bg-bg-elevated">
-        <button onClick={() => setShowEntities(!showEntities)} className="flex w-full items-center justify-between gap-3 px-5 py-4 text-left sm:px-8 sm:py-5">
+        <button type="button" aria-expanded={showEntities} aria-controls="report-entities" onClick={() => setShowEntities(!showEntities)} className="flex w-full items-center justify-between gap-3 px-5 py-4 text-left sm:px-8 sm:py-5">
           <div className="min-w-0">
             <h2 className="text-base font-bold text-text-primary sm:text-lg">Data Lowongan yang Diekstrak</h2>
             <p className="mt-0.5 truncate text-[13px] text-text-muted sm:text-sm">{companyName}{address ? ` • ${address.split(",")[0]}` : ""}</p>
@@ -704,7 +747,7 @@ export default function ReportPage() {
           <span className="shrink-0 text-text-muted">{showEntities ? <CaretUp size={18} /> : <CaretDown size={18} />}</span>
         </button>
         {showEntities && (
-          <div className="border-t border-border px-5 py-5 sm:px-8 sm:py-6">
+          <div id="report-entities" className="border-t border-border px-5 py-5 sm:px-8 sm:py-6">
             <div className="grid gap-5 sm:grid-cols-2 sm:gap-6 lg:grid-cols-3">
               {ENTITY_FIELDS.map(({ key, label, icon: Icon }) => {
                 const vals = entities?.[key] || [];
@@ -716,8 +759,8 @@ export default function ReportPage() {
                       <p className="text-xs font-bold uppercase tracking-wider text-text-muted">{label}</p>
                     </div>
                     <div className="space-y-1.5">
-                      {vals.map((val) => (
-                        <p key={val} className="break-all rounded-xl bg-bg-subtle px-3 py-2 font-mono text-[13px] text-text-secondary">
+                      {vals.map((val, vi) => (
+                        <p key={`${val}-${vi}`} className="break-all rounded-xl bg-bg-subtle px-3 py-2 font-mono text-[13px] text-text-secondary">
                           {val}
                         </p>
                       ))}
@@ -732,7 +775,7 @@ export default function ReportPage() {
 
       {/* ── Detail teknis / SHAP (collapse) ── */}
       <motion.div {...fadeUp} transition={{ delay: 0.28 }} className="mt-6 overflow-hidden rounded-2xl border border-border bg-bg-elevated">
-        <button onClick={() => setShowAudit((s) => !s)} className="flex w-full items-center justify-between gap-3 px-5 py-4 text-left sm:px-8 sm:py-5">
+        <button type="button" aria-expanded={showAudit} aria-controls="report-audit" onClick={() => setShowAudit((s) => !s)} className="flex w-full items-center justify-between gap-3 px-5 py-4 text-left sm:px-8 sm:py-5">
           <div className="min-w-0">
             <h2 className="text-base font-bold text-text-primary sm:text-lg">Detail Teknis & Atribusi Bukti</h2>
             <p className="mt-0.5 text-[13px] text-text-muted sm:text-sm">Kontribusi tiap sinyal terhadap skor akhir</p>
@@ -740,7 +783,7 @@ export default function ReportPage() {
           <span className="shrink-0 text-text-muted">{showAudit ? <CaretUp size={18} /> : <CaretDown size={18} />}</span>
         </button>
         {showAudit && (
-          <div className="border-t border-border px-5 py-5 sm:px-8 sm:py-6">
+          <div id="report-audit" className="border-t border-border px-5 py-5 sm:px-8 sm:py-6">
             {shap && shap.feature_contributions.length > 0 && (
               <>
                 <ShapChart shap={shap} />

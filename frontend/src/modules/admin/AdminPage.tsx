@@ -38,13 +38,12 @@ export interface UserInputLog {
   risk_score: number;
   extracted_entities: string[];
   created_at: string;
-  ip_address: string;
 }
 
 /* ─── Login Gate ──────────────────────────────────────────────────────────── */
 function LoginGate({ onAuth }: { onAuth: () => void }) {
   const [pw, setPw] = useState("");
-  const [error, setError] = useState(false);
+  const [error, setError] = useState<string | null>(null);
   const [shake, setShake] = useState(false);
   const [submitting, setSubmitting] = useState(false);
 
@@ -61,12 +60,17 @@ function LoginGate({ onAuth }: { onAuth: () => void }) {
       if (res.ok) {
         onAuth();
       } else {
-        setError(true);
+        const data = await res.json().catch(() => ({}));
+        setError(
+          res.status === 429 || res.status === 500
+            ? (data as { detail?: string }).detail || "Login sedang tidak bisa dipakai."
+            : "Password salah. Coba lagi.",
+        );
         setShake(true);
         setTimeout(() => setShake(false), 500);
       }
     } catch {
-      setError(true);
+      setError("Server tidak terjangkau. Coba lagi.");
     } finally {
       setSubmitting(false);
     }
@@ -100,10 +104,13 @@ function LoginGate({ onAuth }: { onAuth: () => void }) {
           transition={{ duration: 0.45 }}
           className="flex flex-col gap-3"
         >
+          <label htmlFor="admin-password" className="sr-only">Password admin</label>
           <input
+            id="admin-password"
             type="password"
+            autoComplete="current-password"
             value={pw}
-            onChange={(e) => { setPw(e.target.value); setError(false); }}
+            onChange={(e) => { setPw(e.target.value); setError(null); }}
             placeholder="Password admin"
             autoFocus
             className={cn(
@@ -114,7 +121,7 @@ function LoginGate({ onAuth }: { onAuth: () => void }) {
             )}
           />
           {error && (
-            <p className="text-[12px] text-bahaya-fg">Password salah. Coba lagi.</p>
+            <p role="alert" className="text-[12px] text-bahaya-fg">{error}</p>
           )}
           <button
             type="submit"
@@ -329,11 +336,16 @@ export default function AdminPage() {
           created_at: new Date(c.created_at).toLocaleString("id-ID", {
             dateStyle: "short",
             timeStyle: "short",
+            timeZone: "Asia/Jakarta",
           }) + " WIB",
-          ip_address: "-",
         })),
       );
-    } else setError(casesRes.reason instanceof Error ? casesRes.reason.message : "Gagal memuat kasus");
+    } else {
+      const msg = casesRes.reason instanceof Error ? casesRes.reason.message : "Gagal memuat kasus";
+      // Sesi kedaluwarsa: kembali ke layar login, bukan menampilkan error.
+      if (msg.includes("(401)")) setAuthed(false);
+      else setError(msg);
+    }
     if (statusRes.status === "fulfilled") setAiStatus(statusRes.value);
     setLoading(false);
   }
@@ -479,7 +491,7 @@ export default function AdminPage() {
         {[
           { id: "cases", label: `Riwayat Kasus (${stats.total})`, icon: ClockCounterClockwise },
           { id: "moderation", label: "Moderasi Laporan", icon: Flag },
-          { id: "user_inputs", label: `Riwayat Inputan User (${userInputs.length})`, icon: Database },
+          { id: "user_inputs", label: "Cari & saring kasus", icon: Database },
         ].map((tab) => {
           const Icon = tab.icon;
           const isActive = activeTab === tab.id;
@@ -551,9 +563,9 @@ export default function AdminPage() {
               <Database size={13} weight="bold" />
             </div>
             <div>
-              <p className="text-[13px] font-medium text-text-primary">Riwayat Inputan User dari Database PostgreSQL</p>
+              <p className="text-[13px] font-medium text-text-primary">Cari dan saring kasus</p>
               <p className="mt-0.5 text-[12px] leading-relaxed text-text-muted">
-                Menampilkan log seluruh inputan teks, poster gambar (OCR), dan link URL yang dikirim oleh publik ke sistem Verifin beserta entitas & bukti risiko yang diekstrak.
+                Data yang sama dengan tab Riwayat Kasus, dengan pencarian nama, nomor, email, atau ID dan saringan verdict serta sumber.
               </p>
             </div>
           </div>
@@ -697,8 +709,6 @@ export default function AdminPage() {
                   <div className="mt-4 pt-3 border-t border-border/50 flex items-center justify-between">
                     <div className="flex items-center gap-2 font-mono text-[10px] text-text-muted">
                       <span>{item.created_at}</span>
-                      <span>•</span>
-                      <span>{item.ip_address}</span>
                     </div>
 
                     {/* Button Lihat Detail / Lihat Selengkapnya (Pojok Kanan Bawah) */}

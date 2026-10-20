@@ -31,7 +31,10 @@ export interface OsintPhone {
 
 export interface OsintWebsite {
   url?: string;
-  ok?: boolean;
+  ok?: boolean | null;
+  /** AVAILABLE · HTTP_ERROR · NOT_FOUND · BLOCKED (anti-bot) · UNREACHABLE · SKIPPED */
+  website_status?: string;
+  neutral_notes?: string[];
   title?: string;
   snippet?: string;
   risk_flags?: string[];
@@ -105,10 +108,26 @@ export interface OsintPayload {
   fraud_network?: {
     status?: string;
     entity_in_fraud_network?: boolean;
+    entity_seen_multiple_cases?: boolean;
+    fraud_case_count?: number;
     total_case_count?: number;
     threat_level?: string;
     cluster_id?: string | null;
+    matched_entities?: {
+      entity_type?: string;
+      entity_value?: string;
+      total_appearances?: number;
+      fraud_appearances?: number;
+      verdicts?: string[];
+    }[];
+    community_reports?: {
+      status?: string;
+      report_count?: number | null;
+      pending_report_count?: number;
+    };
+    syndicate_analysis?: { syndicate_alerts?: { detail?: string; severity?: string }[] };
   };
+  foreign_locations?: string[];
   evidence_policy?: {
     mode?: string;
     note?: string;
