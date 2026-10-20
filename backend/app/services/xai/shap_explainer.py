@@ -1,7 +1,7 @@
 from datetime import datetime, timezone
 from typing import Any
 
-from app.services.constants import FREE_EMAIL_DOMAINS, RISK_THRESHOLD_WASPADA, RISK_THRESHOLD_BAHAYA
+from app.services.constants import FREE_EMAIL_DOMAINS, RISK_THRESHOLD_WASPADA, RISK_THRESHOLD_BAHAYA, score_to_verdict
 
 
 def _cs(raw: float, weight: float) -> dict[str, Any]:
@@ -335,15 +335,62 @@ def explain_verification_shap(
         community = network_context.get("community_reports") or {}
         approved_reports = int(community.get("report_count") or 0)
         if community.get("status") == "COMPLETED" and approved_reports > 0:
-            contributions.append(_make_contrib(
-                "Dilaporkan Komunitas",
-                "community_reported",
-                approved_reports,
-                _FEATURE_WEIGHTS["community_reported"],
-                "risk",
-                f"Ada {approved_reports} laporan komunitas yang sudah disetujui admin untuk HP/email/PT/URL ini",
-            ))
+            contributions.append(_community_contrib(approved_reports))
 
+    attribution = _compose_attribution(base_value, risk_score, contributions)
+    risk_contribs = [c for c in contributions if c["impact"] == "risk"]
+    safe_contribs = [c for c in contributions if c["impact"] == "safe"]
+
+    forensic = _build_forensic_metadata(
+        risk_score=risk_score,
+        verdict=verdict,
+        osint_results=osint_results or {},
+        nlp_result=nlp_result,
+        network_context=network_context,
+        risk_contribs=risk_contribs,
+        safe_contribs=safe_contribs,
+        entities=entities,
+    )
+
+    return {
+        "model_type": "Evidence Attribution Engine (Feature Contribution Analysis)",
+        "base_value": base_value,
+        "final_risk_score": risk_score,
+        "evidence_confidence": forensic["evidence_confidence"],
+        "decision_confidence": forensic["decision_confidence"],
+        "confidence_method": forensic["confidence_method"],
+        "evidence_coverage_percent": forensic["evidence_coverage_percent"],
+        "probe_hit_rate_percent": forensic["probe_hit_rate_percent"],
+        "probe_applicability": forensic["probe_applicability"],
+        "decision_path": forensic["decision_path"],
+        "consistency_breakdown": forensic["consistency_breakdown"],
+        "dns_records": forensic["dns_records"],
+        "not_verified": forensic["not_verified"],
+        "probe_weights": forensic["probe_weights"],
+        "community_bootstrap_strategy": forensic["community_bootstrap_strategy"],
+        "deduplication_engine": forensic["deduplication_engine"],
+        "networkx_graph_analytics": forensic["networkx_graph_analytics"],
+        "checked_at": forensic["checked_at"],
+        "ethical_safeguards": {"human_review_recommended": True},
+        "verdict": verdict,
+        **attribution,
+        "summary": _attribution_summary(verdict),
+    }
+
+
+def _community_contrib(approved_reports: int) -> dict[str, Any]:
+    return _make_contrib(
+        "Dilaporkan Komunitas",
+        "community_reported",
+        approved_reports,
+        _FEATURE_WEIGHTS["community_reported"],
+        "risk",
+        f"Ada {approved_reports} laporan komunitas yang sudah disetujui admin untuk HP/email/PT/URL ini",
+    )
+
+
+def _compose_attribution(base_value: float, risk_score: float, contributions: list[dict[str, Any]]) -> dict[str, Any]:
+    """Susun kontribusi bukti + penyesuaian penalaran AI sehingga skor = base_value + Σ delta."""
     risk_contribs = [c for c in contributions if c["impact"] == "risk"]
     safe_contribs = [c for c in contributions if c["impact"] == "safe"]
 
@@ -386,50 +433,51 @@ def explain_verification_shap(
         })
         cumulative += delta
 
-    forensic = _build_forensic_metadata(
-        risk_score=risk_score,
-        verdict=verdict,
-        osint_results=osint_results or {},
-        nlp_result=nlp_result,
-        network_context=network_context,
-        risk_contribs=risk_contribs,
-        safe_contribs=safe_contribs,
-        entities=entities,
-    )
-
     return {
-        "model_type": "Evidence Attribution Engine (Feature Contribution Analysis)",
-        "base_value": base_value,
-        "final_risk_score": risk_score,
-        "evidence_confidence": forensic["evidence_confidence"],
-        "decision_confidence": forensic["decision_confidence"],
-        "confidence_method": forensic["confidence_method"],
-        "evidence_coverage_percent": forensic["evidence_coverage_percent"],
-        "probe_hit_rate_percent": forensic["probe_hit_rate_percent"],
-        "probe_applicability": forensic["probe_applicability"],
-        "decision_path": forensic["decision_path"],
-        "consistency_breakdown": forensic["consistency_breakdown"],
-        "dns_records": forensic["dns_records"],
-        "not_verified": forensic["not_verified"],
-        "probe_weights": forensic["probe_weights"],
-        "community_bootstrap_strategy": forensic["community_bootstrap_strategy"],
-        "deduplication_engine": forensic["deduplication_engine"],
-        "networkx_graph_analytics": forensic["networkx_graph_analytics"],
-        "checked_at": forensic["checked_at"],
-        "ethical_safeguards": {"human_review_recommended": True},
-        "verdict": verdict,
         "feature_contributions": all_contributions,
         "waterfall_chart": waterfall,
         "evidence_delta": round(evidence_delta, 2),
         "calibration_delta": calibration_delta,
         "top_risk_features": [c["feature"] for c in risk_contribs[:3]],
         "top_safe_features": [c["feature"] for c in safe_contribs[:3]],
-        "summary": (
-            f"Berdasarkan bukti publik independen yang berhasil dikumpulkan, lowongan ini dinilai "
-            f"{'aman — tidak ditemukan indikator kuat penipuan' if verdict == 'AMAN' else 'perlu diwaspadai — ditemukan sinyal risiko' if verdict == 'WASPADA' else 'berisiko tinggi — ditemukan indikator penipuan'}. "
-            f"Sistem tidak dapat menjamin legalitas perusahaan secara absolut karena beberapa sumber resmi (seperti registri AHU/OSS) tidak tersedia secara publik."
-        ),
     }
+
+
+def _attribution_summary(verdict: str) -> str:
+    return (
+        f"Berdasarkan bukti publik independen yang berhasil dikumpulkan, lowongan ini dinilai "
+        f"{'aman — tidak ditemukan indikator kuat penipuan' if verdict == 'AMAN' else 'perlu diwaspadai — ditemukan sinyal risiko' if verdict == 'WASPADA' else 'berisiko tinggi — ditemukan indikator penipuan'}. "
+        f"Sistem tidak dapat menjamin legalitas perusahaan secara absolut karena beberapa sumber resmi (seperti registri AHU/OSS) tidak tersedia secara publik."
+    )
+
+
+def rescore_community_reports(shap: dict[str, Any], approved_reports: int) -> tuple[int, str, dict[str, Any]]:
+    """Ganti kontribusi "Dilaporkan Komunitas" pada atribusi tersimpan setelah moderasi.
+
+    Penyesuaian penalaran AI dipertahankan, jadi skor bergeser tepat sebesar perubahan
+    bobot komunitas dan tetap = nilai dasar + Σ kontribusi. Bila skor terpotong ke 0–100,
+    penyesuaian AI yang menyerap selisihnya.
+    """
+    base_value = float(shap.get("base_value") or 12.0)
+    contributions = list(shap.get("feature_contributions") or [])
+    calibration = sum(c.get("delta", 0) for c in contributions if c.get("feature_key") == "model_calibration")
+    evidence = [
+        c for c in contributions
+        if c.get("feature_key") not in ("model_calibration", "community_reported")
+    ]
+    if approved_reports > 0:
+        evidence.append(_community_contrib(approved_reports))
+    raw = base_value + sum(c["delta"] for c in evidence) + calibration
+    risk_score = int(max(0, min(100, round(raw))))
+    verdict = score_to_verdict(risk_score)
+    updated = {
+        **shap,
+        "final_risk_score": risk_score,
+        "verdict": verdict,
+        **_compose_attribution(base_value, risk_score, evidence),
+        "summary": _attribution_summary(verdict),
+    }
+    return risk_score, verdict, updated
 
 
 def _build_forensic_metadata(
