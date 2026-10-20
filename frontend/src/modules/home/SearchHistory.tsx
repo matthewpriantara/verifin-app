@@ -228,8 +228,9 @@ export function SearchHistory() {
             <div className="flex items-center gap-1">
               <button
                 type="button"
-                disabled={currentPage === 1}
-                onClick={() => handlePageChange(Math.max(currentPage - 1, 1))}
+                disabled={safeCurrentPage === 1}
+                aria-label="Halaman sebelumnya"
+                onClick={() => handlePageChange(Math.max(safeCurrentPage - 1, 1))}
                 className="flex h-11 w-11 items-center justify-center rounded-lg border border-border bg-bg-subtle text-text-muted transition-colors hover:border-border-focus hover:text-text-primary disabled:opacity-30 disabled:pointer-events-none active:scale-95"
                 title="Halaman sebelumnya"
               >
@@ -237,8 +238,9 @@ export function SearchHistory() {
               </button>
               <button
                 type="button"
-                disabled={currentPage === totalPages}
-                onClick={() => handlePageChange(Math.min(currentPage + 1, totalPages))}
+                disabled={safeCurrentPage === totalPages}
+                aria-label="Halaman selanjutnya"
+                onClick={() => handlePageChange(Math.min(safeCurrentPage + 1, totalPages))}
                 className="flex h-11 w-11 items-center justify-center rounded-lg border border-border bg-bg-subtle text-text-muted transition-colors hover:border-border-focus hover:text-text-primary disabled:opacity-30 disabled:pointer-events-none active:scale-95"
                 title="Halaman selanjutnya"
               >

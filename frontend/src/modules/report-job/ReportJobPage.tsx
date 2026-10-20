@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, Suspense, useRef, useSyncExternalStore } from "react";
+import { useState, useEffect, useCallback, Suspense, useRef, useSyncExternalStore } from "react";
 import Link from "next/link";
 import { buttonClass } from "@/components/ui/Button";
 import { useSearchParams, useRouter } from "next/navigation";
@@ -17,10 +17,11 @@ import {
   CaretDown,
   FolderOpen,
 } from "@phosphor-icons/react";
-import { cn, getHistory, getServerHistory, subscribeHistory } from "@/lib/utils";
+import { cn, getHistory, getServerHistory, subscribeHistory, REPORT_STORAGE_KEY } from "@/lib/utils";
 import ReportJobLoading from "@/app/report-job/loading";
 import type { ReportType } from "@/types/admin";
-import { submitCommunityReport } from "@/lib/api";
+import { getCaseById, submitCommunityReport } from "@/lib/api";
+import type { VerifyResponse } from "@/types/verify";
 
 const REPORT_TYPES: { value: ReportType; label: string; desc: string }[] = [
   {
@@ -68,6 +69,8 @@ function ReportJobPageInner() {
   const [selectedCaseId, setSelectedCaseId] = useState<string | null>(urlCaseId || null);
 
   const [companyName, setCompanyName] = useState("");
+  const [phone, setPhone] = useState("");
+  const [email, setEmail] = useState("");
   const [reportType, setReportType] = useState<ReportType | "">("");
   const [description, setDescription] = useState("");
   const [evidenceUrl, setEvidenceUrl] = useState("");
@@ -78,37 +81,35 @@ function ReportJobPageInner() {
   const [success, setSuccess] = useState(false);
   const [error, setError] = useState("");
 
+  // Isi otomatis dari kasus yang dilaporkan: nama, nomor, email, dan tautan dari hasil verifikasinya.
+  // Nomor dan email penting karena laporan dicocokkan ke lowongan lain lewat keduanya.
+  const prefillFromCase = useCallback(async (caseId: string) => {
+    let report: VerifyResponse | null = null;
+    try {
+      report = await getCaseById(caseId);
+    } catch {
+      const raw = sessionStorage.getItem(REPORT_STORAGE_KEY);
+      const local = raw ? (JSON.parse(raw) as VerifyResponse) : null;
+      report = local?.case_id === caseId ? local : null;
+    }
+    if (!report) return;
+    const e = report.entities;
+    setCompanyName(e?.companies?.[0] ?? "");
+    setPhone(e?.contacts?.[0] ?? "");
+    setEmail(e?.emails?.[0] ?? "");
+    setEvidenceUrl(e?.urls?.[0] ?? "");
+  }, []);
+
   useEffect(() => {
     if (!urlCaseId) return;
-    const raw = sessionStorage.getItem("verifin:last-report");
-    if (!raw) return;
-    try {
-      const report = JSON.parse(raw);
-      const company = report?.entities?.companies?.[0];
-      const url = report?.entities?.urls?.[0];
-      if (company || url) {
-        setTimeout(() => {
-          if (company) setCompanyName(company);
-          if (url) setEvidenceUrl(url);
-        }, 0);
-      }
-    } catch {
-      // ignore
-    }
-  }, [urlCaseId]);
+    let cancelled = false;
+    queueMicrotask(() => { if (!cancelled) void prefillFromCase(urlCaseId); });
+    return () => { cancelled = true; };
+  }, [urlCaseId, prefillFromCase]);
 
-  // Saat user pilih case dari dropdown, pre-fill company name & url
   const handleSelectCase = (caseId: string) => {
     setSelectedCaseId(caseId);
-    const item = historyItems.find((h) => h.case_id === caseId);
-    if (item) {
-      setCompanyName(item.title);
-      // Parse entitiesSummary: "Company • URL"
-      const parts = item.entitiesSummary.split(" • ");
-      if (parts.length > 1 && parts[1].startsWith("http")) {
-        setEvidenceUrl(parts[1]);
-      }
-    }
+    void prefillFromCase(caseId);
   };
 
   const handleFileSelect = (file: File | null) => {
@@ -142,13 +143,15 @@ function ReportJobPageInner() {
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
-    if (!companyName || !reportType || !description) return;
+    if (!(companyName.trim() || phone.trim()) || !reportType || !description) return;
 
     setLoading(true);
     setError("");
     try {
       await submitCommunityReport({
-        company_name: companyName,
+        company_name: companyName.trim() || undefined,
+        phone: phone.trim() || undefined,
+        email: email.trim() || undefined,
         report_type: reportType,
         description,
         url: evidenceUrl.trim() || undefined,
@@ -177,7 +180,7 @@ function ReportJobPageInner() {
           </div>
           <h2 className="text-xl font-bold text-text-primary">Laporan Terkirim</h2>
           <p className="mt-2 text-[14px] leading-relaxed text-text-secondary">
-            Laporanmu tentang <span className="font-semibold">{companyName}</span> telah berhasil kami terima.
+            Laporanmu tentang <span className="font-semibold">{companyName || phone}</span> telah berhasil kami terima.
             Admin akan meninjaunya dulu. Setelah disetujui, laporan ini menjadi bukti tambahan saat lowongan dengan kontak yang sama diperiksa.
           </p>
 
@@ -224,6 +227,8 @@ function ReportJobPageInner() {
             <button
               onClick={() => {
                 setCompanyName("");
+                setPhone("");
+                setEmail("");
                 setReportType("");
                 setDescription("");
                 setEvidenceUrl("");
@@ -352,11 +357,12 @@ function ReportJobPageInner() {
             {/* Dropdown pilih case dari history */}
             {selectedMode === "from_history" && (
               <div className="mt-4">
-                <label className="mb-1.5 block text-[12px] font-medium text-text-secondary">
+                <label htmlFor="lapor-riwayat" className="mb-1.5 block text-[12px] font-medium text-text-secondary">
                   Pilih Kasus Verifikasi <span className="text-bahaya-fg">*</span>
                 </label>
                 <div className="relative">
                   <select
+                    id="lapor-riwayat"
                     value={selectedCaseId || ""}
                     onChange={(e) => handleSelectCase(e.target.value)}
                     className="w-full appearance-none rounded-xl border border-border bg-bg px-4 py-3 pr-10 text-[13px] text-text-primary outline-none transition-colors focus:border-border-focus"
@@ -391,16 +397,17 @@ function ReportJobPageInner() {
           <div className="flex flex-col gap-5">
             {/* Company Name */}
             <div>
-              <label className="mb-1.5 block text-[12px] font-medium text-text-secondary">
-                Nama Perusahaan / Entitas Terlapor <span className="text-bahaya-fg">*</span>
+              <label htmlFor="lapor-perusahaan" className="mb-1.5 block text-[12px] font-medium text-text-secondary">
+                Nama Perusahaan / Entitas Terlapor <span className="text-text-muted">(isi nama atau nomor)</span>
               </label>
               <div className="relative">
                 <span className="absolute inset-y-0 left-0 flex items-center pl-3.5 text-text-muted">
                   <Buildings size={14} />
                 </span>
                 <input
+                  id="lapor-perusahaan"
                   type="text"
-                  required
+                  maxLength={255}
                   value={companyName}
                   onChange={(e) => setCompanyName(e.target.value)}
                   placeholder="Tulis nama perusahaan seperti di lowongan"
@@ -409,11 +416,47 @@ function ReportJobPageInner() {
               </div>
             </div>
 
+            {/* Nomor & email: dipakai mencocokkan laporan dengan lowongan lain yang memakai kontak sama */}
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+              <div>
+                <label htmlFor="lapor-nomor" className="mb-1.5 block text-[12px] font-medium text-text-secondary">
+                  Nomor WhatsApp/HP perekrut <span className="text-text-muted">(disarankan)</span>
+                </label>
+                <input
+                  id="lapor-nomor"
+                  type="tel"
+                  inputMode="tel"
+                  maxLength={32}
+                  value={phone}
+                  onChange={(e) => setPhone(e.target.value)}
+                  placeholder="0812xxxxxxx"
+                  className="w-full rounded-xl border border-border bg-bg px-4 py-3 text-[13px] text-text-primary placeholder:text-text-muted outline-none transition-colors focus:border-border-focus"
+                />
+              </div>
+              <div>
+                <label htmlFor="lapor-email" className="mb-1.5 block text-[12px] font-medium text-text-secondary">
+                  Email perekrut <span className="text-text-muted">(opsional)</span>
+                </label>
+                <input
+                  id="lapor-email"
+                  type="email"
+                  maxLength={255}
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  placeholder="hrd@contoh.com"
+                  className="w-full rounded-xl border border-border bg-bg px-4 py-3 text-[13px] text-text-primary placeholder:text-text-muted outline-none transition-colors focus:border-border-focus"
+                />
+              </div>
+              <p className="text-[12px] leading-relaxed text-text-muted sm:col-span-2">
+                Nomor dan email membantu sistem mengenali penipu yang berganti nama perusahaan.
+              </p>
+            </div>
+
             {/* Report Type Grid */}
-            <div>
-              <label className="mb-1.5 block text-[12px] font-medium text-text-secondary">
+            <div role="group" aria-labelledby="lapor-jenis">
+              <p id="lapor-jenis" className="mb-1.5 block text-[12px] font-medium text-text-secondary">
                 Pilih Jenis Modus Penipuan <span className="text-bahaya-fg">*</span>
-              </label>
+              </p>
               <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
                 {REPORT_TYPES.map((type) => {
                   const selected = reportType === type.value;
@@ -421,6 +464,7 @@ function ReportJobPageInner() {
                     <button
                       key={type.value}
                       type="button"
+                      aria-pressed={selected}
                       onClick={() => setReportType(type.value)}
                       className={cn(
                         "flex flex-col items-start rounded-xl border p-3.5 text-left transition-all",
@@ -454,7 +498,7 @@ function ReportJobPageInner() {
             </div>
 
             <div>
-              <label className="mb-1.5 block text-[12px] font-medium text-text-secondary">
+              <label htmlFor="lapor-kronologi" className="mb-1.5 block text-[12px] font-medium text-text-secondary">
                 Ceritakan urutan kejadiannya <span className="text-bahaya-fg">*</span>
               </label>
               <div className="relative">
@@ -462,7 +506,9 @@ function ReportJobPageInner() {
                   <Note size={14} />
                 </span>
                 <textarea
+                  id="lapor-kronologi"
                   required
+                  maxLength={4000}
                   rows={8}
                   value={description}
                   onChange={(e) => setDescription(e.target.value)}
@@ -487,14 +533,15 @@ function ReportJobPageInner() {
             <div className="flex flex-col gap-4">
               {/* Upload Gambar Bukti */}
               <div>
-                <label className="mb-1.5 block text-[12px] font-medium text-text-secondary">
+                <p className="mb-1.5 block text-[12px] font-medium text-text-secondary">
                   Unggah gambar bukti <span className="text-text-muted">(opsional, maks 5 MB)</span>
-                </label>
+                </p>
                 <input
                   ref={fileInputRef}
                   type="file"
                   accept="image/jpeg,image/png,image/webp"
                   onChange={(e) => handleFileSelect(e.target.files?.[0] || null)}
+                  aria-label="Unggah gambar bukti"
                   className="hidden"
                 />
                 {evidencePreview ? (
@@ -526,15 +573,17 @@ function ReportJobPageInner() {
 
               {/* Evidence URL */}
               <div>
-                <label className="mb-1.5 block text-[12px] font-medium text-text-secondary">
-                  Tautan Bukti (Drive/dll) <span className="text-text-muted">(opsional)</span>
+                <label htmlFor="lapor-tautan" className="mb-1.5 block text-[12px] font-medium text-text-secondary">
+                  Tautan lowongan atau bukti <span className="text-text-muted">(opsional)</span>
                 </label>
                 <div className="relative">
                   <span className="absolute inset-y-0 left-0 flex items-center pl-3.5 text-text-muted">
                     <LinkSimple size={14} />
                   </span>
                   <input
+                    id="lapor-tautan"
                     type="url"
+                    maxLength={512}
                     value={evidenceUrl}
                     onChange={(e) => setEvidenceUrl(e.target.value)}
                     placeholder="Contoh: https://drive.google.com/..."
@@ -558,7 +607,7 @@ function ReportJobPageInner() {
           <div className="flex items-center justify-end">
             <button
               type="submit"
-              disabled={!companyName || !reportType || !description || loading || (selectedMode === "from_history" && !selectedCaseId)}
+              disabled={!(companyName.trim() || phone.trim()) || !reportType || !description || loading || (selectedMode === "from_history" && !selectedCaseId)}
               className={buttonClass({ fullWidth: true, className: "sm:w-48" })}
             >
               {loading ? "Mengirim..." : "Kirim laporan"}

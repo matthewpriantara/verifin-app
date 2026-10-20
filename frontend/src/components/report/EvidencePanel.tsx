@@ -6,6 +6,7 @@ import {
   Phone,
   MagnifyingGlass,
   ShareNetwork,
+  Graph,
   Warning,
   CheckCircle,
   ArrowSquareOut,
@@ -19,7 +20,8 @@ interface DomainEvidence {
   domain?: string | null;
   age_years?: number | string | null;
   created_at?: string | null;
-  is_new?: boolean;
+  is_new?: boolean | null;
+  skipped?: string;
 }
 
 interface EmailSecurityEvidence {
@@ -39,6 +41,17 @@ function isJunkSnippet(s?: string): boolean {
     // selector CSS seperti ".elementor-26052 .elementor-element > .x"
     /(?:\.[\w-]+\s*(?:>|,|\s)\s*){4,}|:not\(|var\(--|\{[^}]*:[^}]*;/.test(s)
   );
+}
+
+function websiteLabel(status?: string, ok?: boolean | null): string {
+  switch (status) {
+    case "AVAILABLE": return "Bisa dibuka";
+    case "HTTP_ERROR": return "Situs menjawab error";
+    case "NOT_FOUND": return "Domain tidak terdaftar";
+    case "BLOCKED": return "Dilindungi anti-bot, isi tidak terbaca";
+    case "UNREACHABLE": return "Tidak bisa dibuka saat pemeriksaan";
+    default: return ok ? "Bisa dibuka" : "Tidak dapat dibuka";
+  }
 }
 
 function hostOf(url?: string): string {
@@ -140,7 +153,14 @@ export function EvidencePanel({ osint }: EvidencePanelProps) {
   const resultCount = web?.evidence_counts?.relevant_results ?? results.length;
   const searchUnavailable =
     (web?.searches ?? []).length > 0 && (web?.searches ?? []).every((s) => s.status === "UNAVAILABLE");
-  const websites = (web?.websites ?? []).filter((w) => w.url);
+  // Tautan internal yang sengaja tidak dibuka (perlindungan server) tidak ditampilkan sebagai situs.
+  const websites = (web?.websites ?? []).filter((w) => w.url && w.website_status !== "SKIPPED");
+  const network = osint.fraud_network;
+  const community = network?.community_reports;
+  const approvedReports = community?.status === "COMPLETED" ? Number(community.report_count ?? 0) : 0;
+  const pendingReports = Number(community?.pending_report_count ?? 0);
+  const otherCases = Number(network?.total_case_count ?? 0);
+  const fraudCases = Number(network?.fraud_case_count ?? 0);
   const registered = formatDate(domain.created_at);
 
   return (
@@ -152,7 +172,16 @@ export function EvidencePanel({ osint }: EvidencePanelProps) {
         </p>
       </div>
 
-      {domain.domain && (
+      {domain.domain && domain.skipped === "free_email" && (
+        <Section title="Domain email" icon={Globe}>
+          <p>
+            Email memakai layanan gratisan (<span className="font-mono text-text-primary">{domain.domain}</span>). Umur domain dan
+            pengaturan SPF/DMARC tidak diperiksa karena domain ini bukan milik perusahaan.
+          </p>
+        </Section>
+      )}
+
+      {domain.domain && domain.skipped !== "free_email" && (
         <Section title="Domain email" icon={Globe}>
           <dl className="grid gap-x-6 gap-y-3 sm:grid-cols-2">
             <div>
@@ -262,6 +291,45 @@ export function EvidencePanel({ osint }: EvidencePanelProps) {
         </Section>
       )}
 
+      {network && (
+        <Section title="Riwayat Verifin dan laporan komunitas" icon={Graph}>
+          {network.status !== "COMPLETED" ? (
+            <p>Riwayat kasus tidak dapat diperiksa saat pemeriksaan ini.</p>
+          ) : (
+            <ul className="space-y-2">
+              <li className="flex flex-wrap items-center justify-between gap-2">
+                <span>Laporan komunitas yang disetujui admin</span>
+                <Status
+                  text={approvedReports > 0 ? `${approvedReports} laporan` : "Belum ada"}
+                  kind={approvedReports > 0 ? "risk" : "neutral"}
+                />
+              </li>
+              {pendingReports > 0 && (
+                <li className="text-[12px] text-text-muted">
+                  {pendingReports} laporan lain masih menunggu tinjauan admin dan belum dipakai sebagai bukti.
+                </li>
+              )}
+              <li className="flex flex-wrap items-center justify-between gap-2">
+                <span>Nomor, email, atau nama yang sama di lowongan lain</span>
+                <Status
+                  text={otherCases > 0 ? `${otherCases} kasus${fraudCases > 0 ? `, ${fraudCases} BAHAYA` : ""}` : "Belum pernah muncul"}
+                  kind={fraudCases > 0 ? "risk" : "neutral"}
+                />
+              </li>
+              {(network.matched_entities ?? []).slice(0, 4).map((m, i) => (
+                <li key={i} className="text-[12px] text-text-muted">
+                  <span className="font-mono text-text-secondary">{m.entity_value}</span> muncul di {m.total_appearances} kasus
+                  {m.fraud_appearances ? `, ${m.fraud_appearances} di antaranya BAHAYA` : ""}.
+                </li>
+              ))}
+              {(network.syndicate_analysis?.syndicate_alerts ?? []).slice(0, 3).map((a, i) => (
+                <li key={`syn-${i}`} className="text-[12px] text-bahaya-fg">{a.detail}</li>
+              ))}
+            </ul>
+          )}
+        </Section>
+      )}
+
       {websites.length > 0 && (
         <Section title="Situs yang dibuka" icon={Globe}>
           <ul className="space-y-3">
@@ -271,11 +339,14 @@ export function EvidencePanel({ osint }: EvidencePanelProps) {
                   <a href={w.url} target="_blank" rel="noreferrer" className="break-all font-mono text-[13px] text-text-primary hover:underline">
                     {w.url}
                   </a>
-                  <Status text={w.ok ? "Bisa dibuka" : "Tidak dapat dibuka"} kind={w.ok ? "safe" : "neutral"} />
+                  <Status text={websiteLabel(w.website_status, w.ok)} kind={w.website_status === "NOT_FOUND" || w.website_status === "HTTP_ERROR" ? "risk" : "neutral"} />
                 </div>
                 {w.snippet && !isJunkSnippet(w.snippet) && (
                   <p className="mt-1 line-clamp-3 text-[12px] text-text-muted">{w.snippet}</p>
                 )}
+                {(w.neutral_notes ?? []).map((note, j) => (
+                  <p key={j} className="mt-1 text-[12px] text-text-muted">{note}</p>
+                ))}
               </li>
             ))}
           </ul>

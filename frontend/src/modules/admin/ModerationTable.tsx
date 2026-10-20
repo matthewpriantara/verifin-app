@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { motion, AnimatePresence } from "motion/react";
 import {
   CheckCircle,
@@ -20,7 +20,22 @@ import {
 import { cn } from "@/lib/utils";
 import { Skeleton } from "@/components/ui/Skeleton";
 import type { CommunityReport, ReportStatus, ReportType } from "@/types/admin";
-import { fetchCommunityReports, reviewCommunityReport } from "@/lib/api";
+import { API_BASE, fetchCommunityReports, reviewCommunityReport } from "@/lib/api";
+
+// File bukti disimpan backend (api.verifin.web.id); path relatif harus diarahkan ke sana,
+// bukan ke domain frontend.
+function evidenceSrc(url: string): string {
+  return url.startsWith("/") ? `${API_BASE}${url}` : url;
+}
+
+// Escape menutup modal; dipakai kedua modal admin.
+function useEscape(onClose: () => void) {
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => { if (e.key === "Escape") onClose(); };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [onClose]);
+}
 
 /* ── Helpers ──────────────────────────────────────────────────────────────── */
 const REPORT_TYPE_LABEL: Record<string, string> = {
@@ -75,6 +90,7 @@ function DetailModal({
   report: CommunityReport;
   onClose: () => void;
 }) {
+  useEscape(onClose);
   useEffect(() => {
     document.body.style.overflow = "hidden";
     return () => {
@@ -85,16 +101,19 @@ function DetailModal({
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-text-primary/20 px-4 backdrop-blur-sm">
       <motion.div
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="detail-laporan-title"
         initial={{ opacity: 0, scale: 0.95, y: 8 }}
         animate={{ opacity: 1, scale: 1, y: 0 }}
         exit={{ opacity: 0, scale: 0.95, y: 8 }}
         transition={{ duration: 0.2, ease: [0.16, 1, 0.3, 1] }}
-        className="w-full max-w-lg rounded-2xl border border-border bg-bg-elevated p-6 shadow-xl"
+        className="max-h-[calc(100dvh-2rem)] w-full max-w-lg overflow-y-auto rounded-2xl border border-border bg-bg-elevated p-6 shadow-xl"
       >
         <div className="mb-4 flex items-center justify-between border-b border-border pb-3">
           <div className="flex items-center gap-2">
             <Eye size={16} weight="bold" className="text-text-muted" />
-            <h3 className="text-[14px] font-bold text-text-primary">Detail Laporan Komunitas</h3>
+            <h3 id="detail-laporan-title" className="text-[14px] font-bold text-text-primary">Detail Laporan Komunitas</h3>
           </div>
           <button
             type="button"
@@ -121,6 +140,18 @@ function DetailModal({
                 {reportTypeLabel(report.report_type)}
               </span>
             </div>
+            {report.phone && (
+              <div>
+                <span className="text-[11px] font-medium text-text-muted block uppercase tracking-wider">Nomor terlapor</span>
+                <span className="font-mono text-text-primary block mt-0.5">{report.phone}</span>
+              </div>
+            )}
+            {report.email && (
+              <div>
+                <span className="text-[11px] font-medium text-text-muted block uppercase tracking-wider">Email terlapor</span>
+                <span className="font-mono text-text-primary block mt-0.5 break-all">{report.email}</span>
+              </div>
+            )}
             <div>
               <span className="text-[11px] font-medium text-text-muted block uppercase tracking-wider">Pelapor (IP)</span>
               <span className="font-mono text-text-primary flex items-center gap-1 mt-0.5">
@@ -165,14 +196,14 @@ function DetailModal({
             <div>
               <span className="text-[11px] font-medium text-text-muted block uppercase tracking-wider mb-1.5">Bukti Gambar</span>
               <a
-                href={`${report.evidence_file_url}`}
+                href={evidenceSrc(report.evidence_file_url)}
                 target="_blank"
                 rel="noopener noreferrer"
                 className="block overflow-hidden rounded-xl border border-border bg-bg-subtle transition-colors hover:border-border-focus"
               >
                 {/* eslint-disable-next-line @next/next/no-img-element */}
                 <img
-                  src={report.evidence_file_url}
+                  src={evidenceSrc(report.evidence_file_url)}
                   alt="Bukti komunitas"
                   className="h-48 w-full object-cover"
                 />
@@ -226,14 +257,19 @@ function NoteModal({
   action,
   onConfirm,
   onCancel,
+  error,
+  saving,
 }: {
   report: CommunityReport;
   action: "approved" | "rejected";
   onConfirm: (note: string) => void;
   onCancel: () => void;
+  error?: string;
+  saving?: boolean;
 }) {
   const [note, setNote] = useState("");
   const isApprove = action === "approved";
+  useEscape(onCancel);
 
   useEffect(() => {
     document.body.style.overflow = "hidden";
@@ -249,6 +285,9 @@ function NoteModal({
         animate={{ opacity: 1, scale: 1, y: 0 }}
         exit={{ opacity: 0, scale: 0.95, y: 8 }}
         transition={{ duration: 0.2, ease: [0.16, 1, 0.3, 1] }}
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="note-modal-title"
         className="w-full max-w-md rounded-2xl border border-border bg-bg-elevated p-5 shadow-xl"
       >
         <div className="mb-4 flex items-center gap-2.5">
@@ -263,7 +302,7 @@ function NoteModal({
               : <XCircle size={16} weight="bold" className="text-bahaya-fg" />}
           </div>
           <div>
-            <p className="text-[14px] font-semibold text-text-primary">
+            <p id="note-modal-title" className="text-[14px] font-semibold text-text-primary">
               {isApprove ? "Setujui laporan?" : "Tolak laporan?"}
             </p>
             <p className="text-[12px] text-text-muted">{report.company_name}</p>
@@ -277,10 +316,12 @@ function NoteModal({
         </div>
 
         <div className="mb-4">
-          <label className="mb-1.5 block text-[12px] font-medium text-text-secondary">
+          <label htmlFor="catatan-reviewer" className="mb-1.5 block text-[12px] font-medium text-text-secondary">
             Catatan reviewer <span className="text-text-muted">(opsional)</span>
           </label>
           <textarea
+            id="catatan-reviewer"
+            maxLength={2000}
             value={note}
             onChange={(e) => setNote(e.target.value)}
             rows={2}
@@ -289,17 +330,23 @@ function NoteModal({
           />
         </div>
 
+        {error && (
+          <p role="alert" className="mb-3 rounded-lg border border-bahaya-border bg-bahaya-bg px-3 py-2 text-[12px] text-bahaya-fg">{error}</p>
+        )}
         <div className="flex gap-2">
           <button
+            type="button"
             onClick={onCancel}
             className="flex-1 rounded-lg border border-border bg-bg-subtle px-3 py-2 text-[13px] text-text-secondary transition-colors hover:border-border-focus hover:text-text-primary"
           >
             Batal
           </button>
           <button
+            type="button"
+            disabled={saving}
             onClick={() => onConfirm(note)}
             className={cn(
-              "flex-1 rounded-lg px-3 py-2 text-[13px] font-semibold transition-opacity hover:opacity-90",
+              "flex-1 rounded-lg px-3 py-2 text-[13px] font-semibold transition-opacity hover:opacity-90 disabled:opacity-50",
               isApprove
                 ? "bg-aman-fg text-white"
                 : "bg-bahaya-fg text-white",
@@ -394,7 +441,7 @@ function ReportRow({
           <span className="mt-1 inline-flex items-center gap-1 text-[11px] text-text-secondary">
             <ImageSquare size={10} />
             <a
-              href={report.evidence_file_url}
+              href={evidenceSrc(report.evidence_file_url)}
               target="_blank"
               rel="noopener noreferrer"
               className="underline-offset-2 hover:underline"
@@ -466,6 +513,8 @@ export default function ModerationTable() {
   const [filter, setFilter] = useState<ReportStatus | "all">("all");
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState("");
+  const [modalError, setModalError] = useState("");
+  const [saving, setSaving] = useState(false);
   const [modal, setModal] = useState<{
     reportId: string;
     action: "approved" | "rejected";
@@ -493,8 +542,13 @@ export default function ModerationTable() {
     setModal({ reportId: id, action });
   }
 
+  const closeNoteModal = useCallback(() => { setModal(null); setModalError(""); }, []);
+  const closeDetailModal = useCallback(() => setDetailModalReport(null), []);
+
   async function confirmAction(note: string) {
-    if (!modal) return;
+    if (!modal || saving) return;
+    setSaving(true);
+    setModalError("");
     try {
       await reviewCommunityReport(modal.reportId, modal.action, note || undefined);
       setReports((prev) =>
@@ -506,7 +560,9 @@ export default function ModerationTable() {
       );
       setModal(null);
     } catch (err) {
-      setLoadError(err instanceof Error ? err.message : "Gagal menyimpan review.");
+      setModalError(err instanceof Error ? err.message : "Gagal menyimpan review.");
+    } finally {
+      setSaving(false);
     }
   }
 
@@ -638,7 +694,9 @@ export default function ModerationTable() {
             report={activeReport}
             action={modal.action}
             onConfirm={confirmAction}
-            onCancel={() => setModal(null)}
+            onCancel={closeNoteModal}
+            error={modalError}
+            saving={saving}
           />
         )}
       </AnimatePresence>
@@ -648,7 +706,7 @@ export default function ModerationTable() {
         {detailModalReport && (
           <DetailModal
             report={detailModalReport}
-            onClose={() => setDetailModalReport(null)}
+            onClose={closeDetailModal}
           />
         )}
       </AnimatePresence>

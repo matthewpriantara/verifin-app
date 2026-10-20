@@ -43,6 +43,11 @@ export function Footer() {
                   Lapor komunitas
                 </Link>
               </li>
+              <li>
+                <Link href="/privasi" className="flex min-h-11 items-center text-bg/70 hover:text-bg transition-colors">
+                  Privasi dan data
+                </Link>
+              </li>
             </ul>
           </div>
 

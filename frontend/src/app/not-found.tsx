@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { ArrowLeft, WarningCircle } from "@phosphor-icons/react/dist/ssr";
-import { Button } from "@/components/ui/Button";
+import { buttonClass } from "@/components/ui/Button";
 
 export default function NotFound() {
   return (
@@ -15,11 +15,9 @@ export default function NotFound() {
         Tautan yang kamu buka mungkin salah, telah dipindahkan, atau laporan verifikasi tidak lagi tersedia.
       </p>
       <div className="mt-8 flex items-center gap-3">
-        <Link href="/">
-          <Button variant="primary">
-            <ArrowLeft size={14} weight="bold" />
-            Kembali ke Beranda
-          </Button>
+        <Link href="/" className={buttonClass()}>
+          <ArrowLeft size={14} weight="bold" />
+          Kembali ke Beranda
         </Link>
       </div>
     </div>

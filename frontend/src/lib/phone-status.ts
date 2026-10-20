@@ -8,7 +8,8 @@ export interface PhoneStatus {
   shortLabel: string;
 }
 
-// "Bersih" hanya boleh tampil kalau probe Kaspersky benar-benar selesai.
+// "Tanpa laporan" hanya boleh tampil kalau probe Kaspersky benar-benar selesai. Tidak memakai
+// kata "bersih": tidak adanya laporan bukan bukti nomor aman.
 export function getPhoneStatus(p: OsintPhone): PhoneStatus {
   if (p.reported_fraud || p.reputation_status === "FLAGGED") {
     return { kind: "risk", label: "Dilaporkan penipuan", shortLabel: "Dilaporkan" };
@@ -17,7 +18,7 @@ export function getPhoneStatus(p: OsintPhone): PhoneStatus {
     return { kind: "risk", label: "Ditandai mencurigakan", shortLabel: "Mencurigakan" };
   }
   if (p.probe_status === "COMPLETED" && p.reputation_status === "CLEAN") {
-    return { kind: "safe", label: "Bersih dari laporan penipuan", shortLabel: "Bersih" };
+    return { kind: "safe", label: "Tidak ada laporan penipuan", shortLabel: "Tanpa laporan" };
   }
   return { kind: "neutral", label: "Tidak dapat dicek", shortLabel: "Tidak dapat dicek" };
 }
