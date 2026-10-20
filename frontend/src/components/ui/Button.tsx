@@ -1,7 +1,7 @@
 import { cn } from "@/lib/utils";
 import type { ButtonHTMLAttributes } from "react";
 
-type Variant = "primary" | "secondary" | "danger" | "ghost" | "outline";
+type Variant = "primary" | "secondary" | "danger" | "dangerSoft" | "ghost" | "outline";
 
 interface ButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
   variant?: Variant;
@@ -16,6 +16,9 @@ const variants: Record<Variant, string> = {
     "bg-bg-elevated text-text-primary border border-border-focus/80 hover:border-text-primary hover:bg-bg-subtle shadow-xs disabled:opacity-40",
   danger:
     "bg-bahaya-fg text-white hover:opacity-90 shadow-xs disabled:opacity-40",
+  // Merah lembut untuk aksi yang menghentikan sesuatu tapi tidak merusak data (mis. Batal analisis).
+  dangerSoft:
+    "border border-bahaya-border bg-bahaya-bg text-bahaya-fg hover:border-bahaya-fg/40 disabled:opacity-40",
   ghost:
     "bg-transparent text-text-secondary hover:text-text-primary hover:bg-bg-subtle disabled:opacity-40",
   outline:

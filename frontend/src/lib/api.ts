@@ -33,9 +33,11 @@ async function parseError(res: Response): Promise<string> {
 
 export async function verifyText(
  payload: TextVerifyRequest,
+ signal?: AbortSignal,
 ): Promise<VerifyResponse> {
  const res = await fetch(`${API_BASE}/api/v1/verify/text`, {
   method: "POST",
+  signal,
   headers: { "Content-Type": "application/json" },
   body: JSON.stringify({
    text: payload.text,
@@ -50,12 +52,13 @@ export async function verifyText(
  return res.json() as Promise<VerifyResponse>;
 }
 
-export async function verifyImage(file: File): Promise<VerifyResponse> {
+export async function verifyImage(file: File, signal?: AbortSignal): Promise<VerifyResponse> {
  const form = new FormData();
  form.append("file", file);
 
  const res = await fetch(`${API_BASE}/api/v1/verify/image`, {
   method: "POST",
+  signal,
   body: form,
  });
 

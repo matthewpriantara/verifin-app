@@ -12,4 +12,4 @@ Tanggal: 20 Okt 2026. User menyetujui nomor 1–5. Nomor 6 (halaman admin) tidak
 
 Verifikasi: `tsc` dan `eslint` bersih. Frontend lokal dengan API produksi, desktop 1280 dan HP 375: laporan T4 dan T10, `/cari`, `/report-job`; lebar gulir sama dengan lebar layar.
 
-Catatan di luar audit: `/cari` menampilkan dua baris untuk PT Indokarya (AMAN 28 dan AMAN 20) dan Qhomemart (AMAN 15 dan AMAN 12). Teks OCR poster dan hasil ekstraksi tautan dari run berbeda menghasilkan hash berbeda. Belum dihapus; menunggu keputusan user.
+Catatan di luar audit: `/cari` menampilkan dua baris untuk PT Indokarya (AMAN 28 dan AMAN 20) dan Qhomemart (AMAN 15 dan AMAN 12). Teks OCR poster dan hasil ekstraksi tautan dari run berbeda menghasilkan hash berbeda. Dihapus 20 Okt atas izin user: `91f1f0ec` (Indokarya, AMAN 20) dan `ff7df769` (Qhomemart, AMAN 12); cadangan di server `~/backup/job_cases/indokarya-qhomemart-20261020.json`. `job_cases` kini 14 baris, satu per kasus uji.
