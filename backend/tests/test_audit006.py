@@ -147,3 +147,15 @@ def test_network_section_reports_approved_community_reports():
     text = _build_network_section({"status": "COMPLETED", "community_reports": {"report_count": 2}, "fraud_case_count": 1, "total_case_count": 3})
     assert "SUDAH DISETUJUI admin untuk nomor/email/nama/URL ini: 2" in text
     assert "1 di antaranya berverdict BAHAYA" in text
+
+
+# Run 9: "Kirim CV terbaik Anda" bukan badan usaha; wilayah non-tempat tidak dipetakan
+def test_cv_as_resume_is_not_a_company():
+    assert extract_entities_from_text("Kirim CV terbaik Anda ke email hrd@x.com")["companies"] == []
+    assert extract_entities_from_text("CV Sinar Jaya membuka lowongan")["companies"] == ["CV. Sinar Jaya"]
+
+
+def test_country_or_company_phrases_are_not_places():
+    from app.services.osint.runner import _NOT_A_PLACE
+    assert _NOT_A_PLACE.search("Indonesia") and _NOT_A_PLACE.search("Wilayah Kerja PT. Pos Indonesia (Persero)")
+    assert not _NOT_A_PLACE.search("Jakarta Selatan")

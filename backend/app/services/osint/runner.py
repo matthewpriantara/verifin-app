@@ -18,6 +18,14 @@ _FOREIGN_PLACE = re.compile(
 )
 
 
+# Wilayah yang bukan tempat yang bisa dipetakan: seluruh negeri, atau frasa yang memuat nama
+# perusahaan ("Wilayah Kerja PT. Pos Indonesia (Persero)").
+_NOT_A_PLACE = re.compile(
+    r"^\s*(?:seluruh\s+)?(?:wilayah\s+)?indonesia\s*$|\bnasional\b|\bseluruh\b|\b(?:pt|cv|persero|tbk)\b\.?",
+    re.I,
+)
+
+
 async def run_osint_probes(entities: dict) -> dict:
     from app.services.constants import FREE_EMAIL_DOMAINS
 
@@ -97,7 +105,9 @@ async def run_osint_probes(entities: dict) -> dict:
     raw_addresses = (entities.get("addresses") or entities.get("location_candidates") or [])
     addresses = [
         a for a in raw_addresses
-        if not _NON_GEO_PATTERNS.match(a.strip()) and not _FOREIGN_PLACE.search(a)
+        if not _NON_GEO_PATTERNS.match(a.strip())
+        and not _FOREIGN_PLACE.search(a)
+        and not (address_source == "location_candidate" and _NOT_A_PLACE.search(a))
     ][:2]
     foreign_places = [a for a in raw_addresses if _FOREIGN_PLACE.search(a)]
     companies = entities.get("companies") or []
