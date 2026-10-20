@@ -36,12 +36,40 @@ def _business_tokens(company_name: str | None) -> list[str]:
     return [t for t in re.findall(r"[a-z0-9]+", name.lower()) if len(t) >= 4 and t not in _BUSINESS_GENERIC]
 
 
-def _is_business_match(result: dict, tokens: list[str]) -> bool:
+_REGION_STOP = {"jalan", "jl", "jln", "no", "nomor", "rt", "rw", "kec", "kab", "kel", "kota",
+                "kabupaten", "kecamatan", "kelurahan", "desa", "indonesia", "daerah", "istimewa"}
+
+
+def _region_tokens(address: str) -> set[str]:
+    """Nama wilayah dari alamat (tanpa nama jalan pertama dan angka)."""
+    parts = [p for p in re.split(r",", address or "") if p.strip()]
+    region_text = " ".join(parts[1:]) if len(parts) > 1 else (address or "")
+    return {
+        t for t in re.findall(r"[a-z]+", region_text.lower())
+        if len(t) >= 4 and t not in _REGION_STOP
+    }
+
+
+def _is_business_match(result: dict, tokens: list[str], address: str = "") -> bool:
+    """Tempat usaha bernama sama di wilayah alamat lowongan.
+
+    Jalan atau wilayah yang kebetulan memuat nama merek (mis. "Jalan Batu Saphir" di Jakarta
+    untuk Hotel New Saphir Yogyakarta) tidak dihitung.
+    """
     if not tokens:
+        return False
+    if (result.get("class") or result.get("category")) in ("highway", "boundary", "place"):
         return False
     name = str(result.get("name") or (result.get("display_name") or "").split(",")[0]).lower()
     hits = [t for t in tokens if t in name]
-    return bool(hits) and len(hits) * 2 >= len(tokens)
+    if not hits or len(hits) * 2 < len(tokens):
+        return False
+    region = _region_tokens(address)
+    if region:
+        display = (result.get("display_name") or "").lower()
+        if not any(t in display for t in region):
+            return False
+    return True
 
 
 def _plain_display_name(result: dict) -> str:
@@ -237,7 +265,8 @@ async def geocode_address(address: str, company_name: str | None = None) -> dict
                 parts = [p.strip() for p in _clean_address_input(address).split(",") if p.strip()]
                 region = ", ".join(parts[-2:]) if len(parts) >= 2 else (parts[-1] if parts else "")
                 brand = " ".join(business_tokens)
-                queries = [q for q in (f"{brand}, {region}" if region else "", brand) if q] + queries
+                if region:
+                    queries = [f"{brand}, {region}"] + queries
 
             best_result = None
             best_match = None
@@ -247,7 +276,7 @@ async def geocode_address(address: str, company_name: str | None = None) -> dict
             for query in queries:
                 for result in await _geocode_candidates(query, client):
                     match = _classify_geocode_match(address, result)
-                    if _is_business_match(result, business_tokens):
+                    if _is_business_match(result, business_tokens, address):
                         match = {**match, "match_level": "business", "business_match": True,
                                  "matched_name": result.get("name") or (result.get("display_name") or "").split(",")[0]}
                     rank = (match_rank[match["match_level"]], _candidate_preference(result, match["match_level"]))

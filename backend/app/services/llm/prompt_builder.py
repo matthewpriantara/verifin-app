@@ -473,6 +473,7 @@ Putuskan AMAN, WASPADA, atau BAHAYA hanya dari bukti di bawah.
 - Kombinasi sinyal nyata tanpa bukti keras: alamat tidak ditemukan + jejak publik benar-benar nihil, instansi pemerintah + Gmail (45–60), atau sinyal scam lemah.
 - SINYAL TEKS "Mengaku perusahaan tetapi tidak menyebut namanya" = YA DAN "jalur melamar hanya WhatsApp/tautan bio" = YA: 45–60.
 - SINYAL TEKS "Mengatasnamakan BUMN/Persero/Tbk tetapi pendaftaran hanya lewat WhatsApp/tautan bio" = YA: minimal 60–74. Ada artikel peringatan/bantahan atas nama itu: mendekati 74.
+- Ada artikel peringatan/bantahan lowongan palsu atas nama perusahaan ini DAN jalur melamar hanya WhatsApp/tautan bio (SINYAL TEKS): minimal 60–74, walau nama tidak memakai akhiran Persero/Tbk.
 
 **BAHAYA (75–100)**
 - Wajib ada bukti keras: permintaan biaya/transfer/KTP/rekening (termasuk tiket atau akomodasi dengan janji reimburse), HP `reported_fraud`, form phishing, atau laporan penipuan spesifik yang menyebut nomor/perusahaan/modus lowongan ini.

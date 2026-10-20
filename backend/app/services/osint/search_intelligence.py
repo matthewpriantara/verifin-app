@@ -408,7 +408,7 @@ def scam_report_search(raw_company: str, *, max_results: int = 5) -> dict[str, A
     name = entity["brand"] or entity["canonical"] or (entity["search_names"] or [""])[0]
     if not name:
         return {"status": "SKIPPED", "query": "", "results": [], "warnings": 0}
-    query = f'"{name}" lowongan penipuan OR hoaks OR palsu'
+    query = f"lowongan {name} hoaks penipuan"
     if not is_searxng_available():
         return {"status": "UNAVAILABLE", "query": query, "results": [], "warnings": 0,
                 "error": "Mesin pencari (SearXNG) tidak dapat dihubungi."}
@@ -416,7 +416,11 @@ def scam_report_search(raw_company: str, *, max_results: int = 5) -> dict[str, A
     if not res.get("ok"):
         return {"status": "UNAVAILABLE", "query": query, "results": [], "warnings": 0,
                 "error": res.get("error") or "Pencarian gagal."}
-    name_tokens = [t for t in (entity.get("tokens") or []) if len(t) > 2] or [name.lower()]
+    generic = {"persero", "tbk", "indonesia", "group", "grup", "official", "company"}
+    name_tokens = [
+        t for t in re.findall(r"[a-z0-9]+", name.lower()) if len(t) > 2 and t not in generic
+    ] or [name.lower()]
+    name_patterns = [re.compile(rf"\b{re.escape(t)}\b") for t in name_tokens[:2]]
     matched: list[dict[str, Any]] = []
     seen: set[str] = set()
     for r in res.get("results") or []:
@@ -427,7 +431,7 @@ def scam_report_search(raw_company: str, *, max_results: int = 5) -> dict[str, A
         key = _url_key(url)
         if not url or key in seen:
             continue
-        if not all(t in blob for t in name_tokens[:2]):
+        if not all(p.search(blob) for p in name_patterns):
             continue
         if not any(w in blob for w in _WARNING_TOKENS):
             continue
