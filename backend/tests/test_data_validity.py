@@ -80,3 +80,25 @@ def test_area_display_shows_region_only():
                     "city_district": "Menteng", "city": "Jakarta Pusat", "postcode": "10350"},
     }
     assert _area_display_name(result) == "Gondangdia, Menteng, Jakarta Pusat, 10350"
+
+
+def test_scam_check_ignores_generic_disclaimers(monkeypatch):
+    from app.services.osint import search_intelligence as si
+    import app.services.osint.searxng_client as sx
+
+    results = [
+        {"url": "https://arest.web.id/content/lowongan-hr-generalist-di-pt-komitrando-emporio",
+         "title": "Lowongan HR Generalist di PT Komitrando Emporio Penempatan Bantul",
+         "snippet": "Berkenaan dengan kian maraknya modus penipuan penerimaan calon tenaga kerja, kami mengingatkan pelamar."},
+        {"url": "https://www.komdigi.go.id/berita/hoaks-lowongan-komitrando",
+         "title": "[HOAKS] Lowongan Kerja Komitrando Emporio", "snippet": "Lowongan kerja palsu."},
+        {"url": "https://careers.example.com/komitrando",
+         "title": "Komitrando Careers",
+         "snippet": "Waspada penipuan rekrutmen yang mengatasnamakan PT Komitrando Emporio, seleksi kerja tanpa biaya."},
+    ]
+    monkeypatch.setattr(sx, "is_searxng_available", lambda: True)
+    monkeypatch.setattr(sx, "searxng_search", lambda q, max_results=15: {"ok": True, "results": results})
+    out = si.scam_report_search("PT KOMITRANDO EMPORIO")
+    urls = [r["url"] for r in out["results"]]
+    assert "https://arest.web.id/content/lowongan-hr-generalist-di-pt-komitrando-emporio" not in urls
+    assert len(urls) == 2
