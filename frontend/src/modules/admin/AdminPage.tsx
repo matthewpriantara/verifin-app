@@ -142,7 +142,7 @@ function VerdictBadge({ verdict }: { verdict: string }) {
   return (
     <span
       className={cn(
-        "inline-flex items-center gap-1 rounded-md px-2 py-0.5 text-[11px] font-semibold uppercase tracking-wide",
+        "inline-flex items-center gap-1 rounded-md px-2 py-0.5 text-[11px] font-semibold",
         v === "AMAN" && "bg-aman-bg text-aman-fg border border-aman-border",
         v === "WASPADA" && "bg-waspada-bg text-waspada-fg border border-waspada-border",
         v === "BAHAYA" && "bg-bahaya-bg text-bahaya-fg border border-bahaya-border",
@@ -155,14 +155,20 @@ function VerdictBadge({ verdict }: { verdict: string }) {
 }
 
 /* ─── Stat card ───────────────────────────────────────────────────────────── */
-function StatCard({ label, value, color }: { label: string; value: number; color: string }) {
+function StatCard({ label, value, color, loading }: { label: string; value: number; color: string; loading: boolean }) {
   return (
     <div className="rounded-xl border border-border bg-bg-elevated p-5">
-      <p className="text-[11px] font-medium uppercase tracking-widest text-text-muted">{label}</p>
-      <p className={cn("mt-1.5 font-mono text-3xl font-semibold tabular-nums", color)}>{value}</p>
+      <p className="text-[13px] font-medium text-text-muted">{label}</p>
+      {loading ? (
+        <Skeleton className="mt-2.5 h-7 w-12" />
+      ) : (
+        <p className={cn("mt-1.5 text-3xl font-semibold tabular-nums", color)}>{value}</p>
+      )}
     </div>
   );
 }
+
+const SOURCE_LABEL: Record<string, string> = { text: "Teks", image: "Poster", url: "Tautan" };
 
 /* ─── Cases table ─────────────────────────────────────────────────────────── */
 function CasesTable({
@@ -239,7 +245,7 @@ function CasesTable({
               <td className="px-4 py-3">
                 <VerdictBadge verdict={c.verdict} />
               </td>
-              <td className="px-4 py-3 font-mono font-semibold text-text-primary">
+              <td className="px-4 py-3 font-semibold tabular-nums text-text-primary">
                 {c.risk_score}
               </td>
               <td className="px-4 py-3 text-text-secondary max-w-[160px] truncate">
@@ -249,8 +255,8 @@ function CasesTable({
                 {c.raw_text_preview || "-"}
               </td>
               <td className="px-4 py-3">
-                <span className="rounded border border-border px-1.5 py-0.5 font-mono text-[10px] text-text-muted uppercase">
-                  {c.source || "text"}
+                <span className="rounded border border-border px-1.5 py-0.5 text-[11px] text-text-muted">
+                  {SOURCE_LABEL[c.source || "text"] ?? c.source}
                 </span>
               </td>
               <td className="px-4 py-3 text-text-muted whitespace-nowrap">
@@ -367,18 +373,21 @@ export default function AdminPage() {
   }
 
   // Filter User Input Logs (Insensitif Spasi, Tanda Baca, & Huruf Besar/Kecil)
-  const normalizeSearchText = (text: string) => text.toLowerCase().replace(/[\s\-_.]/g, "");
+  const normalizeSearchText = (text: string) => text.toLowerCase().replace(/[\s\-_.+()]/g, "");
   const normalizedQuery = normalizeSearchText(searchQuery);
+  // Nomor disimpan dalam format +62; admin biasanya mengetik 08xx seperti di poster.
+  const queryVariants = /^0\d{3,}$/.test(normalizedQuery)
+    ? [normalizedQuery, `62${normalizedQuery.slice(1)}`]
+    : [normalizedQuery];
+  const matchesQuery = (text: string) => queryVariants.some((q) => normalizeSearchText(text).includes(q));
 
   const filteredUserInputs = userInputs.filter((item) => {
     const matchesSearch =
       !normalizedQuery ||
-      normalizeSearchText(item.company_name).includes(normalizedQuery) ||
-      normalizeSearchText(item.raw_input).includes(normalizedQuery) ||
-      normalizeSearchText(item.case_id).includes(normalizedQuery) ||
-      item.extracted_entities.some((entity) =>
-        normalizeSearchText(entity).includes(normalizedQuery)
-      );
+      matchesQuery(item.company_name) ||
+      matchesQuery(item.raw_input) ||
+      matchesQuery(item.case_id) ||
+      item.extracted_entities.some(matchesQuery);
 
     const matchesVerdict = verdictFilter === "ALL" || item.verdict === verdictFilter;
     const matchesSource = sourceFilter === "ALL" || item.source === sourceFilter;
@@ -422,10 +431,7 @@ export default function AdminPage() {
       {/* ── Header ── */}
       <div className="mb-8 flex items-center justify-between">
         <div>
-          <p className="font-mono text-[11px] uppercase tracking-widest text-text-muted">
-            Dashboard
-          </p>
-          <h1 className="mt-1 text-2xl font-semibold tracking-tight text-text-primary">
+          <h1 className="text-2xl font-semibold tracking-tight text-text-primary">
             Admin Panel
           </h1>
         </div>
@@ -443,7 +449,7 @@ export default function AdminPage() {
               <span
                 className={cn(
                   "h-1.5 w-1.5 rounded-full",
-                  aiStatus.reachable ? "bg-aman-fg animate-pulse" : "bg-bahaya-fg",
+                  aiStatus.reachable ? "bg-aman-fg" : "bg-bahaya-fg",
                 )}
               />
               {aiStatus.reachable ? "AI Online" : "AI Offline"}
@@ -479,17 +485,17 @@ export default function AdminPage() {
       {/* ── Stat cards dengan Button Lihat Detail di Sebelah Kanan ── */}
       <div className="mb-6 flex flex-col gap-3 sm:flex-row sm:items-stretch">
         <div className="grid flex-1 grid-cols-2 gap-3 sm:grid-cols-4">
-          <StatCard label="Total Kasus" value={stats.total} color="text-text-primary" />
-          <StatCard label="Aman" value={stats.aman} color="text-aman-fg" />
-          <StatCard label="Waspada" value={stats.waspada} color="text-waspada-fg" />
-          <StatCard label="Bahaya" value={stats.bahaya} color="text-bahaya-fg" />
+          <StatCard label="Total Kasus" value={stats.total} color="text-text-primary" loading={loading && cases.length === 0} />
+          <StatCard label="Aman" value={stats.aman} color="text-aman-fg" loading={loading && cases.length === 0} />
+          <StatCard label="Waspada" value={stats.waspada} color="text-waspada-fg" loading={loading && cases.length === 0} />
+          <StatCard label="Bahaya" value={stats.bahaya} color="text-bahaya-fg" loading={loading && cases.length === 0} />
         </div>
       </div>
 
       {/* ── Total 3 Tabs ── */}
       <div className="mb-6 flex flex-col gap-2 sm:flex-row rounded-xl border border-border bg-bg-subtle p-1">
         {[
-          { id: "cases", label: `Riwayat Kasus (${stats.total})`, icon: ClockCounterClockwise },
+          { id: "cases", label: loading && cases.length === 0 ? "Riwayat Kasus" : `Riwayat Kasus (${stats.total})`, icon: ClockCounterClockwise },
           { id: "moderation", label: "Moderasi Laporan", icon: Flag },
           { id: "user_inputs", label: "Cari & saring kasus", icon: Database },
         ].map((tab) => {
@@ -519,7 +525,11 @@ export default function AdminPage() {
       {activeTab === "cases" && (
         <div className="flex flex-col gap-4">
           {/* chart */}
-          <ReportChart cases={cases} onViewUserInputs={() => setActiveTab("user_inputs")} />
+          {loading && cases.length === 0 ? (
+            <Skeleton className="h-[260px] w-full rounded-xl" />
+          ) : (
+            <ReportChart cases={cases} onViewUserInputs={() => setActiveTab("user_inputs")} />
+          )}
 
           {/* table */}
           <div className="rounded-xl border border-border bg-bg-elevated overflow-hidden">
@@ -536,20 +546,6 @@ export default function AdminPage() {
       {/* ── Tab 2: Moderasi Laporan ── */}
       {activeTab === "moderation" && (
         <div className="flex flex-col gap-4">
-          {/* info callout */}
-          <div className="flex items-start gap-3 rounded-xl border border-border bg-bg-elevated px-4 py-3">
-            <div className="mt-0.5 flex h-6 w-6 shrink-0 items-center justify-center rounded-md bg-waspada-bg">
-              <Flag size={12} weight="bold" className="text-waspada-fg" />
-            </div>
-            <div>
-              <p className="text-[13px] font-medium text-text-primary">Moderasi Laporan Komunitas</p>
-              <p className="mt-0.5 text-[12px] leading-relaxed text-text-muted">
-                Setiap laporan dari pengguna diverifikasi oleh tim admin sebelum mempengaruhi skor risiko perusahaan.
-                Setujui laporan yang terbukti valid, atau tolak laporan yang tidak cukup bukti.
-              </p>
-            </div>
-          </div>
-
           <ModerationTable />
         </div>
       )}
@@ -557,19 +553,6 @@ export default function AdminPage() {
       {/* ── Tab 3: Riwayat Inputan User (Database) ── */}
       {activeTab === "user_inputs" && (
         <div className="flex flex-col gap-4">
-          {/* Header Callout Info */}
-          <div className="flex items-start gap-3 rounded-xl border border-border bg-bg-elevated px-4 py-3">
-            <div className="mt-0.5 flex h-6 w-6 shrink-0 items-center justify-center rounded-md bg-bg-subtle border border-border text-text-primary">
-              <Database size={13} weight="bold" />
-            </div>
-            <div>
-              <p className="text-[13px] font-medium text-text-primary">Cari dan saring kasus</p>
-              <p className="mt-0.5 text-[12px] leading-relaxed text-text-muted">
-                Data yang sama dengan tab Riwayat Kasus, dengan pencarian nama, nomor, email, atau ID dan saringan verdict serta sumber.
-              </p>
-            </div>
-          </div>
-
           {/* Filter & Search Bar */}
           <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 rounded-xl border border-border bg-bg-elevated p-3 shadow-sm">
             {/* Search Input */}
@@ -599,13 +582,13 @@ export default function AdminPage() {
                       setCurrentPage(1);
                     }}
                     className={cn(
-                      "px-2 py-0.5 text-[10px] font-mono font-semibold rounded transition-colors uppercase",
+                      "px-2 py-0.5 text-[12px] font-medium rounded transition-colors",
                       verdictFilter === v
                         ? "bg-text-primary text-bg-elevated"
                         : "text-text-muted hover:text-text-primary"
                     )}
                   >
-                    {v}
+                    {v === "ALL" ? "Semua" : v.charAt(0) + v.slice(1).toLowerCase()}
                   </button>
                 ))}
               </div>
@@ -620,13 +603,13 @@ export default function AdminPage() {
                       setCurrentPage(1);
                     }}
                     className={cn(
-                      "px-2 py-0.5 text-[10px] font-mono font-semibold rounded transition-colors uppercase",
+                      "px-2 py-0.5 text-[12px] font-medium rounded transition-colors",
                       sourceFilter === s
                         ? "bg-text-primary text-bg-elevated"
                         : "text-text-muted hover:text-text-primary"
                     )}
                   >
-                    {s}
+                    {s === "ALL" ? "Semua" : SOURCE_LABEL[s]}
                   </button>
                 ))}
               </div>
@@ -666,9 +649,9 @@ export default function AdminPage() {
                     {/* Header Row: Source Icon, Case ID & Verdict */}
                     <div className="flex items-center justify-between gap-2 mb-3">
                       <div className="flex items-center gap-2">
-                        <span className="inline-flex items-center gap-1.5 rounded-md border border-border bg-bg-subtle px-2 py-0.5 font-mono text-[10px] uppercase font-semibold text-text-muted">
+                        <span className="inline-flex items-center gap-1.5 rounded-md border border-border bg-bg-subtle px-2 py-0.5 text-[11px] font-medium text-text-muted">
                           {getSourceIcon(item.source)}
-                          {item.source}
+                          {SOURCE_LABEL[item.source]}
                         </span>
                         <span className="font-mono text-[11px] text-text-muted">
                           ID: #{item.case_id}
@@ -676,7 +659,7 @@ export default function AdminPage() {
                       </div>
                       <div className="flex items-center gap-1.5">
                         <VerdictBadge verdict={item.verdict} />
-                        <span className="font-mono text-[11px] font-bold text-text-primary">
+                        <span className="text-[12px] font-semibold tabular-nums text-text-primary">
                           ({item.risk_score})
                         </span>
                       </div>
@@ -688,7 +671,7 @@ export default function AdminPage() {
                     </h4>
 
                     {/* Raw Input Content Preview */}
-                    <p className="mt-1.5 text-[12px] leading-relaxed text-text-secondary line-clamp-2 bg-bg-subtle/50 p-2.5 rounded-xl border border-border/40 font-mono">
+                    <p className="mt-1.5 text-[12px] leading-relaxed text-text-secondary line-clamp-2 bg-bg-subtle/50 p-2.5 rounded-xl border border-border/40">
                       {item.raw_input}
                     </p>
 
@@ -707,7 +690,7 @@ export default function AdminPage() {
 
                   {/* Footer Row: Timestamp, IP & Button "Lihat Detail" / "Lihat Selengkapnya" at bottom-right corner */}
                   <div className="mt-4 pt-3 border-t border-border/50 flex items-center justify-between">
-                    <div className="flex items-center gap-2 font-mono text-[10px] text-text-muted">
+                    <div className="flex items-center gap-2 text-[11px] text-text-muted">
                       <span>{item.created_at}</span>
                     </div>
 
@@ -734,7 +717,7 @@ export default function AdminPage() {
           {/* Kontrol Pagination (6 Konten per Halaman) */}
           {filteredUserInputs.length > 0 && (
             <div className="mt-2 flex items-center justify-between rounded-xl border border-border bg-bg-elevated px-4 py-3 shadow-sm">
-              <span className="font-mono text-[11px] text-text-muted">
+              <span className="text-[12px] tabular-nums text-text-muted">
                 Menampilkan {Math.min((currentPage - 1) * ITEMS_PER_PAGE + 1, filteredUserInputs.length)}–
                 {Math.min(currentPage * ITEMS_PER_PAGE, filteredUserInputs.length)} dari {filteredUserInputs.length} inputan
               </span>
@@ -750,7 +733,7 @@ export default function AdminPage() {
                   <CaretLeft size={14} weight="bold" />
                 </button>
 
-                <div className="flex items-center gap-1 px-2 font-mono text-[12px] font-semibold text-text-primary">
+                <div className="flex items-center gap-1 px-2 text-[12px] font-semibold tabular-nums text-text-primary">
                   <span>{currentPage}</span>
                   <span className="text-text-muted">/</span>
                   <span className="text-text-muted">{totalPages}</span>
