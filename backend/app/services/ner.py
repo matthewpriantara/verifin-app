@@ -52,6 +52,13 @@ NEGATED_FEE = re.compile(
 )
 
 
+_RECRUITING_LINE = re.compile(
+    r"\b(?:konfirmasi|kehadiran|lamaran|lamar|daftar|pendaftaran|kirim\s+cv|cv|hrd|rekrut\w*|interview|wawancara|"
+    r"seleksi|kandidat|pelamar|loker|lowongan|info\s+lebih\s+lanjut|whatsapp|wa)\b",
+    re.I,
+)
+
+
 def strip_negated_fee(text: str) -> str:
     return NEGATED_FEE.sub(" ", text or "")
 
@@ -230,7 +237,11 @@ def extract_entities_from_text(text: str) -> dict:
                 start = max(line.rfind(ch, 0, start) for ch in ".!?;")
             ends = [i for i in (line.find(ch, m.end()) for ch in ".!?;") if i != -1]
             sentence = line[start + 1:min(ends) if ends else len(line)]
-            context = " ".join(lines[max(0, idx - 2):idx] + [sentence])
+            # Baris di atas hanya dipakai bila baris nomor itu sendiri bukan kalimat rekrutmen
+            # ("ADMIN: 0851…" di bawah "mau dipromosikan?"). "Konfirmasi kehadiran via WhatsApp 0822…"
+            # tetap nomor perekrut walau baris sebelumnya menyebut "admin grup".
+            own_is_recruiting = bool(_RECRUITING_LINE.search(sentence))
+            context = sentence if own_is_recruiting else " ".join(lines[max(0, idx - 2):idx] + [sentence])
             (promoter_phones if _PROMOTER_LINE.search(context) else phones).append(clean_indonesian_phone(m.group(0)))
     phones = [p for p in _uniq(phones) if p]
     promoter_phones = [p for p in _uniq(promoter_phones) if p and p not in phones]
