@@ -68,7 +68,8 @@ async def extract_entities_llm(text: str) -> dict[str, Any] | None:
     snippet = (text or "").strip()
     if not snippet:
         return None
-    snippet = snippet[:4000]
+    # Sama dengan batas input teks (10.000 karakter) supaya entitas di akhir lowongan tidak hilang.
+    snippet = snippet[:10000]
 
     messages = [
         {"role": "system", "content": _SYSTEM_PROMPT},

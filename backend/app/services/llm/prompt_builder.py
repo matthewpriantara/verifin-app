@@ -1,6 +1,6 @@
 import re
 
-from app.services.constants import FREE_EMAIL_DOMAINS
+from app.services.constants import DOMAIN_NEW_THRESHOLD_DAYS, FREE_EMAIL_DOMAINS
 
 
 def _build_domain_osint_section(emails: list, domain_info: dict, email_security: dict) -> str:
@@ -19,16 +19,22 @@ def _build_domain_osint_section(emails: list, domain_info: dict, email_security:
             "- JANGAN jadikan Gmail satu-satunya alasan skor tinggi atau WASPADA."
         )
 
-    domain_age = domain_info.get("age_years", "Tidak diketahui")
+    domain_age = domain_info.get("age_years")
     domain_created = domain_info.get("created_at", "Tidak diketahui")
-    domain_is_new = domain_info.get("is_new", False)
+    domain_is_new = domain_info.get("is_new")
     spf_ok = email_security.get("spf_active", False)
     dmarc_ok = email_security.get("dmarc_active", False)
+    if domain_is_new is True:
+        category = f"⚠️ DOMAIN BARU (< {DOMAIN_NEW_THRESHOLD_DAYS} hari)"
+    elif domain_is_new is False and domain_age is not None:
+        category = "✅ Domain sudah lama"
+    else:
+        category = "Umur domain TIDAK DIKETAHUI (WHOIS/RDAP tidak menjawab). Jangan dianggap baru maupun lama."
 
     return (
         f"- Domain: `{domain}`\n"
-        f"- Umur Domain: {domain_age} tahun (dibuat pada: {domain_created})\n"
-        f"- Kategori: {'⚠️ DOMAIN BARU (< 1 tahun)' if domain_is_new else '✅ Domain sudah lama'}\n"
+        f"- Umur Domain: {f'{domain_age} tahun (dibuat pada: {domain_created})' if domain_age is not None else 'tidak diketahui'}\n"
+        f"- Kategori: {category}\n"
         f"- Proteksi SPF: {'✅ Aktif' if spf_ok else '❌ Tidak Aktif (Rentan pemalsuan email)'}\n"
         f"- Proteksi DMARC: {'✅ Aktif' if dmarc_ok else '❌ Tidak Aktif'}"
     )
@@ -54,9 +60,11 @@ def _build_phone_osint_section(phones: list) -> str:
                 for rf in serp_risk:
                     lines.append(f"  → {rf}")
             else:
+                serp_ran = bool(serp.get("serp_checked")) and bool(serp.get("serp_results"))
                 lines.append(
                     f"- `{phone}`: Kaspersky Who Calls tidak dapat diakses ({p.get('error')}). "
-                    f"Pencarian SERP publik tidak menemukan laporan penipuan spesifik terkait nomor ini."
+                    + ("Pencarian publik tidak menemukan laporan penipuan spesifik terkait nomor ini."
+                       if serp_ran else "Pencarian publik untuk nomor ini juga tidak memberi hasil; reputasi nomor tidak diketahui.")
                 )
             continue
         parts = [
@@ -315,6 +323,17 @@ def _build_address_osint_section(address_validations: list) -> str:
 
         details = av.get("address_details", {}) or {}
         match_level = details.get("match_level", "area")
+        source = av.get("address_source")
+        if source == "web_search":
+            lines.append(
+                f"- CATATAN: `{addr}` TIDAK tertulis di lowongan; alamat ini diambil dari hasil pencarian web "
+                "tentang nama perusahaan. Kecocokannya di peta tidak membuktikan lokasi lowongan."
+            )
+        elif source == "location_candidate":
+            lines.append(
+                f"- CATATAN: lowongan hanya menyebut wilayah `{addr}`, bukan alamat. Titik peta di bawah adalah hasil "
+                "pencarian wilayah/nama usaha, bukan alamat kantor dari lowongan."
+            )
 
         if not found:
             lines.append(f"- `{addr}`: ❌ TIDAK DITEMUKAN di peta Indonesia.")
@@ -359,6 +378,38 @@ def _build_address_osint_section(address_validations: list) -> str:
             lines.append("  → ℹ️ Tidak ada nama perusahaan untuk dicocokkan di peta.")
 
     return "\n".join(lines) if lines else "- Validasi alamat tidak tersedia."
+
+
+def _build_network_section(network: dict | None, foreign_locations: list | None = None) -> str:
+    """Riwayat Verifin dan laporan komunitas. Dikirim ke LLM supaya keduanya ikut menentukan skor,
+    bukan hanya muncul di grafik kontribusi."""
+    network = network or {}
+    lines = []
+    if network.get("status") not in ("COMPLETED",):
+        lines.append("- Riwayat kasus tidak tersedia pada run ini (bukan sinyal aman maupun bahaya).")
+    else:
+        community = network.get("community_reports") or {}
+        approved = int(community.get("report_count") or 0)
+        pending = int(community.get("pending_report_count") or 0)
+        lines.append(
+            f"- Laporan komunitas yang SUDAH DISETUJUI admin untuk nomor/email/nama/URL ini: {approved}"
+            + (f" (menunggu tinjauan: {pending}, belum boleh dipakai sebagai bukti)" if pending else "")
+        )
+        fraud_cases = int(network.get("fraud_case_count") or 0)
+        total_cases = int(network.get("total_case_count") or 0)
+        lines.append(
+            f"- Entitas yang sama muncul di {total_cases} kasus lain; {fraud_cases} di antaranya berverdict BAHAYA."
+        )
+        for m in (network.get("matched_entities") or [])[:4]:
+            lines.append(
+                f"  → {m.get('entity_type')} `{m.get('entity_value')}`: {m.get('total_appearances')} kasus, "
+                f"{m.get('fraud_appearances')} BAHAYA"
+            )
+        for alert in ((network.get("syndicate_analysis") or {}).get("syndicate_alerts") or [])[:3]:
+            lines.append(f"  → ⚠️ {alert.get('detail')}")
+    if foreign_locations:
+        lines.append(f"- Lokasi kerja di luar negeri disebut: {', '.join(foreign_locations[:3])} (tidak dicari di peta Indonesia).")
+    return "\n".join(lines)
 
 
 def _build_text_signal_section(signals: dict | None) -> str:
@@ -445,6 +496,9 @@ Putuskan AMAN, WASPADA, atau BAHAYA hanya dari bukti di bawah.
 **Media sosial:**
 {_build_social_osint_section(osint_results.get("social", {}))}
 
+**Riwayat Verifin & laporan komunitas:**
+{_build_network_section(osint_results.get("fraud_network"), osint_results.get("foreign_locations"))}
+
 ## ATURAN BUKTI
 
 1. Pakai hanya fakta dari bagian DATA, BUKTI OSINT, dan teks asli. Dilarang mengarang status AHU/OSS, akun medsos, atau hasil Kaspersky.
@@ -476,7 +530,7 @@ Putuskan AMAN, WASPADA, atau BAHAYA hanya dari bukti di bawah.
 - Ada artikel peringatan/bantahan lowongan palsu atas nama perusahaan ini DAN jalur melamar hanya WhatsApp/tautan bio (SINYAL TEKS): minimal 60–74, walau nama tidak memakai akhiran Persero/Tbk.
 
 **BAHAYA (75–100)**
-- Wajib ada bukti keras: permintaan biaya/transfer/KTP/rekening (termasuk tiket atau akomodasi dengan janji reimburse), HP `reported_fraud`, form phishing, atau laporan penipuan spesifik yang menyebut nomor/perusahaan/modus lowongan ini.
+- Wajib ada bukti keras: permintaan biaya/transfer/KTP/rekening (termasuk tiket atau akomodasi dengan janji reimburse), HP `reported_fraud`, form phishing, laporan penipuan spesifik yang menyebut nomor/perusahaan/modus lowongan ini, laporan komunitas yang sudah disetujui admin, atau nomor/email yang sama dengan kasus BAHAYA lain.
 
 ## URUTAN PENALARAN
 

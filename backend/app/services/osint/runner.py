@@ -9,6 +9,15 @@ from app.services.osint.web_evidence import run_web_evidence
 from app.services.osint.whois_handler import check_domain_age, check_email_security
 from app.services.status_contract import COMPLETED, NOT_PROVIDED, UNAVAILABLE
 
+# Lokasi di luar negeri tidak dicari di peta Indonesia ("Jepang" bukan Desa Jepang, Kudus).
+_FOREIGN_PLACE = re.compile(
+    r"\b(?:jepang|japan|korea|taiwan|malaysia|hong\s*kong|singapura|singapore|brunei|arab\s+saudi|saudi|"
+    r"qatar|dubai|uni\s+emirat|turki|polandia|australia|kamboja|cambodia|myanmar|laos|thailand|vietnam|"
+    r"filipina|philippines|luar\s+negeri)\b",
+    re.I,
+)
+
+
 async def run_osint_probes(entities: dict) -> dict:
     from app.services.constants import FREE_EMAIL_DOMAINS
 
@@ -82,8 +91,15 @@ async def run_osint_probes(entities: dict) -> dict:
         r"full\s*time|part\s*time|freelance|internship|magang)$",
         re.I,
     )
+    # Alamat fisik dari lowongan diutamakan. Bila tidak ada, kota penempatan dipakai, dan hasilnya
+    # ditandai supaya laporan tidak menampilkannya sebagai alamat yang tertulis di lowongan.
+    address_source = "posting_address" if entities.get("addresses") else "location_candidate"
     raw_addresses = (entities.get("addresses") or entities.get("location_candidates") or [])
-    addresses = [a for a in raw_addresses if not _NON_GEO_PATTERNS.match(a.strip())][:2]
+    addresses = [
+        a for a in raw_addresses
+        if not _NON_GEO_PATTERNS.match(a.strip()) and not _FOREIGN_PLACE.search(a)
+    ][:2]
+    foreign_places = [a for a in raw_addresses if _FOREIGN_PLACE.search(a)]
     companies = entities.get("companies") or []
     company_name = companies[0] if companies else None
 
@@ -116,9 +132,10 @@ async def run_osint_probes(entities: dict) -> dict:
         except Exception as exc:
             return (
                 {
+                    # Gagal memeriksa bukan bukti domain baru.
                     "error": str(exc),
                     "domain": domain,
-                    "is_new": True,
+                    "is_new": None,
                     "age_years": None,
                     "created_at": "Unknown",
                 },
@@ -131,7 +148,9 @@ async def run_osint_probes(entities: dict) -> dict:
 
         async def one(addr: str):
             try:
-                return await validate_address_and_business(addr, company_name, web_results)
+                result = await validate_address_and_business(addr, company_name, web_results)
+                result["address_source"] = address_source
+                return result
             except Exception:
                 return {
                     "address_input": addr,
@@ -209,6 +228,8 @@ async def run_osint_probes(entities: dict) -> dict:
 
     osint_results["domain"], osint_results["email_security"] = domain_pair
     osint_results["address_validations"] = addr_list
+    if foreign_places:
+        osint_results["foreign_locations"] = foreign_places
     osint_results["phones"] = phones
     if entities.get("phones"):
         phone_statuses = [p.get("probe_status") for p in phones if isinstance(p, dict)]
@@ -312,10 +333,10 @@ def _cross_check_phone_official(osint_results: dict) -> None:
         if local not in official_phones:
             sample = sorted(official_phones)[:3]
             note = (
-                f"Nomor kontak lowongan ({raw}) berbeda dari nomor yang tercantum pada "
-                f"jejak publik resmi bisnis (mis. +62{sample[0]}). Ini netral — nomor HR "
-                f"dapat berbeda dari kontak resmi — tetapi pastikan konfirmasi seleksi "
-                f"berasal dari kanal resmi perusahaan."
+                f"Nomor kontak lowongan ({raw}) tidak sama dengan nomor yang muncul di hasil "
+                f"pencarian tentang perusahaan ini (mis. +62{sample[0]}). Netral: nomor di hasil "
+                f"pencarian belum tentu nomor resmi, dan nomor HR bisa berbeda. Pastikan konfirmasi "
+                f"seleksi berasal dari kanal resmi perusahaan."
             )
             notes = p.setdefault("neutral_notes", [])
             if note not in notes:

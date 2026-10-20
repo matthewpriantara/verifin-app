@@ -26,6 +26,7 @@ from app.services.graph.fraud_network import (
     check_entity_in_network,
 )
 from app.services.status_contract import COMPLETED, UNAVAILABLE
+from app.services.ner import clean_indonesian_phone
 
 def _check_fraud_network(db: Session, entities: dict, raw_text: str | None = None) -> dict:
     from app.services.db_cache import _case_hash
@@ -102,16 +103,20 @@ def _community_report_signal(db: Session, entities: dict) -> dict:
     conditions = []
     for comp in (entities.get("companies") or []):
         conditions.append(func.lower(CommunityReport.company_name) == str(comp).strip().lower())
+        # "PT Pos Indonesia (Persero)" di lowongan, "Pos Indonesia" di laporan: bentuk badan usaha diabaikan.
+        bare = _LEGAL_WORDS.sub(" ", str(comp)).replace("(", " ").replace(")", " ")
+        bare = re.sub(r"\s+", " ", bare).strip().lower()
+        if bare and bare != str(comp).strip().lower():
+            conditions.append(func.lower(CommunityReport.company_name).in_([bare, f"pt {bare}", f"pt. {bare}"]))
     for em in (entities.get("emails") or []):
         conditions.append(func.lower(CommunityReport.email) == str(em).strip().lower())
     for url in (entities.get("urls") or []):
         conditions.append(CommunityReport.url == str(url).strip())
     for ph in (entities.get("phones") or []):
-        digits = "".join(c for c in str(ph) if c.isdigit())
-        if digits.startswith("0"):
-            digits = "62" + digits[1:]
-        if digits:
-            conditions.append(CommunityReport.phone == digits)
+        # Laporan disimpan dalam format "+628…" (clean_indonesian_phone); baris lama tanpa "+" ikut dicocokkan.
+        canon = clean_indonesian_phone(str(ph))
+        if canon:
+            conditions.append(CommunityReport.phone.in_([canon, canon.lstrip("+")]))
 
     if not conditions:
         return {"status": "NO_DATA", "report_count": 0, "reported_by_community": False}
@@ -362,110 +367,54 @@ async def _enrich_entities_from_osint(entities: dict, osint_results: dict) -> di
         return entities
 
     osint_addresses = _uniq(osint_addresses)
-
     existing_addresses = entities.get("addresses") or []
-    existing_locations = entities.get("location_candidates") or []
-
-    if not existing_addresses and not existing_locations and osint_addresses:
-        entities["addresses"] = osint_addresses
-        entities["_ner_meta"] = entities.get("_ner_meta") or {}
-        entities["_ner_meta"]["osint_enriched_addresses"] = True
-        entities["_ner_meta"]["osint_address_source"] = "web_evidence_extracted"
-        logging.getLogger(__name__).info(
-            "[osint_enrich] Addresses enriched from OSINT: %s", osint_addresses
-        )
-
-    if not existing_locations and osint_addresses:
-        entities["location_candidates"] = osint_addresses[:2]
-        logging.getLogger(__name__).info(
-            "[osint_enrich] Location candidates enriched from OSINT: %s", osint_addresses[:2]
-        )
-
     addr_validations = osint_results.get("address_validations") or []
-    needs_revalidation = False
+    log = logging.getLogger(__name__)
+
+    # Alamat dari pencarian web TIDAK ditulis ke entities["addresses"]: laporan harus tetap jujur
+    # bahwa lowongan tidak mencantumkan alamat. Alamat itu disimpan terpisah dan, bila dipetakan,
+    # ditandai address_source="web_search".
+    entities["web_addresses"] = osint_addresses[:3]
+
     best_osint_addr = None
-
-    if existing_addresses and osint_addresses:
+    if existing_addresses:
         street_pattern = re.compile(r"\b(?:jl\.?|jln\.?|jalan)\b", re.I)
-
-        def _addr_priority(addr: str) -> int:
-            score = 0
-            if street_pattern.search(addr):
-                score += 2
-            if any(len(addr) > len(na) for na in existing_addresses):
-                score += 1
-            return score
-
-        sorted_osint = sorted(osint_addresses, key=_addr_priority, reverse=True)
-
-        for osint_addr in sorted_osint:
+        # Hanya alamat web yang memperjelas alamat lowongan (bagian depannya sama, lebih lengkap).
+        for osint_addr in sorted(osint_addresses, key=lambda a: bool(street_pattern.search(a)), reverse=True):
             for ner_addr in existing_addresses:
                 ner_first = ner_addr.lower().split(",")[0].strip()
-                if (len(osint_addr) > len(ner_addr) and
-                    ner_first in osint_addr.lower()):
+                if len(osint_addr) > len(ner_addr) and ner_first and ner_first in osint_addr.lower():
                     best_osint_addr = osint_addr
-                    needs_revalidation = True
                     break
-            if needs_revalidation:
+            if best_osint_addr:
                 break
-
-    if not needs_revalidation and not existing_addresses and osint_addresses:
-        best_osint_addr = osint_addresses[0]
-        needs_revalidation = True
-
-    if needs_revalidation and best_osint_addr:
-        prev_match = ""
-        if addr_validations:
-            prev_match = (addr_validations[0].get("address_details") or {}).get("match_level", "")
-
-        logging.getLogger(__name__).info(
-            "[osint_enrich] Re-validation triggered: best_osint_addr=%s, prev_match=%s",
-            best_osint_addr, prev_match
-        )
-
-        if prev_match in ("", "area"):
-            try:
-                from app.services.osint.address_validator import validate_address_and_business
-                company = (entities.get("companies") or [""])[0]
-                web_results = [
-                    r
-                    for s in (web.get("searches") or [])
-                    for r in (s.get("results") or [])
-                    if isinstance(r, dict)
-                ]
-                new_validation = await validate_address_and_business(
-                    best_osint_addr, company, web_results
-                )
-                new_match = (new_validation.get("address_details") or {}).get("match_level", "")
-                logging.getLogger(__name__).info(
-                    "[osint_enrich] Re-validation result: %s → match_level=%s",
-                    best_osint_addr, new_match
-                )
-                if new_match in ("exact", "street") or (new_match == "area" and not addr_validations):
-                    addr_validations.insert(0, new_validation)
-                    osint_results["address_validations"] = addr_validations
-                    entities["addresses"] = [best_osint_addr] + [
-                        a for a in existing_addresses if a != best_osint_addr
-                    ]
-                    logging.getLogger(__name__).info(
-                        "[osint_enrich] Address updated to: %s (match_level=%s)",
-                        best_osint_addr, new_match
-                    )
-                else:
-                    logging.getLogger(__name__).info(
-                        "[osint_enrich] Re-validation not better (new=%s vs prev=%s), keeping original",
-                        new_match, prev_match
-                    )
-            except Exception as exc:
-                logging.getLogger(__name__).warning(
-                    "[osint_enrich] Re-validation failed: %s", exc
-                )
     else:
-        logging.getLogger(__name__).info(
-            "[osint_enrich] No re-validation needed (needs_revalidation=%s, best=%s, existing=%s, osint=%s)",
-            needs_revalidation, best_osint_addr, existing_addresses, osint_addresses[:3]
-        )
+        best_osint_addr = osint_addresses[0]
 
+    if not best_osint_addr:
+        return entities
+
+    prev_match = (addr_validations[0].get("address_details") or {}).get("match_level", "") if addr_validations else ""
+    if prev_match not in ("", "area"):
+        log.info("[osint_enrich] alamat lowongan sudah %s, tidak divalidasi ulang", prev_match)
+        return entities
+
+    try:
+        from app.services.osint.address_validator import validate_address_and_business
+        company = (entities.get("companies") or [""])[0]
+        web = osint_results.get("web") or {}
+        web_results = [
+            r for s in (web.get("searches") or []) for r in (s.get("results") or []) if isinstance(r, dict)
+        ]
+        new_validation = await validate_address_and_business(best_osint_addr, company, web_results)
+        new_match = (new_validation.get("address_details") or {}).get("match_level", "")
+        log.info("[osint_enrich] validasi alamat web %s → %s", best_osint_addr, new_match)
+        if new_match in ("exact", "street", "business") or (new_match == "area" and not addr_validations):
+            new_validation["address_source"] = "web_search" if not existing_addresses else "posting_address_refined"
+            addr_validations.insert(0, new_validation)
+            osint_results["address_validations"] = addr_validations
+    except Exception as exc:
+        log.warning("[osint_enrich] validasi alamat web gagal: %s", exc)
     return entities
 
 

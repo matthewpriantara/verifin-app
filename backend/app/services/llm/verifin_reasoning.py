@@ -1,6 +1,8 @@
 from app.services.llm.client import chat_completion, check_llm_status, extract_json_from_response
 from app.services.llm.prompt_builder import build_text_verify_prompt, build_verify_prompt
-from app.config import LLM_MODEL
+from app.config import LLM_MODEL, LLM_TIMEOUT
+
+REASONING_BUDGET_SEC = 55.0
 from app.services.constants import FREE_EMAIL_DOMAINS
 import re as _re
 import logging
@@ -8,12 +10,21 @@ from difflib import SequenceMatcher
 
 logger = logging.getLogger(__name__)
 
-def _has_hard_risk_evidence(entities: dict, osint_results: dict) -> bool:
+def _has_hard_risk_evidence(entities: dict, osint_results: dict, text_signals: dict | None = None) -> bool:
     phones = osint_results.get("phones") or []
     web = osint_results.get("web") or {}
     network = osint_results.get("fraud_network") or {}
+    community = network.get("community_reports") or {}
+    signals = text_signals or {}
     gforms = web.get("gform_inspections") or []
-    has_fee = bool(entities.get("fee_requests")) or bool((entities.get("extraction_meta") or {}).get("has_fee_request"))
+    # Sinyal biaya bisa datang dari regex nominal (fee_requests) atau classifier teks
+    # ("bayar biaya pendaftaran 150rb via DANA" tidak berformat Rp).
+    has_fee = (
+        bool(entities.get("fee_requests"))
+        or bool((entities.get("extraction_meta") or {}).get("has_fee_request"))
+        or bool(entities.get("has_fee_request"))
+        or bool(signals.get("has_fee_request"))
+    )
     return bool(
         has_fee
         or any(
@@ -25,6 +36,7 @@ def _has_hard_risk_evidence(entities: dict, osint_results: dict) -> bool:
         or any(f.get("risk_flags") for f in gforms if isinstance(f, dict))
         or any(web_search.get("risk_flags") for web_search in web.get("searches") or [])
         or network.get("entity_in_fraud_network")
+        or int(community.get("report_count") or 0) > 0
     )
 
 
@@ -44,6 +56,7 @@ def _has_public_evidence(osint_results: dict) -> bool:
     social_counts = social.get("evidence_counts") or {}
     return bool(
         web_counts.get("relevant_results", 0) > 0
+        or int((web.get("scam_check") or {}).get("warnings") or 0) > 0
         or social_counts.get("public_posts", 0) > 0
         or social_counts.get("public_profiles", 0) > 0
         or web.get("websites")
@@ -78,8 +91,22 @@ def _phone_reputation_state(osint_results: dict) -> str:
     return "UNAVAILABLE" if phones else "NOT_PROVIDED"
 
 
-def _calibrate_unknown_search_output(parsed: dict, entities: dict, osint_results: dict) -> dict:
-    if not _search_has_only_unknown(osint_results) or _has_public_evidence(osint_results) or _has_hard_risk_evidence(entities, osint_results):
+_STRONG_TEXT_SIGNALS = ("has_fee_request", "has_foreign_work", "brand_unofficial_channel", "anonymous_employer_claim")
+
+
+def _calibrate_unknown_search_output(
+    parsed: dict, entities: dict, osint_results: dict, text_signals: dict | None = None
+) -> dict:
+    """Bila semua pencarian kosong dan tidak ada bukti apa pun, skor tinggi dari LLM diturunkan:
+    "tidak ada data" bukan bukti penipuan. Tidak berlaku bila teks sendiri memuat sinyal kuat
+    (biaya, kerja luar negeri, pencatutan BUMN, mengaku perusahaan tanpa nama)."""
+    signals = text_signals or {}
+    if (
+        not _search_has_only_unknown(osint_results)
+        or _has_public_evidence(osint_results)
+        or _has_hard_risk_evidence(entities, osint_results, signals)
+        or any(signals.get(k) for k in _STRONG_TEXT_SIGNALS)
+    ):
         return parsed
     if parsed.get("verdict") == "BAHAYA" or float(parsed.get("risk_score") or 0) >= 40:
         parsed["verdict"] = "AMAN"
@@ -107,7 +134,10 @@ def _has_corrupt_text(
         return True
     if "�" in text or _re.search(r"[\x00-\x08\x0b\x0c\x0e-\x1f]", text):
         return True
-    if _re.search(r"(?<!\s)[,:;.!?](?=[A-Za-z])", text):
+    # Tanda baca menempel huruf menandakan kalimat terpotong/rusak, kecuali di email, domain, dan URL
+    # ("hrd@gmail.com", "posindonesia.co.id") yang sah dipakai sebagai bukti.
+    without_refs = _re.sub(r"\S+@\S+|(?:https?://)?(?:[\w-]+\.)+[a-z]{2,}(?:/\S*)?", " ", text, flags=_re.I)
+    if _re.search(r"(?<!\s)[,:;.!?](?=[A-Za-z])", without_refs):
         return True
     evidence_tokens = {
         token.lower()
@@ -128,14 +158,20 @@ def _has_corrupt_text(
     return len(words) == 1 and len(text) > 15
 
 
-def _fallback_analysis(entities: dict, osint_results: dict, reason: str = "") -> dict:
+def _fallback_analysis(
+    entities: dict, osint_results: dict, reason: str = "", text_signals: dict | None = None
+) -> dict:
+    """Penilaian berbasis aturan saat LLM gagal. Memakai bukti yang sama dengan LLM: sinyal teks,
+    reputasi nomor, laporan komunitas, dan riwayat kasus."""
+    signals = text_signals or {}
     comp_name = (entities.get("companies") or ["Perusahaan"])[0]
+    phones = [p for p in (osint_results.get("phones") or []) if isinstance(p, dict)]
     has_fraud_phone = any(
-        p.get("reported_fraud")
-        or p.get("scam_confirmed")
-        or p.get("reputation_status") == "FLAGGED"
-        for p in (osint_results.get("phones") or [])
-        if isinstance(p, dict)
+        p.get("reported_fraud") or p.get("scam_confirmed") or p.get("reputation_status") == "FLAGGED"
+        for p in phones
+    )
+    phone_checked_clean = any(
+        p.get("probe_status") == "COMPLETED" and p.get("reputation_status") == "CLEAN" for p in phones
     )
     has_free_email = any(
         "@" in e and e.split("@")[-1].lower() in FREE_EMAIL_DOMAINS
@@ -144,48 +180,72 @@ def _fallback_analysis(entities: dict, osint_results: dict, reason: str = "") ->
     has_address = any(
         (item.get("address_found") or item.get("found"))
         and (item.get("match_level") or (item.get("address_details") or {}).get("match_level")) == "exact"
+        and item.get("address_source") in (None, "posting_address", "posting_address_refined")
         for item in (osint_results.get("address_validations") or [])
         if isinstance(item, dict)
     )
+    network = osint_results.get("fraud_network") or {}
+    approved_reports = int((network.get("community_reports") or {}).get("report_count") or 0)
+    scam_warnings = int(((osint_results.get("web") or {}).get("scam_check") or {}).get("warnings") or 0)
+    has_fee = _has_hard_risk_evidence({**entities, "fee_requests": entities.get("fee_requests")}, {}, signals)
 
     risk_score = 12
-    risk_factors = []
-    safe_factors = []
+    risk_factors: list[str] = []
+    safe_factors: list[str] = []
 
+    if has_fee:
+        risk_score += 65
+        risk_factors.append("Lowongan meminta biaya atau transfer kepada pelamar.")
     if has_fraud_phone:
         risk_score += 65
-        risk_factors.append("Nomor telepon kontak terdaftar dalam aduan penipuan publik.")
-    else:
+        risk_factors.append("Nomor kontak tercatat dalam laporan penipuan publik.")
+    elif phone_checked_clean:
         safe_factors.append("Tidak ditemukan laporan penipuan pada Kaspersky Who Calls.")
-
+    if approved_reports:
+        risk_score += 40
+        risk_factors.append("Pernah dilaporkan komunitas dan disetujui admin.")
+    if network.get("entity_in_fraud_network"):
+        risk_score += 30
+        risk_factors.append("Nomor/email sama dengan kasus berbahaya lain.")
+    if signals.get("has_foreign_work"):
+        risk_score += 25
+        risk_factors.append("Menawarkan kerja di luar negeri.")
+    if signals.get("brand_unofficial_channel"):
+        risk_score += 25
+        risk_factors.append("Mengatasnamakan BUMN lewat kanal tidak resmi.")
+    elif signals.get("has_whatsapp_apply"):
+        risk_score += 15
+        risk_factors.append("Pendaftaran hanya lewat WhatsApp pribadi.")
+    if signals.get("anonymous_employer_claim"):
+        risk_score += 15
+        risk_factors.append("Tidak menyebut nama perusahaan yang bisa dicek.")
+    if scam_warnings:
+        risk_score += 15
+        risk_factors.append("Nama perusahaan pernah dicatut lowongan palsu.")
     if has_free_email:
-        risk_score += 10
-        risk_factors.append(f"Email kontak ({entities.get('emails', [''])[0]}) menggunakan domain publik gratisan.")
-
+        risk_score += 8
+        risk_factors.append(f"Email kontak ({entities.get('emails', [''])[0]}) memakai layanan gratisan.")
     if has_address:
+        risk_score -= 6
         safe_factors.append("Jalan dan nomor alamat cocok dengan hasil peta.")
 
+    risk_score = max(0, min(100, risk_score))
     verdict = "AMAN" if risk_score < 40 else "WASPADA" if risk_score < 75 else "BAHAYA"
     verdict_label = {"AMAN": "berisiko rendah", "WASPADA": "perlu diperiksa lebih lanjut", "BAHAYA": "berisiko tinggi"}[verdict]
-    summary_parts = [f"Berdasarkan pemeriksaan bukti publik independen, lowongan {comp_name} dinilai {verdict_label}."]
-    if has_address:
-        summary_parts.append("Jalan/area ditemukan di OpenStreetMap; kecocokan nomor bergantung pada level match.")
-    if has_fraud_phone:
-        summary_parts.append("Ditemukan laporan penipuan pada nomor kontak.")
-    elif not has_fraud_phone and osint_results.get("phones"):
-        summary_parts.append("Tidak ditemukan laporan penipuan pada Kaspersky Who Calls.")
-    summary = " ".join(summary_parts)
+    summary = (
+        f"Penilaian berbasis aturan (penalaran AI tidak tersedia): lowongan {comp_name} dinilai {verdict_label}."
+    )
 
     return {
         "verdict": verdict,
         "risk_score": risk_score,
         "corrected_company_name": None,
         "summary": summary,
-        "risk_factors": risk_factors,
-        "safe_factors": safe_factors,
+        "risk_factors": risk_factors[:4],
+        "safe_factors": safe_factors[:3],
         "recommendations": [
-            "Pastikan wawancara diadakan di lokasi resmi perusahaan.",
-            "TIDAK AKAN membayar biaya registrasi, seragam, atau pelatihan."
+            "Pastikan wawancara di lokasi resmi perusahaan.",
+            "Jangan membayar biaya apa pun.",
         ],
         "model_used": f"{LLM_MODEL} (Rule-Based Fallback)",
         "entities_analyzed": entities,
@@ -417,19 +477,33 @@ async def analyze_with_verifin(
         {"role": "user", "content": prompt},
     ]
 
+    # Anggaran waktu total untuk penalaran. Jalur teks/gambar tidak memakai SSE, dan Cloudflare
+    # memutus permintaan sekitar 100 detik; lebih baik jatuh ke penilaian aturan daripada 524.
+    import asyncio as _asyncio
+    loop = _asyncio.get_running_loop()
+    deadline = loop.time() + REASONING_BUDGET_SEC
     try:
         parsed = None
         for attempt in range(3):
-            raw = await chat_completion(
-                messages=messages,
-                model=LLM_MODEL,
-                temperature=0.0,
-                max_tokens=8192,
-                seed=42,
+            remaining = deadline - loop.time()
+            if remaining < 8:
+                logger.warning("Anggaran waktu LLM habis setelah %d percobaan — fallback aturan.", attempt)
+                break
+            raw = await _asyncio.wait_for(
+                chat_completion(
+                    messages=messages,
+                    model=LLM_MODEL,
+                    temperature=0.0,
+                    max_tokens=8192,
+                    seed=42,
+                    timeout=min(LLM_TIMEOUT, remaining),
+                    max_retries=2,
+                ),
+                timeout=remaining,
             )
             parsed = extract_json_from_response(raw)
             parsed = _sanitize_llm_output(parsed, entities, osint_results, allowed_tokens)
-            parsed = _calibrate_unknown_search_output(parsed, entities, osint_results)
+            parsed = _calibrate_unknown_search_output(parsed, entities, osint_results, text_signals)
             for field in ("risk_factors", "safe_factors", "recommendations"):
                 items = parsed.get(field) or []
                 parsed[field] = [s for s in items if isinstance(s, str) and len(s) > 3]
@@ -446,16 +520,18 @@ async def analyze_with_verifin(
                     "Pastikan semua field terisi lengkap dan setiap kalimat tidak terpotong di tengah."
                 ),
             })
+        if parsed is None:
+            return _fallback_analysis(entities, osint_results, reason="timeout", text_signals=text_signals)
         parsed["model_used"] = f"{LLM_MODEL} (Evidence Reasoning)"
         if not _is_valid_llm_output(parsed, entities, allowed_tokens):
             logger.warning("Semua 3 attempt LLM gagal validasi semantik — memakai fallback evidence-only.")
-            parsed = _fallback_analysis(entities, osint_results)
+            parsed = _fallback_analysis(entities, osint_results, text_signals=text_signals)
         parsed["entities_analyzed"] = entities
         return parsed
 
     except Exception as exc:
         logger.exception("LLM reasoning gagal: %s — beralih ke fallback rule-based", exc)
-        return _fallback_analysis(entities, osint_results, reason=str(exc))
+        return _fallback_analysis(entities, osint_results, reason=str(exc), text_signals=text_signals)
 
 
 async def check_ai_status() -> dict:

@@ -1,4 +1,7 @@
+import asyncio
 import re
+import time
+
 import httpx
 from urllib.parse import quote_plus, unquote
 from app.services.status_contract import COMPLETED, FOUND, NO_RESULTS, UNAVAILABLE
@@ -8,6 +11,13 @@ REQUEST_TIMEOUT = OSINT_TIMEOUT_SEC
 NOMINATIM_HEADERS = {
     "User-Agent": OSINT_USER_AGENT
 }
+
+# Kebijakan Nominatim publik: maksimal 1 permintaan per detik untuk seluruh aplikasi.
+_NOMINATIM_LOCK = asyncio.Lock()
+_NOMINATIM_MIN_INTERVAL = 1.0
+_nominatim_last = 0.0
+_MAX_QUERIES_PER_ADDRESS = 8
+
 
 async def _geocode_candidates(address: str, client: httpx.AsyncClient) -> list[dict]:
     # Beberapa kandidat: dengan limit 1 Nominatim sering mengembalikan POI acak di jalan yang
@@ -19,7 +29,15 @@ async def _geocode_candidates(address: str, client: httpx.AsyncClient) -> list[d
         "countrycodes": "id",
         "addressdetails": 1,
     }
-    response = await client.get(NOMINATIM_URL, params=params)
+    global _nominatim_last
+    async with _NOMINATIM_LOCK:
+        wait = _NOMINATIM_MIN_INTERVAL - (time.monotonic() - _nominatim_last)
+        if wait > 0:
+            await asyncio.sleep(wait)
+        try:
+            response = await client.get(NOMINATIM_URL, params=params)
+        finally:
+            _nominatim_last = time.monotonic()
     response.raise_for_status()
     return response.json() or []
 
@@ -111,6 +129,15 @@ def _address_tokens(value: str) -> set[str]:
     }
 
 
+def _house_numbers(address: str) -> set[str]:
+    """Nomor bangunan dari alamat. Penanda kilometer ("KM 10"), RT/RW, dan kode pos bukan nomor bangunan."""
+    text = (address or "").lower()
+    text = re.sub(r"\bkm\.?\s*\d+(?:[.,]\d+)?", " ", text)
+    text = re.sub(r"\b(?:rt|rw)\.?\s*\d+", " ", text)
+    text = re.sub(r"\b\d{5}\b", " ", text)
+    return set(re.findall(r"\b\d+[a-z]?\b", text))
+
+
 def _classify_geocode_match(address: str, result: dict) -> dict:
     address_details = result.get("address") or {}
     display_name = result.get("display_name") or ""
@@ -120,7 +147,7 @@ def _classify_geocode_match(address: str, result: dict) -> dict:
     input_tokens = _address_tokens(address)
     result_tokens = _address_tokens(result_text)
     matched_tokens = input_tokens & result_tokens
-    house_numbers = set(re.findall(r"\b\d+[a-z]?\b", (address or "").lower()))
+    house_numbers = _house_numbers(address)
     result_house_number = str(address_details.get("house_number") or "").lower()
     result_house_numbers = set(re.findall(r"\b\d+[a-z]?\b", result_house_number))
     house_number_match = bool(house_numbers and house_numbers & result_house_numbers)
@@ -289,8 +316,15 @@ async def geocode_address(address: str, company_name: str | None = None) -> dict
             best_query = None
             best_rank = (-1, -1)
             match_rank = {"area": 0, "street": 1, "business": 2, "exact": 3}
-            for query in queries:
-                for result in await _geocode_candidates(query, client):
+            failures = 0
+            for query in queries[:_MAX_QUERIES_PER_ADDRESS]:
+                try:
+                    candidates = await _geocode_candidates(query, client)
+                except (httpx.HTTPError, ValueError):
+                    # Satu query gagal (mis. 429) tidak boleh membuang hasil terbaik yang sudah ada.
+                    failures += 1
+                    continue
+                for result in candidates:
                     match = _classify_geocode_match(address, result)
                     if _is_business_match(result, business_tokens, address):
                         match = {**match, "match_level": "business", "business_match": True,
@@ -318,7 +352,9 @@ async def geocode_address(address: str, company_name: str | None = None) -> dict
                     "lon": float(result["lon"]),
                     "display_name": (
                         result.get("display_name", "")
-                        if best_match["match_level"] in ("exact", "business")
+                        if best_match["match_level"] == "business"
+                        else _plain_display_name(result)
+                        if best_match["match_level"] == "exact"
                         else _plain_display_name(result)
                         if best_match["match_level"] == "street"
                         else _area_display_name(result)
@@ -331,6 +367,9 @@ async def geocode_address(address: str, company_name: str | None = None) -> dict
                     **best_match,
                 }
 
+        if failures and failures >= min(len(queries), _MAX_QUERIES_PER_ADDRESS):
+            return {"found": False, "probe_status": UNAVAILABLE, "evidence_status": UNAVAILABLE,
+                    "error": "Peta (Nominatim) tidak menjawab.", "lat": None, "lon": None}
         return {
             "found": False,
             "probe_status": COMPLETED,

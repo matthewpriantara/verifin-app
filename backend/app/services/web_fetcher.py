@@ -4,10 +4,10 @@ import asyncio
 import logging
 import re
 import tempfile
+from urllib.parse import quote
 
-import httpx
 from bs4 import BeautifulSoup
-from app.services.url_guard import validate_public_http_url
+from app.services.url_guard import resolve_public_url, safe_get, safe_get_async, validate_public_http_url
 
 logger = logging.getLogger(__name__)
 
@@ -94,7 +94,7 @@ def _sync_scrapling_fetch(url: str) -> tuple[str, list[str]]:
             shortcode = ig_match.group(1)
             embed_url = f"https://www.instagram.com/p/{shortcode}/embed/captioned/"
             try:
-                res = httpx.get(embed_url, headers=headers, follow_redirects=True, timeout=12.0)
+                res = safe_get(embed_url, headers=headers, timeout=12.0)
                 if res.status_code == 200:
                     soup = BeautifulSoup(res.text, "html.parser")
                     caption_el = soup.find("div", class_="Caption") or soup.find("div", class_="CaptionComments")
@@ -116,8 +116,8 @@ def _sync_scrapling_fetch(url: str) -> tuple[str, list[str]]:
 
             if not image_urls:
                 try:
-                    oembed_url = f"https://www.instagram.com/api/v1/oembed/?url={url}"
-                    o_res = httpx.get(oembed_url, headers=headers, follow_redirects=True, timeout=8.0)
+                    oembed_url = f"https://www.instagram.com/api/v1/oembed/?url={quote(url, safe='')}"
+                    o_res = safe_get(oembed_url, headers=headers, timeout=8.0)
                     if o_res.status_code == 200:
                         data = o_res.json()
                         if data.get("title") and not combined_caption_text:
@@ -131,7 +131,7 @@ def _sync_scrapling_fetch(url: str) -> tuple[str, list[str]]:
                 for domain in ["vxinstagram.com", "ddinstagram.com"]:
                     try:
                         fix_url = f"https://{domain}/p/{shortcode}/"
-                        f_res = httpx.get(fix_url, headers={"User-Agent": "facebookexternalhit/1.1"}, follow_redirects=True, timeout=8.0)
+                        f_res = safe_get(fix_url, headers={"User-Agent": "facebookexternalhit/1.1"}, timeout=8.0)
                         if f_res.status_code == 200:
                             f_soup = BeautifulSoup(f_res.text, "html.parser")
                             og_i = f_soup.find("meta", property="og:image") or f_soup.find("meta", attrs={"name": "twitter:image"})
@@ -148,7 +148,7 @@ def _sync_scrapling_fetch(url: str) -> tuple[str, list[str]]:
     if not combined_caption_text:
         try:
             from scrapling.fetchers import Fetcher
-            page = Fetcher.get(url, headers=headers)
+            page = Fetcher.get(resolve_public_url(url, headers=headers), headers=headers, follow_redirects=False, timeout=15)
             text_parts = []
             if combined_caption_text:
                 text_parts.append(combined_caption_text)
@@ -211,7 +211,7 @@ def _sync_scrapling_fetch(url: str) -> tuple[str, list[str]]:
 
     if not combined_caption_text:
         try:
-            res = httpx.get(url, headers=headers, follow_redirects=True, timeout=15.0)
+            res = safe_get(url, headers=headers, timeout=15.0)
             if res.status_code == 200:
                 soup = BeautifulSoup(res.text, "html.parser")
                 text_parts = []
@@ -250,17 +250,15 @@ async def _fetch_url_content_and_image(url: str) -> tuple[str, list[str]]:
         "Accept": "image/avif,image/webp,image/apng,image/svg+xml,image/*,*/*;q=0.8",
     }
 
-    async with httpx.AsyncClient(timeout=15.0, headers=headers, follow_redirects=True) as client:
-        for img_url in image_urls:
-            try:
-                validate_public_http_url(img_url)
-                img_res = await client.get(img_url)
-                if img_res.status_code == 200 and len(img_res.content) > 1000:
-                    ext = ".png" if ".png" in img_url.lower() else ".webp" if ".webp" in img_url.lower() else ".jpg"
-                    with tempfile.NamedTemporaryFile(delete=False, suffix=ext) as tmp:
-                        tmp.write(img_res.content)
-                        tmp_img_paths.append(tmp.name)
-            except Exception as exc:
-                logger.warning("[URL Fetch] gagal unduh gambar %s: %s", img_url, exc)
+    for img_url in image_urls:
+        try:
+            img_res = await safe_get_async(img_url, headers=headers, timeout=15.0)
+            if img_res.status_code == 200 and len(img_res.content) > 1000:
+                ext = ".png" if ".png" in img_url.lower() else ".webp" if ".webp" in img_url.lower() else ".jpg"
+                with tempfile.NamedTemporaryFile(delete=False, suffix=ext) as tmp:
+                    tmp.write(img_res.content)
+                    tmp_img_paths.append(tmp.name)
+        except Exception as exc:
+            logger.warning("[URL Fetch] gagal unduh gambar %s: %s", img_url, exc)
 
     return combined_caption_text, tmp_img_paths

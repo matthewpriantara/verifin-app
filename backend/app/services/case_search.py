@@ -12,7 +12,7 @@ from sqlalchemy import String, cast, func, or_
 from sqlalchemy.orm import Session
 
 from app.database.models import JobCase
-from app.services.db_cache import _normalize_url_variants
+from app.services.db_cache import _normalize_url_variants, _url_conditions
 
 QueryKind = Literal["url", "phone", "email", "company"]
 
@@ -36,6 +36,11 @@ def classify_query(q: str) -> QueryKind | None:
     if len(q) >= MIN_TEXT_CHARS:
         return "company"
     return None
+
+
+def like_escape(value: str) -> str:
+    """Input pengguna di pola LIKE: % dan _ diperlakukan sebagai huruf biasa."""
+    return value.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
 
 
 def canonical_phone(q: str) -> str:
@@ -87,22 +92,18 @@ def search_cases(
 
     if kind == "url":
         variants = _normalize_url_variants(q if q.lower().startswith("http") else f"https://{q}")
-        conds = []
-        for v in variants:
-            conds.append(JobCase.urls.contains([v]))
-            conds.append(JobCase.raw_text_preview.like(f"URL Target: {v}%"))
-        query = query.filter(or_(*conds))
+        query = query.filter(or_(*_url_conditions(variants)))
     elif kind == "phone":
-        query = query.filter(cast(JobCase.phones, String).like(f"%{canonical_phone(q)}%"))
+        query = query.filter(cast(JobCase.phones, String).like(f"%{like_escape(canonical_phone(q))}%", escape="\\"))
     elif kind == "email":
-        query = query.filter(cast(JobCase.emails, String).ilike(f"%{q.lower()}%"))
+        query = query.filter(cast(JobCase.emails, String).ilike(f"%{like_escape(q.lower())}%", escape="\\"))
     elif kind == "company":
-        like = f"%{q.lower()}%"
+        like = f"%{like_escape(q.lower())}%"
         query = query.filter(
             or_(
-                func.lower(JobCase.company_name).like(like),
-                func.lower(cast(JobCase.companies, String)).like(like),
-                func.lower(JobCase.llm_output["corrected_company_name"].astext).like(like),
+                func.lower(JobCase.company_name).like(like, escape="\\"),
+                func.lower(cast(JobCase.companies, String)).like(like, escape="\\"),
+                func.lower(JobCase.llm_output["corrected_company_name"].astext).like(like, escape="\\"),
             )
         )
 

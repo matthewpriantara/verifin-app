@@ -31,7 +31,12 @@ def _parse_kaspersky_page(page: Any, result: dict[str, Any]) -> dict[str, Any]:
         return result
 
     risk_flags = result["risk_flags"]
-    danger_level = _KASPERSKY_DANGER.get(verdict, 1)
+    if verdict not in _KASPERSKY_DANGER:
+        # Label baru/tidak dikenal tidak boleh otomatis dianggap mencurigakan.
+        result["error"] = f"Kaspersky: label status tidak dikenal ('{verdict}')."
+        result["category"] = verdict
+        return result
+    danger_level = _KASPERSKY_DANGER[verdict]
     result.update({
         "checked": True,
         "probe_status": COMPLETED,

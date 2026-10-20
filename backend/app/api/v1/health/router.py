@@ -3,6 +3,7 @@ from sqlalchemy import text
 from sqlalchemy.orm import Session
 from app.database.postgres_client import get_db
 from app.services.llm.verifin_reasoning import check_ai_status
+from app.services.osint.searxng_client import is_searxng_available
 
 router = APIRouter()
 
@@ -14,14 +15,14 @@ async def health_check(db: Session = Depends(get_db)):
 
     try:
         db.execute(text("SELECT 1"))
-    except Exception as e:
+    except Exception:
         postgres_status = "unhealthy"
-        postgres_details = f"error: {str(e)}"
+        postgres_details = "tidak terhubung"
 
     try:
         ai_status = await check_ai_status()
-    except Exception as e:
-        ai_status = {"status": "error", "detail": str(e)}
+    except Exception:
+        ai_status = {"status": "error", "detail": "tidak dapat dicek"}
 
     overall_status = "ok"
     if postgres_status == "unhealthy":
@@ -36,10 +37,9 @@ async def health_check(db: Session = Depends(get_db)):
             "details": postgres_details
         },
         "llm": ai_status,
+        # Hanya mesin pencari yang benar-benar dicek di sini; sumber lain (OSM, Kaspersky,
+        # situs perusahaan) dicek per verifikasi dan statusnya tercatat di laporan kasus.
         "osint_services": {
-            "openstreetmap": "online",
-            "kaspersky_whocalls": "online",
-            "scrapling": "online",
-            "social_media": "online",
+            "searxng": "online" if is_searxng_available() else "offline",
         }
     }

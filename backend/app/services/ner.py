@@ -34,12 +34,27 @@ def fix_email_ocr_typos(email: str) -> str:
     }
     return f"{user}@{typo_map.get(domain_low, domain_low)}"
 
-# Baris berisi kontak admin akun penyebar/iklan, bukan kontak perekrut.
+# Kalimat berisi kontak pemilik akun penyebar/iklan, bukan kontak perekrut. Kata "admin" saja
+# tidak cukup: "Lowongan Admin Gudang" atau "WhatsApp admin" justru menunjuk perekrut.
 _PROMOTER_LINE = re.compile(
-    r"\b(?:admin|pasang\s+(?:loker|iklan|lowongan)|promosi(?:kan)?|endorse|iklan\s+loker|"
-    r"mau\s+dipromosikan|hubungi\s+admin)\b",
+    r"\b(?:pasang\s+(?:loker|iklan|lowongan)|promosi(?:kan)?\s+(?:loker|lowongan|usaha|bisnis)|endorse(?:ment)?|"
+    r"iklan\s+loker|(?:mau|ingin)\s+di\s?promosikan|info\s+pasang|admin\s+(?:akun|grup|group|channel|page|ig|info\s+loker))\b",
     re.I,
 )
+
+# Frasa yang menyangkal biaya ("tidak dipungut biaya pendaftaran"). Dibuang dulu sebelum mencari
+# permintaan biaya, supaya pernyataan gratis tidak dibaca sebagai pungutan.
+NEGATED_FEE = re.compile(
+    r"\b(?:tidak|tanpa|bebas|tak|bukan)\s+(?:ada\s+|akan\s+|pernah\s+)?(?:di)?(?:pungut|kenakan|kenai|minta|meminta|memungut|ada)?\s*"
+    r"(?:biaya|pungutan|bayaran|uang|dana|transfer|deposit)[^.\n!?;]{0,60}"
+    r"|\b(?:gratis|free)\s+(?:biaya\s+)?(?:pendaftaran|tes|seleksi|rekrutmen|interview)[^.\n!?;]{0,30}",
+    re.I,
+)
+
+
+def strip_negated_fee(text: str) -> str:
+    return NEGATED_FEE.sub(" ", text or "")
+
 
 # Kata yang sering tertangkap sebagai entitas padahal bukan nama/lokasi/gaji.
 _JUNK_ENTITY = {
@@ -105,7 +120,7 @@ def _is_plausible_address(s: str) -> bool:
 def _is_fee_context(text: str, start: int, end: int) -> bool:
     window_start = max(0, start - 100)
     window_end = min(len(text), end + 60)
-    ctx = text[window_start:window_end].lower()
+    ctx = strip_negated_fee(text[window_start:window_end]).lower()
     fee_keywords = [
         "biaya", "transfer", "bayar", "setor", "deposit", "uang jaminan",
         "uang pendaftaran", "tiket", "akomodasi", "reimburse", "rekening",
@@ -136,6 +151,7 @@ def _extract_salaries(text: str) -> list[str]:
     return _uniq(found)
 
 def _extract_fee_requests(text: str) -> list[str]:
+    text = strip_negated_fee(text)
     found = []
     pat = r"(?:Rp\.?\s*)\d{1,3}(?:[.,]\d{3})+(?:\s*[-–]\s*(?:Rp\.?\s*)?\d{1,3}(?:[.,]\d{3})+)?(?:\s*/\s*(?:bulan|bln|month))?"
     for m in re.finditer(pat, text or "", re.I):
@@ -186,13 +202,33 @@ def _extract_addresses(text: str) -> list[str]:
         if len(addr) >= 10 and not re.search(r"\b(gaji|syarat|kualifikasi|email|wa)\b", addr, re.I):
             candidates.append(addr)
     return [a for a in _uniq(candidates) if _is_plausible_address(a)]
+_BARE_URL = re.compile(
+    r"(?<![@\w./-])(?:www\.)?[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?(?:\.[a-z0-9-]+)*"
+    r"\.(?:com|net|org|id|co\.id|or\.id|web\.id|my\.id|ac\.id|go\.id|biz\.id|ly|gle|ee|me|io|link|site|xyz|info|biz|cc|to|app)"
+    r"(?:/[^\s<>\"'{}|\\^`]*)?(?![\w@])",
+    re.I,
+)
+# Domain email gratisan yang muncul tanpa '@' karena OCR, bukan tautan lowongan.
+_BARE_URL_IGNORE = {"gmail.com", "yahoo.com", "yahoo.co.id", "hotmail.com", "outlook.com", "ymail.com", "icloud.com"}
+
+
 def extract_entities_from_text(text: str) -> dict:
     raw_text = text or ""
     phone_pat = r"(?:\+62|62|0)\s*[1-9](?:[\s\-]?\d){6,12}"
     phones, promoter_phones = [], []
-    for line in raw_text.splitlines() or [raw_text]:
-        found = [clean_indonesian_phone(p) for p in re.findall(phone_pat, line)]
-        (promoter_phones if _PROMOTER_LINE.search(line) else phones).extend(found)
+    lines = raw_text.splitlines() or [raw_text]
+    for idx, line in enumerate(lines):
+        for m in re.finditer(phone_pat, line):
+            # Konteks: kalimat nomor itu, kalimat sebelumnya, dan dua baris di atasnya
+            # ("Punya loker mau dipromosikan?\nHubungi Admin\nADMIN: 0851…"). Broadcast WA
+            # sering satu baris panjang, jadi baris penuh terlalu lebar sebagai konteks.
+            start = max(line.rfind(ch, 0, m.start()) for ch in ".!?;")
+            if start > 0:
+                start = max(line.rfind(ch, 0, start) for ch in ".!?;")
+            ends = [i for i in (line.find(ch, m.end()) for ch in ".!?;") if i != -1]
+            sentence = line[start + 1:min(ends) if ends else len(line)]
+            context = " ".join(lines[max(0, idx - 2):idx] + [sentence])
+            (promoter_phones if _PROMOTER_LINE.search(context) else phones).append(clean_indonesian_phone(m.group(0)))
     phones = [p for p in _uniq(phones) if p]
     promoter_phones = [p for p in _uniq(promoter_phones) if p and p not in phones]
 
@@ -200,7 +236,16 @@ def extract_entities_from_text(text: str) -> dict:
     emails = _uniq([fix_email_ocr_typos(e) for e in re.findall(email_pat, raw_text)])
 
     url_pat = r"https?://[^\s<>\"'{}|\\^`]+"
-    urls = _uniq([u.rstrip(".,;:!?)]}") for u in re.findall(url_pat, raw_text)])
+    urls = [u.rstrip(".,;:!?)]}") for u in re.findall(url_pat, raw_text)]
+    # Tautan tanpa skema ("bit.ly/abc", "forms.gle/xyz", "www.pt.co.id/karir") yang umum di broadcast WA.
+    without_scheme = re.sub(url_pat, " ", raw_text)
+    for m in _BARE_URL.finditer(without_scheme):
+        candidate = m.group(0).rstrip(".,;:!?)]}")
+        host = candidate.split("/")[0].lower()
+        if host in _BARE_URL_IGNORE or ("/" not in candidate and not host.startswith("www.") and host.count(".") < 1):
+            continue
+        urls.append("https://" + candidate)
+    urls = _uniq(urls)
 
     companies = _extract_companies(raw_text)
     addresses = _extract_addresses(raw_text)

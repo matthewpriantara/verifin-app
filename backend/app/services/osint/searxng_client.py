@@ -90,7 +90,7 @@ def searxng_search(
     # Engine yang di-scrape (Google, DuckDuckGo) kadang menolak sesaat; ulangi sekali
     # kalau tidak ada hasil karena engine tidak merespons, bukan karena query-nya kosong.
     result = _searxng_search_once(query, max_results=max_results, engines=engines, language=language)
-    if result.get("results") or result.get("cached"):
+    if result.get("results") or result.get("cached") or result.get("empty"):
         return result
     if not (result.get("unresponsive_engines") or result.get("error") == "Timeout."):
         return result
@@ -203,8 +203,12 @@ def _searxng_search_once(
 
             results.sort(key=lambda x: x.get("score", 0), reverse=True)
 
+            # Semua engine menjawab tetapi tidak ada hasil: ini temuan ("tidak ada jejak"),
+            # bukan kegagalan mesin pencari.
+            empty = not results and not unresponsive
             response = {
                 "ok": bool(results),
+                "empty": empty,
                 "query": q,
                 "engine": "searxng",
                 "results": results[:max_results],

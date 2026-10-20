@@ -78,8 +78,10 @@ def preprocess_image(image_path: str) -> np.ndarray:
     if img is None:
         raise ValueError(f"OpenCV gagal membaca gambar di {image_path}")
     h, w = img.shape[:2]
-    if h > 4000 or w > 4000:
-        raise ValueError(f"Resolusi gambar terlalu besar ({w}x{h}px). Maksimal resolusi adalah 4000x4000px.")
+    # Foto kamera HP (mis. 4032×3024) diperkecil, bukan ditolak.
+    if max(h, w) > 4000:
+        scale = 4000 / float(max(h, w))
+        img = cv2.resize(img, (int(w * scale), int(h * scale)), interpolation=cv2.INTER_AREA)
     if len(img.shape) == 3 and img.shape[-1] == 4:
         alpha = img[:, :, 3] / 255.0
         white_bg = np.ones_like(img[:, :, :3]) * 255
@@ -97,7 +99,9 @@ def preprocess_image(image_path: str) -> np.ndarray:
     if max(h, w) < 600:
         img = cv2.resize(img, (w * 2, h * 2), interpolation=cv2.INTER_CUBIC)
         h, w = img.shape[:2]
-    max_side = 1000
+    # Screenshot memanjang (rasio > 1,8) diberi sisi panjang lebih besar supaya teks kecilnya
+    # tidak menyusut di bawah ukuran yang bisa dibaca OCR.
+    max_side = 1600 if max(h, w) / max(1, min(h, w)) > 1.8 else 1000
     if max(h, w) > max_side:
         scale = max_side / float(max(h, w))
         img = cv2.resize(

@@ -15,7 +15,7 @@ from app.api.v1.verify.pipeline import _build_osint_summary, _to_response
 from app.services.llm.verifin_reasoning import _soften_summary_claims
 
 logger = logging.getLogger(__name__)
-CACHE_SCHEMA_VERSION = 13
+CACHE_SCHEMA_VERSION = 14
 
 
 def _case_hash(raw_input: str) -> str:
@@ -208,41 +208,54 @@ def _get_cached_case_from_db(db: Session, raw_input_str: str) -> VerifyResponse 
     return None
 
 
+_TRACKING_PARAMS = re.compile(r"^(?:utm_\w+|igsh|igshid|fbclid|gclid|mibextid|si|xmt|ref|ref_src|s|t|share_id|rdid)$", re.I)
+
+
+def _strip_tracking(query: str, *, sort: bool = True) -> str:
+    """Buang parameter pelacak (utm_*, igsh, fbclid, …). Parameter isi seperti
+    `story_fbid` atau `v` (YouTube) dipertahankan karena membedakan postingan."""
+    from urllib.parse import parse_qsl, urlencode
+    kept = [(k, v) for k, v in parse_qsl(query, keep_blank_values=True) if not _TRACKING_PARAMS.match(k)]
+    return urlencode(sorted(kept) if sort else kept)
+
+
 def _normalize_url_variants(raw_url: str) -> list[str]:
     u = (raw_url or "").strip()
     if not u:
         return []
-    variants = {u, u.rstrip("/"), u.rstrip("/") + "/"}
+    variants = {u, u.rstrip("/")}
     try:
         parsed = urlparse(u)
-        clean = urlunparse((parsed.scheme, parsed.netloc, parsed.path, "", "", ""))
-        variants.add(clean)
-        variants.add(clean.rstrip("/"))
-        variants.add(clean.rstrip("/") + "/")
-        if parsed.netloc.startswith("www."):
-            no_www = urlunparse((parsed.scheme, parsed.netloc[4:], parsed.path, "", "", ""))
-            variants.add(no_www)
-            variants.add(no_www.rstrip("/"))
-            variants.add(no_www.rstrip("/") + "/")
-        else:
-            with_www = urlunparse((parsed.scheme, f"www.{parsed.netloc}", parsed.path, "", "", ""))
-            variants.add(with_www)
-            variants.add(with_www.rstrip("/"))
-            variants.add(with_www.rstrip("/") + "/")
+        queries = {_strip_tracking(parsed.query), _strip_tracking(parsed.query, sort=False)}
+        hosts = {parsed.netloc}
+        hosts.add(parsed.netloc[4:] if parsed.netloc.startswith("www.") else f"www.{parsed.netloc}")
+        for host in hosts:
+            path = parsed.path.rstrip("/")
+            for p in {path, path + "/"}:
+                for query in queries:
+                    variants.add(urlunparse((parsed.scheme, host, p, "", query, "")))
     except Exception:
         pass
-    return sorted(list(variants))
+    return sorted(v for v in variants if v)
+
+
+def _url_conditions(variants: list[str]) -> list:
+    """Cocok persis per URL. Pola awalan lama ("URL Target: {v}%") membuat
+    `/p/AB` cocok dengan `/p/ABCDEF`."""
+    from app.services.case_search import like_escape
+    conditions = []
+    for v in variants:
+        conditions.append(JobCase.urls.contains([v]))
+        conditions.append(JobCase.raw_text_preview == f"URL Target: {v}")
+        conditions.append(JobCase.raw_text_preview.like(f"URL Target: {like_escape(v)}\n%", escape="\\"))
+    return conditions
 
 
 def _get_cached_case_by_url(db: Session, raw_url: str) -> VerifyResponse | None:
     if not raw_url or not raw_url.strip():
         return None
     try:
-        variants = _normalize_url_variants(raw_url)
-        conditions = []
-        for v in variants:
-            conditions.append(JobCase.urls.contains([v]))
-            conditions.append(JobCase.raw_text_preview.like(f"URL Target: {v}%"))
+        conditions = _url_conditions(_normalize_url_variants(raw_url))
 
         cached = (
             db.query(JobCase)
