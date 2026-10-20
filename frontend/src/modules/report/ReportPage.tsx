@@ -445,10 +445,10 @@ export default function ReportPage() {
       {recommendations.length > 0 && (
         <div className="mt-6">
           <Section icon={Lightbulb} title="Rekomendasi Sebelum Melamar" subtitle="Langkah aman yang disarankan" delay={0.12}>
-            <ol className="grid gap-3 sm:grid-cols-2">
+            <ol className="grid list-none gap-3 sm:grid-cols-2">
               {recommendations.map((r, i) => (
                 <li key={i} className="flex items-start gap-3 rounded-2xl bg-bg-subtle px-4 py-3.5">
-                  <span className="mt-0.5 flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-text-primary text-[11px] font-bold text-bg-elevated">
+                  <span aria-hidden className="mt-0.5 flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-text-primary text-[11px] font-bold text-bg-elevated">
                     {i + 1}
                   </span>
                   <span className="text-sm leading-relaxed text-text-secondary">{r}</span>
@@ -493,7 +493,12 @@ export default function ReportPage() {
                 <p className="text-xs font-bold uppercase tracking-wider text-text-muted">Lokasi</p>
                 {addrDetails.match_level === "area" && (
                   <span className="rounded-md bg-waspada-bg px-2 py-0.5 text-[11px] font-semibold text-waspada-fg">
-                    Perkiraan Wilayah
+                    Hanya wilayah/kode pos
+                  </span>
+                )}
+                {addrDetails.match_level === "business" && (
+                  <span className="rounded-md bg-bg-subtle px-2 py-0.5 text-[11px] font-semibold text-text-secondary">
+                    Tempat usaha di peta
                   </span>
                 )}
                 {addrDetails.match_level === "street" && (
@@ -525,7 +530,7 @@ export default function ReportPage() {
                 <div className="mt-3 flex flex-wrap gap-2">
                   <a
                     href={
-                      addrDetails.match_level === "exact"
+                      addrDetails.match_level === "exact" || addrDetails.match_level === "business"
                         ? `https://www.google.com/maps?q=${(addrDetails.lat as number).toFixed(6)},${(addrDetails.lon as number).toFixed(6)}`
                         : `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(
                             `${companyName !== "Perusahaan" ? companyName : ""}, ${
@@ -598,6 +603,12 @@ export default function ReportPage() {
       {/* ── Jejak Digital ── */}
       <div className="mt-6">
         <Section icon={ShareNetwork} title="Jejak Digital" subtitle="Profil media sosial dan situs web dari pencarian publik" delay={0.2}>
+          {hasDigitalFootprint && social?.found_by_name_only && (
+            <p className="mb-3 text-[13px] leading-relaxed text-text-muted">
+              Akun media sosial di bawah ditemukan lewat pencarian nama dan tidak ditautkan oleh lowongan. Akun itu milik
+              pemilik nama, bukan bukti bahwa lowongan ini berasal darinya.
+            </p>
+          )}
           {hasDigitalFootprint ? (
             <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
               {/* Profil sosial terderivasi */}

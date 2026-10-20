@@ -4,331 +4,116 @@ import { getPhoneStatus } from "@/lib/phone-status";
 import {
   Globe,
   Phone,
-  Buildings,
+  MagnifyingGlass,
   ShareNetwork,
   Warning,
   CheckCircle,
-  MapPin,
-  Users,
-  Heart,
-  Eye,
-  Link as LinkIcon,
+  ArrowSquareOut,
 } from "@phosphor-icons/react/dist/ssr";
-import { SocialPlatformIcon } from "@/components/report/SocialPlatformIcon";
 
-interface WebSearchResult {
-  title?: string;
-  url?: string;
-  snippet?: string;
-}
-
-interface AddressDetails {
-  display_name?: string;
-  lat?: number;
-  lon?: number;
-  match_level?: string;
-  google_maps_url?: string;
-}
-
-interface AddressValidation {
-  address_input?: string;
-  address_normalized?: string;
-  address_details?: AddressDetails;
+interface EvidencePanelProps {
+  osint?: OsintPayload | null;
 }
 
 interface DomainEvidence {
-  age_years?: number | string;
-  created_at?: string;
+  domain?: string | null;
+  age_years?: number | string | null;
+  created_at?: string | null;
   is_new?: boolean;
 }
 
 interface EmailSecurityEvidence {
+  mx_active?: boolean;
   spf_active?: boolean;
   dmarc_active?: boolean;
-}
-
-interface CompanyEvidence {
-  name?: string;
-  company_name?: string;
-  stats?: Record<string, unknown> | null;
-  is_legit?: boolean;
-  snippet?: string;
-  risk_flags?: string[];
-  safe_flags?: string[];
-}
-
-interface EvidencePanelProps {
-  osint?: OsintPayload | null;
 }
 
 function isJunkSnippet(s?: string): boolean {
   if (!s) return true;
   const low = s.toLowerCase();
   return (
-    low.includes("adsbygoogle") ||
-    low.includes("function timer") ||
-    low.includes("clearinterval") ||
-    low.includes("setinterval") ||
-    low.includes("window.location") ||
-    low.includes("document.getelementbyid") ||
-    low.includes("targetnode") ||
-    low.includes("mutationobserver") ||
-    low.includes("you are being redirected") ||
-    low.includes('{"require":') ||
-    low.includes("maybedisableanimations") ||
-    low.includes("qpltagserverjs") ||
-    low.includes("cometssrmergedcontentinjector") ||
-    low.includes("intipxads") ||
-    low.includes("var count") ||
-    /function\s*\(/i.test(s) ||
-    /var\s+\w+/i.test(s) ||
-    /const\s+\w+/i.test(s)
+    ["adsbygoogle", "function timer", "setinterval", "window.location", "document.getelementbyid",
+      "mutationobserver", "you are being redirected", '{"require":', "could not load"]
+      .some((token) => low.includes(token)) ||
+    /function\s*\(|var\s+\w+|const\s+\w+/i.test(s)
   );
 }
 
-function SectionRow({ label, icon: Icon, children, badge }: {
-  label: string;
+function hostOf(url?: string): string {
+  try {
+    return new URL(url ?? "").hostname.replace(/^www\./, "");
+  } catch {
+    return url ?? "";
+  }
+}
+
+function formatDate(value?: string | null): string | null {
+  if (!value || !/^\d{4}-\d{2}-\d{2}/.test(value)) return null;
+  return new Date(value).toLocaleDateString("id-ID", { day: "numeric", month: "long", year: "numeric" });
+}
+
+// "14.64" dari WHOIS → "14 tahun"; di bawah setahun ditulis dalam bulan.
+function formatDomainAge(domain: DomainEvidence): string {
+  const years = typeof domain.age_years === "number" ? domain.age_years : Number(domain.age_years);
+  if (!Number.isFinite(years)) return "Tidak diketahui";
+  if (years < 1) return `${Math.max(1, Math.round(years * 12))} bulan`;
+  return `${Math.floor(years)} tahun`;
+}
+
+function Section({ title, icon: Icon, children }: {
+  title: string;
   icon: React.ElementType;
   children: React.ReactNode;
-  badge?: string;
 }) {
   return (
-    <div className="border-t border-border py-5 first:border-t-0 first:pt-0">
-      <div className="mb-3 flex items-center justify-between">
-        <div className="flex items-center gap-2">
-          <div className="flex h-6 w-6 items-center justify-center rounded-md bg-accent/10">
-            <Icon size={14} weight="bold" className="text-accent" />
-          </div>
-          <p className="text-[12px] font-semibold uppercase tracking-widest text-text-primary">
-            {label}
-          </p>
-        </div>
-        {badge && (
-          <span className="rounded-full bg-bg-subtle px-2 py-0.5 text-[10px] font-mono text-text-muted">
-            {badge}
-          </span>
-        )}
+    <div className="border-t border-border py-5 first:border-t-0 first:pt-0 last:pb-0">
+      <div className="mb-3 flex items-center gap-2">
+        <Icon size={16} weight="bold" className="text-text-muted" />
+        <h4 className="text-[14px] font-semibold text-text-primary">{title}</h4>
       </div>
-      <div className="text-[13px] leading-relaxed text-text-secondary">
-        {children}
-      </div>
+      <div className="text-[13px] leading-relaxed text-text-secondary">{children}</div>
     </div>
   );
 }
 
-function Flag({ text, kind }: { text: string; kind: "risk" | "safe" | "neutral" }) {
+function Status({ text, kind }: { text: string; kind: "risk" | "safe" | "neutral" }) {
   return (
     <span className={cn(
-      "inline-flex items-center gap-1.5 rounded-md px-2.5 py-1 text-[11px] font-medium",
-      kind === "risk"
-        ? "bg-bahaya-bg text-bahaya-fg border border-bahaya-fg/20"
-        : kind === "safe"
-          ? "bg-aman-bg text-aman-fg border border-aman-fg/20"
-          : "bg-bg-subtle text-text-muted border border-border",
+      "inline-flex items-center gap-1.5 rounded-md border px-2 py-0.5 text-[12px] font-medium",
+      kind === "risk" && "border-bahaya-border bg-bahaya-bg text-bahaya-fg",
+      kind === "safe" && "border-aman-border bg-aman-bg text-aman-fg",
+      kind === "neutral" && "border-border bg-bg-subtle text-text-secondary",
     )}>
-      {kind === "risk"
-        ? <Warning size={11} weight="fill" />
-        : kind === "safe"
-          ? <CheckCircle size={11} weight="fill" />
-          : null}
+      {kind === "risk" && <Warning size={12} weight="fill" />}
+      {kind === "safe" && <CheckCircle size={12} weight="fill" />}
       {text}
     </span>
   );
 }
 
-
-function SocialProfileCard({ result }: { result: WebSearchResult }) {
-  const url = result.url ?? "";
-  const title = result.title ?? "";
-  const snippet = result.snippet ?? "";
-
-  // Extract platform dari URL
-  let platform = "web";
-  if (url.includes("instagram.com")) platform = "instagram";
-  else if (url.includes("facebook.com")) platform = "facebook";
-  else if (url.includes("linkedin.com")) platform = "linkedin";
-  else if (url.includes("tiktok.com")) platform = "tiktok";
-  else if (url.includes("twitter.com") || url.includes("x.com")) platform = "twitter";
-
-  // Extract followers/posts dari snippet Instagram
-  const followersMatch = snippet.match(/(\d+(?:[.,]\d+)?[KkMm]?)\s*(?:followers|pengikut)/i);
-  const postsMatch = snippet.match(/(\d+(?:[.,]\d+)?)\s*(?:posts|postingan)/i);
-  const followingMatch = snippet.match(/(\d+(?:[.,]\d+)?[KkMm]?)\s*(?:following|mengikuti)/i);
-
-  const followers = followersMatch ? followersMatch[1] : null;
-  const posts = postsMatch ? postsMatch[1] : null;
-  const following = followingMatch ? followingMatch[1] : null;
-
-  // Extract bio dari snippet (setelah "on Instagram:" atau sejenisnya)
-  let bio = "";
-  const bioMatch = snippet.match(/(?:on Instagram|di Instagram)[:\s]+"([^"]+)"/i);
-  if (bioMatch) bio = bioMatch[1];
-  else if (snippet.length > 50) bio = snippet.substring(0, 120) + "...";
-
+function ResultLink({ title, url, note }: { title?: string; url?: string; note?: string }) {
   return (
-    <div className="group relative overflow-hidden rounded-xl border border-border bg-gradient-to-br from-bg-elevated to-bg-subtle/50 p-4 transition-all hover:border-accent/30 hover:shadow-lg">
-      {/* Platform badge */}
-      <div className="mb-3 flex items-center justify-between">
-        <div className="flex items-center gap-2">
-          <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-bg-subtle">
-            <SocialPlatformIcon platform={platform} />
-          </div>
-          <div>
-            <p className="text-[11px] font-semibold uppercase tracking-wider text-text-muted">
-              {platform}
-            </p>
-            <a
-              href={url}
-              target="_blank"
-              rel="noreferrer"
-              className="text-[13px] font-medium text-text-primary hover:text-accent hover:underline"
-            >
-              {title.length > 40 ? title.substring(0, 40) + "..." : title}
-            </a>
-          </div>
-        </div>
-        <a
-          href={url}
-          target="_blank"
-          rel="noreferrer"
-          className="rounded-md p-1.5 text-text-muted transition-colors hover:bg-bg-subtle hover:text-text-primary"
-        >
-          <LinkIcon size={14} weight="bold" />
-        </a>
-      </div>
-
-      {/* Stats grid */}
-      {(followers || posts || following) && (
-        <div className="mb-3 grid grid-cols-3 gap-2">
-          {followers && (
-            <div className="rounded-lg bg-bg-subtle/50 px-3 py-2 text-center">
-              <div className="flex items-center justify-center gap-1 text-[10px] text-text-muted">
-                <Users size={10} weight="bold" />
-                <span>Followers</span>
-              </div>
-              <p className="mt-0.5 text-[14px] font-bold text-text-primary">{followers}</p>
-            </div>
-          )}
-          {posts && (
-            <div className="rounded-lg bg-bg-subtle/50 px-3 py-2 text-center">
-              <div className="flex items-center justify-center gap-1 text-[10px] text-text-muted">
-                <Heart size={10} weight="bold" />
-                <span>Posts</span>
-              </div>
-              <p className="mt-0.5 text-[14px] font-bold text-text-primary">{posts}</p>
-            </div>
-          )}
-          {following && (
-            <div className="rounded-lg bg-bg-subtle/50 px-3 py-2 text-center">
-              <div className="flex items-center justify-center gap-1 text-[10px] text-text-muted">
-                <Eye size={10} weight="bold" />
-                <span>Following</span>
-              </div>
-              <p className="mt-0.5 text-[14px] font-bold text-text-primary">{following}</p>
-            </div>
-          )}
-        </div>
-      )}
-
-      {/* Bio */}
-      {bio && (
-        <div className="rounded-lg bg-bg-subtle/30 px-3 py-2">
-          <p className="text-[11px] leading-relaxed text-text-secondary">{bio}</p>
-        </div>
-      )}
-
-      {/* Verification badge */}
-      <div className="mt-3 flex items-center gap-1.5">
-        <CheckCircle size={12} weight="fill" className="text-aman-fg" />
-        <span className="text-[10px] font-medium text-aman-fg">Jejak publik terverifikasi</span>
-      </div>
-    </div>
-  );
-}
-
-function MapsLocationCard({ address, details }: { address: string; details?: AddressDetails | null }) {
-  return (
-    <div className="overflow-hidden rounded-xl border border-border bg-gradient-to-br from-bg-elevated to-bg-subtle/50">
-      {/* Header */}
-      <div className="border-b border-border bg-bg-subtle/30 px-4 py-3">
-        <div className="flex items-center gap-2">
-          <MapPin size={16} weight="fill" className="text-accent" />
-          <p className="text-[12px] font-semibold uppercase tracking-wider text-text-primary">
-            Lokasi Terverifikasi
-          </p>
-        </div>
-      </div>
-
-      {/* Content */}
-      <div className="p-4">
-        <p className="text-[13px] font-medium text-text-primary">{address}</p>
-
-        {details?.display_name && (
-          <p className="mt-2 text-[11px] leading-relaxed text-text-muted">
-            {details.display_name}
-          </p>
-        )}
-
-        {/* Coordinates */}
-        {details?.lat && details?.lon && (
-          <div className="mt-3 flex items-center gap-2 rounded-lg bg-bg-subtle/50 px-3 py-2">
-            <MapPin size={12} weight="bold" className="text-text-muted" />
-            <span className="font-mono text-[11px] text-text-secondary">
-              {details.lat.toFixed(6)}, {details.lon.toFixed(6)}
-            </span>
-          </div>
-        )}
-
-        {/* Match level */}
-        {details?.match_level && (
-          <div className="mt-3">
-            <Flag
-              text={
-                details.match_level === "street"
-                  ? "Jalan ditemukan, nomor belum pasti"
-                  : details.match_level === "exact"
-                    ? "Alamat presisi terkonfirmasi"
-                    : "Wilayah ditemukan"
-              }
-              kind={details.match_level === "exact" ? "safe" : "neutral"}
-            />
-          </div>
-        )}
-
-        {/* Google Maps link */}
-        {details?.google_maps_url && (
-          <a
-            href={details.google_maps_url}
-            target="_blank"
-            rel="noreferrer"
-            className="mt-3 flex items-center justify-center gap-2 rounded-lg bg-accent px-4 py-2.5 text-[12px] font-semibold text-white transition-all hover:bg-accent/90 hover:shadow-md"
-          >
-            <MapPin size={14} weight="bold" />
-            Buka di Google Maps
-          </a>
-        )}
-      </div>
-    </div>
+    <a
+      href={url}
+      target="_blank"
+      rel="noreferrer"
+      className="group flex min-h-11 min-w-0 items-center justify-between gap-3 rounded-lg px-3 py-2 transition-colors hover:bg-bg-subtle"
+    >
+      <span className="min-w-0">
+        <span className="block truncate text-[13px] font-medium text-text-primary">{title || hostOf(url)}</span>
+        <span className="block truncate text-[12px] text-text-muted">{note ? `${note} · ` : ""}{hostOf(url)}</span>
+      </span>
+      <ArrowSquareOut size={14} className="shrink-0 text-text-muted group-hover:text-text-primary" />
+    </a>
   );
 }
 
 export function EvidencePanel({ osint }: EvidencePanelProps) {
   if (!osint) {
     return (
-      <section className="mt-6 rounded-2xl border border-border bg-bg-elevated p-6 shadow-sm">
-        <div className="flex items-center gap-3">
-          <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-accent/10">
-            <Warning size={20} weight="bold" className="text-accent" />
-          </div>
-          <div>
-            <h3 className="text-[14px] font-bold uppercase tracking-wide text-text-primary">
-              Bukti OSINT
-            </h3>
-            <p className="mt-0.5 text-[12px] text-text-muted">
-              Tidak ada payload OSINT pada respons ini.
-            </p>
-          </div>
-        </div>
+      <section className="rounded-2xl border border-border bg-bg-elevated p-5">
+        <h3 className="text-[15px] font-semibold text-text-primary">Bukti dari sumber publik</h3>
+        <p className="mt-1 text-[13px] text-text-muted">Tidak ada data pemeriksaan untuk laporan ini.</p>
       </section>
     );
   }
@@ -336,262 +121,164 @@ export function EvidencePanel({ osint }: EvidencePanelProps) {
   const domain = (osint.domain ?? {}) as DomainEvidence;
   const emailSec = (osint.email_security ?? {}) as EmailSecurityEvidence;
   const phones = osint.phones ?? [];
-  const companies = (osint.companies ?? []) as CompanyEvidence[];
   const web = osint.web;
   const social = osint.social;
-  const addresses = (osint.address_validations ?? []) as AddressValidation[];
+  const scam = web?.scam_check;
 
-  const webSocialResults: WebSearchResult[] = (web?.searches ?? [])
+  // Hasil pencarian digabung lintas query; URL sama hanya tampil sekali.
+  const seen = new Set<string>();
+  const results = (web?.searches ?? [])
     .flatMap((s) => s.results ?? [])
     .filter((r) => {
-      const url = (r.url ?? "").toLowerCase();
-      return (
-        url.includes("instagram.com") ||
-        url.includes("facebook.com") ||
-        url.includes("linkedin.com") ||
-        url.includes("tiktok.com") ||
-        url.includes("threads.net")
-      );
-    })
-    .slice(0, 6);
-
-  const hasWebSocial = webSocialResults.length > 0;
+      const key = (r.url ?? "").replace(/\/$/, "");
+      if (!key || seen.has(key)) return false;
+      seen.add(key);
+      return true;
+    });
+  const resultCount = web?.evidence_counts?.relevant_results ?? results.length;
+  const searchUnavailable =
+    (web?.searches ?? []).length > 0 && (web?.searches ?? []).every((s) => s.status === "UNAVAILABLE");
+  const websites = (web?.websites ?? []).filter((w) => w.url);
+  const registered = formatDate(domain.created_at);
 
   return (
-    <section className="rounded-2xl border border-border bg-bg-elevated shadow-sm">
-      {/* Header */}
-      <div className="border-b border-border bg-gradient-to-r from-bg-subtle/50 to-transparent px-6 py-4">
-        <div className="flex items-start justify-between gap-3">
-          <div className="flex items-center gap-3">
-            <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-accent/10">
-              <CheckCircle size={20} weight="fill" className="text-accent" />
+    <section className="rounded-2xl border border-border bg-bg-elevated p-5 sm:p-6">
+      <div className="mb-5">
+        <h3 className="text-[15px] font-semibold text-text-primary">Bukti dari sumber publik</h3>
+        <p className="mt-1 text-[13px] text-text-muted">
+          Diambil langsung dari WHOIS, Kaspersky Who Calls, OpenStreetMap, dan mesin pencari saat pemeriksaan.
+        </p>
+      </div>
+
+      {domain.domain && (
+        <Section title="Domain email" icon={Globe}>
+          <dl className="grid gap-x-6 gap-y-3 sm:grid-cols-2">
+            <div>
+              <dt className="text-[12px] text-text-muted">Domain</dt>
+              <dd className="font-mono text-[13px] text-text-primary">{domain.domain}</dd>
             </div>
             <div>
-              <h3 className="text-[14px] font-bold uppercase tracking-wide text-text-primary">
-                Bukti OSINT
-              </h3>
-              <p className="mt-0.5 text-[12px] text-text-muted">
-                Data dari sumber nyata, bukan rekaan model AI
-              </p>
+              <dt className="text-[12px] text-text-muted">Umur domain</dt>
+              <dd className="text-[13px] text-text-primary">
+                {formatDomainAge(domain)}
+                {registered && <span className="text-text-muted"> (terdaftar {registered})</span>}
+                {domain.is_new && <span className="ml-1 text-bahaya-fg">· baru, kurang dari 90 hari</span>}
+              </dd>
             </div>
-          </div>
-          {osint.evidence_policy?.mode && (
-            <span className="shrink-0 rounded-full border border-border bg-bg-subtle px-3 py-1 text-[10px] font-mono font-semibold text-text-muted">
-              {osint.evidence_policy.mode}
-            </span>
-          )}
-        </div>
-      </div>
+            <div className="sm:col-span-2">
+              <dt className="text-[12px] text-text-muted">Pengaturan email</dt>
+              <dd className="mt-1 flex flex-wrap gap-1.5">
+                <Status text={`Server email ${emailSec.mx_active ? "aktif" : "tidak ada"}`} kind={emailSec.mx_active ? "safe" : "neutral"} />
+                <Status text={`SPF ${emailSec.spf_active ? "aktif" : "tidak ada"}`} kind={emailSec.spf_active ? "safe" : "neutral"} />
+                <Status text={`DMARC ${emailSec.dmarc_active ? "aktif" : "tidak ada"}`} kind={emailSec.dmarc_active ? "safe" : "neutral"} />
+              </dd>
+            </div>
+          </dl>
+        </Section>
+      )}
 
-      <div className="p-6">
-        {/* Domain & Email Security */}
-        <SectionRow label="Domain & Email Security" icon={Globe} badge="DNS/WHOIS">
-          <div className="grid gap-3 sm:grid-cols-2">
-            <div className="rounded-lg border border-border bg-bg-subtle/30 px-4 py-3">
-              <p className="text-[10px] font-semibold uppercase tracking-wider text-text-muted">
-                Umur Domain
-              </p>
-              <p className="mt-1 font-mono text-[13px] font-semibold text-text-primary">
-                {String(domain.age_years ?? domain.created_at ?? "N/A")}
-                {domain.is_new && (
-                  <span className="ml-2 text-[11px] font-normal text-bahaya-fg">
-                    (baru, {"<"}90 hari)
+      {phones.length > 0 && (
+        <Section title="Reputasi nomor" icon={Phone}>
+          <ul className="space-y-3">
+            {phones.map((p, i) => {
+              const status = getPhoneStatus(p);
+              const operator = (p.comments ?? []).find((c) => /operator/i.test(c));
+              return (
+                <li key={i} className="flex flex-wrap items-center justify-between gap-2">
+                  <span>
+                    <span className="font-mono text-[14px] text-text-primary">{p.phone ?? "-"}</span>
+                    {operator && <span className="block text-[12px] text-text-muted">{operator}</span>}
                   </span>
-                )}
-              </p>
+                  <Status text={status.label} kind={status.kind} />
+                </li>
+              );
+            })}
+          </ul>
+        </Section>
+      )}
+
+      <Section title="Pencarian web" icon={MagnifyingGlass}>
+        {searchUnavailable ? (
+          <p>Mesin pencari tidak dapat dihubungi saat pemeriksaan, jadi bagian ini belum ada datanya.</p>
+        ) : resultCount > 0 ? (
+          <>
+            <p className="mb-2">{resultCount} hasil menyebut nama perusahaan ini. Ini jejak publik, bukan bukti legalitas.</p>
+            <div className="-mx-3">
+              {results.slice(0, 5).map((r, i) => (
+                <ResultLink
+                  key={i}
+                  title={r.title}
+                  url={r.url}
+                  note={r.source_type === "official" ? "Domain sama dengan email/link lowongan" : undefined}
+                />
+              ))}
             </div>
-            <div className="rounded-lg border border-border bg-bg-subtle/30 px-4 py-3">
-              <p className="text-[10px] font-semibold uppercase tracking-wider text-text-muted">
-                Email Security
+          </>
+        ) : (
+          <p>Pencarian tidak menemukan hasil yang menyebut nama perusahaan ini.</p>
+        )}
+        {(web?.neutral_notes ?? []).map((note, i) => (
+          <p key={i} className="mt-2 text-[12px] text-text-muted">{note}</p>
+        ))}
+      </Section>
+
+      {scam && scam.status && scam.status !== "SKIPPED" && (
+        <Section title="Peringatan lowongan palsu atas nama ini" icon={Warning}>
+          {scam.status === "UNAVAILABLE" ? (
+            <p>Pencarian peringatan tidak dapat dijalankan saat pemeriksaan.</p>
+          ) : (scam.results ?? []).length > 0 ? (
+            <>
+              <p className="mb-2">
+                {(scam.results ?? []).length} artikel memperingatkan lowongan palsu yang memakai nama ini. Nama ini pernah dicatut,
+                jadi pastikan lowongan lewat kanal resmi perusahaan.
               </p>
-              <div className="mt-1 flex items-center gap-3">
-                <span className={cn(
-                  "flex items-center gap-1 text-[12px] font-medium",
-                  emailSec.spf_active ? "text-aman-fg" : "text-text-muted"
-                )}>
-                  {emailSec.spf_active ? <CheckCircle size={12} weight="fill" /> : <Warning size={12} weight="fill" />}
-                  SPF
-                </span>
-                <span className={cn(
-                  "flex items-center gap-1 text-[12px] font-medium",
-                  emailSec.dmarc_active ? "text-aman-fg" : "text-text-muted"
-                )}>
-                  {emailSec.dmarc_active ? <CheckCircle size={12} weight="fill" /> : <Warning size={12} weight="fill" />}
-                  DMARC
-                </span>
+              <div className="-mx-3">
+                {(scam.results ?? []).slice(0, 4).map((r, i) => (
+                  <ResultLink key={i} title={r.title} url={r.url} />
+                ))}
               </div>
-            </div>
+            </>
+          ) : (
+            <p>Tidak ditemukan artikel peringatan atau bantahan yang menyebut nama ini.</p>
+          )}
+        </Section>
+      )}
+
+      {social && (social.profiles ?? []).length > 0 && (
+        <Section title="Media sosial" icon={ShareNetwork}>
+          {social.found_by_name_only && (
+            <p className="mb-2">
+              Akun di bawah ditemukan lewat pencarian nama dan tidak ditautkan oleh lowongan. Akun ini milik pemilik nama,
+              bukan bukti bahwa lowongan berasal darinya.
+            </p>
+          )}
+          <div className="-mx-3">
+            {(social.profiles ?? []).slice(0, 5).map((p, i) => (
+              <ResultLink key={i} title={p.title || p.username} url={p.url} />
+            ))}
           </div>
-        </SectionRow>
+        </Section>
+      )}
 
-        {/* Phone Reputation */}
-        {phones.length > 0 && (
-          <SectionRow label="Reputasi Nomor HP/WA" icon={Phone} badge="Kaspersky Who Calls">
-            <div className="space-y-3">
-              {phones.map((p, i) => {
-                const status = getPhoneStatus(p);
-                return (
-                <div key={i} className="rounded-lg border border-border bg-bg-subtle/30 px-4 py-3">
-                  <div className="flex flex-wrap items-center justify-between gap-2">
-                    <span className="font-mono text-[14px] font-semibold text-text-primary">
-                      {p.phone ?? "-"}
-                    </span>
-                    <Flag text={status.label} kind={status.kind} />
-                  </div>
-                  {status.kind === "neutral" && (
-                    <p className="mt-2 text-[12px] leading-relaxed text-text-muted">
-                      Kaspersky Who Calls tidak bisa diakses saat pemeriksaan, jadi reputasi nomor ini belum diketahui.
-                    </p>
-                  )}
-                  {p.summary && (
-                    <p className="mt-2 text-[12px] leading-relaxed text-text-muted">{p.summary}</p>
-                  )}
-                  {p.comments && p.comments.length > 0 && (
-                    <div className="mt-2 space-y-1">
-                      {p.comments.slice(0, 2).map((c: string, j: number) => (
-                        <p key={j} className="text-[11px] text-text-muted">• {c}</p>
-                      ))}
-                    </div>
-                  )}
+      {websites.length > 0 && (
+        <Section title="Situs yang dibuka" icon={Globe}>
+          <ul className="space-y-3">
+            {websites.map((w, i) => (
+              <li key={i}>
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <a href={w.url} target="_blank" rel="noreferrer" className="break-all font-mono text-[13px] text-text-primary hover:underline">
+                    {w.url}
+                  </a>
+                  <Status text={w.ok ? "Bisa dibuka" : "Tidak dapat dibuka"} kind={w.ok ? "safe" : "neutral"} />
                 </div>
-                );
-              })}
-            </div>
-          </SectionRow>
-        )}
-
-        {/* Company Profile */}
-        {companies.length > 0 && (
-          <SectionRow label="Profil Perusahaan dari Web Publik" icon={Buildings} badge="SERP Analysis">
-            <div className="space-y-3">
-              {companies.map((c, i) => (
-                <div key={i} className="rounded-lg border border-border bg-bg-subtle/30 px-4 py-3">
-                  <div className="flex flex-wrap items-center justify-between gap-2">
-                    <span className="text-[14px] font-semibold text-text-primary">
-                      {String(c.name ?? c.company_name ?? "-")}
-                    </span>
-                    {typeof c.stats === "object" && c.stats !== null && (
-                      <span className="rounded-full bg-accent/10 px-3 py-1 text-[11px] font-semibold text-accent">
-                        {String((c.stats as Record<string, unknown>).public_mentions ?? 0)} hasil web relevan
-                      </span>
-                    )}
-                  </div>
-                  {(c.safe_flags ?? []).length > 0 && (
-                    <div className="mt-2 flex flex-wrap gap-1.5">
-                      {(c.safe_flags ?? []).slice(0, 2).map((f: string) => (
-                        <Flag key={f} text={f} kind="safe" />
-                      ))}
-                    </div>
-                  )}
-                </div>
-              ))}
-            </div>
-          </SectionRow>
-        )}
-
-        {/* Location & Maps */}
-        {addresses.length > 0 && addresses[0]?.address_details && (
-          <SectionRow label="Lokasi & Verifikasi Peta" icon={MapPin} badge="OpenStreetMap">
-            <MapsLocationCard
-              address={addresses[0].address_input ?? ""}
-              details={addresses[0].address_details}
-            />
-          </SectionRow>
-        )}
-
-        {/* Social Media OSINT - Canggih */}
-        {hasWebSocial && (
-          <SectionRow label="Social Media Intelligence" icon={ShareNetwork} badge={`${webSocialResults.length} profil ditemukan`}>
-            <div className="space-y-3">
-              <p className="text-[12px] text-text-muted">
-                Jejak digital publik terverifikasi dari berbagai platform media sosial:
-              </p>
-              <div className="grid gap-3 sm:grid-cols-2">
-                {webSocialResults.map((result, i) => (
-                  <SocialProfileCard key={i} result={result} />
-                ))}
-              </div>
-
-              {/* Platform status summary */}
-              {social?.social_searches && social.social_searches.length > 0 && (
-                <div className="mt-4 rounded-lg border border-border bg-bg-subtle/30 p-4">
-                  <p className="mb-3 text-[11px] font-semibold uppercase tracking-wider text-text-muted">
-                    Status Pencarian per Platform
-                  </p>
-                  <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
-                    {social.social_searches.map((search, i) => (
-                      <div
-                        key={`${search.platform ?? "platform"}-${i}`}
-                        className="flex items-center justify-between rounded-md bg-bg-elevated px-3 py-2"
-                      >
-                        <div className="flex items-center gap-2">
-                          <SocialPlatformIcon platform={search.platform ?? ""} />
-                          <span className="text-[12px] font-medium capitalize text-text-secondary">
-                            {(search.platform ?? "social").replace("_", " ")}
-                          </span>
-                        </div>
-                        <span
-                          className={cn(
-                            "rounded-full px-2 py-0.5 text-[10px] font-mono font-bold",
-                            search.status === "FOUND"
-                              ? "bg-aman-bg text-aman-fg"
-                              : search.status === "UNAVAILABLE"
-                                ? "bg-bahaya-bg text-bahaya-fg"
-                                : "bg-bg-subtle text-text-muted"
-                          )}
-                        >
-                          {search.status === "FOUND" ? "✓" : search.status === "UNAVAILABLE" ? "✗" : "-"}
-                        </span>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              )}
-            </div>
-          </SectionRow>
-        )}
-
-        {/* Web Evidence */}
-        {web?.websites && web.websites.length > 0 && (
-          <SectionRow label="Website & Web Evidence" icon={Globe} badge={`${web.websites.length} situs`}>
-            <div className="space-y-3">
-              {web.websites.map((w, i) => (
-                <div key={i} className="rounded-lg border border-border bg-bg-subtle/30 px-4 py-3">
-                  <div className="flex flex-wrap items-center justify-between gap-2">
-                    <span
-                      className={cn(
-                        "font-mono text-[13px] font-medium",
-                        w.ok ? "text-text-primary" : "text-text-muted line-through"
-                      )}
-                    >
-                      {w.url}
-                    </span>
-                    {!w.ok && <Flag text="Tidak dapat diakses" kind="risk" />}
-                  </div>
-                  {w.snippet && !isJunkSnippet(w.snippet) && (
-                    <p className="mt-2 text-[12px] leading-relaxed text-text-muted">{w.snippet}</p>
-                  )}
-                  {(w.risk_flags ?? []).length > 0 && (
-                    <div className="mt-2 flex flex-wrap gap-1.5">
-                      {(w.risk_flags ?? []).map((f: string) => (
-                        <Flag key={f} text={f} kind="risk" />
-                      ))}
-                    </div>
-                  )}
-                </div>
-              ))}
-              <div className="flex flex-wrap gap-2">
-                {(web.risk_flags ?? []).map((f: string) => (
-                  <Flag key={f} text={f} kind="risk" />
-                ))}
-                {(web.safe_flags ?? []).map((f: string) => (
-                  <Flag key={f} text={f} kind="safe" />
-                ))}
-              </div>
-            </div>
-          </SectionRow>
-        )}
-      </div>
+                {w.snippet && !isJunkSnippet(w.snippet) && (
+                  <p className="mt-1 line-clamp-3 text-[12px] text-text-muted">{w.snippet}</p>
+                )}
+              </li>
+            ))}
+          </ul>
+        </Section>
+      )}
     </section>
   );
 }
