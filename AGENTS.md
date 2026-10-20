@@ -14,7 +14,6 @@ Full-stack codebase untuk **Verifin: Platform Deteksi Lowongan Kerja Palsu Berba
 - **External Services / Containers (`docker-compose.yml`):**
   - PostgreSQL (`:5432`) & Redis (`:6379`)
   - SearXNG (`:8080`) — Web search intelligence & evidence scraping
-  - Lightpanda (`:9222`) — Headless CDP browser untuk dynamic page evaluation
 
 ## Alur Pipeline Verifikasi (`/api/v1/verify/`)
 

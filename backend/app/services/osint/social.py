@@ -334,7 +334,7 @@ def run_social_osint(
         },
         "search_diagnostics": {
             "platforms_requested": list(_PLATFORM_SITE_HINTS),
-            "search_engine": "lightpanda",
+            "search_engine": "searxng",
             "note": "Hasil sosial diklasifikasikan terpisah dari portal loker dan aggregator.",
         },
         "social_searches": web_evidence.get("social_searches") or [],
