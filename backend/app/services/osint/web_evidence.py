@@ -208,36 +208,6 @@ def fetch_company_website(url_or_domain: str) -> dict[str, Any]:
             }
 
     try:
-        from app.services.osint.lightpanda_client import lightpanda_fetch, is_lightpanda_available
-        if is_lightpanda_available():
-            lp_result = lightpanda_fetch(url, output="html", wait_ms=3000)
-            if lp_result.get("ok") and lp_result.get("content"):
-                soup_page = __import__("bs4").BeautifulSoup(lp_result["content"], "html.parser")
-                title = lp_result.get("title", "") or ""
-                if not title and soup_page.title:
-                    title = soup_page.title.get_text(strip=True)
-                snippet = _snippet_from_soup(soup_page)
-                ok = True
-                risk_flags: list[str] = []
-                safe_flags: list[str] = []
-                low = (title + " " + snippet).lower()
-                if any(w in low for w in ("under construction", "domain for sale", "is for sale", "parked", "coming soon", "hugedomains", "godaddy", "sedo.com")):
-                    risk_flags.append("Website terlihat parked / domain dijual / belum aktif.")
-                if any(w in low for w in ("karir", "career", "lowongan", "about", "tentang", "kontak", "contact")):
-                    safe_flags.append("Website memuat indikasi halaman perusahaan/karir.")
-                return {
-                    "type": "website",
-                    "url": url,
-                    "ok": ok,
-                    "probe_status": "COMPLETED",
-                    "website_status": "AVAILABLE",
-                    "evidence_status": "FOUND",
-                    "title": title[:200],
-                    "snippet": snippet,
-                    "risk_flags": risk_flags,
-                    "safe_flags": safe_flags,
-                    "engine": "lightpanda",
-                }
         page = Fetcher.get(url, stealthy_headers=True)
         status = getattr(page, "status", None) or getattr(page, "status_code", None)
         title = ""
@@ -317,8 +287,6 @@ def search_web_evidence(
     *,
     skip_relevance_filter: bool = False,
 ) -> dict[str, Any]:
-    from app.services.osint.lightpanda_client import lightpanda_search, is_lightpanda_available
-
     q = (query or "").strip()
     if not q:
         return {
@@ -364,30 +332,10 @@ def search_web_evidence(
                 )
         else:
             search_error = sx_result.get("error", "SearXNG tidak ada hasil.")
-    if not results:
-        if not is_lightpanda_available():
-            search_error = "Lightpanda container tidak running. Jalankan: docker run -d --name lightpanda -p 127.0.0.1:9222:9222 lightpanda/browser:nightly"
-        else:
-            for eng in ("duckduckgo", "bing", "google"):
-                search_result = lightpanda_search(q, max_results=max_results, engine=eng)
-                if search_result.get("ok") and search_result.get("results"):
-                    engine_used = search_result.get("engine", f"lightpanda-{eng}")
-                    search_status = FOUND
-                    for item in search_result["results"]:
-                        url = item.get("url", "")
-                        title = (item.get("title") or "").strip()
-                        snippet = (item.get("snippet") or "").strip()
-                        if url and title:
-                            results.append({
-                                "title": title[:160],
-                                "url": url,
-                                "snippet": snippet[:240],
-                                "source_type": _public_source_type(url, title, snippet),
-                            })
-                    if results:
-                        break
-                else:
-                    search_error = search_result.get("error", "Tidak ada hasil.")
+    else:
+        search_error = "Mesin pencari (SearXNG) tidak dapat dihubungi."
+    if not results and not search_error:
+        search_error = "Pencarian tidak mengembalikan hasil."
 
     risk_flags = []
     relevant_results = []
@@ -623,6 +571,7 @@ def collect_web_evidence(entities: dict) -> dict[str, Any]:
             primary_company,
             primary_address,
             max_results=10,
+            official_domains=tuple(domains),
         )
         if si_result.get("ok") and si_result.get("results"):
             cached_si_results = si_result.get("results")
@@ -659,6 +608,15 @@ def collect_web_evidence(entities: dict) -> dict[str, Any]:
         searches.append(search_web_evidence(f"{domains[0]} penipuan OR scam"))
 
     social_searches = _collect_social_searches(entities, searches)
+
+    scam_check: dict[str, Any] = {"status": "SKIPPED", "query": "", "results": [], "warnings": 0}
+    if companies:
+        from app.services.osint.search_intelligence import scam_report_search
+        try:
+            scam_check = scam_report_search(str(companies[0]))
+        except Exception as exc:
+            logger.warning("[ScamCheck] gagal: %s", exc)
+            scam_check = {"status": "UNAVAILABLE", "query": "", "results": [], "warnings": 0, "error": str(exc)}
 
     platform_evidence: dict[str, Any] = {}
     if companies:
@@ -708,6 +666,7 @@ def collect_web_evidence(entities: dict) -> dict[str, Any]:
     companies = entities.get("companies") or []
 
     _ENT_TOKENS = _entity_tokens(companies, domains)
+    location_hits = 0
 
     for s in searches:
         for r in s.get("results") or []:
@@ -727,9 +686,8 @@ def collect_web_evidence(entities: dict) -> dict[str, Any]:
                 ]
                 matched_words = [w for w in loc_words if w in combined_text]
                 if len(set(matched_words)) >= 2 and companies:
-                    safe_flags.append(
-                        f"Location candidate match: hasil web memuat token lokasi '{', '.join(sorted(set(matched_words)))}'; belum membuktikan alamat exact."
-                    )
+                    location_hits += 1
+                    break
 
             is_aggregator = any(token in combined_text or token in u.lower() for token in _SOCIAL_AGGREGATOR_TOKENS)
             if "instagram.com" in u and u not in found_social and not is_aggregator and _is_relevant(u, combined_text, _ENT_TOKENS) and not _is_generic_social_url(u):
@@ -747,15 +705,15 @@ def collect_web_evidence(entities: dict) -> dict[str, Any]:
                 found_social.append(u)
                 safe_flags.append(f"Terdeteksi hasil media sosial publik (status resmi belum terverifikasi): {u}")
 
-    source_labels = {
-        "marketplace": "listing marketplace publik",
-        "social_platform": "hasil platform sosial publik",
-        "social_aggregator": "posting aggregator publik",
-        "job_portal": "listing portal lowongan publik",
-        "web": "hasil web publik",
-    }
-    for source_type, count in source_counts.items():
-        safe_flags.append(f"Ditemukan {count} {source_labels.get(source_type, 'jejak publik')}.")
+    # Kecocokan nama jalan/wilayah bukan sinyal aman: penipu sering memakai alamat kantor
+    # pusat asli perusahaan yang dicatut. Dicatat sekali sebagai keterangan netral.
+    if location_hits:
+        neutral_notes.append(
+            f"Nama jalan/wilayah di lowongan juga muncul di {location_hits} hasil web; "
+            "nomor bangunan belum dipastikan."
+        )
+    if total_public_results:
+        safe_flags.append(f"Pencarian web menemukan {total_public_results} hasil yang menyebut perusahaan ini.")
     if intelligence_signals:
         risk_flags.extend(intelligence_signals.get("risk_flags") or [])
         safe_flags.extend(intelligence_signals.get("safe_flags") or [])
@@ -765,11 +723,12 @@ def collect_web_evidence(entities: dict) -> dict[str, Any]:
 
     return {
         "enabled": True,
-        "engine": "searxng + lightpanda fallback",
+        "engine": "searxng",
         "websites": website_checks,
         "probe_status": "COMPLETED",
         "gform_inspections": gform_inspections,
         "searches": searches,
+        "scam_check": scam_check,
         "social_searches": social_searches,
         "evidence_counts": {
             "relevant_results": total_public_results,
@@ -778,6 +737,7 @@ def collect_web_evidence(entities: dict) -> dict[str, Any]:
             "empty_searches": sum(1 for s in searches if s.get("status") == NO_RESULTS),
             "no_relevant_searches": sum(1 for s in searches if s.get("status") == "NO_RELEVANT_RESULTS"),
             "unavailable_searches": sum(1 for s in searches if s.get("status") == "UNAVAILABLE"),
+            "scam_warnings": scam_check.get("warnings", 0),
             "digital_footprint": intelligence_signals.get("digital_footprint", "unknown"),
             "official_presence": intelligence_signals.get("official_presence", False),
             "marketplace_presence": intelligence_signals.get("marketplace_presence", False),

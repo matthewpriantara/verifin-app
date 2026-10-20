@@ -15,11 +15,36 @@ from app.api.v1.verify.pipeline import _build_osint_summary, _to_response
 from app.services.llm.verifin_reasoning import _soften_summary_claims
 
 logger = logging.getLogger(__name__)
-CACHE_SCHEMA_VERSION = 9
+CACHE_SCHEMA_VERSION = 10
 
 
 def _case_hash(raw_input: str) -> str:
-    return compute_content_sha256(f"{raw_input}\nmodel:{LLM_MODEL}")
+    # Spasi/baris baru berlebih tidak membedakan lowongan; tanpa normalisasi ini teks yang sama
+    # dengan baris baru di akhir tersimpan dua kali.
+    normalized = re.sub(r"\s+", " ", (raw_input or "").strip())
+    return compute_content_sha256(f"{normalized}\nmodel:{LLM_MODEL}")
+
+
+def _osint_has_failures(osint_results: dict | None) -> bool:
+    """True bila ada pemeriksaan yang gagal dijalankan (bukan sekadar tidak menemukan apa-apa)."""
+    if not osint_results:
+        return False
+    if any(isinstance(v, dict) and "error" in v for v in osint_results.values()):
+        return True
+    web = osint_results.get("web") or {}
+    searches = web.get("searches") or []
+    if searches and all(s.get("status") in ("UNAVAILABLE", "TIMEOUT") for s in searches):
+        return True
+    if (web.get("scam_check") or {}).get("status") == "UNAVAILABLE":
+        return True
+    for phone in osint_results.get("phones") or []:
+        if isinstance(phone, dict) and phone.get("probe_status") in ("UNAVAILABLE", "TIMEOUT"):
+            return True
+    for addr in osint_results.get("address_validations") or []:
+        details = (addr or {}).get("address_details") or {}
+        if details.get("probe_status") in ("UNAVAILABLE", "TIMEOUT"):
+            return True
+    return False
 
 def _save_case_to_db(
     db: Session,
@@ -60,11 +85,7 @@ def _save_case_to_db(
             "shap_explanation": analysis.get("shap_explanation"),
         }
 
-        osint_failed = False
-        if osint_results:
-            osint_failed = any(
-                isinstance(v, dict) and "error" in v for v in osint_results.values()
-            )
+        osint_failed = _osint_has_failures(osint_results)
 
         preview = (raw_text or "").strip()
         if len(preview) > 2000:
@@ -161,7 +182,12 @@ def _get_cached_case_from_db(db: Session, raw_input_str: str) -> VerifyResponse 
         return None
     try:
         text_hash = _case_hash(raw_input_str)
-        cached = db.query(JobCase).filter(JobCase.raw_text_hash == text_hash).first()
+        # Hasil dengan pemeriksaan gagal tidak dipakai ulang: permintaan berikutnya menghitung ulang
+        cached = (
+            db.query(JobCase)
+            .filter(JobCase.raw_text_hash == text_hash, JobCase.osint_failed.is_(False))
+            .first()
+        )
         if cached:
             resp = _job_case_to_response(cached)
             if resp:
@@ -215,6 +241,7 @@ def _get_cached_case_by_url(db: Session, raw_url: str) -> VerifyResponse | None:
             .filter(
                 JobCase.verdict.isnot(None),
                 JobCase.verdict != "ERROR",
+                JobCase.osint_failed.is_(False),
                 or_(*conditions),
             )
             .order_by(JobCase.created_at.desc())

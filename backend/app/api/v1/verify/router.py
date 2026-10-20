@@ -647,7 +647,6 @@ def get_case_by_id(case_id: str, db: Session = Depends(get_db)):
     return {
         "id": str(db_case.id),
         "case_id": str(db_case.id),
-        "raw_text_hash": db_case.raw_text_hash,
         "source": db_case.source,
         "raw_text_preview": db_case.raw_text_preview,
         "company_name": db_case.company_name,
@@ -667,8 +666,6 @@ def get_case_by_id(case_id: str, db: Session = Depends(get_db)):
         "entities": entities,
         "osint": osint,
         "shap_explanation": llm_output.get("shap_explanation"),
-        "llm_output": llm_output,
-        "osint_summary": cached_osint,
         "osint_failed": db_case.osint_failed,
         "created_at": db_case.created_at.isoformat() if db_case.created_at else None,
     }
