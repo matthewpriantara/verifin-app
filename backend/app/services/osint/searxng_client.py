@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import logging
+import re
 import threading
 import time
 from typing import Any
@@ -22,6 +23,9 @@ _MIN_REQUEST_INTERVAL: float = SEARXNG_MIN_INTERVAL
 _RATE_LIMIT_UNTIL: float = 0.0
 _AVAILABILITY_CACHE: tuple[float, bool] = (0.0, False)
 _AVAILABILITY_TTL: float = 30.0
+# Engine yang di-scrape kadang mengembalikan halaman acak (pernah: situs dewasa untuk query
+# nama perusahaan). Hasil seperti itu tidak boleh sampai ke laporan.
+_ADULT_HOST_RE = re.compile(r"porn|xxx|xnxx|xhamster|xvideos|bokep|hentai|\bsex|tits|\bjav(?:hd|most|guru)?\b", re.I)
 
 
 def _cache_key(query: str, max_results: int, engines: str | None, language: str) -> str:
@@ -178,6 +182,8 @@ def _searxng_search_once(
                 title = r.get("title", "")
                 content = r.get("content", "")
                 if not url or not title:
+                    continue
+                if _ADULT_HOST_RE.search(url.split("/")[2] if "//" in url else url):
                     continue
 
                 engines_found = r.get("engines", [r.get("engine", "")])

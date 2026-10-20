@@ -20,3 +20,12 @@ def test_page_prose_is_kept():
     for text in PROSE:
         assert not evidence_junk(text)
         assert not fetcher_junk(text)
+
+
+def test_adult_hosts_are_dropped():
+    from app.services.osint.searxng_client import _ADULT_HOST_RE
+
+    for host in ("es.pornhub.com", "forum.xnxx.com", "id.xhamster.com", "filmbokep.cc", "goldtits.com"):
+        assert _ADULT_HOST_RE.search(host)
+    for host in ("komitrando.com", "newsaphirhotel.com", "rri.co.id", "jatengprov.go.id", "essex.ac.uk", "javaprint.co.id"):
+        assert not _ADULT_HOST_RE.search(host), host
