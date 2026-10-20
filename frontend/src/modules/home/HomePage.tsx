@@ -17,6 +17,7 @@ import {
   CircleNotch,
 } from "@phosphor-icons/react";
 import { cn } from "@/lib/utils";
+import { buttonClass } from "@/components/ui/Button";
 
 // Contoh di tiap langkah diambil dari laporan nyata T4 (lowongan palsu atas nama Pos Indonesia,
 // dibantah Pos Indonesia), run 8 di server produksi 20 Okt 2026.
@@ -152,7 +153,7 @@ function HowItWorks() {
         return (
           <li
             key={step.num}
-            className="relative flex gap-3 pb-4 last:pb-0 lg:flex-col lg:gap-4 lg:pb-0"
+            className="relative flex gap-3 pb-4 last:pb-0 lg:flex-col lg:items-center lg:gap-4 lg:pb-0"
             aria-current={current ? "step" : undefined}
             onMouseEnter={() => {
               setActive(i);
@@ -163,7 +164,7 @@ function HowItWorks() {
               // HP: garis tegak ke langkah berikutnya; lg: garis mendatar di atas kartu.
               <span
                 aria-hidden
-                className="absolute bottom-0 left-[17px] top-10 w-px overflow-hidden bg-border lg:-right-4 lg:bottom-auto lg:left-12 lg:top-[17px] lg:h-px lg:w-auto"
+                className="absolute bottom-0 left-[17px] top-10 w-px overflow-hidden bg-border lg:bottom-auto lg:left-[calc(50%+28px)] lg:right-[calc(-50%+12px)] lg:top-[17px] lg:h-px lg:w-auto"
               >
                 <span
                   className={cn(
@@ -192,7 +193,7 @@ function HowItWorks() {
             </span>
             <div
               className={cn(
-                "flex min-w-0 flex-1 flex-col rounded-2xl border bg-bg-elevated p-5 transition-colors duration-300",
+                "flex min-w-0 flex-1 flex-col self-stretch rounded-2xl border bg-bg-elevated p-5 transition-colors duration-300",
                 current ? "border-text-primary/50" : "border-border",
               )}
             >
@@ -425,7 +426,7 @@ export default function HomePage() {
             </p>
             <Link
               href={EXAMPLE_REPORT}
-              className="mt-3 inline-flex min-h-11 items-center gap-1.5 text-[13px] font-medium text-text-primary underline-offset-4 hover:underline"
+              className={buttonClass({ variant: "secondary", className: "mt-4" })}
             >
               Lihat laporan lengkapnya
               <ArrowUpRight size={14} weight="bold" />
