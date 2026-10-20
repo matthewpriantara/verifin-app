@@ -27,6 +27,19 @@ const sizes = {
   sm: "h-8 px-3 text-[13px]",
 };
 
+const base =
+  "inline-flex items-center justify-center gap-2 rounded-lg font-medium transition-all duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-text-primary focus-visible:ring-offset-2 focus-visible:ring-offset-bg active:scale-[0.98] disabled:cursor-not-allowed disabled:pointer-events-none";
+
+// Kelas yang sama untuk <Link>/<a> yang tampil sebagai tombol, supaya tidak menyalin kelas sendiri.
+export function buttonClass({
+  variant = "primary",
+  size = "md",
+  fullWidth,
+  className,
+}: { variant?: Variant; size?: "sm" | "md"; fullWidth?: boolean; className?: string } = {}) {
+  return cn(base, variants[variant], sizes[size], fullWidth && "w-full", className);
+}
+
 export function Button({
   className,
   variant = "primary",
@@ -39,13 +52,7 @@ export function Button({
   return (
     <button
       type={type}
-      className={cn(
-        "inline-flex items-center justify-center gap-2 rounded-lg font-medium transition-all duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-text-primary focus-visible:ring-offset-2 focus-visible:ring-offset-bg active:scale-[0.98] disabled:cursor-not-allowed disabled:pointer-events-none",
-        variants[variant],
-        sizes[size],
-        fullWidth && "w-full",
-        className,
-      )}
+      className={buttonClass({ variant, size, fullWidth, className })}
       {...props}
     >
       {children}
