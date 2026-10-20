@@ -74,24 +74,30 @@ Kumpulan loker nyata untuk menguji tiga kanal input Verifin (teks, link, poster)
 
 Dijalankan lewat antarmuka web (Playwright) terhadap backend yang terhubung ke Supabase. Screenshot dan JSON run terakhir ada di `hasil/`; run sebelumnya diarsipkan di `hasil/run1/` dan `hasil/run2/`. Sebelum tiap run ulang, baris `job_cases` hasil run sebelumnya dihapus supaya tidak terbaca dari cache.
 
-| ID | Status sebenarnya | Run 1 | Run 2 | Run 3 | **Run 5 (final)** | Durasi run 5 |
-|---|---|---|---|---|---|---|
-| T1 | Asli | AMAN 8 | AMAN 10 | AMAN 10 | **AMAN 10** | 41 dtk |
-| T9 | Asli | — | — | — | **AMAN 15** | 29 dtk |
-| T10 | Asli | — | — | — | **AMAN 8** | 34 dtk |
-| T11 | Asli | — | — | — | **AMAN 15** | 40 dtk |
-| L1 | Asli | AMAN 10 | AMAN 12 | AMAN 12 | **AMAN 12** | 52 dtk |
-| P1 | Asli | AMAN 25 | AMAN 20 | AMAN 24 | **AMAN 20** | 72 dtk |
-| T2 | Abu-abu (perusahaan nyata, teks anonim) | AMAN 28 | WASPADA 52 | WASPADA 50 | **WASPADA 50** | 18 dtk |
-| L2 | Abu-abu (pola sewa akun, belum terkonfirmasi) | WASPADA 60 | WASPADA 60 | WASPADA 60 | **WASPADA 55** | 21 dtk |
-| T3 | Penipuan | — | — | BAHAYA 95 | **BAHAYA 95** | 33 dtk |
-| T4 | Penipuan | — | — | WASPADA 68 | **WASPADA 65** | 31 dtk |
-| T5 | Penipuan | — | — | — | **WASPADA 65** | 29 dtk |
-| T6 | Penipuan | — | — | — | **WASPADA 55** | 43 dtk |
-| T7 | Penipuan | — | — | — | **WASPADA 45** | 24 dtk |
-| T8 | Penipuan | — | — | — | **WASPADA 52** | 50 dtk |
+| ID | Status sebenarnya | Run 1 | Run 2 | Run 3 | Run 5 | **Run 6–7 (final, 20 Okt)** | Durasi run 6–7 |
+|---|---|---|---|---|---|---|---|
+| T1 | Asli | AMAN 8 | AMAN 10 | AMAN 10 | AMAN 10 | **AMAN 12** | 39 dtk |
+| T9 | Asli | — | — | — | AMAN 15 | **AMAN 30** | 39 dtk |
+| T10 | Asli | — | — | — | AMAN 8 | **AMAN 12** | 32 dtk |
+| T11 | Asli | — | — | — | AMAN 15 | **AMAN 20** | 39 dtk |
+| L1 | Asli | AMAN 10 | AMAN 12 | AMAN 12 | AMAN 12 | **AMAN 15** | 47 dtk |
+| P1 | Asli | AMAN 25 | AMAN 20 | AMAN 24 | AMAN 20 | **AMAN 28** | 36 dtk |
+| T2 | Abu-abu (perusahaan nyata, teks anonim) | AMAN 28 | WASPADA 52 | WASPADA 50 | WASPADA 50 | **WASPADA 50** | 20 dtk |
+| L2 | Abu-abu (pola sewa akun, belum terkonfirmasi) | WASPADA 60 | WASPADA 60 | WASPADA 60 | WASPADA 55 | **WASPADA 58** | 19 dtk |
+| T3 | Penipuan | — | — | BAHAYA 95 | BAHAYA 95 | **BAHAYA 95** | 33 dtk |
+| T4 | Penipuan | — | — | WASPADA 68 | WASPADA 65 | **WASPADA 72** | 33 dtk |
+| T5 | Penipuan | — | — | — | WASPADA 65 | **WASPADA 73** | 32 dtk |
+| T6 | Penipuan | — | — | — | WASPADA 55 | **WASPADA 72** | 44 dtk |
+| T7 | Penipuan | — | — | — | WASPADA 45 | **WASPADA 45** | 15 dtk |
+| T8 | Penipuan | — | — | — | WASPADA 52 | **WASPADA 72** | 31 dtk |
 
 Run 4 (arsip tidak disimpan) dipakai untuk menemukan dua celah yang diperbaiki sebelum run 5: frasa "link di. bio" tidak terbaca sebagai jalur tidak resmi, dan label XAI "Pendaftaran via WhatsApp" ikut muncul pada kasus tautan bio.
+
+**Run 6–7 (20 Okt 2026, server produksi `verifin.web.id`)** dijalankan langsung ke API backend setelah perbaikan audit-003: query cek hoaks baru (`scam_check`), geocoder yang mencoba nama usaha, dan prompt yang disusun ulang. Baris `job_cases` tidak dihapus; run ulang memperbarui baris yang sama. Run 7 mengulang T1, T3–T6, T8–T10 setelah penyaring peringatan diperketat. JSON: `hasil/run6.json` dan `hasil/run7.json`.
+- Penipuan yang ditandai: **6 dari 6**, dan skornya naik mendekati batas BAHAYA. T4, T5, T6, dan T8 kini WASPADA 72–73 (run 5: 52–65), karena pencarian kini menemukan artikel bantahan atas nama perusahaan yang dicatut (mis. Komdigi dan RRI untuk Pos Indonesia). T3 tetap satu-satunya BAHAYA karena hanya T3 yang meminta biaya.
+- Lowongan asli yang dinilai AMAN: **6 dari 6**. T9 (Medela Potentia) naik ke AMAN 30 karena perusahaan itu sendiri pernah menerbitkan peringatan pencatutan namanya. Ini dicatat sebagai faktor ringan, bukan bahaya.
+- Titik peta T10 sekarang tepat di POI "Komitrando" pada OSM (run 5: ruas jalan, 0,36 km). Kecocokan tingkat wilayah (T3) hanya menampilkan kelurahan, kota, dan kode pos.
+- Durasi tanpa cache: 15–47 detik. Dengan cache: 0,5 detik.
 
 **Ringkasan run 5** (kasus abu-abu tidak dihitung):
 - Penipuan yang ditandai (WASPADA atau BAHAYA): **6 dari 6**. Yang sampai BAHAYA hanya 1 dari 6 (T3, satu-satunya yang meminta biaya). Lima lainnya hanya mengarahkan ke WhatsApp/tautan bio tanpa bukti keras, sehingga berhenti di WASPADA.
