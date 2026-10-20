@@ -33,6 +33,7 @@ _FEATURE_WEIGHTS: dict[str, float] = {
     "entity_in_fraud_network": 30.0,
     "entity_seen_multiple_cases": 15.0,
     "community_reported":    20.0,
+    "impersonation_warning": 15.0,
 }
 
 
@@ -178,7 +179,9 @@ def explain_verification_shap(
     web_data = osint_results.get("web") or {}
     websites = web_data.get("websites") or []
 
-    if any(w.get("website_status") != "AVAILABLE" for w in websites):
+    # Hanya situs yang benar-benar mati (DNS tidak ada atau HTTP error). Diblokir anti-bot atau
+    # timeout dari sisi Verifin bukan bukti situsnya tidak ada.
+    if any(w.get("website_status") in ("NOT_FOUND", "HTTP_ERROR") for w in websites):
         contributions.append(_make_contrib(
             "Situs Web Tidak Dapat Diakses",
             "domain_unreachable",
@@ -219,34 +222,51 @@ def explain_verification_shap(
 
     gform_inspections = web_data.get("gform_inspections") or []
     for gf in gform_inspections:
-        if gf.get("requests_sensitive_data"):
+        if gf.get("has_phishing_signals") is True:
+            flags = " ".join(gf.get("risk_flags") or []).lower()
+            asks_fee = any(k in flags for k in ("biaya", "bayar", "transfer", "deposit"))
             contributions.append(_make_contrib(
-                "Form Pendaftaran Minta Data Sensitif",
-                "gform_phishing",
+                "Formulir Meminta Biaya" if asks_fee else "Form Pendaftaran Minta Data Sensitif",
+                "fee_in_gform" if asks_fee else "gform_phishing",
                 1,
-                _FEATURE_WEIGHTS["gform_phishing"],
+                _FEATURE_WEIGHTS["fee_in_gform" if asks_fee else "gform_phishing"],
                 "risk",
-                "Google Form / shortlink meminta KTP, rekening, atau biaya — modus phishing",
+                "Pertanyaan formulir meminta biaya/transfer" if asks_fee
+                else "Pertanyaan formulir meminta KTP, rekening, PIN/OTP, atau data sensitif lain",
             ))
             break
 
-    for w in websites:
-        if any("penipuan" in f.lower() or "scam" in f.lower()
-               for f in (w.get("risk_flags") or [])):
-            contributions.append(_make_contrib(
-                "Hasil Pencarian Menunjukkan Indikasi Penipuan",
-                "scam_serp_result",
-                1,
-                _FEATURE_WEIGHTS["scam_serp_result"],
-                "risk",
-                "Hasil web/SERP mengandung laporan penipuan terkait perusahaan/nomor ini",
-            ))
-            break
+    serp_scam = any(s.get("risk_flags") for s in (web_data.get("searches") or []) if isinstance(s, dict)) or any(
+        (p.get("serp_fallback") or {}).get("found_scam") for p in phones if isinstance(p, dict)
+    )
+    if serp_scam:
+        contributions.append(_make_contrib(
+            "Hasil Pencarian Menunjukkan Indikasi Penipuan",
+            "scam_serp_result",
+            1,
+            _FEATURE_WEIGHTS["scam_serp_result"],
+            "risk",
+            "Hasil pencarian menyebut laporan penipuan terkait perusahaan atau nomor ini",
+        ))
+
+    scam_warnings = int((web_data.get("scam_check") or {}).get("warnings") or 0)
+    if scam_warnings > 0:
+        contributions.append(_make_contrib(
+            f"Nama Pernah Dicatut Lowongan Palsu ({scam_warnings} artikel)",
+            "impersonation_warning",
+            scam_warnings,
+            _FEATURE_WEIGHTS["impersonation_warning"],
+            "risk",
+            "Ada artikel peringatan/bantahan lowongan palsu atas nama ini; bukan bukti lowongan ini palsu",
+        ))
 
     address_validations = osint_results.get("address_validations") or []
+    # Hanya alamat yang memang tertulis di lowongan; alamat dari pencarian web atau kota penempatan
+    # tidak membuktikan lokasi lowongan.
     exact_address = any(
         (a.get("found") or a.get("address_found"))
         and (a.get("match_level") or (a.get("address_details") or {}).get("match_level")) == "exact"
+        and a.get("address_source") in (None, "posting_address", "posting_address_refined")
         for a in address_validations
         if isinstance(a, dict)
     )
@@ -295,16 +315,21 @@ def explain_verification_shap(
                 1,
                 _FEATURE_WEIGHTS["entity_in_fraud_network"],
                 "risk",
-                f"HP/email/PT ini sebelumnya muncul di {fraud_case_count} kasus BAHAYA/WASPADA",
+                f"HP/email/PT ini sebelumnya muncul di {fraud_case_count} kasus berverdict BAHAYA",
             ))
-        elif network_context.get("entity_seen_multiple_cases"):
+        elif network_context.get("entity_seen_multiple_cases") and any(
+            v in ("WASPADA", "BAHAYA")
+            for m in (network_context.get("matched_entities") or [])
+            for v in (m.get("verdicts") or [])
+        ):
+            # Perusahaan asli wajar dicek berkali-kali; hanya dihitung bila kasus lain bermasalah.
             contributions.append(_make_contrib(
                 "Entitas Muncul di Beberapa Kasus",
                 "entity_seen_multiple_cases",
                 1,
                 _FEATURE_WEIGHTS["entity_seen_multiple_cases"],
                 "risk",
-                f"Entitas ini sebelumnya terdeteksi di {network_context.get('total_case_count', '?')} verifikasi lain",
+                f"Entitas ini muncul di {network_context.get('total_case_count', '?')} verifikasi lain, sebagian berverdict WASPADA",
             ))
 
         community = network_context.get("community_reports") or {}
@@ -391,10 +416,7 @@ def explain_verification_shap(
         "deduplication_engine": forensic["deduplication_engine"],
         "networkx_graph_analytics": forensic["networkx_graph_analytics"],
         "checked_at": forensic["checked_at"],
-        "ethical_safeguards": {
-            "human_review_recommended": True,
-            "cost_of_error": {"false_positive_fatal_cost": 5.0, "false_negative_cost": 10.0},
-        },
+        "ethical_safeguards": {"human_review_recommended": True},
         "verdict": verdict,
         "feature_contributions": all_contributions,
         "waterfall_chart": waterfall,

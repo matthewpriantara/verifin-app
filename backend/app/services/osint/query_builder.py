@@ -19,8 +19,13 @@ def _clean_text(value: str) -> str:
 
 def _company_forms(company: str) -> tuple[str, str | None]:
     full = _clean_text(company)
-    aliases = re.findall(r"\(([^()]{3,80})\)", full)
-    without_legal = _clean_text(_LEGAL_PREFIX.sub("", full))
+    from app.services.osint.search_intelligence import _LEGAL_ALIAS_WORDS
+    # Isi kurung yang hanya bentuk badan usaha ("(Persero)", "(Tbk)") bukan nama merek.
+    aliases = [
+        a for a in re.findall(r"\(([^()]{3,80})\)", full)
+        if not set(re.findall(r"[a-z]+", a.lower())) <= _LEGAL_ALIAS_WORDS
+    ]
+    without_legal = _clean_text(_LEGAL_PREFIX.sub("", re.sub(r"\((?:persero|tbk)\)", " ", full, flags=re.I)))
     without_legal = _clean_text(re.sub(r"[^\w\s]", " ", without_legal))
     brand = _clean_text(aliases[0]) if aliases else None
     if brand and brand.lower() == without_legal.lower():

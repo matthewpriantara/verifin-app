@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import logging
 import os
+import re
 from typing import Optional
 from uuid import UUID
 
@@ -12,7 +13,9 @@ from sqlalchemy.orm import Session
 from app.database.models import CommunityReport
 from app.database.postgres_client import get_db
 from app.services.ner import clean_indonesian_phone
-from app.api.v1.community.schema import CommunityReportOut, CommunityReportPublic, ModerationUpdate
+from pydantic import ValidationError
+
+from app.api.v1.community.schema import CommunityReportIn, CommunityReportOut, CommunityReportPublic, ModerationUpdate, REPORT_TYPES
 from app.config import UPLOAD_DIR, MAX_UPLOAD_SIZE_BYTES, RATE_LIMIT_REPORT_PER_MIN
 from app.services.security import RateLimiter, client_ip, require_admin
 logger = logging.getLogger(__name__)
@@ -38,6 +41,27 @@ async def submit_report(
             status_code=422,
             detail="Isi minimal satu entitas yang dilaporkan: nama perusahaan, nomor HP, email, atau URL.",
         )
+    # Form multipart tidak melewati skema Pydantic, jadi batas panjang kolom DB dicek di sini.
+    try:
+        data = CommunityReportIn(
+            company_name=company_name, phone=phone, email=email, url=url,
+            report_type=report_type or "penipuan", description=description,
+            reporter_contact=reporter_contact, case_id=case_id,
+        )
+    except ValidationError as exc:
+        field = ".".join(str(p) for p in (exc.errors()[0].get("loc") or ["isian"]))
+        raise HTTPException(status_code=422, detail=f"Isian '{field}' terlalu panjang atau tidak valid.") from exc
+    if data.report_type not in REPORT_TYPES:
+        raise HTTPException(status_code=422, detail="Jenis laporan tidak dikenal.")
+    clean_phone = clean_indonesian_phone(data.phone) if data.phone else ""
+    if data.phone and not clean_phone:
+        raise HTTPException(status_code=422, detail="Nomor HP tidak valid. Gunakan format 08xx atau +628xx.")
+    clean_email = (data.email or "").strip().lower()
+    if clean_email and not re.fullmatch(r"[^@\s]+@[^@\s]+\.[a-z]{2,}", clean_email):
+        raise HTTPException(status_code=422, detail="Format email tidak valid.")
+    clean_url = (data.url or "").strip()
+    if clean_url and not re.match(r"^https?://", clean_url, re.I):
+        clean_url = f"https://{clean_url}"
 
     evidence_file_url = None
     if evidence_file and evidence_file.filename:
@@ -66,15 +90,15 @@ async def submit_report(
         evidence_file_url = f"/uploads/evidence/{filename}"
 
     report = CommunityReport(
-        company_name=(company_name or "").strip() or None,
-        phone=clean_indonesian_phone(phone) or None,
-        email=(email or "").strip().lower() or None,
-        url=(url or "").strip() or None,
-        report_type=(report_type or "penipuan").strip(),
-        description=(description or "").strip() or None,
-        reporter_contact=(reporter_contact or "").strip() or None,
+        company_name=(data.company_name or "").strip() or None,
+        phone=clean_phone or None,
+        email=clean_email or None,
+        url=clean_url or None,
+        report_type=data.report_type.strip(),
+        description=(data.description or "").strip() or None,
+        reporter_contact=(data.reporter_contact or "").strip() or None,
         reporter_ip=client_ip(request),
-        case_id=(case_id or "").strip() or None,
+        case_id=(data.case_id or "").strip() or None,
         evidence_file_url=evidence_file_url,
         status="pending",
     )
@@ -84,7 +108,8 @@ async def submit_report(
         db.refresh(report)
     except Exception as exc:
         db.rollback()
-        raise HTTPException(status_code=500, detail=f"Gagal menyimpan laporan: {exc}") from exc
+        logger.warning("[Community] simpan gagal: %s", exc)
+        raise HTTPException(status_code=500, detail="Gagal menyimpan laporan. Coba lagi sebentar lagi.") from exc
 
     return {
         "status": "ok",
@@ -108,16 +133,22 @@ def check_entity(
     if company_name:
         conditions.append(func.lower(CommunityReport.company_name) == company_name.strip().lower())
     if phone:
-        conditions.append(CommunityReport.phone == clean_indonesian_phone(phone))
+        conditions.append(CommunityReport.phone == (clean_indonesian_phone(phone) or phone.strip()))
     if email:
         conditions.append(func.lower(CommunityReport.email) == email.strip().lower())
     if url:
         conditions.append(CommunityReport.url == url.strip())
 
     try:
-        count = db.query(func.count(CommunityReport.id)).filter(or_(*conditions)).scalar() or 0
+        # Hanya laporan yang disetujui moderator; laporan yang ditolak tidak boleh menjadi sinyal publik.
+        count = (
+            db.query(func.count(CommunityReport.id))
+            .filter(or_(*conditions), CommunityReport.status == "approved")
+            .scalar() or 0
+        )
     except Exception as exc:
-        raise HTTPException(status_code=500, detail=f"Gagal mengambil data: {exc}") from exc
+        logger.warning("[Community] cek gagal: %s", exc)
+        raise HTTPException(status_code=500, detail="Gagal mengambil data.") from exc
 
     return {
         "status": "ok",
@@ -141,7 +172,8 @@ def recent_reports(
             .all()
         )
     except Exception as exc:
-        raise HTTPException(status_code=500, detail=f"Gagal mengambil laporan: {exc}") from exc
+        logger.warning("[Community] ambil gagal: %s", exc)
+        raise HTTPException(status_code=500, detail="Gagal mengambil laporan.") from exc
 
     # Data pelapor (IP, kontak) dan catatan moderator tidak pernah dikirim ke publik.
     return {
@@ -175,7 +207,8 @@ def list_reports(
     try:
         rows = query.order_by(CommunityReport.created_at.desc()).limit(limit).all()
     except Exception as exc:
-        raise HTTPException(status_code=500, detail=f"Gagal mengambil laporan: {exc}") from exc
+        logger.warning("[Community] ambil gagal: %s", exc)
+        raise HTTPException(status_code=500, detail="Gagal mengambil laporan.") from exc
 
     return {
         "status": "ok",
@@ -220,7 +253,8 @@ def review_report(
         db.commit()
     except Exception as exc:
         db.rollback()
-        raise HTTPException(status_code=500, detail=f"Gagal menyimpan review: {exc}") from exc
+        logger.warning("[Community] review gagal: %s", exc)
+        raise HTTPException(status_code=500, detail="Gagal menyimpan review.") from exc
 
     return {
         "status": "ok",

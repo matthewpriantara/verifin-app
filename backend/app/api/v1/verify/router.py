@@ -39,6 +39,9 @@ from app.services.db_cache import _save_case_to_db, _get_cached_case_from_db, _g
 from app.services.llm.verifin_reasoning import _soften_summary_claims
 from app.services.web_fetcher import _fetch_url_content_and_image
 from app.config import RATE_LIMIT_VERIFY_PER_MIN, VERIFIN_DEBUG_RAW_JSON
+from app.services.case_search import like_escape
+
+MAX_IMAGE_BYTES = 20 * 1024 * 1024
 from app.services.security import RateLimiter, require_admin
 
 logger = logging.getLogger(__name__)
@@ -185,6 +188,7 @@ async def verify_from_text(
 
         stage_started = time.perf_counter()
         network_context = await asyncio.to_thread(_check_fraud_network, db, entities, request.text)
+        _merge_network(osint_results, network_context)
         logger.info("[verify][%s] fraud-network done status=%s in_network=%s reports=%s duration=%.2fs", request_id, network_context.get("status"), network_context.get("entity_in_fraud_network"), (network_context.get("community_reports") or {}).get("report_count"), time.perf_counter() - stage_started)
 
         raw_text = request.text
@@ -213,7 +217,7 @@ async def verify_from_text(
     except Exception as e:
         logger.exception("[verify][%s] ERROR source=text after=%.2fs: %s", request_id, time.perf_counter() - started, e)
         raise HTTPException(
-            status_code=500, detail=f"Gagal memproses verifikasi teks: {e}"
+            status_code=500, detail="Gagal memproses verifikasi teks. Coba lagi sebentar lagi."
         ) from e
 
 
@@ -243,11 +247,12 @@ async def verify_from_image(
             detail=f"Tipe file tidak didukung: {file.content_type}. Gunakan JPG, PNG, atau WEBP.",
         )
 
-    contents = await file.read()
-    if len(contents) > 20 * 1024 * 1024:
-        raise HTTPException(status_code=413, detail="Ukuran file terlalu besar. Maksimal 20MB.")
+    # Dibaca bertahap supaya file raksasa ditolak sebelum memenuhi memori.
+    contents = await file.read(MAX_IMAGE_BYTES + 1)
+    if len(contents) > MAX_IMAGE_BYTES:
+        raise HTTPException(status_code=413, detail="Ukuran file terlalu besar. Maksimal 20 MB.")
 
-    ext = os.path.splitext(file.filename or "")[-1] or ".png"
+    ext = {"image/png": ".png", "image/webp": ".webp"}.get(file.content_type, ".jpg")
     with tempfile.NamedTemporaryFile(delete=False, suffix=ext) as tmp:
         tmp.write(contents)
         tmp_path = tmp.name
@@ -285,6 +290,7 @@ async def verify_from_image(
 
         stage_started = time.perf_counter()
         network_context = await asyncio.to_thread(_check_fraud_network, db, entities, raw_text)
+        _merge_network(osint_results, network_context)
         logger.info("[verify][%s] fraud-network done status=%s in_network=%s reports=%s duration=%.2fs", request_id, network_context.get("status"), network_context.get("entity_in_fraud_network"), (network_context.get("community_reports") or {}).get("report_count"), time.perf_counter() - stage_started)
 
         stage_started = time.perf_counter()
@@ -315,7 +321,7 @@ async def verify_from_image(
     except Exception as e:
         logger.exception("[verify][%s] ERROR source=image after=%.2fs: %s", request_id, time.perf_counter() - started, e)
         raise HTTPException(
-            status_code=500, detail=f"Gagal memproses verifikasi gambar: {e}"
+            status_code=500, detail="Gagal memproses verifikasi gambar. Coba lagi sebentar lagi."
         ) from e
     finally:
         if os.path.exists(tmp_path):
@@ -341,9 +347,12 @@ async def verify_from_url(
     request_id = _request_id()
     started = time.perf_counter()
     logger.info("[verify][%s] START source=url chars=%d", request_id, len(request.url or ""))
-    cached_resp = await asyncio.to_thread(_get_cached_case_by_url, db, request.url)
-    if not cached_resp:
-        cached_resp = await asyncio.to_thread(_get_cached_case_from_db, db, request.url)
+    cached_resp = None
+    # Teks tambahan mengubah isi yang dianalisis, jadi cache per-URL tidak boleh dipakai.
+    if not (request.additional_text and request.additional_text.strip()):
+        cached_resp = await asyncio.to_thread(_get_cached_case_by_url, db, request.url)
+        if not cached_resp:
+            cached_resp = await asyncio.to_thread(_get_cached_case_from_db, db, request.url)
     if cached_resp:
         logger.info("[verify][%s] cache hit source=url", request_id)
         logger.info("[verify][%s] CACHE_HIT source=url", request_id)
@@ -400,6 +409,7 @@ async def verify_from_url(
 
         stage_started = time.perf_counter()
         network_context = await asyncio.to_thread(_check_fraud_network, db, entities, full_raw_text)
+        _merge_network(osint_results, network_context)
         logger.info("[verify][%s] fraud-network done status=%s in_network=%s reports=%s duration=%.2fs", request_id, network_context.get("status"), network_context.get("entity_in_fraud_network"), (network_context.get("community_reports") or {}).get("report_count"), time.perf_counter() - stage_started)
 
         stage_started = time.perf_counter()
@@ -433,9 +443,8 @@ async def verify_from_url(
         raise
     except Exception as e:
         logger.exception("[verify][%s] ERROR source=url after=%.2fs: %s", request_id, time.perf_counter() - started, e)
-        safe_msg = str(e).encode("ascii", errors="ignore").decode("ascii") or "Terjadi kesalahan internal."
         raise HTTPException(
-            status_code=500, detail=f"Gagal memproses verifikasi URL: {safe_msg}"
+            status_code=500, detail="Gagal memproses verifikasi URL. Coba lagi sebentar lagi."
         ) from e
     finally:
         for p in tmp_paths:
@@ -455,7 +464,7 @@ async def check_ai_status_endpoint():
     return await check_ai_status()
 
 
-@router.get("/check-domain")
+@router.get("/check-domain", dependencies=[Depends(_verify_limit)])
 def verify_domain(
     domain: str = Query(..., description="Domain email (misal: pertamina.com)"),
 ):
@@ -524,12 +533,14 @@ def list_cases(limit: int = 100, skip: int = 0, db: Session = Depends(get_db)):
             for c in cases
         ]
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Gagal mengambil kasus: {str(e)}")
+        logger.warning("[Cases] %s", e)
+        raise HTTPException(status_code=500, detail="Gagal mengambil kasus.")
 
 
 @router.get(
     "/cases/lookup/by-entity",
-    summary="Cari case history by HP / email / company (exact match)",
+    dependencies=[Depends(require_admin)],
+    summary="Cari case history by HP / email / company (khusus admin)",
     description="Fondasi case-memory: lookup exact phone/email/company dari riwayat job_cases.",
 )
 def lookup_cases_by_entity(
@@ -551,11 +562,13 @@ def lookup_cases_by_entity(
         if phone:
             digits = "".join(c for c in phone if c.isdigit())
             canon = digits[2:] if digits.startswith("62") else (digits[1:] if digits.startswith("0") else digits)
-            conditions.append(cast(JobCase.phones, String).like(f"%{canon or phone.strip()}%"))
+            if len(canon) < 8:
+                raise HTTPException(status_code=400, detail="Nomor terlalu pendek.")
+            conditions.append(cast(JobCase.phones, String).like(f"%{like_escape(canon)}%", escape="\\"))
         if email:
-            conditions.append(cast(JobCase.emails, String).like(f"%{email.strip().lower()}%"))
+            conditions.append(cast(JobCase.emails, String).like(f"%{like_escape(email.strip().lower())}%", escape="\\"))
         if company:
-            conditions.append(func.lower(JobCase.company_name).like(f"%{company.strip().lower()}%"))
+            conditions.append(func.lower(JobCase.company_name).like(f"%{like_escape(company.strip().lower())}%", escape="\\"))
 
         if conditions:
             query = query.filter(or_(*conditions))
@@ -574,8 +587,11 @@ def lookup_cases_by_entity(
             for r in rows
         ]
         return {"count": len(hits), "cases": hits}
+    except HTTPException:
+        raise
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Gagal lookup case: {e}")
+        logger.warning("[Case Lookup] %s", e)
+        raise HTTPException(status_code=500, detail="Gagal mencari kasus.")
 
 
 @router.get(
@@ -648,7 +664,6 @@ def get_case_by_id(case_id: str, db: Session = Depends(get_db)):
         "id": str(db_case.id),
         "case_id": str(db_case.id),
         "source": db_case.source,
-        "raw_text_preview": db_case.raw_text_preview,
         "company_name": db_case.company_name,
         "companies": db_case.companies,
         "phones": db_case.phones,
@@ -669,6 +684,13 @@ def get_case_by_id(case_id: str, db: Session = Depends(get_db)):
         "osint_failed": db_case.osint_failed,
         "created_at": db_case.created_at.isoformat() if db_case.created_at else None,
     }
+
+
+def _merge_network(osint_results: dict, network_context: dict) -> None:
+    """Riwayat kasus dan laporan komunitas masuk ke bukti SEBELUM penalaran LLM, supaya ikut
+    menentukan skor (bukan hanya ditempel di laporan setelah skor jadi)."""
+    if isinstance(osint_results, dict) and isinstance(network_context, dict):
+        osint_results["fraud_network"] = {**(osint_results.get("fraud_network") or {}), **network_context}
 
 
 def _classify_text_signals(raw_text: str, entities: dict) -> dict:
@@ -786,6 +808,7 @@ async def _verify_url_stream_generator(url: str, additional_text: str, db_sessio
         yield _sse_event("stage", {"stage": "graph", "status": "processing", "message": "Memeriksa jaringan fraud..."})
         stage_started = time.perf_counter()
         network_context = await asyncio.to_thread(_check_fraud_network, db_session, entities, full_raw_text)
+        _merge_network(osint_results, network_context)
         logger.info("[verify-stream][%s] fraud-network done duration=%.2fs", request_id, time.perf_counter() - stage_started)
         yield _sse_event("stage", {"stage": "graph", "status": "done", "message": "Pemeriksaan jaringan selesai"})
 
@@ -833,8 +856,7 @@ async def _verify_url_stream_generator(url: str, additional_text: str, db_sessio
 
     except Exception as e:
         logger.exception("[verify-stream][%s] ERROR after=%.2fs: %s", request_id, time.perf_counter() - started, e)
-        safe_msg = str(e).encode("ascii", errors="ignore").decode("ascii") or "Terjadi kesalahan internal."
-        yield _sse_event("error", {"message": safe_msg})
+        yield _sse_event("error", {"message": "Verifikasi gagal di tengah jalan. Coba lagi sebentar lagi."})
     finally:
         for p in tmp_paths:
             if p and os.path.exists(p):
@@ -842,6 +864,17 @@ async def _verify_url_stream_generator(url: str, additional_text: str, db_sessio
                     os.remove(p)
                 except Exception:
                     pass
+
+
+async def _stream_with_session(url: str, additional_text: str):
+    from app.database.postgres_client import SessionLocal
+    db = SessionLocal() if SessionLocal else None
+    try:
+        async for chunk in _verify_url_stream_generator(url, additional_text, db):
+            yield chunk
+    finally:
+        if db is not None:
+            db.close()
 
 
 @router.post(
@@ -856,14 +889,11 @@ async def _verify_url_stream_generator(url: str, additional_text: str, db_sessio
 )
 async def verify_url_stream(
     request: UrlVerifyRequest = Body(...),
-    db: Session = Depends(get_db)
 ):
+    # Sesi DB dibuka di dalam generator: dependency `get_db` sudah ditutup sebelum
+    # StreamingResponse mulai berjalan (FastAPI >= 0.106).
     return StreamingResponse(
-        _verify_url_stream_generator(
-            request.url,
-            request.additional_text or "",
-            db
-        ),
+        _stream_with_session(request.url, request.additional_text or ""),
         media_type="text/event-stream",
         headers={
             "Cache-Control": "no-cache",

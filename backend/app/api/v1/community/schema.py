@@ -1,6 +1,8 @@
 from typing import Literal, Optional
 from pydantic import BaseModel, Field
 
+REPORT_TYPES = {"penipuan", "biaya_travel", "perusahaan_fiktif", "tppo_eksploitasi", "pencurian_data_scam"}
+
 
 class CommunityReportIn(BaseModel):
     company_name: Optional[str] = Field(None, max_length=255)

@@ -46,22 +46,32 @@ NORMAL_JOB_KEYWORDS = {
 }
 
 
+_FORM_HOSTS = ("forms.gle", "docs.google.com", "forms.google.com")
+_SHORTLINK_HOSTS = ("bit.ly", "tinyurl.com", "s.id", "linktr.ee", "lynk.id", "cutt.ly", "shorturl.at", "rebrand.ly")
+
+
+def _host_of(url: str) -> str:
+    from urllib.parse import urlparse
+    u = (url or "").strip()
+    if not re.match(r"^https?://", u, re.I):
+        u = "https://" + u
+    return (urlparse(u).hostname or "").lower().removeprefix("www.")
+
+
 def is_gform_url(url: str) -> bool:
-    u = (url or "").lower()
-    return any(
-        k in u
-        for k in (
-            "forms.gle",
-            "docs.google.com/forms",
-            "bit.ly",
-            "tinyurl.com",
-            "s.id",
-            "linktr.ee",
-        )
-    )
+    """Formulir Google atau shortlink yang sering membungkus formulir.
+
+    Dicocokkan per host, bukan substring: "glints.id" atau "kompas.id" tidak boleh dianggap "s.id".
+    """
+    host = _host_of(url)
+    if host == "docs.google.com":
+        return "/forms" in (url or "").lower()
+    return any(host == h or host.endswith("." + h) for h in _FORM_HOSTS + _SHORTLINK_HOSTS)
 
 
 import httpx
+
+from app.services.url_guard import safe_get, validate_public_http_url
 
 
 def inspect_gform(url: str) -> dict[str, Any]:
@@ -80,43 +90,28 @@ def inspect_gform(url: str) -> dict[str, Any]:
     }
 
     try:
-        target_url = url
-        final_url = target_url
+        target_url = url if re.match(r"^https?://", url, re.I) else f"https://{url}"
+        validate_public_http_url(target_url)
 
-        def _resolve(u: str) -> tuple[str, int, str]:
+        # forms.gle kadang membalas halaman perantara; parameter _imcp=1 meminta redirect langsung.
+        if "forms.gle" in target_url.lower():
             try:
-                r0 = httpx.get(u, headers=headers, follow_redirects=False, timeout=5.0)
-                loc = r0.headers.get("location")
-                if loc:
-                    return loc, r0.status_code, r0.text
-                if "proxy.link.app" in r0.text and "forms.gle" in u:
-                    sep = "&" if "?" in u else "?"
-                    u2 = f"{u}{sep}_imcp=1"
-                    r1 = httpx.get(u2, headers=headers, follow_redirects=False, timeout=5.0)
-                    loc1 = r1.headers.get("location")
-                    if loc1:
-                        return loc1, r1.status_code, r1.text
-                    return u2, r1.status_code, r1.text
-                return u, r0.status_code, r0.text
+                r0 = safe_get(target_url, headers=headers, timeout=5.0, max_hops=0)
+                if r0.status_code == 200 and "proxy.link.app" in r0.text:
+                    sep = "&" if "?" in target_url else "?"
+                    target_url = f"{target_url}{sep}_imcp=1"
             except Exception:
-                return u, 0, ""
+                pass
 
-        resolved, _, _ = _resolve(url)
-        if resolved != url:
-            target_url = resolved
-
-        r = httpx.get(target_url, headers=headers, follow_redirects=True, timeout=8.0)
+        r = safe_get(target_url, headers=headers, timeout=8.0)
         final_url = str(r.url)
         html = r.text
         http_status = r.status_code
         match_gle = re.search(r"forms\.gle/[a-zA-Z0-9_-]+", html)
         if match_gle:
-            gle_url = "https://" + match_gle.group(0)
             try:
-                r_gle = httpx.get(gle_url, follow_redirects=False, timeout=5.0)
-                loc_g = r_gle.headers.get("location")
-                if loc_g:
-                    final_url = loc_g
+                r_gle = safe_get("https://" + match_gle.group(0), timeout=5.0)
+                final_url = str(r_gle.url)
             except Exception:
                 pass
 

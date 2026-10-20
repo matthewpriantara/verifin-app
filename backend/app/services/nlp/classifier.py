@@ -4,19 +4,26 @@ import logging
 import re
 from typing import Any
 
+from app.services.ner import strip_negated_fee
+
 logger = logging.getLogger(__name__)
 
 # Keywords & Regex patterns for Indonesian Job Scams (Paper22, GASA 2024, UNODC 2023)
+# Jarak antarkata dibatasi dalam satu kalimat; ".*?" lama bisa menyambung "biaya" di awal teks
+# dengan "pelatihan" di paragraf lain.
+_GAP = r"[^.\n!?;]{0,60}?"
 _FEE_PATTERNS = [
-    r"\b(?:biaya|uang|dana|deposit|tarif|bayar|transfer)\s+.*?(?:pendaftaran|administrasi|seleksi|tiket|akomodasi|travel|seragam|pelatihan|rekening|kembali|reimburse)\b",
-    r"\b(?:mentransfer|transfer|bayar|setor)\s+.*?(?:rekening|biro|travel|panitia|bendahara|biaya)\b",
-    r"\b(?:tiket|akomodasi|transportasi)\s+.*?(?:wajib|harus|ditransfer|dibayar|reimburse)\b",
+    rf"\b(?:biaya|uang|dana|deposit|tarif|bayar|transfer)\s+{_GAP}(?:pendaftaran|administrasi|seleksi|tiket|akomodasi|travel|seragam|pelatihan|rekening|kembali|reimburse|proses)\b",
+    rf"\b(?:mentransfer|transfer|bayar|setor)\s+{_GAP}(?:rekening|biro|travel|panitia|bendahara|biaya|dana|ovo|gopay|shopeepay)\b",
+    rf"\b(?:tiket|akomodasi|transportasi)\s+{_GAP}(?:wajib|harus|ditransfer|dibayar|reimburse)\b",
     r"\b(?:uang\s*muka|uang\s*jaminan|deposit\s*awal|biaya\s*registrasi|biaya\s*formulir)\b",
 ]
 
 _FOREIGN_WORK_PATTERNS = [
     r"\b(?:kamboja|cambodia|myanmar|laos|filipina|philippines|vietnam|thailand)\b",
-    r"\b(?:luar\s*negeri|overseas)\b",
+    # Negara tujuan pekerja migran Indonesia yang paling sering dipakai modus penempatan ilegal.
+    r"\b(?:jepang|japan|korea|taiwan|malaysia|hong\s*kong|singapura|singapore|brunei|arab\s+saudi|saudi|qatar|dubai|uni\s+emirat|turki|polandia|australia)\b",
+    r"\b(?:luar\s*negeri|overseas|tki|pmi\s+ke)\b",
 ]
 
 _WHATSAPP_APPLY_PATTERNS = [
@@ -75,7 +82,7 @@ def extract_behavioral_features(text: str, companies: list[str] | None = None) -
     """
     text_lower = (text or "").lower()
 
-    has_fee = any(re.search(p, text_lower) for p in _FEE_PATTERNS)
+    has_fee = any(re.search(p, strip_negated_fee(text_lower)) for p in _FEE_PATTERNS)
     has_foreign = any(re.search(p, text_lower) for p in _FOREIGN_WORK_PATTERNS)
     # Dihitung hanya bila WhatsApp satu-satunya jalur melamar; loker yang juga mencantumkan
     # email atau tautan resmi tidak dianggap "lamar via WA".

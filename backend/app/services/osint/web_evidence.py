@@ -10,6 +10,8 @@ from app.services.constants import FREE_EMAIL_DOMAINS
 from app.services.osint.query_builder import build_search_queries
 from app.services.osint.searxng_client import searxng_search, is_searxng_available
 from app.services.status_contract import COMPLETED, FOUND, NO_RESULTS, NO_RELEVANT_RESULTS, UNAVAILABLE
+from app.services.url_guard import resolve_public_url
+from app.services.osint.search_intelligence import ordered_match_count
 
 logger = logging.getLogger(__name__)
 
@@ -29,6 +31,7 @@ _SOCIAL_PLATFORM_DOMAINS = {
     "tiktok": ("tiktok.com",),
     "facebook": ("facebook.com",),
     "x_twitter": ("x.com", "twitter.com"),
+    "linktree": ("linktr.ee",),
 }
 
 def _url_matches_domains(url: str, target_domains: tuple[str, ...] | list[str]) -> bool:
@@ -79,13 +82,24 @@ def _result_matches_query(query: str, url: str, title: str, snippet: str) -> boo
         phrase_compact = phrase_clean.replace(" ", "")
         if len(tokens) >= 2 and phrase_compact in hay_compact:
             return True
-        matched = {token for token in set(tokens) if token in hay.split()}
+        hay_words = hay.split()
+        matched = {token for token in set(tokens) if token in hay_words}
         if len(tokens) == 1 and len(matched) == 1:
             if re.search(rf"(?:^|[./@_-]){re.escape(tokens[0])}(?:$|[./@_-])", url.lower()):
                 return True
             continue
+        # Minimal dua kata cocok, dan kata yang cocok harus berurutan seperti di query:
+        # nama dengan kata sama tetapi tertukar adalah entitas lain.
         if len(tokens) >= 2 and len(matched) >= 2:
-            return True
+            swapped = False
+            for f in (url, title, snippet):
+                words = re.sub(r"[^a-z0-9]+", " ", f.lower()).split()
+                present = [t for t in dict.fromkeys(tokens) if t in words]
+                if len(present) >= 2 and ordered_match_count(tokens, words) < len(present):
+                    swapped = True
+                    break
+            if not swapped:
+                return True
     return False
 
 
@@ -195,7 +209,29 @@ def _check_social_profile_fallback(domain_or_handle: str) -> dict[str, Any]:
     return {"social_found": False}
 
 
+_CHALLENGE_MARKERS = ("just a moment", "attention required", "_cf_chl", "cf-browser-verification", "enable javascript and cookies")
+
+
+def _host_resolves(url: str) -> bool:
+    import socket
+    try:
+        socket.getaddrinfo(urlparse(url).hostname or "", None)
+        return True
+    except socket.gaierror:
+        return False
+
+
 def fetch_company_website(url_or_domain: str) -> dict[str, Any]:
+    """Buka situs yang disebut lowongan.
+
+    Status situs:
+    - AVAILABLE: halaman terbuka (< 400).
+    - HTTP_ERROR: server menjawab 4xx/5xx (bukan tantangan anti-bot). Situs mati: sinyal risiko.
+    - NOT_FOUND: nama domain tidak terdaftar di DNS. Sinyal risiko.
+    - BLOCKED: halaman tantangan anti-bot (Cloudflare dsb.). Netral: situs mungkin aktif.
+    - UNREACHABLE: timeout/gangguan dari sisi Verifin. Netral.
+    - SKIPPED: alamat internal/privat, tidak dibuka (perlindungan SSRF).
+    """
     url = _normalize_url(url_or_domain)
     if not url:
         if re.match(r"^[a-z0-9.-]+\.[a-z]{2,}$", (url_or_domain or "").strip(), re.I):
@@ -205,13 +241,28 @@ def fetch_company_website(url_or_domain: str) -> dict[str, Any]:
                 "type": "website",
                 "url": url_or_domain,
                 "ok": False,
+                "website_status": "SKIPPED",
                 "error": "URL/domain tidak valid",
                 "risk_flags": [],
                 "safe_flags": [],
             }
 
+    base = {"type": "website", "url": url, "risk_flags": [], "safe_flags": []}
     try:
-        page = Fetcher.get(url, stealthy_headers=True)
+        final_url = resolve_public_url(url)
+    except ValueError as exc:
+        return {
+            **base,
+            "ok": False,
+            "probe_status": "SKIPPED",
+            "website_status": "SKIPPED",
+            "evidence_status": NO_RESULTS,
+            "error": str(exc),
+            "neutral_notes": ["Tautan menuju alamat internal atau privat, tidak dibuka sistem."],
+        }
+
+    try:
+        page = Fetcher.get(final_url, stealthy_headers=True, follow_redirects=False, timeout=12)
         status = getattr(page, "status", None) or getattr(page, "status_code", None)
         title = ""
         try:
@@ -219,11 +270,27 @@ def fetch_company_website(url_or_domain: str) -> dict[str, Any]:
         except Exception:
             pass
         snippet = _snippet_from_page(page)
+        low = (title + " " + snippet).lower()
+        try:
+            body_low = str(getattr(page, "html_content", "") or "")[:4000].lower()
+        except Exception:
+            body_low = ""
+        if any(m in low or m in body_low for m in _CHALLENGE_MARKERS):
+            return {
+                **base,
+                "ok": None,
+                "probe_status": "COMPLETED",
+                "website_status": "BLOCKED",
+                "evidence_status": NO_RESULTS,
+                "status": status,
+                "title": "",
+                "snippet": "",
+                "neutral_notes": ["Situs memakai perlindungan anti-bot sehingga isinya tidak bisa dibaca otomatis; ini bukan tanda situs mati."],
+            }
         ok = status is None or int(status) < 400
         risk_flags: list[str] = []
         safe_flags: list[str] = []
-        low = (title + " " + snippet).lower()
-        if any(
+        if ok and any(
             w in low
             for w in (
                 "under construction",
@@ -237,50 +304,58 @@ def fetch_company_website(url_or_domain: str) -> dict[str, Any]:
             )
         ):
             risk_flags.append("Website terlihat parked / domain dijual / belum aktif.")
-        if any(
+        if ok and any(
             w in low
             for w in ("karir", "career", "lowongan", "about", "tentang", "kontak", "contact")
         ):
             safe_flags.append("Website memuat indikasi halaman perusahaan/karir.")
+        if not ok:
+            risk_flags.append(f"Website menjawab HTTP {status}.")
         return {
-            "type": "website",
-            "url": url,
+            **base,
             "ok": ok,
             "probe_status": "COMPLETED",
-            "website_status": "AVAILABLE" if ok else "UNAVAILABLE",
+            "website_status": "AVAILABLE" if ok else "HTTP_ERROR",
             "evidence_status": FOUND if ok else NO_RESULTS,
             "status": status,
-            "title": title[:200],
-            "snippet": snippet,
+            "title": title[:200] if ok else "",
+            "snippet": snippet if ok else "",
             "risk_flags": risk_flags,
             "safe_flags": safe_flags,
         }
     except Exception as exc:
+        resolves = _host_resolves(final_url)
         social = _check_social_profile_fallback(url_or_domain)
         if social.get("social_found"):
             return {
-                "type": "website",
-                "url": url,
+                **base,
                 "ok": False,
                 "probe_status": "COMPLETED",
-                "website_status": "UNAVAILABLE",
+                "website_status": "UNREACHABLE" if resolves else "NOT_FOUND",
                 "evidence_status": "FOUND",
                 "social_profile_found": True,
                 "title": social.get("title"),
-                "snippet": f"Web korporat tidak aktif, tetapi terdeteksi akun medsos/toko publik: {social.get('url')}",
-                "risk_flags": [],
+                "snippet": f"Web korporat tidak terbuka, tetapi terdeteksi akun medsos/toko publik: {social.get('url')}",
                 "safe_flags": social.get("safe_flags", []),
             }
+        if not resolves:
+            return {
+                **base,
+                "ok": False,
+                "probe_status": "COMPLETED",
+                "website_status": "NOT_FOUND",
+                "evidence_status": NO_RESULTS,
+                "error": str(exc),
+                "risk_flags": ["Nama domain website tidak terdaftar (DNS tidak ditemukan)."],
+            }
         return {
-            "type": "website",
-            "url": url,
+            **base,
             "ok": False,
-            "probe_status": "UNAVAILABLE",
-            "website_status": "UNAVAILABLE",
+            "probe_status": UNAVAILABLE,
+            "website_status": "UNREACHABLE",
             "evidence_status": NO_RESULTS,
             "error": str(exc),
-            "risk_flags": ["Gagal membuka website perusahaan."],
-            "safe_flags": [],
+            "neutral_notes": ["Situs tidak bisa dibuka dari server Verifin saat pemeriksaan (timeout/gangguan jaringan)."],
         }
 
 
@@ -329,15 +404,17 @@ def search_web_evidence(
                 search_status = FOUND
                 results = relevant[:max_results]
             elif candidate:
-                search_error = (
-                    f"SearXNG mengembalikan {len(candidate)} hasil tetapi 0 relevan "
-                    "dengan query — kemungkinan engine degraded."
-                )
+                engine_used = "searxng"
+                search_status = NO_RELEVANT_RESULTS
+                search_error = None
+        elif sx_result.get("empty"):
+            engine_used = "searxng"
+            search_status = NO_RESULTS
         else:
             search_error = sx_result.get("error", "SearXNG tidak ada hasil.")
     else:
         search_error = "Mesin pencari (SearXNG) tidak dapat dihubungi."
-    if not results and not search_error:
+    if not results and not search_error and engine_used == "none":
         search_error = "Pencarian tidak mengembalikan hasil."
 
     risk_flags = []
@@ -380,10 +457,7 @@ def search_web_evidence(
         "ok": bool(results),
         "request_status": COMPLETED if engine_used != "none" else UNAVAILABLE,
         "engine": engine_used,
-        "status": (
-            FOUND if relevant_results else
-            (NO_RELEVANT_RESULTS if results else search_status)
-        ),
+        "status": FOUND if relevant_results else search_status,
         "results": relevant_results[:max_results],
         "raw_result_count": len(results),
         "relevant_result_count": len(relevant_results),
@@ -549,9 +623,11 @@ def collect_web_evidence(entities: dict) -> dict[str, Any]:
             seen_urls.add(clean_url)
             if is_gform_url(clean_url):
                 continue
-            _ALL_SOCIAL_HOSTS = {"instagram.com", "facebook.com", "fb.com", "tiktok.com", "threads.net", "threads.com", "x.com", "twitter.com", "linkedin.com", "youtube.com"}
+            _ALL_SOCIAL_HOSTS = {"instagram.com", "facebook.com", "fb.com", "tiktok.com", "threads.net", "threads.com", "x.com", "twitter.com", "linkedin.com", "youtube.com", "wa.me", "api.whatsapp.com", "chat.whatsapp.com", "t.me"}
             if clean_host and clean_host not in domains and clean_host not in _FREE_WEB_DOMAINS and clean_host not in _ALL_SOCIAL_HOSTS:
                 domains.append(clean_host)
+            if clean_host in {"wa.me", "api.whatsapp.com", "chat.whatsapp.com", "t.me"}:
+                continue  # tautan chat, bukan situs perusahaan
             website_checks.append(fetch_company_website(clean_url))
 
     for d in domains[:1]:
@@ -657,7 +733,8 @@ def collect_web_evidence(entities: dict) -> dict[str, Any]:
     for w in website_checks:
         risk_flags.extend(w.get("risk_flags") or [])
         safe_flags.extend(w.get("safe_flags") or [])
-        if w.get("ok") is False and not has_any_working_web_or_social:
+        neutral_notes.extend(w.get("neutral_notes") or [])
+        if w.get("website_status") in ("NOT_FOUND", "HTTP_ERROR") and not has_any_working_web_or_social:
             risk_flags.append(f"Website tidak dapat diakses: {w.get('url')}")
     for s in searches:
         risk_flags.extend(s.get("risk_flags") or [])

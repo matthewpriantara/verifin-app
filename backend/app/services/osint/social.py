@@ -16,7 +16,7 @@ _PLATFORM_SITE_HINTS = {
     "facebook": "site:facebook.com",
     "x_twitter": "site:x.com OR site:twitter.com",
 }
-_SOCIAL_PLATFORMS = tuple(_PLATFORM_SITE_HINTS)
+_SOCIAL_PLATFORMS = (*_PLATFORM_SITE_HINTS, "linktree")
 
 _PLATFORM_DOMAINS = {
     "instagram": ("instagram.com",),
@@ -110,7 +110,7 @@ def _profile_only_url(url: str) -> str | None:
         return urlunsplit(("https", host, parts.path, parts.query, ""))
     if len(segments) > 1 and segments[1].lower() in _SOCIAL_CONTENT_SEGMENTS:
         return None
-    if host in ("instagram.com", "threads.net", "threads.com", "tiktok.com", "x.com", "twitter.com"):
+    if host in ("instagram.com", "threads.net", "threads.com", "tiktok.com", "x.com", "twitter.com", "linktr.ee"):
         return urlunsplit(("https", host, f"/{segments[0]}", "", ""))
     if host == "facebook.com":
         return urlunsplit(("https", host, f"/{segments[0]}", "", ""))
@@ -318,7 +318,8 @@ def run_social_osint(
         "query": raw_company,
         "found": found,
         "social_found": social_found,
-        "official_social_found": bool(valid_profiles or any(p.get("is_official") for p in all_posts)),
+        # Profil hasil pencarian nama tidak pernah diverifikasi resmi oleh sistem.
+        "official_social_found": False,
         "public_footprint_found": public_footprint_found,
         "authenticated": False,
         "posts": all_posts[:8],

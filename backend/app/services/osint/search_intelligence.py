@@ -153,6 +153,35 @@ _WEAK_ENTITY_TOKENS = {
 }
 
 
+def ordered_match_count(tokens: list[str], words: list[str]) -> int:
+    """Panjang subbarisan token yang muncul berurutan di teks (LCS).
+
+    Nama perusahaan dicocokkan sesuai urutan katanya: "Kreasi Digital Nusantara" tidak sama dengan
+    "Digital Kreasi Nusantara", walaupun ketiga katanya ada.
+    """
+    if not tokens or not words:
+        return 0
+    prev = [0] * (len(words) + 1)
+    for t in tokens:
+        cur = [0] * (len(words) + 1)
+        for j, w in enumerate(words, 1):
+            cur[j] = prev[j - 1] + 1 if w == t else max(prev[j], cur[j - 1])
+        prev = cur
+    return prev[-1]
+
+
+# Jenis usaha yang posisinya bebas dalam nama ("Hotel New Saphir" = "New Saphir Hotel").
+_BUSINESS_TYPE_WORDS = {"hotel", "toko", "rumah", "makan", "restoran", "resto", "cafe", "kafe", "apotek",
+                        "klinik", "bengkel", "salon", "warung", "kedai", "studio", "the"}
+
+
+def _ordered_tokens(phrase: str) -> list[str]:
+    return [
+        w for w in re.split(r"[^\w]+", (phrase or "").lower())
+        if len(w) >= 3 and w not in _BUSINESS_TYPE_WORDS
+    ]
+
+
 def _entity_match_score(
     tokens: list[str],
     url: str,
@@ -167,29 +196,41 @@ def _entity_match_score(
 
     hay = re.sub(r"[^a-z0-9]+", " ", f"{url} {title} {snippet}".lower())
     hay_compact = hay.replace(" ", "")
-    hay_words = set(hay.split())
+    hay_words = hay.split()
 
     for phrase in (canonical, brand):
         p = re.sub(r"[^a-z0-9]+", "", (phrase or "").lower())
         if len(p) >= 5 and p in hay_compact:
             return 1.0
 
-    strong = [t for t in tokens if t not in _WEAK_ENTITY_TOKENS]
-    weak = [t for t in tokens if t in _WEAK_ENTITY_TOKENS]
-
-    strong_hits = sum(1 for t in strong if t in hay_words or t in hay_compact)
-    weak_hits = sum(1 for t in weak if t in hay_words)
-
-    if strong:
-        base = strong_hits / len(strong)
-        bonus = 0.1 * (weak_hits / len(weak)) if weak else 0.0
-        return min(1.0, base + bonus)
-
-    if weak_hits >= 2:
-        return 0.34
-    if weak_hits == 1:
-        return 0.2
-    return 0.0
+    best = 0.0
+    for phrase in (canonical, brand):
+        ordered = _ordered_tokens(phrase)
+        strong = [t for t in ordered if t not in _WEAK_ENTITY_TOKENS]
+        weak = [t for t in ordered if t in _WEAK_ENTITY_TOKENS]
+        if len(ordered) >= 2 and strong:
+            # Kata yang sama dengan urutan tertukar ("Digital Kreasi Nusantara" untuk "Kreasi Digital
+            # Nusantara", "Sinar Abadi Rejeki" untuk "Sinar Rejeki Abadi Sentosa") adalah entitas lain.
+            # Dicek per bidang (URL, judul, cuplikan) supaya kata berulang tidak menyusun urutan palsu.
+            swapped = False
+            for f in (url, title, snippet):
+                words = re.sub(r"[^a-z0-9]+", " ", f.lower()).split()
+                present = [t for t in dict.fromkeys(ordered) if t in words]
+                if len(present) >= 2 and ordered_match_count(ordered, words) < len(present):
+                    swapped = True
+                    break
+            strong_hits = sum(1 for t in strong if t in hay_words or t in hay_compact)
+            score = strong_hits / len(strong)
+            if weak:
+                score += 0.1 * (sum(1 for t in weak if t in hay_words) / len(weak))
+            best = max(best, min(0.45, score) if swapped else min(1.0, score))
+        elif strong:
+            hit = strong[0] in hay_words or strong[0] in hay_compact
+            best = max(best, 1.0 if hit else 0.0)
+        elif weak:
+            weak_hits = sum(1 for t in weak if t in hay_words)
+            best = max(best, 0.34 if weak_hits >= 2 else 0.2 if weak_hits == 1 else 0.0)
+    return best
 
 
 def _location_match_score(loc_tokens: list[str], title: str, snippet: str) -> float:
@@ -419,6 +460,8 @@ def scam_report_search(raw_company: str, *, max_results: int = 5) -> dict[str, A
         return {"status": "UNAVAILABLE", "query": query, "results": [], "warnings": 0,
                 "error": "Mesin pencari (SearXNG) tidak dapat dihubungi."}
     res = searxng_search(query, max_results=max_results * 3)
+    if res.get("empty"):
+        return {"status": "NO_RESULTS", "query": query, "results": [], "warnings": 0}
     if not res.get("ok"):
         return {"status": "UNAVAILABLE", "query": query, "results": [], "warnings": 0,
                 "error": res.get("error") or "Pencarian gagal."}
