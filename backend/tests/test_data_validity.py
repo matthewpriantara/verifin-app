@@ -38,7 +38,14 @@ def test_language_variants_share_url_key():
 
 def test_business_poi_match_and_plain_display():
     tokens = _business_tokens("PT KOMITRANDO EMPORIO")
-    assert _is_business_match({"name": "Komitrando"}, tokens)
+    komitrando = {"name": "Komitrando", "class": "shop",
+                  "display_name": "Komitrando, Potorono, Bantul, Daerah Istimewa Yogyakarta, Indonesia"}
+    assert _is_business_match(komitrando, tokens, "Jalan Wonosari Km 8, Potorono, Banguntapan, Kabupaten Bantul")
+    # Jalan di kota lain yang kebetulan memuat nama merek bukan tempat usahanya
+    road = {"name": "Jalan Batu Saphir", "class": "highway",
+            "display_name": "Jalan Batu Saphir, Kayu Putih, Pulo Gadung, Jakarta Timur"}
+    assert not _is_business_match(road, _business_tokens("HOTEL NEW SAPHIR YOGYAKARTA"),
+                                  "Jl. Laksda Adisucipto No. 38, Yogyakarta")
     poi = {
         "name": "De Britto",
         "display_name": "De Britto, Jalan Laksda Adisucipto, Catur Tunggal, Sleman",
