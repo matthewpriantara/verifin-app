@@ -370,21 +370,15 @@ export default function HomePage() {
 
           <SloganSteps stage={stage} />
 
-          <motion.button
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            transition={{ delay: 0.9 }}
+          {/* Navigasi, bukan aksi utama: varian secondary supaya tidak bersaing dengan "Verifikasi Sekarang". */}
+          <button
+            type="button"
             onClick={() => howRef.current?.scrollIntoView({ behavior: "smooth" })}
-            className="mt-10 hidden items-center gap-2 rounded-lg border border-border bg-text-primary px-3.5 py-2 text-[12px] font-medium text-bg transition-colors hover:border-border-focus hover:bg-bg-elevated hover:text-text-primary lg:flex"
+            className={buttonClass({ variant: "secondary", className: "mt-10 hidden lg:inline-flex" })}
           >
-            <motion.span
-              animate={{ y: [0, 3, 0] }}
-              transition={{ duration: 1.5, repeat: Infinity, ease: "easeInOut" }}
-            >
-              <ArrowDown size={12} weight="bold" />
-            </motion.span>
+            <ArrowDown size={14} weight="bold" />
             Lihat cara kerja
-          </motion.button>
+          </button>
         </div>
 
         {/* Kanan — VerifyBox */}

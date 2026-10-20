@@ -12,4 +12,4 @@ Tanggal: 20 Okt 2026. User meminta section ini dirombak dengan animasi yang mena
 | 6 | Selesai | Ikon `Cpu` diganti `Gauge`. |
 | 7 | Selesai | Chip dipangkas: "Entity Extraction" (duplikat Hybrid NER), "Fraud Graph", "Evidence Attribution" dihapus; "Web & Social" diganti "SearXNG". |
 
-Verifikasi: `tsc` dan `eslint` bersih; tangkapan desktop 1440 dan HP 375 (lebar gulir = lebar layar). Dark mode belum dicek.
+Verifikasi: `tsc` dan `eslint` bersih; tangkapan desktop 1440 dan HP 375 (lebar gulir = lebar layar). Web hanya punya tema terang.
