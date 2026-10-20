@@ -77,9 +77,14 @@ body {
 
 ::selection { background: var(--bg-muted); color: var(--text-primary); }
 
-:focus-visible {
-  outline: 2px solid var(--text-primary);
-  outline-offset: 2px;
+/* Di dalam @layer base supaya utility seperti focus-visible:outline-none bisa menimpanya.
+   Di luar layer, aturan ini selalu menang atas utility Tailwind v4, sehingga setiap kolom teks
+   mendapat garis tebal saat diklik. */
+@layer base {
+  :focus-visible {
+    outline: 2px solid var(--text-primary);
+    outline-offset: 2px;
+  }
 }
 
 input, textarea, button, select { font: inherit; }

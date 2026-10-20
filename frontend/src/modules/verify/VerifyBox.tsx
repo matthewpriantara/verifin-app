@@ -1,20 +1,20 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState, useSyncExternalStore } from "react";
 import { useRouter } from "next/navigation";
-import { motion, AnimatePresence } from "motion/react";
+import { motion, AnimatePresence, useReducedMotion } from "motion/react";
 import {
   ImageSquare,
   X,
   Scan,
   MagnifyingGlass,
   Graph,
-  Cpu,
+  Gauge,
   CheckCircle,
   CircleNotch,
   ArrowRight,
 } from "@phosphor-icons/react";
-import { Button } from "@/components/ui/Button";
+import { Button, buttonClass } from "@/components/ui/Button";
 import { cn, REPORT_STORAGE_KEY, addHistory, normalizeVerdict } from "@/lib/utils";
 import { verifyImage, verifyText, verifyUrlStream } from "@/lib/api";
 import type { SSEEvent } from "@/lib/api";
@@ -58,7 +58,7 @@ function getSteps(source: InputSource) {
     {
       id: "osint",
       label: "Cek ke sumber publik",
-      detail: "Umur domain, reputasi nomor, alamat di peta, pencarian web, media sosial, dan Google Form bila ada",
+      detail: "Umur domain, reputasi nomor, alamat di peta, pencarian web, media sosial, artikel bantahan, dan Google Form bila ada",
       icon: MagnifyingGlass,
       duration: 5500,
     },
@@ -73,10 +73,14 @@ function getSteps(source: InputSource) {
       id: "ai",
       label: "Menyusun skor",
       detail: "Penilaian disusun dari bukti yang terkumpul, beserta pengaruh tiap bukti pada skor",
-      icon: Cpu,
+      icon: Gauge,
       duration: 3000,
     },
   ];
+}
+
+function formatElapsed(sec: number): string {
+  return `${Math.floor(sec / 60)}:${String(sec % 60).padStart(2, "0")}`;
 }
 
 function LoadingModal({
@@ -86,6 +90,8 @@ function LoadingModal({
   steps,
   onCancel,
   stageMessage,
+  realProgress,
+  elapsed,
 }: {
   stepIndex: number;
   dotCount: number;
@@ -93,61 +99,86 @@ function LoadingModal({
   steps: ReturnType<typeof getSteps>;
   onCancel?: () => void;
   stageMessage?: string;
+  /** true hanya untuk URL (SSE): persentase berasal dari tahap yang dilaporkan server. */
+  realProgress: boolean;
+  elapsed: number;
 }) {
+  const reduceMotion = useReducedMotion();
+  const cancelRef = useRef<HTMLButtonElement>(null);
   useEffect(() => {
     document.body.style.overflow = "hidden";
+    cancelRef.current?.focus();
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") onCancel?.();
+    };
+    window.addEventListener("keydown", onKey);
     return () => {
       document.body.style.overflow = "";
+      window.removeEventListener("keydown", onKey);
     };
-  }, []);
+  }, [onCancel]);
 
   return (
     <motion.div
       initial={{ opacity: 0 }}
       animate={{ opacity: 1 }}
       exit={{ opacity: 0 }}
-      className="fixed inset-0 z-50 flex items-center justify-center bg-bg/80 px-4 backdrop-blur-md"
+      className="fixed inset-0 z-50 flex items-center justify-center bg-bg/80 px-4 py-4 backdrop-blur-md"
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="verify-loading-title"
     >
       <motion.div
         initial={{ opacity: 0, scale: 0.94, y: 16 }}
         animate={{ opacity: 1, scale: 1, y: 0 }}
         exit={{ opacity: 0, scale: 0.94, y: 12 }}
         transition={{ duration: 0.3, ease: [0.16, 1, 0.3, 1] }}
-        className="w-full max-w-4xl overflow-hidden rounded-3xl border border-border bg-bg-elevated shadow-2xl"
+        className="max-h-[calc(100dvh-2rem)] w-full max-w-4xl overflow-y-auto rounded-3xl border border-border bg-bg-elevated shadow-2xl"
       >
         {/* Header */}
         <div className="border-b border-border bg-bg-subtle/40 px-6 py-5">
           <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
             <div className="flex items-center gap-3">
               <div className="relative flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl bg-text-primary text-bg-elevated shadow-md">
-                <CircleNotch size={20} weight="bold" className="animate-spin" />
+                <CircleNotch size={20} weight="bold" className="animate-spin motion-reduce:animate-none" />
               </div>
               <div className="min-w-0">
-                <h3 className="text-base font-bold text-text-primary">
+                <h3 id="verify-loading-title" className="text-base font-bold text-text-primary">
                   Memeriksa lowongan
                 </h3>
                 <p className="text-[12px] text-text-muted">
-                  Biasanya sekitar satu menit
+                  {elapsed >= 75
+                    ? "Masih berjalan. Sebagian sumber publik sedang lambat merespons."
+                    : "Biasanya kurang dari satu menit"}
                 </p>
               </div>
             </div>
 
             <div className="flex items-center gap-3 sm:text-right">
-              <div className="h-1.5 w-32 overflow-hidden rounded-full bg-bg-muted hidden sm:block">
-                <motion.div
-                  className="h-full rounded-full bg-text-primary"
-                  initial={{ width: "0%" }}
-                  animate={{ width: `${progress}%` }}
-                  transition={{ duration: 0.5, ease: "easeOut" }}
-                />
-              </div>
-              <span className="font-mono text-xl font-bold text-text-primary">{progress}%</span>
+              {realProgress ? (
+                <>
+                  <div className="h-1.5 w-32 overflow-hidden rounded-full bg-bg-muted hidden sm:block">
+                    <motion.div
+                      className="h-full rounded-full bg-text-primary"
+                      initial={{ width: "0%" }}
+                      animate={{ width: `${progress}%` }}
+                      transition={{ duration: 0.5, ease: "easeOut" }}
+                    />
+                  </div>
+                  <span className="font-mono text-xl font-bold text-text-primary">{progress}%</span>
+                </>
+              ) : (
+                // Teks/gambar tidak punya progres dari server; waktu berjalan lebih jujur daripada persen tebakan.
+                <span className="font-mono text-xl font-bold text-text-primary" aria-label={`Berjalan ${elapsed} detik`}>
+                  {formatElapsed(elapsed)}
+                </span>
+              )}
 
-              {/* Cancel Button UI */}
               <button
+                ref={cancelRef}
                 type="button"
                 onClick={onCancel}
-                className="ml-2 flex h-11 items-center gap-1.5 rounded-xl border border-bahaya-border bg-bahaya-bg/60 px-3.5 text-[13px] font-medium text-bahaya-fg transition-colors hover:bg-bahaya-bg hover:border-bahaya-fg/30 active:scale-95 shadow-none outline-none ring-0"
+                className={buttonClass({ variant: "dangerSoft", className: "ml-2" })}
               >
                 <X size={14} weight="bold" />
                 Batal
@@ -188,7 +219,7 @@ function LoadingModal({
                           transition={{ duration: 0.5, ease: "easeInOut" }}
                         />
                         {/* Active Traveling Light Beam matching HomePage FlowConnector */}
-                        {isActive && (
+                        {isActive && !reduceMotion && (
                           <motion.div
                             className="absolute inset-y-0 w-12 bg-gradient-to-r from-transparent via-text-primary/60 to-transparent"
                             animate={{ x: ["-48px", "180%"] }}
@@ -202,7 +233,7 @@ function LoadingModal({
                     <div className="relative z-10">
                       <motion.div
                         animate={
-                          isActive
+                          isActive && !reduceMotion
                             ? {
                               scale: [1, 1.06, 1],
                               boxShadow: [
@@ -214,7 +245,7 @@ function LoadingModal({
                             : { scale: 1 }
                         }
                         transition={
-                          isActive
+                          isActive && !reduceMotion
                             ? { duration: 2, repeat: Infinity, ease: "easeInOut" }
                             : { duration: 0.2 }
                         }
@@ -274,7 +305,7 @@ function LoadingModal({
                           className={cn(
                             "rounded-full px-2 py-0.5 text-[11px] font-semibold",
                             isDone && "bg-aman-bg text-aman-fg border border-aman-border",
-                            isActive && "bg-text-primary text-bg-elevated font-bold animate-pulse",
+                            isActive && "bg-text-primary text-bg-elevated font-bold motion-safe:animate-pulse",
                             isPending && "bg-bg-muted text-text-muted"
                           )}
                         >
@@ -306,7 +337,7 @@ function LoadingModal({
 
         {/* Footer info */}
         <div className="border-t border-border bg-bg-subtle/30 px-6 py-3 text-center">
-          <p className="text-[12px] font-medium text-text-muted flex items-center justify-center gap-1.5">
+          <p className="text-[12px] font-medium text-text-muted flex items-center justify-center gap-1.5" aria-live="polite">
             <span className="h-1.5 w-1.5 rounded-full bg-aman-fg motion-safe:animate-pulse" aria-hidden />
             {stageMessage || "Jangan tutup halaman ini. Hasil muncul otomatis setelah selesai."}
           </p>
@@ -315,6 +346,8 @@ function LoadingModal({
     </motion.div>
   );
 }
+
+const noopSubscribe = () => () => {};
 
 /** 0 = kosong, 1 = ada teks/gambar, 2 = sedang dianalisis. Dipakai hero "Tempel. Tunggu. Tahu." */
 export type VerifyStage = 0 | 1 | 2;
@@ -334,8 +367,15 @@ export function VerifyBox({ onStageChange }: { onStageChange?: (stage: VerifySta
   const [stepIndex, setStepIndex] = useState(0);
   const [dotCount, setDotCount] = useState(0);
   const [stageMessage, setStageMessage] = useState<string>("");
+  const [elapsed, setElapsed] = useState(0);
   const abortControllerRef = useRef<AbortController | null>(null);
   const isDoneRef = useRef(false);
+  // Label tombol pintas baru diketahui setelah mount (platform), supaya HTML server dan klien sama.
+  const submitKey = useSyncExternalStore(
+    noopSubscribe,
+    () => (/Mac|iPhone|iPad/.test(navigator.platform) ? "⌘" : "Ctrl"),
+    () => null,
+  );
   const inputSource: InputSource = file
     ? "image"
     : isPureUrl(text)
@@ -354,7 +394,11 @@ export function VerifyBox({ onStageChange }: { onStageChange?: (stage: VerifySta
 
   useEffect(() => {
     if (!loading) return;
-    const iv = setInterval(() => setDotCount((d) => (d + 1) % 4), 380);
+    const startedAt = Date.now();
+    const iv = setInterval(() => {
+      setDotCount((d) => (d + 1) % 4);
+      setElapsed(Math.floor((Date.now() - startedAt) / 1000));
+    }, 380);
 
     // Timed step progression HANYA untuk non-SSE (teks & gambar) agar tidak loncat dengan event SSE
     let t1: NodeJS.Timeout | undefined;
@@ -365,17 +409,17 @@ export function VerifyBox({ onStageChange }: { onStageChange?: (stage: VerifySta
       t1 = setTimeout(() => {
         setStepIndex((prev) => Math.max(prev, 1));
         setStageMessage("Mengecek nomor, domain, alamat, dan jejak di web...");
-      }, 3500);
+      }, 4000);
 
       t2 = setTimeout(() => {
         setStepIndex((prev) => Math.max(prev, 2));
         setStageMessage("Mencocokkan dengan laporan penipuan yang pernah masuk...");
-      }, 14000);
+      }, 26000);
 
       t3 = setTimeout(() => {
         setStepIndex((prev) => Math.max(prev, 3));
         setStageMessage("Menyusun penilaian dan alasannya...");
-      }, 22000);
+      }, 30000);
     }
 
     return () => {
@@ -528,8 +572,9 @@ export function VerifyBox({ onStageChange }: { onStageChange?: (stage: VerifySta
     [attachFile]
   );
 
-  function handleCancel() {
-    // Abort SSE stream / fetch yang sedang berjalan
+  // Stabil (tanpa dependensi) supaya effect di LoadingModal tidak memindah fokus tiap render.
+  const handleCancel = useCallback(() => {
+    // Batalkan request yang sedang berjalan (SSE untuk URL, fetch untuk teks/gambar)
     if (abortControllerRef.current) {
       abortControllerRef.current.abort();
       abortControllerRef.current = null;
@@ -537,7 +582,7 @@ export function VerifyBox({ onStageChange }: { onStageChange?: (stage: VerifySta
     setLoading(false);
     setStepIndex(0);
     setStageMessage("");
-  }
+  }, []);
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -550,6 +595,7 @@ export function VerifyBox({ onStageChange }: { onStageChange?: (stage: VerifySta
     isDoneRef.current = false;
     setLoading(true);
     setStepIndex(0);
+    setElapsed(0);
     setStageMessage("");
 
     // Buat AbortController untuk SSE stream (bisa di-cancel oleh tombol Batal)
@@ -558,7 +604,9 @@ export function VerifyBox({ onStageChange }: { onStageChange?: (stage: VerifySta
 
     try {
       if (file) {
-        const result = await verifyImage(file);
+        const result = await verifyImage(file, controller.signal);
+        // Hasil sudah ada: modal tetap terbuka sampai halaman laporan termuat.
+        isDoneRef.current = true;
         setStepIndex(steps.length);
         _saveToHistory(result, file.name);
         sessionStorage.setItem(REPORT_STORAGE_KEY, JSON.stringify(result));
@@ -572,7 +620,8 @@ export function VerifyBox({ onStageChange }: { onStageChange?: (stage: VerifySta
           controller.signal,
         );
       } else {
-        const result = await verifyText({ text: trimmed, include_raw_text: true });
+        const result = await verifyText({ text: trimmed, include_raw_text: true }, controller.signal);
+        isDoneRef.current = true;
         setStepIndex(steps.length);
         _saveToHistory(result, trimmed.slice(0, 80));
         sessionStorage.setItem(REPORT_STORAGE_KEY, JSON.stringify(result));
@@ -615,8 +664,10 @@ export function VerifyBox({ onStageChange }: { onStageChange?: (stage: VerifySta
             dotCount={dotCount}
             progress={progress}
             steps={steps}
-            onCancel={() => handleCancel()}
+            onCancel={handleCancel}
             stageMessage={stageMessage}
+            realProgress={inputSource === "url"}
+            elapsed={elapsed}
           />
         )}
       </AnimatePresence>
@@ -625,7 +676,7 @@ export function VerifyBox({ onStageChange }: { onStageChange?: (stage: VerifySta
         {/* Input area */}
         <div
           className={cn(
-            "relative rounded-xl bg-bg-elevated transition-all duration-200",
+            "relative rounded-xl border border-transparent bg-bg-elevated transition-colors duration-200 focus-within:border-border-focus",
             dragOver ? "ring-2 ring-text-primary" : "",
             loading && "pointer-events-none opacity-60",
           )}
@@ -640,8 +691,17 @@ export function VerifyBox({ onStageChange }: { onStageChange?: (stage: VerifySta
                   ref={textareaRef}
                   value={text}
                   onPaste={handleTextareaPaste}
+                  onKeyDown={(e) => {
+                    // Enter tetap baris baru (teks lowongan biasanya banyak baris); Ctrl/⌘ + Enter mengirim.
+                    if (e.key === "Enter" && (e.metaKey || e.ctrlKey) && !e.nativeEvent.isComposing) {
+                      e.preventDefault();
+                      e.currentTarget.form?.requestSubmit();
+                    }
+                  }}
+                  aria-keyshortcuts="Control+Enter Meta+Enter"
                   onChange={(e) => {
                     setText(e.target.value);
+                    if (error) setError(null);
                     // Auto-resize: grow sesuai isi, batasi maks 320px
                     const el = e.target;
                     el.style.height = "auto";
@@ -664,7 +724,10 @@ export function VerifyBox({ onStageChange }: { onStageChange?: (stage: VerifySta
                     Lampirkan gambar
                   </button>
                 ) : (
-                  <span className="px-2.5 text-[12px] text-text-muted">{text.trim().length} karakter</span>
+                  <span className="px-2.5 text-[12px] text-text-muted">
+                    {text.trim().length} karakter
+                    {submitKey && <span className="hidden sm:inline"> · {submitKey} + Enter untuk kirim</span>}
+                  </span>
                 )}
                 <button
                   type="button"
