@@ -229,6 +229,28 @@ def _build_web_osint_section(web: dict) -> str:
     return "\n".join(lines)
 
 
+def _build_scam_check_section(web: dict) -> str:
+    check = (web or {}).get("scam_check") or {}
+    status = check.get("status")
+    if status in (None, "SKIPPED"):
+        return "- Tidak dijalankan (tidak ada nama perusahaan)."
+    if status == "UNAVAILABLE":
+        return f"- Pencarian tidak tersedia pada run ini ({check.get('error') or 'gagal'}). Jangan dianggap aman maupun berbahaya."
+    results = check.get("results") or []
+    if not results:
+        return f"- Query `{check.get('query')}`: tidak ada artikel peringatan/bantahan yang menyebut nama ini."
+    lines = [
+        f"- Query `{check.get('query')}`: {len(results)} artikel peringatan/bantahan lowongan palsu atas nama ini:",
+    ]
+    for r in results[:4]:
+        lines.append(f"  • {r.get('title', '')} — {r.get('snippet', '')[:160]}")
+    lines.append(
+        "  → Artinya nama ini PERNAH dicatut. Bukan bukti lowongan ini palsu, kecuali isi/nomor/modusnya cocok "
+        "dengan artikel; tetapi bila lowongan ini juga memakai kanal tidak resmi, ini memperkuat WASPADA/BAHAYA."
+    )
+    return "\n".join(lines)
+
+
 def _build_social_osint_section(social: dict) -> str:
     if not social:
         return "- Tidak ada data media sosial."
@@ -266,6 +288,12 @@ def _build_social_osint_section(social: dict) -> str:
     if profiles:
         for p in profiles[:2]:
             lines.append(f"- Profil: @{p.get('username', '?')} ({p.get('url', '')})")
+    if social.get("found_by_name_only"):
+        lines.append(
+            "- CATATAN: profil di atas ditemukan lewat pencarian nama, TIDAK ditautkan oleh lowongan. "
+            "Ini akun pemilik nama tersebut, bukan bukti bahwa lowongan ini berasal darinya; "
+            "jangan dijadikan safe_factor."
+        )
     return "\n".join(lines)
 
 
@@ -289,20 +317,26 @@ def _build_address_osint_section(address_validations: list) -> str:
         match_level = details.get("match_level", "area")
 
         if not found:
-            lines.append(f"- `{addr}`: ❌ TIDAK DITEMUKAN di peta Indonesia (kemungkinan alamat fiktif).")
+            lines.append(f"- `{addr}`: ❌ TIDAK DITEMUKAN di peta Indonesia.")
         else:
             display = details.get("display_name", "")[:120]
             if match_level == "exact":
-                lines.append(f"- `{addr}`: ✅ Jalan dan nomor cocok dengan hasil peta ({display}...).")
+                lines.append(f"- `{addr}`: ✅ match_level=exact — jalan DAN nomor cocok ({display}).")
+            elif match_level == "business":
+                lines.append(
+                    f"- `{addr}`: ℹ️ match_level=business — peta menemukan tempat bernama "
+                    f"'{details.get('matched_name')}' di wilayah ini ({display}). Ini hanya bukti tempat itu ada; "
+                    "nama perusahaan besar sering dicatut beserta alamat kantor aslinya."
+                )
             elif match_level == "street":
-                lines.append(f"- `{addr}`: ℹ️ Nama jalan ditemukan, tetapi nomor bangunan belum cocok ({display}...).")
+                lines.append(
+                    f"- `{addr}`: ℹ️ match_level=street — nama jalan cocok, nomor bangunan BELUM cocok ({display})."
+                )
             else:
-                addr_has_street = bool(re.search(r"\b(?:jl\.?|jln\.?|jalan)\b", addr, re.I))
-                display_has_street = bool(re.search(r"\b(?:jl\.?|jln\.?|jalan|jalan)\b", display, re.I))
-                if addr_has_street or display_has_street:
-                    lines.append(f"- `{addr}`: ✅ Nama jalan ditemukan di peta ({display}...). Wilayah sekitar terkonfirmasi.")
-                else:
-                    lines.append(f"- `{addr}`: ℹ️ Wilayah sekitar ditemukan di peta ({display}...). Titik exact belum terkonfirmasi.")
+                lines.append(
+                    f"- `{addr}`: ⚠️ match_level=area, street_match=false — hanya wilayah/kode pos yang cocok "
+                    f"({display}). Nama jalan BELUM terkonfirmasi; DILARANG menulis jalan/alamat terkonfirmasi."
+                )
 
         neutral_notes = av.get("neutral_notes", [])
         for note in neutral_notes:
@@ -372,158 +406,99 @@ def build_verify_prompt(entities: dict, osint_results: dict, text_signals: dict 
         else "Alamat fisik tercantum pada input; bedakan alamat exact, street, dan area dari hasil OSM."
     )
 
-    prompt = f"""Kamu adalah sistem AI bernama Verifin yang bertugas menganalisis kecurigaan penipuan lowongan kerja di Indonesia.
-
-Kamu akan diberikan data hasil ekstraksi dari poster/iklan lowongan kerja, beserta hasil pengecekan OSINT (Open Source Intelligence).
-Analisis secara mendalam, formal, dan berbasis evidence. Berikan keputusan apakah lowongan ini AMAN, WASPADA, atau BAHAYA.
-
----
+    prompt = f"""Kamu adalah Verifin, sistem yang menilai risiko penipuan lowongan kerja di Indonesia.
+Kamu menerima data hasil ekstraksi lowongan dan hasil pemeriksaan sumber publik (OSINT).
+Putuskan AMAN, WASPADA, atau BAHAYA hanya dari bukti di bawah.
 
 ## DATA LOWONGAN KERJA
 
-**Nama Perusahaan:**
-{company_str}
-
-**Nomor HP / Kontak:**
-{contact_str}
-
-**Alamat Email:**
-{email_str}
-
-**Website / URL:**
-{url_str}
-
+**Nama Perusahaan:** {company_str}
+**Nomor HP / Kontak:** {contact_str}
+**Alamat Email:** {email_str}
+**Website / URL:** {url_str}
 **Alamat Fisik:**
   - {address_str}
   - STATUS INPUT: {address_input_note}
-
-**Gaji yang Ditawarkan:**
-{salary_str}
+**Gaji yang Ditawarkan:** {salary_str}
+**Indikasi Permintaan Biaya / Transfer:** {fee_str}
 {_build_text_signal_section(text_signals)}
-**Indikasi Permintaan Biaya / Transfer:**
-{fee_str}
+## BUKTI OSINT
 
----
-
-
-**Domain Email:**
+**Domain email:**
 {_build_domain_osint_section(emails, domain_info, email_security)}
 
-**Validasi Alamat Fisik (OpenStreetMap):**
+**Alamat di peta (OpenStreetMap):**
 {_build_address_osint_section(osint_results.get("address_validations", []))}
 
-**Reputasi Nomor HP (Kaspersky Who Calls — scrape halaman nyata):**
+**Reputasi nomor HP (Kaspersky Who Calls):**
 {_build_phone_osint_section(osint_results.get("phones", []))}
 
-**Cek Nama PT / Perusahaan (jejak publik, BUKAN sertifikat AHU palsu):**
+**Jejak publik nama perusahaan (bukan cek legalitas AHU):**
 {_build_company_osint_section(osint_results.get("companies", []))}
 
-**Bukti Web (Scrapling — website + pencarian nyata):**
+**Bukti web (situs + pencarian):**
 {_build_web_osint_section(osint_results.get("web", {}))}
 
-**Jejak Media Sosial (Instagram, Threads, TikTok, Facebook, X):**
+**Peringatan/bantahan lowongan palsu atas nama ini:**
+{_build_scam_check_section(osint_results.get("web", {}))}
+
+**Media sosial:**
 {_build_social_osint_section(osint_results.get("social", {}))}
 
-**Kebijakan evidence:**
-{(osint_results.get("evidence_policy") or {}).get("note", "Hanya fakta dari sumber OSINT.")}
+## ATURAN BUKTI
 
----
+1. Pakai hanya fakta dari bagian DATA, BUKTI OSINT, dan teks asli. Dilarang mengarang status AHU/OSS, akun medsos, atau hasil Kaspersky.
+2. Pemeriksaan yang berstatus `UNAVAILABLE`, `TIMEOUT`, atau gagal diakses berarti "tidak ada data", bukan sinyal aman dan bukan sinyal bahaya. Jangan masukkan ke safe_factors maupun risk_factors.
+3. Email Gmail/Yahoo netral untuk UMKM, ritel, dan perusahaan kecil. Hanya jadi faktor risiko bila digabung sinyal lain (tanpa alamat, tanpa jejak publik, atau mengaku instansi besar).
+4. Pencatutan instansi pemerintah (BGN, SPPG, kementerian, dinas) dengan email Gmail/Yahoo tanpa domain .go.id: WASPADA 45–60. Naik ke BAHAYA hanya bila ada permintaan biaya, transfer, KTP, atau rekening.
+5. Gaji tidak disebut, tidak ada website, atau tautan bit.ly/Google Forms bukan bukti penipuan sendirian.
+6. Google Forms: bila `has_phishing_signals` = null atau `content_verification_status` = "UNVERIFIED", isinya belum terbaca; jangan jadikan risk_factor. Hanya jadi risk_factor bila `has_phishing_signals` = true dengan bukti eksplisit.
+7. Portal lowongan publik (JobStreet, LinkedIn, Glints, KitaLulus): tidak adanya nomor/email di teks itu wajar.
+8. Berita penipuan umum (razia, Satgas PASTI, "deretan hoaks loker") bukan bukti lowongan ini palsu. Klaim penipuan spesifik hanya bila judul/snippet menyebut nama lengkap entitas atau nomor ini.
+9. Status nomor: `probe_status=COMPLETED` berarti pemeriksaan berhasil; `reputation_status=CLEAN` dan `reported_fraud=false` berarti tidak ada laporan. `found=false` hanya berarti tidak ada bukti scam, bukan pemeriksaan gagal.
+10. Alamat: hanya `match_level=exact` yang boleh disebut alamat terverifikasi. `business` = tempat bernama sama ada di peta. `street` = jalan cocok, nomor belum. `area` = hanya wilayah/kode pos; dilarang menyebut jalan terkonfirmasi.
+11. Kecocokan alamat atau jejak web perusahaan besar tidak membuktikan lowongan atas namanya asli, karena penipu memakai nama dan alamat kantor asli.
+12. Marketplace, portal lowongan, hasil pencarian, dan akun medsos yang ditemukan lewat pencarian nama bukan kanal resmi lowongan. Sebut "resmi" hanya bila bukti menunjukkan hubungan resmi (mis. domain email sama dengan situs).
+13. Jika semua pencarian web berstatus `NO_RESULTS`/`UNAVAILABLE`, tulis "bukti publik tidak tersedia pada run ini", bukan "zero footprint". Jika `relevant_results > 0`, dilarang menulis keduanya.
+14. Jangan mengganti nama perusahaan hasil ekstraksi; `corrected_company_name` = null kecuali teks asli mengoreksinya.
 
+## BAND SKOR
 
-1. HANYA pakai FAKTA di OSINT / TEKS ASLI. Dilarang mengarang AHU/OSS, medsos, atau rating Kaspersky.
-2. EMAIL GMAIL/YAHOO: Email gratisan umum di UMKM dan perusahaan kecil Indonesia — BUKAN indikator penipuan tunggal. Hanya masukkan sebagai risk_factor jika dikombinasikan dengan sinyal lain (tidak ada alamat, tidak ada website, tidak ada jejak AHU).
-2. Gunakan safe_flags / risk_flags / safe_signals yang ada di data.
-3. Email Gmail/Yahoo = NETRAL untuk UMKM/ritel/startup lokal di Indonesia (bukan red flag utama).
-4. PENCATUTAN INSTANSI PEMERINTAH: Jika lowongan mengatasnamakan instansi/badan resmi pemerintah (misal Badan Gizi Nasional/BGN, SPPG, Kementerian, Dinas) namun menggunakan email Gmail/Yahoo tanpa domain .go.id, ini adalah indikasi tidak resmi/pencatutan.
-   ➔ PANDUAN SKOR: Kategori WASPADA (skor 45–60). DILARANG meloncat ke BAHAYA (75+) HANYA karena email Gmail, KECUALI ada bukti pemerasan biaya/transfer uang/KTP/rekening.
-5. Gaji tidak disebut = NETRAL (banyak loker legitimate tanpa gaji di poster).
-6. Tidak ada website resmi = NETRAL jika ada jejak publik ATAU alamat `match_level=exact`.
-7. shortlink bit.ly / Google Forms = praktik umum rekrutmen UMKM, BUKAN penipuan sendirian.
-7a. GOOGLE FORMS (GFORM): Jika `has_phishing_signals` = null atau `content_verification_status` = "UNVERIFIED", artinya isi form BELUM berhasil dibaca. DILARANG menyimpulkan "Google Forms" sebagai risk_factor. Hanya boleh masuk risk_factor jika `has_phishing_signals` = true DAN ada bukti phishing eksplisit.
-8. PORTAL LOKER PUBLIK (JobStreet, LinkedIn, Glints, KitaLulus): Ketiadaan nomor HP atau email kontak langsung di dalam teks ADALAH HAL WARJAR karena lamaran dikirim langsung via tombol portal. DILARANG menjadikan "tidak ada email/telepon" sebagai faktor risiko untuk portal loker publik.
-9. DILARANG MENGHALUSINASI BERITA UMUM KEPOLISIAN/OJK: Berita portal umum mengenai penipuan umum (misal berita 'Aparat Memburu Penipu Pendirian SPPG', 'Satgas PASTI', atau 'Deretan Hoaks Lowongan Kerja') BUKAN bukti bahwa lowongan ini adalah penipuan tersebut. HANYA klaim berita penipuan jika judul/snippet secara spesifik menyebutkan nama lengkap entitas atau nomor telepon ini.
-10. STATUS NOMOR: Bedakan `probe_status` dari `found`. `probe_status=COMPLETED` berarti pemeriksaan berhasil; `reputation_status=CLEAN` dan `reported_fraud=false` berarti tidak ada laporan fraud/spam yang ditemukan. `found=false` hanya berarti bukti scam tidak ditemukan, BUKAN pemeriksaan gagal atau reputasi belum terkonfirmasi.
-11. KREDIBEL GAGAL DIAKSES: Jika nomor HP tercatat "Kaspersky Who Calls tidak dapat diakses" DAN "Pencarian SERP publik tidak menemukan laporan penipuan", artinya TIDAK ADA BUKTI PENIPUAN terkait nomor tersebut. DILARANG memasukkan ini sebagai risk_factor. Ini harus masuk sebagai safe_factor atau diabaikan sama sekali.
+**AMAN (0–39)**
+- 0–10: alamat `exact` atau `business`, HP bersih, tanpa permintaan biaya, ada situs/medsos/jejak publik, tanpa laporan scam spesifik.
+- 11–22: mayoritas sinyal aman, sisa keraguan ringan (gaji kosong, jejak web tipis, nomor bangunan belum pasti).
+- 23–39: aman dengan 1–2 kelemahan non-kritis. UMKM tanpa PT/alamat/website tetapi deskripsi kerja wajar dan rinci, HP bersih, tanpa biaya: 20–35.
 
+**WASPADA (40–74)**
+- Kombinasi sinyal nyata tanpa bukti keras: alamat tidak ditemukan + jejak publik benar-benar nihil, instansi pemerintah + Gmail (45–60), atau sinyal scam lemah.
+- SINYAL TEKS "Mengaku perusahaan tetapi tidak menyebut namanya" = YA DAN "jalur melamar hanya WhatsApp/tautan bio" = YA: 45–60.
+- SINYAL TEKS "Mengatasnamakan BUMN/Persero/Tbk tetapi pendaftaran hanya lewat WhatsApp/tautan bio" = YA: minimal 60–74. Ada artikel peringatan/bantahan atas nama itu: mendekati 74.
 
-**AMAN (0–39)** — pecah band:
-- **0–10 (sangat aman):** alamat `match_level=exact` + HP bersih Kaspersky Who Calls + tidak minta biaya +
-  (medsos/toko aktif ATAU website hidup) + tidak ada indikasi scam di SERP.
-  Gmail diperbolehkan di band ini untuk UMKM.
-- **11–22 (aman):** mayoritas sinyal aman; sisa keraguan ringan (gaji kosong, jejak web tipis).
-- **23–39 (aman dengan catatan):** masih AMAN tapi ada 1–2 kelemahan non-kritis.
+**BAHAYA (75–100)**
+- Wajib ada bukti keras: permintaan biaya/transfer/KTP/rekening (termasuk tiket atau akomodasi dengan janji reimburse), HP `reported_fraud`, form phishing, atau laporan penipuan spesifik yang menyebut nomor/perusahaan/modus lowongan ini.
 
-**WASPADA (40–74):**
-- kombinasi red flag nyata: alamat gagal OSM + zero footprint yang benar-benar terukur,
-  atau klaim instansi pemerintah (BGN/SPPG/Kementerian) + Gmail (skor 45-60),
-  atau sinyal scam lemah di SERP tanpa konfirmasi kuat.
-- `NO_RESULTS` atau `UNAVAILABLE` pada search bukan zero footprint dan tidak boleh menaikkan verdict.
+## URUTAN PENALARAN
 
-**BAHAYA (75–100):**
-- WAJIB ada bukti keras: permintaan biaya/transfer/KTP/rekening (termasuk transfer pemesanan tiket travel/akomodasi fiktif dengan janji reimburse), ATAU HP reported_fraud Kaspersky Who Calls,
-  ATAU phishing form, ATAU laporan penipuan spesifik yang terbukti menargetkan nomor/perusahaan ini.
+1. Cek bukti keras dulu (biaya, nomor dilaporkan, phishing, laporan spesifik).
+2. Cek sinyal pencatutan (BUMN/instansi + kanal tidak resmi, artikel peringatan).
+3. Nilai alamat sesuai `match_level`, lalu jejak web dan medsos.
+4. Pilih band, lalu skor yang selaras dengan band.
 
-Jika SEMUA ini terpenuhi:
-- alamat fisik `match_level=exact`, DAN
-- HP tidak reported_fraud di Kaspersky Who Calls, DAN
-- tidak ada permintaan biaya/uang di teks, DAN
-- (medsos/toko publik aktif ATAU deskripsi syarat kerja wajar terperinci):
-➔ verdict **AMAN**, risk_score **5–15** (boleh under 10).
-Jangan naikkan ke 25+ hanya karena Gmail / tanpa website / gaji kosong.
+## FORMAT JAWABAN
 
-Jika TIDAK ADA alamat OSM tapi SEMUA ini terpenuhi:
-- tidak ada nama PT/CV formal (hanya UMKM/perorangan/hiring pribadi), DAN
-- SINYAL TEKS "Mengaku pabrik/perusahaan/kantor tetapi tidak menyebut namanya" = tidak, DAN
-- HP tidak reported_fraud di Kaspersky Who Calls, DAN
-- tidak ada permintaan biaya/uang di teks, DAN
-- deskripsi pekerjaan wajar dan terperinci (jobdesk, syarat, sistem kerja jelas):
-➔ verdict **AMAN**, risk_score **20–35** (aman dengan catatan — zero footprint UMKM normal).
-Jangan naikkan ke WASPADA hanya karena tidak ada alamat/PT/website — itu normal untuk UMKM kecil.
+`summary` menjelaskan bukti, bukan status hukum. Dilarang menyebut lowongan/perusahaan "resmi", "terverifikasi", "valid", "legal", "sah", "terpercaya", "kredibel", atau "pasti aman". Contoh: "Domain email perusahaan sudah lama terdaftar dan jejak digitalnya konsisten; tidak ditemukan tanda bahaya."
 
-Jika SINYAL TEKS "Mengaku pabrik/perusahaan/kantor tetapi tidak menyebut namanya" = YA DAN
-"Satu-satunya jalur melamar adalah WhatsApp pribadi atau tautan di bio" = YA, tanpa red flag keras:
-➔ verdict **WASPADA**, risk_score **45–60**. Pemberi kerja berbadan usaha bisa menyebut nama dan alamatnya;
-tanpa itu pelamar tidak punya apa pun untuk diperiksa sebelum mengirim data pribadi.
-
-Jika SINYAL TEKS "Mengatasnamakan BUMN/Persero/Tbk tetapi pendaftaran hanya lewat WhatsApp/tautan di bio" = YA:
-➔ minimal **WASPADA**, risk_score **60–74**; jejak web perusahaan besar itu TIDAK membuktikan lowongan ini asli,
-karena namanya sedang dicatut. Bila juga ada permintaan biaya/tiket/transfer ➔ **BAHAYA**.
-
-1. Red flag keras dulu: biaya, fraud HP, phishing form, scam SERP.
-2. Bedakan alamat exact dari area-only; hanya `match_level=exact` yang boleh disebut titik alamat terverifikasi.
-3. Medsos/toko/web evidence?
-4. Gmail hanya faktor ringan jika digabung red flag lain.
-5. Jangan mengganti nama perusahaan hasil ekstraksi. `corrected_company_name` harus null kecuali ada koreksi eksplisit di teks asli.
-6. Marketplace, portal lowongan, dan hasil SERP bukan otomatis kanal resmi perusahaan.
-7. Hanya sebut akun/kanal "resmi" jika evidence secara eksplisit membuktikan hubungan resmi; jika tidak, gunakan "jejak publik".
-8. risk_score HARUS selaras verdict dan band di atas.
-9. Jika semua query web berstatus `NO_RESULTS`/`UNAVAILABLE`, gunakan istilah `bukti publik tidak tersedia pada run ini`, bukan `zero footprint` atau `nihil jejak`.
-10. Jika `evidence_counts.relevant_results > 0` atau `social.evidence_counts.public_posts > 0`, DILARANG menulis `bukti publik tidak tersedia` atau `zero footprint`.
-11. `summary` menjelaskan bukti, bukan status hukum. DILARANG menyebut lowongan/perusahaan "resmi", "terverifikasi", "legal", "sah", "terpercaya", "kredibel", atau "pasti aman". Contoh benar: "Domain email perusahaan sudah lama terdaftar dan jejak digitalnya konsisten; tidak ditemukan tanda bahaya."
-
----
-
-
-Batas per field:
-- `summary`: 1 kalimat saja (max 25 kata)
-- `risk_factors`: max 3 item, max 8 kata per item, kalimat pendek
-- `safe_factors`: max 3 item, max 8 kata per item, kalimat pendek
-- `recommendations`: max 3 item, max 8 kata per item, kalimat imperatif pendek tanpa anak kalimat
+Batas: `summary` 1 kalimat (maks 25 kata); `risk_factors`, `safe_factors`, `recommendations` masing-masing maks 3 butir, maks 8 kata per butir, rekomendasi berupa kalimat perintah pendek.
 
 {{
   "verdict": "AMAN" | "WASPADA" | "BAHAYA",
   "risk_score": <angka 0-100>,
   "corrected_company_name": null,
-  "summary": "<1 kalimat ringkas alasan verdict>",
-  "risk_factors": ["<max 10 kata>"],
-  "safe_factors": ["<max 10 kata>"],
-  "recommendations": ["<max 12 kata>"]
+  "summary": "<1 kalimat>",
+  "risk_factors": ["<maks 8 kata>"],
+  "safe_factors": ["<maks 8 kata>"],
+  "recommendations": ["<maks 8 kata>"]
 }}
-
-Skor vs verdict:
-- AMAN: 0-39 (UMKM valid target 5-15)
-- WASPADA: 40-74
-- BAHAYA: 75-100
 """
     return prompt.strip()
 

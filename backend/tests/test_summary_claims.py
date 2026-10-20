@@ -18,3 +18,10 @@ def test_removes_credibility_and_official_domain_claims():
     text = "Lowongan sangat kredibel menggunakan domain resmi berusia lebih dari 13 tahun tanpa indikasi pungutan biaya."
     out = _soften_summary_claims(text)
     assert out == "Lowongan menggunakan domain berusia lebih dari 13 tahun tanpa indikasi pungutan biaya."
+
+
+def test_valid_claim_and_broken_email_phrase():
+    text = "Lowongan didukung domain email yang tercantum perusahaan dan jejak digital valid."
+    out = _soften_summary_claims(text)
+    assert "valid" not in out
+    assert out.endswith("jejak digital yang konsisten.")
