@@ -370,11 +370,11 @@ export default function HomePage() {
 
           <SloganSteps stage={stage} />
 
-          {/* Navigasi, bukan aksi utama: varian secondary supaya tidak bersaing dengan "Verifikasi Sekarang". */}
+          {/* Charcoal seperti "Lapor komunitas", sama dengan "Lihat laporan lengkapnya" (keputusan user). */}
           <button
             type="button"
             onClick={() => howRef.current?.scrollIntoView({ behavior: "smooth" })}
-            className={buttonClass({ variant: "secondary", className: "mt-10 hidden lg:inline-flex" })}
+            className={buttonClass({ variant: "primary", className: "mt-10 hidden lg:inline-flex" })}
           >
             <ArrowDown size={14} weight="bold" />
             Lihat cara kerja
@@ -420,7 +420,7 @@ export default function HomePage() {
             </p>
             <Link
               href={EXAMPLE_REPORT}
-              className={buttonClass({ variant: "secondary", className: "mt-4" })}
+              className={buttonClass({ variant: "primary", className: "mt-4" })}
             >
               Lihat laporan lengkapnya
               <ArrowUpRight size={14} weight="bold" />
