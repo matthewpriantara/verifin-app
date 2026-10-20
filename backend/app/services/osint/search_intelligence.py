@@ -447,7 +447,8 @@ def scam_report_search(raw_company: str, *, max_results: int = 5) -> dict[str, A
         if not any(w in blob for w in ("lowongan", "loker", "rekrutmen", "recruitment", "seleksi", "kerja")):
             continue
         seen.add(key)
-        matched.append({"title": title[:160], "url": url, "snippet": snippet[:240]})
+        # Snippet lebih panjang: "...yang mengatasnamakan <nama>" sering ada di akhir kalimat
+        matched.append({"title": title[:160], "url": url, "snippet": snippet[:400]})
         if len(matched) >= max_results:
             break
     return {
