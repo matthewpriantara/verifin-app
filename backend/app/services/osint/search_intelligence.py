@@ -433,7 +433,16 @@ def scam_report_search(raw_company: str, *, max_results: int = 5) -> dict[str, A
             continue
         if not all(p.search(blob) for p in name_patterns):
             continue
-        if not any(w in blob for w in _WARNING_TOKENS):
+        # Peringatan harus tentang nama ini: kata peringatan di judul, atau "mengatasnamakan/
+        # mencatut <nama>" di snippet. Disclaimer umum "maraknya modus penipuan" di halaman
+        # agregator loker bukan bukti nama ini pernah dicatut.
+        title_low = title.lower()
+        warning_in_title = any(w in title_low for w in _WARNING_TOKENS + ("klarifikasi", "bantahan", "cek fakta"))
+        impersonation_in_snippet = bool(re.search(
+            rf"\b(?:mengatasnamakan|mencatut|catut|atas nama)\W+(?:\w+\W+){{0,3}}{re.escape(name_tokens[0])}\b",
+            blob,
+        ))
+        if not (warning_in_title or impersonation_in_snippet):
             continue
         if not any(w in blob for w in ("lowongan", "loker", "rekrutmen", "recruitment", "seleksi", "kerja")):
             continue
