@@ -82,6 +82,18 @@ def _plain_display_name(result: dict) -> str:
     return display
 
 
+def _area_display_name(result: dict) -> str:
+    """Untuk kecocokan wilayah/kode pos: tampilkan wilayahnya saja, tanpa nama jalan/POI acak."""
+    addr = result.get("address") or {}
+    keys = ("village", "suburb", "city_district", "city", "town", "county", "state", "postcode")
+    parts: list[str] = []
+    for key in keys:
+        value = str(addr.get(key) or "").strip()
+        if value and value not in parts:
+            parts.append(value)
+    return ", ".join(parts) or _plain_display_name(result)
+
+
 def _candidate_preference(result: dict, level: str) -> int:
     cls = result.get("class") or result.get("category") or ""
     if level == "street":
@@ -266,7 +278,11 @@ async def geocode_address(address: str, company_name: str | None = None) -> dict
                 region = ", ".join(parts[-2:]) if len(parts) >= 2 else (parts[-1] if parts else "")
                 brand = " ".join(business_tokens)
                 if region:
-                    queries = [f"{brand}, {region}"] + queries
+                    # OSM sering memakai nama pendek ("Komitrando" untuk PT Komitrando Emporio)
+                    brand_queries = [f"{brand}, {region}"]
+                    if len(business_tokens) > 1:
+                        brand_queries.append(f"{business_tokens[0]}, {region}")
+                    queries = brand_queries + queries
 
             best_result = None
             best_match = None
@@ -304,6 +320,8 @@ async def geocode_address(address: str, company_name: str | None = None) -> dict
                         result.get("display_name", "")
                         if best_match["match_level"] in ("exact", "business")
                         else _plain_display_name(result)
+                        if best_match["match_level"] == "street"
+                        else _area_display_name(result)
                     ),
                     "country": country,
                     "confidence_score": round(importance, 3),

@@ -3,7 +3,7 @@ from app.api.v1.verify.pipeline import _dedupe_salaries
 from app.services.db_cache import _case_hash, _osint_has_failures
 from app.services.llm.prompt_builder import _build_address_osint_section
 from app.services.llm.verifin_reasoning import _mark_social_link_status
-from app.services.osint.address_validator import _is_business_match, _plain_display_name, _business_tokens
+from app.services.osint.address_validator import _area_display_name, _is_business_match, _plain_display_name, _business_tokens
 from app.services.osint.search_intelligence import _url_key, classify_result
 
 
@@ -71,3 +71,12 @@ def test_profiles_found_by_name_only_are_flagged():
     osint = {"social": {"profiles": [{"url": "https://instagram.com/tokoku"}]}}
     _mark_social_link_status(osint, {"urls": []}, "Info: IG @tokoku", {})
     assert osint["social"]["found_by_name_only"] is False
+
+
+def test_area_display_shows_region_only():
+    result = {
+        "display_name": "Jalan Haji Mohammad Saleh Ishak, RW 05, Gondangdia, Menteng, Jakarta Pusat, 10350",
+        "address": {"road": "Jalan Haji Mohammad Saleh Ishak", "suburb": "Gondangdia",
+                    "city_district": "Menteng", "city": "Jakarta Pusat", "postcode": "10350"},
+    }
+    assert _area_display_name(result) == "Gondangdia, Menteng, Jakarta Pusat, 10350"

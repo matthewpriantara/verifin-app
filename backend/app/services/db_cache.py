@@ -15,7 +15,7 @@ from app.api.v1.verify.pipeline import _build_osint_summary, _to_response
 from app.services.llm.verifin_reasoning import _soften_summary_claims
 
 logger = logging.getLogger(__name__)
-CACHE_SCHEMA_VERSION = 11
+CACHE_SCHEMA_VERSION = 12
 
 
 def _case_hash(raw_input: str) -> str:
