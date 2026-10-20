@@ -26,7 +26,7 @@ import {
   Info,
 } from "@phosphor-icons/react";
 import { SocialPlatformIcon } from "@/components/report/SocialPlatformIcon";
-import { Button } from "@/components/ui/Button";
+import { buttonClass } from "@/components/ui/Button";
 import { Skeleton } from "@/components/ui/Skeleton";
 import { ShapChart } from "@/modules/report/ShapChart";
 import { EvidencePanel } from "@/components/report/EvidencePanel";
@@ -202,7 +202,7 @@ function Section({
       initial={{ opacity: 0, y: 10 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ delay, duration: 0.4, ease: [0.16, 1, 0.3, 1] }}
-      className="overflow-hidden rounded-3xl border border-border bg-bg-elevated"
+      className="overflow-hidden rounded-2xl border border-border bg-bg-elevated"
     >
       <header className="flex items-start gap-3 border-b border-border px-5 py-4 sm:px-8 sm:py-5">
         <span className="mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-bg-subtle text-text-secondary">
@@ -226,7 +226,7 @@ function ReportSkeleton() {
         <Skeleton className="h-4 w-24" />
       </div>
 
-      <div className="rounded-3xl border border-border bg-bg-elevated p-6 sm:p-8 lg:p-10">
+      <div className="rounded-2xl border border-border bg-bg-elevated p-6 sm:p-8 lg:p-10">
         <div className="flex flex-col gap-6 lg:flex-row lg:items-center lg:justify-between">
           <div className="flex items-center gap-4">
             <Skeleton className="h-16 w-16 rounded-2xl" />
@@ -308,7 +308,7 @@ export default function ReportPage() {
     <div className="mx-auto max-w-lg px-4 py-20 text-center sm:px-6">
       <h1 className="text-2xl font-semibold text-text-primary">Belum ada laporan</h1>
       <p className="mt-2 text-[15px] text-text-secondary">Laporan tidak ditemukan atau sudah tidak tersedia.</p>
-      <div className="mt-8"><Link href="/"><Button>Ke verifikasi</Button></Link></div>
+      <div className="mt-8"><Link href="/" className={buttonClass()}>Ke verifikasi</Link></div>
     </div>
   );
 
@@ -355,7 +355,7 @@ export default function ReportPage() {
       <div className="mb-6 flex items-center justify-between border-b border-border-focus/40 pb-4">
         <Link
           href="/"
-          className="inline-flex min-h-11 items-center gap-2 rounded-xl bg-text-primary px-3.5 py-2 text-[13px] font-semibold text-bg-elevated shadow-sm transition-all hover:bg-text-secondary active:scale-[0.98]"
+          className={buttonClass()}
         >
           <ArrowLeft size={15} weight="bold" /> Cek lowongan lain
         </Link>
@@ -368,7 +368,7 @@ export default function ReportPage() {
       <motion.div
         {...fadeUp}
         transition={{ duration: 0.4, ease: [0.16, 1, 0.3, 1] }}
-        className={cn("mb-4 rounded-3xl border-2 p-5 sm:p-8 lg:mb-5 lg:p-10", tone.bg, tone.border)}
+        className={cn("mb-4 rounded-2xl border-2 p-5 sm:p-8 lg:mb-5 lg:p-10", tone.bg, tone.border)}
       >
         <div className="flex flex-col gap-6 lg:flex-row lg:items-center lg:gap-10">
           {/* Icon + verdict */}
@@ -540,7 +540,7 @@ export default function ReportPage() {
                     }
                     target="_blank"
                     rel="noreferrer"
-                    className="inline-flex min-h-11 items-center gap-2 rounded-xl bg-text-primary px-4 py-2.5 text-sm font-semibold text-bg-elevated transition-all hover:opacity-90"
+                    className={buttonClass()}
                   >
                     <MapPin size={15} weight="bold" /> Google Maps <ArrowSquareOut size={13} />
                   </a>
@@ -549,7 +549,7 @@ export default function ReportPage() {
                       href={addrDetails.osm_url as string}
                       target="_blank"
                       rel="noreferrer"
-                      className="inline-flex min-h-11 items-center gap-2 rounded-xl border border-border bg-bg-subtle px-4 py-2.5 text-sm font-semibold text-text-secondary transition-all hover:bg-bg-elevated"
+                      className={buttonClass({ variant: "secondary" })}
                     >
                       <MapPin size={15} weight="bold" /> OpenStreetMap <ArrowSquareOut size={13} />
                     </a>
@@ -695,7 +695,7 @@ export default function ReportPage() {
       </div>
 
       {/* ── Entitas lowongan (collapse) ── */}
-      <motion.div {...fadeUp} transition={{ delay: 0.24 }} className="mt-6 overflow-hidden rounded-3xl border border-border bg-bg-elevated">
+      <motion.div {...fadeUp} transition={{ delay: 0.24 }} className="mt-6 overflow-hidden rounded-2xl border border-border bg-bg-elevated">
         <button onClick={() => setShowEntities(!showEntities)} className="flex w-full items-center justify-between gap-3 px-5 py-4 text-left sm:px-8 sm:py-5">
           <div className="min-w-0">
             <h2 className="text-base font-bold text-text-primary sm:text-lg">Data Lowongan yang Diekstrak</h2>
@@ -731,7 +731,7 @@ export default function ReportPage() {
       </motion.div>
 
       {/* ── Detail teknis / SHAP (collapse) ── */}
-      <motion.div {...fadeUp} transition={{ delay: 0.28 }} className="mt-6 overflow-hidden rounded-3xl border border-border bg-bg-elevated">
+      <motion.div {...fadeUp} transition={{ delay: 0.28 }} className="mt-6 overflow-hidden rounded-2xl border border-border bg-bg-elevated">
         <button onClick={() => setShowAudit((s) => !s)} className="flex w-full items-center justify-between gap-3 px-5 py-4 text-left sm:px-8 sm:py-5">
           <div className="min-w-0">
             <h2 className="text-base font-bold text-text-primary sm:text-lg">Detail Teknis & Atribusi Bukti</h2>
@@ -755,19 +755,15 @@ export default function ReportPage() {
       {/* ── CTA ── */}
       {/* ── CTA Actions ── */}
       <motion.div {...fadeUp} transition={{ delay: 0.32 }} className="mt-8 flex flex-col gap-3 sm:flex-row sm:items-center">
-        <Link href="/" className="flex-1">
-          <Button fullWidth variant="primary">
-            Cek lowongan lain
-          </Button>
+        <Link href="/" className={buttonClass({ className: "flex-1" })}>
+          Cek lowongan lain
         </Link>
         <Link
           href={caseId ? `/report-job?caseId=${encodeURIComponent(caseId)}` : "/report-job"}
-          className="flex-1 sm:max-w-xs"
+          className={buttonClass({ variant: "danger", className: "flex-1 sm:max-w-xs" })}
         >
-          <Button fullWidth variant="danger">
-            <ChatTeardropText size={16} weight="bold" />
-            Laporkan Kasus Ini
-          </Button>
+          <ChatTeardropText size={16} weight="bold" />
+          Laporkan kasus ini
         </Link>
       </motion.div>
     </div>

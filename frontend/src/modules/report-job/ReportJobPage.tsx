@@ -2,6 +2,7 @@
 
 import { useState, useEffect, Suspense, useRef, useSyncExternalStore } from "react";
 import Link from "next/link";
+import { buttonClass } from "@/components/ui/Button";
 import { useSearchParams, useRouter } from "next/navigation";
 import { motion } from "motion/react";
 import {
@@ -206,17 +207,18 @@ function ReportJobPageInner() {
           <div className="mt-6 flex flex-col gap-2">
             {activeCaseId ? (
               <button
+                type="button"
                 onClick={() => router.push(`/report/${activeCaseId}`)}
-                className="w-full rounded-xl bg-text-primary py-3 text-[14px] font-semibold text-bg-elevated transition-opacity hover:opacity-90 text-center"
+                className={buttonClass({ fullWidth: true })}
               >
-                Kembali ke Laporan
+                Kembali ke laporan
               </button>
             ) : (
               <Link
                 href="/"
-                className="w-full rounded-xl bg-text-primary py-3 text-[14px] font-semibold text-bg-elevated transition-opacity hover:opacity-90 text-center"
+                className={buttonClass({ fullWidth: true })}
               >
-                Kembali ke Beranda
+                Kembali ke beranda
               </Link>
             )}
             <button
@@ -230,9 +232,9 @@ function ReportJobPageInner() {
                 setSelectedCaseId(null);
                 setSuccess(false);
               }}
-              className="w-full rounded-xl border border-border bg-bg-subtle py-3 text-[13px] font-medium text-text-secondary transition-colors hover:border-border-focus hover:text-text-primary"
+              className={buttonClass({ variant: "secondary", fullWidth: true })}
             >
-              Kirim Laporan Lain
+              Kirim laporan lain
             </button>
           </div>
         </motion.div>
@@ -249,14 +251,14 @@ function ReportJobPageInner() {
           <button
             type="button"
             onClick={() => router.back()}
-            className="inline-flex min-h-11 items-center gap-2 rounded-xl bg-text-primary px-4 py-2 text-[13px] font-semibold text-bg-elevated shadow-sm transition-all hover:bg-text-secondary active:scale-[0.98]"
+            className={buttonClass()}
           >
             <ArrowLeft size={15} weight="bold" /> Kembali
           </button>
         ) : (
           <Link
             href="/"
-            className="inline-flex min-h-11 items-center gap-2 rounded-xl bg-text-primary px-4 py-2 text-[13px] font-semibold text-bg-elevated shadow-sm transition-all hover:bg-text-secondary active:scale-[0.98]"
+            className={buttonClass()}
           >
             <ArrowLeft size={15} weight="bold" /> Kembali
           </Link>
@@ -557,9 +559,9 @@ function ReportJobPageInner() {
             <button
               type="submit"
               disabled={!companyName || !reportType || !description || loading || (selectedMode === "from_history" && !selectedCaseId)}
-              className="w-full rounded-xl bg-text-primary py-3.5 text-[14px] font-semibold text-bg-elevated transition-opacity hover:opacity-90 disabled:opacity-40 sm:w-48"
+              className={buttonClass({ fullWidth: true, className: "sm:w-48" })}
             >
-              {loading ? "Mengirim..." : "Kirim Laporan"}
+              {loading ? "Mengirim..." : "Kirim laporan"}
             </button>
           </div>
         </div>
