@@ -32,7 +32,7 @@ import { ShapChart } from "@/modules/report/ShapChart";
 import { EvidencePanel } from "@/components/report/EvidencePanel";
 import { REPORT_STORAGE_KEY, cn, normalizeVerdict, verdictTone } from "@/lib/utils";
 import { getCaseById } from "@/lib/api";
-import { getPhoneStatus } from "@/lib/phone-status";
+import { communityReportedPhones, getPhoneStatus } from "@/lib/phone-status";
 import type { VerifyResponse, ExtractedEntities } from "@/types/verify";
 
 /* ─── helpers ──────────────────────────────────────────────────────────── */
@@ -337,6 +337,7 @@ export default function ReportPage() {
 
   const addrs = (osint?.address_validations as Record<string, unknown>[] | undefined) || [];
   const phones = osint?.phones || [];
+  const reportedPhones = communityReportedPhones(osint?.fraud_network?.community_reports?.reported_phones);
   const social = osint?.social;
 
   const primaryAddr = addrs[0] || {};
@@ -499,7 +500,7 @@ export default function ReportPage() {
                     <MapPin size={12} weight="fill" /> Ada di Google Maps
                   </span>
                 )}
-                {phones.length > 0 && phones.every((p) => getPhoneStatus(p).kind === "safe") && (
+                {phones.length > 0 && phones.every((p) => getPhoneStatus(p, reportedPhones).kind === "safe") && (
                   <span className="inline-flex items-center gap-1.5 rounded-full bg-bg-subtle px-3 py-1 text-xs font-semibold text-text-secondary">
                     <Phone size={12} weight="fill" /> Nomor tanpa laporan
                   </span>
@@ -610,7 +611,7 @@ export default function ReportPage() {
               <p className="mb-3 text-xs font-bold uppercase tracking-wider text-text-muted">Reputasi Kontak</p>
               <div className="grid gap-3 sm:grid-cols-2">
                 {phones.map((p, i) => {
-                  const status = getPhoneStatus(p);
+                  const status = getPhoneStatus(p, reportedPhones);
                   return (
                     <div key={i} className="flex items-center justify-between rounded-2xl bg-bg-subtle px-4 py-3">
                       <span className="font-mono text-sm font-semibold text-text-primary">{p.phone ?? "-"}</span>

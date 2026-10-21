@@ -109,6 +109,15 @@ class TestApplyToCase:
         assert apply_community_signal(case, dict(PENDING)) is False
         assert case.risk_score == 60
 
+    def test_reported_phone_list_alone_triggers_update(self):
+        # Kasus lama yang tersimpan sebelum field reported_phones ada tetap ikut diperbarui.
+        case = _case(80, APPROVED)
+        with_phone = dict(APPROVED, reported_phones=["+6281234567890"])
+        assert apply_community_signal(case, with_phone) is True
+        community = case.osint_summary["response_osint"]["fraud_network"]["community_reports"]
+        assert community["reported_phones"] == ["+6281234567890"]
+        assert case.risk_score == 80
+
     def test_case_without_osint_payload_is_skipped(self):
         case = _case(60, PENDING)
         case.osint_summary = None
