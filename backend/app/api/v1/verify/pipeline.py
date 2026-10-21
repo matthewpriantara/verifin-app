@@ -112,11 +112,14 @@ def _community_report_signal(db: Session, entities: dict) -> dict:
         conditions.append(func.lower(CommunityReport.email) == str(em).strip().lower())
     for url in (entities.get("urls") or []):
         conditions.append(CommunityReport.url == str(url).strip())
+    phone_canon: dict[str, str] = {}
     for ph in (entities.get("phones") or []):
         # Laporan disimpan dalam format "+628…" (clean_indonesian_phone); baris lama tanpa "+" ikut dicocokkan.
         canon = clean_indonesian_phone(str(ph))
         if canon:
             conditions.append(CommunityReport.phone.in_([canon, canon.lstrip("+")]))
+            phone_canon[canon] = canon
+            phone_canon[canon.lstrip("+")] = canon
 
     if not conditions:
         return {"status": "NO_DATA", "report_count": 0, "reported_by_community": False}
@@ -125,6 +128,17 @@ def _community_report_signal(db: Session, entities: dict) -> dict:
         base_query = db.query(func.count(CommunityReport.id)).filter(or_(*conditions))
         count = base_query.filter(CommunityReport.status == "approved").scalar() or 0
         pending = base_query.filter(CommunityReport.status == "pending").scalar() or 0
+        # Nomor mana yang dilaporkan, supaya kartu nomor di laporan tidak menulis "Tanpa laporan"
+        # (hasil Kaspersky) untuk nomor yang sudah disetujui sebagai laporan komunitas.
+        reported_phones: list[str] = []
+        if phone_canon:
+            rows = (
+                db.query(CommunityReport.phone)
+                .filter(CommunityReport.status == "approved", CommunityReport.phone.in_(list(phone_canon)))
+                .distinct()
+                .all()
+            )
+            reported_phones = sorted({phone_canon[r[0]] for r in rows if r[0] in phone_canon})
     except Exception:
         return {"status": UNAVAILABLE, "report_count": None, "reported_by_community": None}
 
@@ -132,6 +146,7 @@ def _community_report_signal(db: Session, entities: dict) -> dict:
         "status": COMPLETED,
         "report_count": int(count),
         "pending_report_count": int(pending),
+        "reported_phones": reported_phones,
         "reported_by_community": count > 0,
         "risk_signal": "HIGH" if count >= 3 else ("MEDIUM" if count == 2 else ("LOW" if count == 1 else "NONE")),
     }

@@ -81,6 +81,7 @@ def apply_community_signal(case: JobCase, community: dict) -> bool:
         int(old.get("report_count") or 0) == approved
         and int(old.get("pending_report_count") or 0) == int(community.get("pending_report_count") or 0)
         and old.get("status") == community.get("status")
+        and (old.get("reported_phones") or []) == (community.get("reported_phones") or [])
     ):
         return False
 

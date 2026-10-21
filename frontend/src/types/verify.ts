@@ -124,6 +124,7 @@ export interface OsintPayload {
       status?: string;
       report_count?: number | null;
       pending_report_count?: number;
+      reported_phones?: string[];
     };
     syndicate_analysis?: { syndicate_alerts?: { detail?: string; severity?: string }[] };
   };

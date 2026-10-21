@@ -1,6 +1,6 @@
 import type { OsintPayload } from "@/types/verify";
 import { cn } from "@/lib/utils";
-import { getPhoneStatus } from "@/lib/phone-status";
+import { communityReportedPhones, getPhoneStatus } from "@/lib/phone-status";
 import {
   Globe,
   Phone,
@@ -159,6 +159,7 @@ export function EvidencePanel({ osint }: EvidencePanelProps) {
   const community = network?.community_reports;
   const approvedReports = community?.status === "COMPLETED" ? Number(community.report_count ?? 0) : 0;
   const pendingReports = Number(community?.pending_report_count ?? 0);
+  const reportedPhones = communityReportedPhones(community?.reported_phones);
   const otherCases = Number(network?.total_case_count ?? 0);
   const fraudCases = Number(network?.fraud_case_count ?? 0);
   const registered = formatDate(domain.created_at);
@@ -212,7 +213,7 @@ export function EvidencePanel({ osint }: EvidencePanelProps) {
         <Section title="Reputasi nomor" icon={Phone}>
           <ul className="space-y-3">
             {phones.map((p, i) => {
-              const status = getPhoneStatus(p);
+              const status = getPhoneStatus(p, reportedPhones);
               const operator = (p.comments ?? []).find((c) => /operator/i.test(c));
               return (
                 <li key={i} className="flex flex-wrap items-center justify-between gap-2">
