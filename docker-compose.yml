@@ -33,7 +33,5 @@ services:
     environment:
       - NODE_ENV=production
       - PORT=3000
-      - ADMIN_PASSWORD=${ADMIN_PASSWORD:-verifin2026}
-      - ADMIN_SESSION_SECRET=${ADMIN_SESSION_SECRET:-verifin-admin-secret-change-me-2026}
     depends_on:
       - verifin-backend
