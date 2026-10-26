@@ -22,8 +22,16 @@ COPY --from=deps /app/node_modules ./node_modules
 COPY . .
 
 ARG NEXT_PUBLIC_API_URL
-ENV NEXT_PUBLIC_API_URL=${NEXT_PUBLIC_API_URL}
-ENV NEXT_TELEMETRY_DISABLED=1
+ARG GIT_COMMIT=dev
+ARG BUILD_TIME=""
+
+ENV NEXT_PUBLIC_API_URL=${NEXT_PUBLIC_API_URL} \
+    NEXT_PUBLIC_GIT_COMMIT=${GIT_COMMIT} \
+    NEXT_PUBLIC_BUILD_TIME=${BUILD_TIME} \
+    NEXT_TELEMETRY_DISABLED=1
+
+LABEL org.opencontainers.image.revision=${GIT_COMMIT} \
+      org.opencontainers.image.created=${BUILD_TIME}
 
 RUN corepack enable pnpm
 

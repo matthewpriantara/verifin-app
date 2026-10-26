@@ -76,8 +76,13 @@ export function Footer() {
             <p className="text-[12px] text-bg/60 font-medium">
               &copy; {new Date().getFullYear()} VERIFIN. Hak Cipta Dilindungi.
             </p>
-            <p className="text-[12px] text-bg/60">
-              Tim Three Achilles · Universitas Gadjah Mada
+            <p className="text-[12px] text-bg/60 flex items-center gap-2">
+              <span>Tim Three Achilles · Universitas Gadjah Mada</span>
+              {process.env.NEXT_PUBLIC_GIT_COMMIT && (
+                <span className="font-mono text-[10px] bg-bg/10 px-1.5 py-0.5 rounded text-bg/70 tracking-wider">
+                  #{process.env.NEXT_PUBLIC_GIT_COMMIT.slice(0, 7)}
+                </span>
+              )}
             </p>
           </div>
           <p className="text-[12px] leading-relaxed text-bg/60 max-w-md md:text-right">
