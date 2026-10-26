@@ -8,16 +8,13 @@ services:
     restart: unless-stopped
     stop_grace_period: 30s
     ports:
-      - "8000:8000"
+      - "8019:8000"
     env_file:
       - ./backend/.env
     extra_hosts:
       - "host.docker.internal:host-gateway"
     volumes:
       - ./backend/uploads:/app/uploads/evidence
-    networks:
-      - default
-      - searxng_default
 
   verifin-frontend:
     image: ghcr.io/matthewpriantara/verifin-app-frontend:latest
@@ -29,7 +26,7 @@ services:
     container_name: verifin-frontend
     restart: unless-stopped
     ports:
-      - "3000:3000"
+      - "3019:3000"
     env_file:
       - path: ./frontend/.env
         required: false
@@ -40,21 +37,3 @@ services:
       - ADMIN_SESSION_SECRET=${ADMIN_SESSION_SECRET:-verifin-admin-secret-change-me-2026}
     depends_on:
       - verifin-backend
-  watchtower:
-    image: containrrr/watchtower
-    container_name: verifin-watchtower
-    restart: unless-stopped
-    volumes:
-      - /var/run/docker.sock:/var/run/docker.sock
-      - ~/.docker/config.json:/config.json:ro
-    environment:
-      - WATCHTOWER_CLEANUP=true
-      - WATCHTOWER_POLL_INTERVAL=300
-      - WATCHTOWER_INCLUDE_RESTARTING=true
-      - DOCKER_API_VERSION=1.44
-    command: verifin-backend verifin-frontend
-
-networks:
-  default:
-  searxng_default:
-    name: searxng_default
