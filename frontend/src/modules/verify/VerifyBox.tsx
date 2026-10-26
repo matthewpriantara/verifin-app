@@ -123,7 +123,7 @@ function LoadingModal({
       initial={{ opacity: 0 }}
       animate={{ opacity: 1 }}
       exit={{ opacity: 0 }}
-      className="fixed inset-0 z-50 flex items-center justify-center bg-bg/80 px-4 py-4 backdrop-blur-md"
+      className="fixed inset-0 z-50 flex items-center justify-center bg-bg/90 px-4 py-4"
       role="dialog"
       aria-modal="true"
       aria-labelledby="verify-loading-title"
@@ -231,17 +231,18 @@ function LoadingModal({
 
                     {/* Step Node Icon (Centered) */}
                     <div className="relative z-10">
+                      {/* GPU-composited glowing halo replacement for CPU box-shadow */}
+                      {isActive && !reduceMotion && (
+                        <motion.div
+                          className="absolute inset-0 rounded-2xl bg-text-primary/15"
+                          animate={{ scale: [1, 1.25, 1], opacity: [0.6, 0, 0.6] }}
+                          transition={{ duration: 2, repeat: Infinity, ease: "easeInOut" }}
+                        />
+                      )}
                       <motion.div
                         animate={
                           isActive && !reduceMotion
-                            ? {
-                              scale: [1, 1.06, 1],
-                              boxShadow: [
-                                "0 0 0px rgba(44,40,37,0)",
-                                "0 4px 16px rgba(44,40,37,0.12)",
-                                "0 0 0px rgba(44,40,37,0)",
-                              ],
-                            }
+                            ? { scale: [1, 1.05, 1] }
                             : { scale: 1 }
                         }
                         transition={
@@ -250,9 +251,9 @@ function LoadingModal({
                             : { duration: 0.2 }
                         }
                         className={cn(
-                          "flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl transition-all duration-300 mx-auto",
+                          "relative flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl transition-all duration-300 mx-auto",
                           isDone && "bg-aman-fg text-bg shadow-sm",
-                          isActive && "bg-text-primary text-bg-elevated shadow-lg ring-4 ring-text-primary/20",
+                          isActive && "bg-text-primary text-bg-elevated shadow-md ring-4 ring-text-primary/20",
                           isPending && "border border-border bg-bg-subtle text-text-muted opacity-70"
                         )}
                       >
