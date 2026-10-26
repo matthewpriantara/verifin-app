@@ -5,6 +5,10 @@ from dotenv import load_dotenv
 BASE_DIR = Path(__file__).resolve().parent.parent
 load_dotenv(dotenv_path=BASE_DIR / ".env")
 
+APP_VERSION = os.getenv("APP_VERSION", "1.0.0")
+GIT_COMMIT = os.getenv("GIT_COMMIT", "dev")
+BUILD_TIME = os.getenv("BUILD_TIME", "")
+
 LLM_BASE_URL = os.getenv("LLM_BASE_URL", "").rstrip("/")
 LLM_API_KEY = os.getenv("LLM_API_KEY", "")
 LLM_MODEL = os.getenv("LLM_MODEL", "")

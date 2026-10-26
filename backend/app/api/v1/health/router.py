@@ -1,6 +1,7 @@
 from fastapi import APIRouter, Depends
 from sqlalchemy import text
 from sqlalchemy.orm import Session
+from app.config import APP_VERSION, BUILD_TIME, GIT_COMMIT
 from app.database.postgres_client import get_db
 from app.services.llm.verifin_reasoning import check_ai_status
 from app.services.osint.searxng_client import is_searxng_available
@@ -31,7 +32,9 @@ async def health_check(db: Session = Depends(get_db)):
     return {
         "status": overall_status,
         "service": "verifin-backend",
-        "version": "1.0.0",
+        "version": APP_VERSION,
+        "git_commit": GIT_COMMIT,
+        "build_time": BUILD_TIME,
         "database": {
             "postgres": postgres_status,
             "details": postgres_details

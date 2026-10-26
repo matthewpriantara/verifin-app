@@ -22,6 +22,15 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 COPY requirements.txt .
 RUN pip install --upgrade pip && pip install -r requirements.txt
 
+ARG GIT_COMMIT=dev
+ARG BUILD_TIME=""
+
+ENV GIT_COMMIT=${GIT_COMMIT} \
+    BUILD_TIME=${BUILD_TIME}
+
+LABEL org.opencontainers.image.revision=${GIT_COMMIT} \
+      org.opencontainers.image.created=${BUILD_TIME}
+
 COPY . .
 
 # Unduh model OCR saat build (lewat konfigurasi yang sama dengan aplikasi) supaya permintaan
