@@ -8,7 +8,18 @@ import httpx
 
 from app.services.pii import PiiMasker
 
-from app.config import LLM_API_KEY, LLM_BASE_URL, LLM_MODEL, LLM_TIMEOUT
+from app.config import (
+    LLM_API_KEY,
+    LLM_BASE_URL,
+    LLM_EXTRACTOR_MODEL,
+    LLM_MODEL,
+    LLM_TIMEOUT,
+    LLM_FALLBACK_API_KEY,
+    LLM_FALLBACK_BASE_URL,
+    LLM_FALLBACK_EXTRACTOR_MODEL,
+    LLM_FALLBACK_MODEL,
+    LLM_FALLBACK_TIMEOUT,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -144,27 +155,21 @@ def extract_json_from_response(text: str) -> dict:
     }
 
 
-async def chat_completion(
+async def _execute_chat_completion(
+    base_url: str,
+    api_key: str,
+    model_name: str,
+    timeout_sec: float,
     messages: list[dict[str, Any]],
-    *,
-    model: str | None = None,
-    temperature: float = 0.0,
-    max_tokens: int = 4096,
-    timeout: float | None = None,
-    max_retries: int = 4,
-    seed: int | None = 42,
+    masker: PiiMasker,
+    temperature: float,
+    max_tokens: int,
+    seed: int | None,
+    max_retries: int,
 ) -> str:
-    if not LLM_API_KEY:
-        raise RuntimeError(
-            "LLM_API_KEY belum diset. Isi backend/.env dengan key google-api."
-        )
-
-    url = f"{LLM_BASE_URL}/chat/completions"
-    # Data pribadi (nomor, email, NIK, rekening) dimasking sebelum keluar server; token di
-    # jawaban LLM dikembalikan ke nilai asli di bawah.
-    masker = PiiMasker()
+    url = f"{base_url}/chat/completions"
     payload = {
-        "model": model or LLM_MODEL,
+        "model": model_name,
         "messages": masker.mask_messages(messages),
         "temperature": temperature,
         "max_tokens": max_tokens,
@@ -173,14 +178,14 @@ async def chat_completion(
     if seed is not None:
         payload["seed"] = seed
     headers = {
-        "Authorization": f"Bearer {LLM_API_KEY}",
+        "Authorization": f"Bearer {api_key}",
         "Content-Type": "application/json",
     }
 
     last_exc: Exception | None = None
     for attempt in range(1, max_retries + 1):
         try:
-            async with httpx.AsyncClient(timeout=timeout or LLM_TIMEOUT) as client:
+            async with httpx.AsyncClient(timeout=timeout_sec) as client:
                 response = await client.post(url, json=payload, headers=headers)
                 response.raise_for_status()
                 try:
@@ -226,35 +231,100 @@ async def chat_completion(
     raise RuntimeError(f"LLM gagal setelah {max_retries} percobaan: {last_exc}")
 
 
+async def chat_completion(
+    messages: list[dict[str, Any]],
+    *,
+    model: str | None = None,
+    temperature: float = 0.0,
+    max_tokens: int = 4096,
+    timeout: float | None = None,
+    max_retries: int = 3,
+    seed: int | None = 42,
+) -> str:
+    if not LLM_API_KEY:
+        raise RuntimeError(
+            "LLM_API_KEY belum diset. Isi backend/.env dengan key LLM."
+        )
+
+    masker = PiiMasker()
+    target_model = model or LLM_MODEL
+    try:
+        return await _execute_chat_completion(
+            base_url=LLM_BASE_URL,
+            api_key=LLM_API_KEY,
+            model_name=target_model,
+            timeout_sec=timeout or LLM_TIMEOUT,
+            messages=messages,
+            masker=masker,
+            temperature=temperature,
+            max_tokens=max_tokens,
+            seed=seed,
+            max_retries=max_retries,
+        )
+    except Exception as exc:
+        if LLM_FALLBACK_BASE_URL and LLM_FALLBACK_API_KEY:
+            fallback_model = (
+                LLM_FALLBACK_EXTRACTOR_MODEL
+                if (model and model == LLM_EXTRACTOR_MODEL)
+                else (LLM_FALLBACK_MODEL or target_model)
+            )
+            logger.warning(
+                "⚠️ Primary LLM (%s / %s) gagal: %s. Mengalihkan otomatis ke Fallback LLM (%s / %s)...",
+                LLM_BASE_URL,
+                target_model,
+                exc,
+                LLM_FALLBACK_BASE_URL,
+                fallback_model,
+            )
+            return await _execute_chat_completion(
+                base_url=LLM_FALLBACK_BASE_URL,
+                api_key=LLM_FALLBACK_API_KEY,
+                model_name=fallback_model,
+                timeout_sec=timeout or LLM_FALLBACK_TIMEOUT,
+                messages=messages,
+                masker=masker,
+                temperature=temperature,
+                max_tokens=max_tokens,
+                seed=seed,
+                max_retries=2,
+            )
+        raise
+
+
 async def check_llm_status() -> dict:
     if not LLM_API_KEY:
         return {
-            "provider": "google-api",
+            "provider": "not-configured",
             "configured": False,
             "reachable": False,
             "model": LLM_MODEL,
             "detail": "LLM_API_KEY belum diset",
         }
 
+    status: dict[str, Any] = {
+        "provider": "ollama" if "11434" in LLM_BASE_URL else "cloud",
+        "configured": True,
+        "model": LLM_MODEL,
+        "base_url": LLM_BASE_URL,
+    }
+
     try:
-        async with httpx.AsyncClient(timeout=15.0) as client:
+        async with httpx.AsyncClient(timeout=10.0) as client:
             res = await client.get(
                 f"{LLM_BASE_URL}/models",
                 headers={"Authorization": f"Bearer {LLM_API_KEY}"},
             )
-            reachable = res.status_code < 500
-            return {
-                "provider": "google-api",
-                "configured": True,
-                "reachable": reachable,
-                "model": LLM_MODEL,
-                "status_code": res.status_code,
-            }
+            status["reachable"] = res.status_code < 500
+            status["status_code"] = res.status_code
     except Exception as exc:
-        return {
-            "provider": "google-api",
+        status["reachable"] = False
+        status["detail"] = str(exc)
+
+    if LLM_FALLBACK_BASE_URL and LLM_FALLBACK_API_KEY:
+        status["fallback"] = {
             "configured": True,
-            "reachable": False,
-            "model": LLM_MODEL,
-            "detail": str(exc),
+            "base_url": LLM_FALLBACK_BASE_URL,
+            "model": LLM_FALLBACK_MODEL,
         }
+
+    return status

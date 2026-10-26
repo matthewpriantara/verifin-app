@@ -11,6 +11,13 @@ LLM_MODEL = os.getenv("LLM_MODEL", "")
 LLM_TIMEOUT = float(os.getenv("LLM_TIMEOUT", "35"))
 LLM_EXTRACTOR_MODEL = os.getenv("LLM_EXTRACTOR_MODEL") or LLM_MODEL
 
+# Fallback LLM Provider (Cadangan jika Primary gagal/down/timeout)
+LLM_FALLBACK_BASE_URL = os.getenv("LLM_FALLBACK_BASE_URL", "").rstrip("/")
+LLM_FALLBACK_API_KEY = os.getenv("LLM_FALLBACK_API_KEY", "")
+LLM_FALLBACK_MODEL = os.getenv("LLM_FALLBACK_MODEL", "")
+LLM_FALLBACK_TIMEOUT = float(os.getenv("LLM_FALLBACK_TIMEOUT", str(LLM_TIMEOUT)))
+LLM_FALLBACK_EXTRACTOR_MODEL = os.getenv("LLM_FALLBACK_EXTRACTOR_MODEL") or LLM_FALLBACK_MODEL
+
 DATABASE_URL = os.getenv("DATABASE_URL", "")
 
 SEARXNG_URL = os.getenv("SEARXNG_URL", "").rstrip("/")
