@@ -42,3 +42,7 @@ backend/app/debug_json/
 .idea/
 .vscode/
 *.swp
+
+# --- Docker Local Overrides ---
+docker-compose.override.yml
+docker-compose.*.override.yml
