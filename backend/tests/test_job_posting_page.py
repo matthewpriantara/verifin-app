@@ -37,3 +37,15 @@ def test_job_posting_page_keeps_main_contacts_and_skips_sidebar():
 
 def test_page_without_job_posting_returns_empty():
     assert _job_posting_page_text("<html><body><p>berita</p></body></html>", "https://contoh.id/") == ("", None)
+
+
+def test_job_posting_with_unescaped_html_attributes():
+    html = """<html><head><script type="application/ld+json">
+{ "@type": "JobPosting", "title": "Marketing Executive",
+  "description": "<p>Excelland Properti membuka lowongan.</p><p data-path-to-node="7">Benefit</p><ul><li id="p-rc_1" data-path-to-node="9,0,0">Gaji 3 Juta</li></ul>",
+  "hiringOrganization": {"@type": "Organization", "name": "Excelland Properti"} }
+</script></head><body><a href="https://wa.me/6288983124299">WhatsApp</a></body></html>"""
+    text, _ = _job_posting_page_text(html, "https://www.lokerjogja.id/lowongan/x/")
+    assert "Perusahaan: Excelland Properti" in text
+    assert "Gaji 3 Juta" in text
+    assert "WhatsApp: +6288983124299" in text

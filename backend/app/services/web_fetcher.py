@@ -62,10 +62,16 @@ def _job_posting_page_text(html: str, url: str) -> tuple[str, str | None]:
     soup = BeautifulSoup(html, "html.parser")
     posting = None
     for script in soup.find_all("script", type="application/ld+json"):
+        raw = script.string or script.get_text() or ""
         try:
-            posting = _find_job_posting(json.loads(script.string or script.get_text() or "", strict=False))
+            posting = _find_job_posting(json.loads(raw, strict=False))
         except ValueError:
-            continue
+            # Beberapa portal menaruh HTML mentah di "description" dengan atribut berkutip yang tidak
+            # di-escape (<p data-path-to-node="7">); buang atributnya lalu coba lagi.
+            try:
+                posting = _find_job_posting(json.loads(re.sub(r"<([a-zA-Z][a-zA-Z0-9]*)\s[^<>]*>", r"<\1>", raw), strict=False))
+            except ValueError:
+                continue
         if posting:
             break
     if not posting or not posting.get("title"):
