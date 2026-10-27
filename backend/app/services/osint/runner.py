@@ -4,6 +4,7 @@ import re
 from app.services.ner import is_multi_employer, primary_employer_name
 from app.services.osint.address_validator import validate_address_and_business
 from app.services.osint.company_validator import validate_companies
+from app.services.osint.getcontact import lookup_getcontact
 from app.services.osint.phone_validator import check_phones_reputation, normalize_phone_id
 from app.services.osint.social import run_social_osint
 from app.services.osint.web_evidence import run_web_evidence
@@ -184,14 +185,28 @@ async def run_osint_probes(entities: dict) -> dict:
         return list(await asyncio.gather(*[one(a) for a in addresses]))
 
     async def _phones_job(web_results: list) -> list:
+        loop = asyncio.get_running_loop()
+        started = loop.time()
+        raw_numbers = [p for p in (entities.get("phones") or []) if p][:1]
+        # GetContact berjalan bersamaan dengan Kaspersky; kuota layanan kecil (10/hari).
+        getcontact_task = asyncio.gather(*[lookup_getcontact(p) for p in raw_numbers])
         try:
             company = (entities.get("companies") or [""])[0]
-            return await check_phones_reputation(entities.get("phones") or [], limit=1, company=company, web_results=web_results)
+            phones = await check_phones_reputation(entities.get("phones") or [], limit=1, company=company, web_results=web_results)
         except Exception as exc:
-            return [
+            phones = [
                 {"source": "kredibel", "found": False, "probe_status": UNAVAILABLE,
                  "reputation_status": UNAVAILABLE, "error": str(exc), "risk_flags": []}
             ]
+        try:
+            lookups = await getcontact_task
+        except Exception:
+            lookups = []
+        for phone, lookup in zip(phones, lookups):
+            if isinstance(phone, dict) and isinstance(lookup, dict):
+                phone["getcontact"] = lookup
+        osint_results["timing"]["getcontact_ms"] = round((loop.time() - started) * 1000)
+        return phones
 
     async def _web_job() -> dict:
         try:

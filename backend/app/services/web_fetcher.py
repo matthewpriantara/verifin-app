@@ -11,6 +11,32 @@ from app.services.url_guard import resolve_public_url, safe_get, safe_get_async,
 
 logger = logging.getLogger(__name__)
 
+
+class UrlInputError(ValueError):
+    """Tautan yang tidak bisa diproses karena bentuknya, bukan karena jaringan."""
+
+
+_PROFILE_URL = re.compile(
+    r"^https?://(?:www\.|m\.)?(?:instagram\.com|tiktok\.com|threads\.net|threads\.com)/"
+    r"(?!p/|reel/|reels/|tv/|explore/|accounts/|stories/|share/)([^/?#]+)/?(?:[?#].*)?$",
+    re.I,
+)
+_SOCIAL_POST_HOSTS = ("instagram.com", "tiktok.com", "threads.net", "threads.com", "facebook.com")
+
+
+def validate_job_url(url: str) -> None:
+    """Intervensi I-09: tautan profil bukan postingan lowongan."""
+    if _PROFILE_URL.match((url or "").strip()):
+        raise UrlInputError(
+            "Ini tautan profil, bukan postingan. Buka postingan lowongannya, ketuk menu ⋯, lalu pilih "
+            "Salin tautan."
+        )
+
+
+def is_social_post_url(url: str) -> bool:
+    host = (urlparse(url).hostname or "").lower().removeprefix("www.")
+    return any(host == h or host.endswith("." + h) for h in _SOCIAL_POST_HOSTS)
+
 _IG_NOISE_PATTERNS = [
     r"Jangan pernah lewatkan postingan",
     r"Daftar Instagram untuk tetap tahu",
@@ -241,23 +267,9 @@ def _sync_scrapling_fetch(url: str) -> tuple[str, list[str]]:
                 except Exception as exc:
                     logger.warning("[Instagram oEmbed] %s", exc)
 
-            if not image_urls:
-                for domain in ["vxinstagram.com", "ddinstagram.com"]:
-                    try:
-                        fix_url = f"https://{domain}/p/{shortcode}/"
-                        f_res = safe_get(fix_url, headers={"User-Agent": "facebookexternalhit/1.1"}, timeout=8.0)
-                        if f_res.status_code == 200:
-                            f_soup = BeautifulSoup(f_res.text, "html.parser")
-                            og_i = f_soup.find("meta", property="og:image") or f_soup.find("meta", attrs={"name": "twitter:image"})
-                            if og_i and og_i.get("content"):
-                                image_urls.append(og_i["content"])
-                            og_d = f_soup.find("meta", property="og:description") or f_soup.find("meta", attrs={"name": "description"})
-                            if og_d and og_d.get("content") and not combined_caption_text:
-                                combined_caption_text = og_d["content"]
-                            if image_urls:
-                                break
-                    except Exception as exc:
-                        logger.warning("[IG Proxy %s] %s", domain, exc)
+            # Tautan postingan privat tidak diteruskan ke layanan pihak ketiga (vxinstagram/
+            # ddinstagram dihapus 27 Okt 2026); bila embed dan oEmbed gagal, router meminta
+            # pengguna mengunggah screenshot.
 
     if not combined_caption_text:
         try:

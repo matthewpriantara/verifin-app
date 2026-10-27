@@ -309,6 +309,11 @@ def fetch_company_website(url_or_domain: str) -> dict[str, Any]:
             for w in ("karir", "career", "lowongan", "about", "tentang", "kontak", "contact")
         ):
             safe_flags.append("Website memuat indikasi halaman perusahaan/karir.")
+        fraud_matches = _fraud_site_matches(title, snippet) if ok else []
+        if fraud_matches:
+            risk_flags.append(
+                "Isi website memuat pola penipuan tugas/komisi: " + ", ".join(fraud_matches[:3])
+            )
         if not ok:
             risk_flags.append(f"Website menjawab HTTP {status}.")
         return {
@@ -322,6 +327,7 @@ def fetch_company_website(url_or_domain: str) -> dict[str, Any]:
             "snippet": snippet if ok else "",
             "risk_flags": risk_flags,
             "safe_flags": safe_flags,
+            "fraud_content_matches": fraud_matches,
         }
     except Exception as exc:
         resolves = _host_resolves(final_url)
@@ -598,6 +604,102 @@ def _has_maps_evidence(platform_evidence: dict) -> bool:
     return maps_data.get("count", 0) > 0
 
 
+_OPEN_REGISTRATION_TLDS = (
+    ".my.id",
+    ".web.id",
+    ".biz.id",
+    ".store",
+    ".boutique",
+    ".shop",
+    ".online",
+    ".site",
+    ".xyz",
+    ".top",
+)
+
+_OPEN_REGISTRATION_HOSTS = (
+    "blogspot.com",
+    "blogspot.co.id",
+    "wixsite.com",
+    "wordpress.com",
+    "github.io",
+    "vercel.app",
+    "netlify.app",
+    "web.app",
+    "firebaseapp.com",
+    "weebly.com",
+    "000webhostapp.com",
+    "r2.dev",
+)
+
+# Isi website penipuan rekrutmen (masukan LokerJogja.id): halaman "Akun Kerja", tugas/komisi,
+# deposit, lalu tautan Telegram. Satu frasa kuat sudah cukup; frasa lemah butuh dua.
+_STRONG_SITE_SCAM_PHRASES = (
+    "akun kerja",
+    "selesaikan tugas",
+    "isi saldo",
+    "deposit",
+    "rajin menonton",
+    "tugas komisi",
+)
+_WEAK_SITE_SCAM_PHRASES = (
+    "komisi",
+    "tugas harian",
+    "tugas vip",
+    "raih keuntungan",
+    "t.me/",
+    "telegram.me/",
+)
+
+# Kota besar Indonesia untuk mendeteksi profil usaha yang ditemukan di kota lain dari alamat
+# poster (kasus Roemah Boenga: toko asli di Aceh, poster menulis Jakarta).
+_KNOWN_CITIES = (
+    "jakarta", "bogor", "depok", "tangerang", "bekasi", "bandung", "semarang", "surabaya",
+    "yogyakarta", "sleman", "bantul", "magelang", "solo", "surakarta", "malang", "denpasar",
+    "medan", "palembang", "pekanbaru", "padang", "banda aceh", "aceh", "lampung",
+    "balikpapan", "samarinda", "banjarmasin", "pontianak", "makassar", "manado", "kendari",
+    "ambon", "jayapura", "mataram", "kupang", "cirebon", "tasikmalaya", "purwokerto",
+    "tegal", "pekalongan", "kudus", "jember", "kediri", "madiun", "sidoarjo", "gresik",
+    "serang", "cilegon", "batam", "bandar lampung", "jambi", "bengkulu", "palangkaraya",
+)
+
+
+def is_open_registration_domain(host: str) -> str | None:
+    """Domain yang bisa didaftarkan siapa saja tanpa verifikasi badan usaha."""
+    host = (host or "").lower().removeprefix("www.")
+    if not host:
+        return None
+    for suffix in _OPEN_REGISTRATION_TLDS:
+        if host.endswith(suffix) and host.count(".") >= 2:
+            return host
+    for free_host in _OPEN_REGISTRATION_HOSTS:
+        # Domain induknya sendiri (mis. vercel.app) bukan situs milik pengguna.
+        if host.endswith("." + free_host):
+            return host
+    return None
+
+
+def _fraud_site_matches(title: str, snippet: str) -> list[str]:
+    low = f"{title} {snippet}".lower()
+    strong = [p for p in _STRONG_SITE_SCAM_PHRASES if p in low]
+    weak = [p for p in _WEAK_SITE_SCAM_PHRASES if p in low]
+    if strong:
+        return strong + weak[:2]
+    if len(weak) >= 2:
+        return weak
+    return []
+
+
+def _cities_in(text: str) -> set[str]:
+    low = f" {(text or '').lower()} "
+    found = set()
+    for city in _KNOWN_CITIES:
+        if f" {city} " in low or f" {city}," in low or f"kota {city}" in low or f"kabupaten {city}" in low:
+            found.add(city)
+    # "banda aceh" juga cocok dengan "aceh"; simpan nama kota terpanjang saja.
+    return {city for city in found if not any(city != other and f" {city} " in f" {other} " for other in found)}
+
+
 def collect_web_evidence(entities: dict) -> dict[str, Any]:
     emails = entities.get("emails") or []
     urls = entities.get("urls") or []
@@ -801,6 +903,75 @@ def collect_web_evidence(entities: dict) -> dict[str, Any]:
         risk_flags.extend(intelligence_signals.get("risk_flags") or [])
         safe_flags.extend(intelligence_signals.get("safe_flags") or [])
 
+    # R5: isi website lamaran yang memuat pola penipuan tugas/komisi.
+    fraud_site_content: dict[str, Any] = {}
+    for w in website_checks:
+        matches = w.get("fraud_content_matches") or []
+        if matches:
+            fraud_site_content = {"url": w.get("url"), "matches": matches}
+            break
+
+    # R4: domain bebas daftar yang dipakai atas nama badan usaha/merek.
+    open_registration_domain: dict[str, Any] = {}
+    legal_form = re.compile(r"\b(?:pt|cv|ud|pd|yayasan|koperasi|persero|tbk)\b\.?", re.I)
+    brand_claim = re.compile(r"\b(?:bumn|persero|tbk)\b", re.I)
+    company_forms = [str(c) for c in companies if c]
+    claims_business = any(legal_form.search(c) or brand_claim.search(c) for c in company_forms)
+    for w in website_checks:
+        host = urlparse(w.get("url") or "").netloc
+        matched = is_open_registration_domain(host)
+        if not matched:
+            continue
+        label = host.split(".")[0].replace("-", "")
+        token_hit = any(
+            len(tok) >= 4 and tok in label
+            for c in company_forms
+            for tok in re.findall(r"[a-z0-9]+", c.lower())
+            if len(re.findall(r"[a-z0-9]+", c.lower())) >= 2
+        )
+        if claims_business or token_hit:
+            open_registration_domain = {"domain": matched, "url": w.get("url")}
+            risk_flags.append(
+                f"Domain `{matched}` bisa didaftarkan siapa saja tanpa verifikasi badan usaha, "
+                "padahal lowongan mengatasnamakan badan usaha/merek."
+            )
+            break
+
+    # R6: profil publik usaha dengan nama sama berada di kota lain dari alamat poster.
+    location_mismatch: dict[str, Any] = {}
+    posting_city = ""
+    for source in list(addresses or []) + list(entities.get("location_candidates") or []):
+        cities = _cities_in(str(source))
+        if cities:
+            posting_city = sorted(cities)[0]
+            break
+    if posting_city and companies:
+        company_tokens = {
+            t for c in company_forms
+            for t in re.findall(r"[a-z0-9]+", c.lower())
+            if len(t) >= 4
+        }
+        for s in searches:
+            for r in s.get("results") or []:
+                blob = f"{r.get('title') or ''} {r.get('snippet') or ''}".lower()
+                if len(company_tokens & set(re.findall(r"[a-z0-9]+", blob))) < min(2, len(company_tokens) or 2):
+                    continue
+                other_cities = _cities_in(blob) - {posting_city}
+                if other_cities:
+                    profile_city = sorted(other_cities)[0]
+                    location_mismatch = {
+                        "posting_city": posting_city,
+                        "profile_city": profile_city,
+                        "source_url": r.get("url"),
+                    }
+                    neutral_notes.append(
+                        f"Profil publik dengan nama sama ditemukan di {profile_city}, sedangkan lowongan menulis "
+                        f"{posting_city}. Ini petunjuk, bukan bukti penipuan: usaha bisa punya cabang."
+                    )
+                    break
+            if location_mismatch:
+                break
+
     def uniq(xs: list[str]) -> list[str]:
         return list(dict.fromkeys(xs))
 
@@ -832,6 +1003,9 @@ def collect_web_evidence(entities: dict) -> dict[str, Any]:
         "neutral_notes": uniq(neutral_notes),
         "platform_evidence": platform_evidence,
         "search_intelligence": intelligence_signals,
+        "fraud_site_content": fraud_site_content,
+        "open_registration_domain": open_registration_domain,
+        "location_mismatch": location_mismatch,
     }
 
 

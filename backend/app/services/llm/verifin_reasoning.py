@@ -91,7 +91,13 @@ def _phone_reputation_state(osint_results: dict) -> str:
     return "UNAVAILABLE" if phones else "NOT_PROVIDED"
 
 
-_STRONG_TEXT_SIGNALS = ("has_fee_request", "has_foreign_work", "brand_unofficial_channel", "anonymous_employer_claim")
+_STRONG_TEXT_SIGNALS = (
+    "has_fee_request",
+    "has_foreign_work",
+    "brand_unofficial_channel",
+    "anonymous_employer_claim",
+    "has_telegram_apply",
+)
 
 
 def _calibrate_unknown_search_output(
@@ -144,6 +150,27 @@ def _floor_dead_application_domain(parsed: dict, osint_results: dict) -> dict:
     parsed["calibrated_dead_domain"] = True
     factor = "Domain tempat melamar tidak terdaftar di DNS; jejak usaha yang ditemukan belum terbukti terhubung dengan domain itu"
     parsed["risk_factors"] = [factor] + [f for f in parsed.get("risk_factors") or [] if f != factor]
+    return parsed
+
+
+def _floor_telegram_channel(parsed: dict, text_signals: dict | None) -> dict:
+    """Lamaran yang diarahkan ke Telegram dinilai minimal WASPADA 55.
+
+    Masukan praktisi portal loker (LokerJogja.id, 27 Okt 2026): loker asli memakai WhatsApp,
+    email, formulir, atau walk-in; "kalau mengarah ke Telegram, 90% penipuan". LLM kadang tetap
+    menilai AMAN karena tidak ada bukti keras, jadi skornya dinaikkan sebagai aturan pengaman."""
+    if not (text_signals or {}).get("has_telegram_apply"):
+        return parsed
+    if float(parsed.get("risk_score") or 0) >= 55:
+        parsed["calibrated_telegram"] = True
+        return parsed
+    parsed["verdict"] = "WASPADA"
+    parsed["risk_score"] = 55
+    parsed["calibrated_telegram"] = True
+    factor = "Lamaran diarahkan ke Telegram, bukan kanal resmi perusahaan"
+    parsed["risk_factors"] = [factor] + [
+        f for f in parsed.get("risk_factors") or [] if f != factor
+    ]
     return parsed
 
 
@@ -241,6 +268,9 @@ def _fallback_analysis(
     if signals.get("anonymous_employer_claim"):
         risk_score += 15
         risk_factors.append("Tidak menyebut nama perusahaan yang bisa dicek.")
+    if signals.get("has_telegram_apply"):
+        risk_score += 25
+        risk_factors.append("Lamaran diarahkan ke Telegram, bukan kanal resmi perusahaan.")
     if scam_warnings:
         risk_score += 15
         risk_factors.append("Nama perusahaan pernah dicatut lowongan palsu.")
@@ -527,6 +557,7 @@ async def analyze_with_verifin(
             parsed = _sanitize_llm_output(parsed, entities, osint_results, allowed_tokens)
             parsed = _calibrate_unknown_search_output(parsed, entities, osint_results, text_signals)
             parsed = _floor_dead_application_domain(parsed, osint_results)
+            parsed = _floor_telegram_channel(parsed, text_signals)
             for field in ("risk_factors", "safe_factors", "recommendations"):
                 items = parsed.get(field) or []
                 parsed[field] = [s for s in items if isinstance(s, str) and len(s) > 3]

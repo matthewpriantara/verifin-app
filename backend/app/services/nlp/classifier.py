@@ -47,6 +47,35 @@ _BRAND_CLAIM = re.compile(r"\b(?:bumn|persero|tbk)\b")
 # Jalur lamaran resmi selain WhatsApp: email atau tautan formulir/portal.
 _OFFICIAL_CHANNEL = re.compile(r"[a-z0-9._%+-]+@[a-z0-9.-]+\.[a-z]{2,}|https?://|forms\.gle|www\.", re.I)
 
+# Lamaran diarahkan ke Telegram (masukan praktisi portal loker, 27 Okt 2026: "90% pasti penipuan").
+# Kanal sah loker Indonesia: WhatsApp, email, formulir, atau walk-in.
+_TELEGRAM_APPLY_PATTERNS = [
+    r"(?:https?://)?(?:t|telegram|telegram\.dog)\.me/[\w+%-]+",
+    r"\btelegram\s*[:@]\s*@?[a-z0-9_]{3,}",
+    r"\b(?:via|lewat|melalui|hubungi|chat|kontak|dm|join|gabung|grup|group|channel|kanal|masuk)\b"
+    r"[^.\n!?;]{0,25}\btelegram\b",
+    r"\btelegram\b[^.\n!?;]{0,25}\b(?:daftar|lamar|melamar|apply|hubungi|chat|kirim|admin|hrd)\b",
+]
+# Kalimat peringatan ("tidak melalui Telegram", "waspada penipuan via Telegram") bukan bukti lamaran.
+_TELEGRAM_NEGATION = re.compile(
+    r"\b(?:tidak|bukan|tanpa|jangan|hindari|awas|waspada|hati-hati|penipuan|scam|modus|hoaks)\b"
+    r"[^.\n]{0,45}\btelegram\b"
+    r"|\btelegram\b[^.\n]{0,45}\b(?:penipuan|scam|modus|tidak resmi|bukan)\b",
+    re.I,
+)
+
+
+def _has_telegram_apply(text_lower: str) -> bool:
+    segments = re.split(r"(?<=[.!?])\s+|\n+", text_lower)
+    for segment in segments:
+        if not re.search(r"\btelegram\b|t\.me/", segment):
+            continue
+        if _TELEGRAM_NEGATION.search(segment):
+            continue
+        if any(re.search(pattern, segment) for pattern in _TELEGRAM_APPLY_PATTERNS):
+            return True
+    return False
+
 # Badan usaha yang disebut namanya: "PT Maju Jaya", "CV. Sinar", "UD Makmur", "Koperasi ...".
 # "CV" sebagai daftar riwayat hidup ("kirim CV", "CV terbaru", "CV dan KTP") tidak dihitung.
 _NAMED_ENTITY = re.compile(
@@ -206,6 +235,7 @@ def extract_behavioral_features(text: str, companies: list[str] | None = None) -
         "has_fee_request": bool(has_fee),
         "has_foreign_work": bool(has_foreign),
         "has_whatsapp_apply": bool(has_wa),
+        "has_telegram_apply": _has_telegram_apply(text_lower),
         "fraud_keyword_count": float(fraud_hits),
         "safe_keyword_count": float(safe_hits),
         "has_company": bool(has_company),

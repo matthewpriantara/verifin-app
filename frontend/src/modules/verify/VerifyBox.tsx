@@ -464,6 +464,9 @@ export function VerifyBox({ onStageChange }: { onStageChange?: (stage: VerifySta
 
   const [text, setText] = useState("");
   const [file, setFile] = useState<File | null>(null);
+  // Gambar tambahan untuk satu lowongan yang sama (poster halaman 1–2).
+  const [extraFiles, setExtraFiles] = useState<File[]>([]);
+  const [askSinglePosting, setAskSinglePosting] = useState(false);
   const [preview, setPreview] = useState<string | null>(null);
   const [dragOver, setDragOver] = useState(false);
   const [loading, setLoading] = useState(false);
@@ -472,7 +475,6 @@ export function VerifyBox({ onStageChange }: { onStageChange?: (stage: VerifySta
   const [dotCount, setDotCount] = useState(0);
   const [stageMessage, setStageMessage] = useState<string>("");
   const [elapsed, setElapsed] = useState(0);
-  const [fileNotice, setFileNotice] = useState<string | null>(null);
   const [needs, setNeeds] = useState<NeedsInput | null>(null);
   const abortControllerRef = useRef<AbortController | null>(null);
   const isDoneRef = useRef(false);
@@ -623,25 +625,32 @@ export function VerifyBox({ onStageChange }: { onStageChange?: (stage: VerifySta
     }
   };
 
-  const attachFile = useCallback((f: File | null) => {
-    if (!f) {
+  const attachFiles = useCallback((list: File[]) => {
+    const accepted = list.filter(
+      (f) =>
+        ["image/jpeg", "image/jpg", "image/png", "image/webp"].includes(f.type) &&
+        f.size <= 20 * 1024 * 1024,
+    );
+    if (list.length && !accepted.length) {
+      setError("Format tidak didukung atau ukuran lebih dari 20 MB. Gunakan JPG, PNG, atau WEBP.");
+      return;
+    }
+    const [first, ...rest] = accepted;
+    if (!first) {
       setFile(null);
+      setExtraFiles([]);
+      setAskSinglePosting(false);
       setPreview((prev) => { if (prev) URL.revokeObjectURL(prev); return null; });
-      setFileNotice(null);
-      return;
-    }
-    if (!["image/jpeg", "image/jpg", "image/png", "image/webp"].includes(f.type)) {
-      setError("Format tidak didukung. Gunakan JPG, PNG, atau WEBP.");
-      return;
-    }
-    if (f.size > 20 * 1024 * 1024) {
-      setError("Ukuran file maksimal 20 MB.");
       return;
     }
     setError(null);
-    setFile(f);
-    setPreview((prev) => { if (prev) URL.revokeObjectURL(prev); return URL.createObjectURL(f); });
+    setFile(first);
+    setExtraFiles(rest.slice(0, 4));
+    setAskSinglePosting(rest.length > 0);
+    setPreview((prev) => { if (prev) URL.revokeObjectURL(prev); return URL.createObjectURL(first); });
   }, []);
+
+  const attachFile = useCallback((f: File | null) => attachFiles(f ? [f] : []), [attachFiles]);
 
   const handlePaste = useCallback(async () => {
     try {
@@ -795,7 +804,8 @@ export function VerifyBox({ onStageChange }: { onStageChange?: (stage: VerifySta
 
     try {
       if (file) {
-        const result = await verifyImage(file, controller.signal, trimmed || undefined);
+        const images = extraFiles.length ? [file, ...extraFiles] : file;
+        const result = await verifyImage(images, controller.signal, trimmed || undefined);
         if (!pauseFor(result)) finish(result, file.name);
       } else if (isPureUrl(trimmed)) {
         await verifyUrlStream(
@@ -871,13 +881,7 @@ export function VerifyBox({ onStageChange }: { onStageChange?: (stage: VerifySta
           onDrop={(e) => {
             e.preventDefault();
             setDragOver(false);
-            const files = e.dataTransfer.files;
-            if (files.length > 1) {
-              setFileNotice(`Verifin menganalisis 1 gambar per verifikasi. Gambar pertama ("${files[0].name}") dipilih.`);
-            } else {
-              setFileNotice(null);
-            }
-            attachFile(files[0] ?? null);
+            attachFiles(Array.from(e.dataTransfer.files));
           }}
         >
           {!file ? (
@@ -949,7 +953,10 @@ export function VerifyBox({ onStageChange }: { onStageChange?: (stage: VerifySta
                 )}
                 <div className="min-w-0 flex-1">
                   <p className="truncate text-[14px] font-medium text-text-primary">{file.name}</p>
-                  <p className="mt-0.5 text-[12px] text-text-muted">{(file.size / 1024).toFixed(0)} KB</p>
+                  <p className="mt-0.5 text-[12px] text-text-muted">
+                    {(file.size / 1024).toFixed(0)} KB
+                    {extraFiles.length > 0 && ` · +${extraFiles.length} gambar`}
+                  </p>
                   {text.trim() && (
                     <p className="mt-1 text-[12px] text-aman-fg">
                       ✓ Disertai catatan teks tambahan ({text.trim().length} karakter)
@@ -965,10 +972,36 @@ export function VerifyBox({ onStageChange }: { onStageChange?: (stage: VerifySta
                   <X size={14} />
                 </button>
               </div>
-              {fileNotice && (
-                <div className="rounded-lg border border-waspada-border bg-waspada-bg px-3 py-2 text-[12px] text-waspada-fg">
-                  {fileNotice}
+              {askSinglePosting && (
+                <div className="rounded-lg border border-border bg-bg-subtle px-3 py-2.5">
+                  <p className="text-[13px] text-text-primary">
+                    Apakah {extraFiles.length + 1} gambar ini satu lowongan?
+                  </p>
+                  <p className="mt-0.5 text-[12px] text-text-muted">
+                    Contoh: poster halaman 1 dan 2. Satu pemeriksaan untuk satu lowongan.
+                  </p>
+                  <div className="mt-2 flex flex-wrap gap-2">
+                    <Button type="button" size="sm" onClick={() => setAskSinglePosting(false)}>
+                      Ya, satu lowongan
+                    </Button>
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="secondary"
+                      onClick={() => {
+                        setExtraFiles([]);
+                        setAskSinglePosting(false);
+                      }}
+                    >
+                      Bukan, pakai gambar pertama
+                    </Button>
+                  </div>
                 </div>
+              )}
+              {!askSinglePosting && extraFiles.length > 0 && (
+                <p className="text-[12px] text-text-muted">
+                  {extraFiles.length + 1} gambar dibaca sebagai satu lowongan yang sama.
+                </p>
               )}
             </div>
           )}
@@ -979,14 +1012,10 @@ export function VerifyBox({ onStageChange }: { onStageChange?: (stage: VerifySta
           type="file"
           accept="image/jpeg,image/jpg,image/png,image/webp"
           className="hidden"
+          multiple
           onChange={(e) => {
-            const files = e.target.files;
-            if (files && files.length > 1) {
-              setFileNotice(`Verifin menganalisis 1 gambar per verifikasi. Gambar pertama ("${files[0].name}") dipilih.`);
-            } else {
-              setFileNotice(null);
-            }
-            attachFile(files?.[0] ?? null);
+            attachFiles(Array.from(e.target.files ?? []));
+            e.target.value = "";
           }}
         />
 

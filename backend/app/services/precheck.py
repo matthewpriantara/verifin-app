@@ -17,6 +17,96 @@ from app.services.nlp.classifier import check_content_safety_and_type
 
 VISION_MARKER = "[PEMBACAAN AI DARI GAMBAR]"
 
+# Intervensi I-12: data pribadi yang tidak perlu dikirim ke AI.
+_NIK_PATTERN = re.compile(r"(?<!\d)\d{16}(?!\d)")
+_ACCOUNT_PATTERNS = (
+    re.compile(r"\b(?:rekening|norek|no\.?\s*rek|transfer|setor)\b[^\n]{0,20}(?<!\d)\d{8,16}(?!\d)", re.I),
+    re.compile(r"(?<!\d)\d{8,16}(?!\d)(?=[^.\n]{0,30}\b(?:rekening|norek|rek\b|transfer|setor))", re.I),
+)
+_KTP_WORDS = re.compile(r"\b(?:ktp|e-?ktp|nik|foto\s*ktp|scan\s*ktp)\b", re.I)
+
+# Intervensi I-13: deteksi kasar bahasa Inggris dari kata fungsi, tanpa model tambahan.
+_ID_STOPWORDS = {
+    "dan", "yang", "untuk", "dengan", "dari", "kami", "anda", "tidak", "akan", "atau",
+    "juga", "pada", "dalam", "adalah", "bisa", "harus", "bagi", "serta", "kepada",
+}
+_EN_STOPWORDS = {
+    "the", "and", "for", "with", "from", "you", "are", "will", "not", "our", "this",
+    "that", "have", "has", "must", "should", "able", "please", "applicants", "requirements",
+}
+
+
+def split_non_job(text: str, spans: list[dict]) -> tuple[str, list[str]]:
+    """Buang potongan teks di luar lowongan (intervensi I-05) memakai kutipan persis dari LLM.
+
+    Pengembalian: (teks lowongan saja, potongan yang dibuang). Bila hasil potongan terlalu pendek,
+    pemotongan dibatalkan supaya lowongan tidak ikut hilang."""
+    kept = text or ""
+    removed: list[str] = []
+    for span in spans or []:
+        chunk = re.sub(r"\s+", " ", str((span or {}).get("text") or "")).strip()
+        if len(chunk) < 20:
+            continue
+        idx = kept.lower().find(chunk.lower())
+        if idx < 0:
+            continue
+        removed.append(kept[idx:idx + len(chunk)])
+        kept = (kept[:idx] + "\n" + kept[idx + len(chunk):]).strip()
+    if not removed or len(kept) < max(40, int(len(text) * 0.25)):
+        return text, []
+    return kept, removed
+
+
+def apply_non_job_filter(entities: dict, kept_text: str, removed: list[str]) -> int:
+    """Hapus entitas yang hanya muncul di potongan non-lowongan, supaya nomor/nama dari berita
+    atau promo lain tidak ikut diperiksa ke sumber publik. Kembalikan jumlah entitas yang dibuang."""
+    if not removed:
+        return 0
+    kept_low = (kept_text or "").lower()
+    removed_low = " ".join(removed).lower()
+    dropped = 0
+    for key in ("companies", "phones", "emails", "urls", "addresses", "location_candidates", "salaries"):
+        values = entities.get(key)
+        if not isinstance(values, list):
+            continue
+        kept_values = []
+        for value in values:
+            text = str(value).lower()
+            if text and text not in kept_low and text in removed_low:
+                dropped += 1
+                continue
+            kept_values.append(value)
+        entities[key] = kept_values
+    return dropped
+
+
+def detect_personal_data(text: str) -> list[str]:
+    """Intervensi I-12: sebut jenis data pribadi yang ditemukan, tanpa menyalin nilainya."""
+    found: list[str] = []
+    if _KTP_WORDS.search(text or "") and (_NIK_PATTERN.search(text or "") or _KTP_WORDS.search(text or "")):
+        found.append("NIK/KTP")
+    if _NIK_PATTERN.search(text or "") and "NIK/KTP" not in found:
+        found.append("NIK")
+    if any(pattern.search(text or "") for pattern in _ACCOUNT_PATTERNS):
+        found.append("nomor rekening")
+    return found
+
+
+def detect_language_note(text: str) -> str | None:
+    """Intervensi I-13: catatan bila teks lowongan berbahasa Inggris."""
+    words = re.findall(r"[a-zA-Z]+", (text or "").lower())
+    if len(words) < 30:
+        return None
+    id_hits = sum(1 for w in words if w in _ID_STOPWORDS)
+    en_hits = sum(1 for w in words if w in _EN_STOPWORDS)
+    if en_hits >= 5 and en_hits > id_hits * 1.5:
+        return (
+            "Lowongan berbahasa Inggris. Pemeriksaan tetap berjalan, tetapi pencarian lokal "
+            "(berita, forum, akun Indonesia) mungkin kurang lengkap."
+        )
+    return None
+
+
 
 def _mask_phone(phone: str) -> str:
     digits = re.sub(r"\D", "", phone)
@@ -137,9 +227,28 @@ def assess_input(text: str, entities: dict) -> dict[str, Any]:
     non_job = llm.get("non_job_content") or ""
     if "PEMBACAAN AI" in non_job.upper():
         non_job = ""
-    if non_job or rule.get("has_mixed_content"):
+    job_text = None
+    removed: list[str] = []
+    spans = llm.get("non_job_spans") or []
+    if isinstance(spans, list) and spans:
+        job_text, removed = split_non_job(text, [s for s in spans if isinstance(s, dict)])
+    if removed:
+        notes.append(
+            f"Ada teks di luar lowongan ({non_job or 'teks lain'}); {len(removed)} potongan itu tidak ikut "
+            "diperiksa supaya nama/nomor di dalamnya tidak mencemari hasil."
+        )
+    elif non_job or rule.get("has_mixed_content"):
         kind = non_job or "teks lain"
         notes.append(f"Ada teks di luar lowongan ({kind}). Bagian itu ikut terbaca; abaikan bila tidak relevan.")
+    personal = detect_personal_data(text)
+    if personal:
+        notes.append(
+            f"Input memuat data pribadi ({', '.join(personal)}). Data itu disamarkan sebelum dikirim ke AI "
+            "dan tidak disimpan di cuplikan teks."
+        )
+    language_note = detect_language_note(analysed)
+    if language_note:
+        notes.append(language_note)
     ai_only = (entities.get("_ner_meta") or {}).get("ai_only_contacts") or []
     if ai_only:
         notes.append(
@@ -147,7 +256,7 @@ def assess_input(text: str, entities: dict) -> dict[str, Any]:
             + ", ".join(ai_only[:4])
             + ". Cocokkan sendiri dengan poster."
         )
-    return {"not_job": False, "notes": notes, "issue": None}
+    return {"not_job": False, "notes": notes, "issue": None, "job_text": job_text, "removed": removed}
 
 
 def apply_forced(entities: dict, issue_kind: str | None) -> None:

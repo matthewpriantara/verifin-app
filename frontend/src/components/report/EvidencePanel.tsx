@@ -1,6 +1,6 @@
 import type { OsintPayload } from "@/types/verify";
 import { cn } from "@/lib/utils";
-import { communityReportedPhones, getPhoneStatus } from "@/lib/phone-status";
+import { communityReportedPhones, getPhoneStatus, getcontactLine } from "@/lib/phone-status";
 import {
   Globe,
   Phone,
@@ -169,7 +169,7 @@ export function EvidencePanel({ osint }: EvidencePanelProps) {
       <div className="mb-5">
         <h3 className="text-[15px] font-semibold text-text-primary">Bukti dari sumber publik</h3>
         <p className="mt-1 text-[13px] text-text-muted">
-          Diambil langsung dari WHOIS, Kaspersky Who Calls, OpenStreetMap, dan mesin pencari saat pemeriksaan.
+          Diambil langsung dari WHOIS, Kaspersky Who Calls, GetContact, OpenStreetMap, dan mesin pencari saat pemeriksaan.
         </p>
       </div>
 
@@ -215,17 +215,25 @@ export function EvidencePanel({ osint }: EvidencePanelProps) {
             {phones.map((p, i) => {
               const status = getPhoneStatus(p, reportedPhones);
               const operator = (p.comments ?? []).find((c) => /operator/i.test(c));
+              const getcontact = getcontactLine(p.getcontact);
               return (
                 <li key={i} className="flex flex-wrap items-center justify-between gap-2">
                   <span>
                     <span className="font-mono text-[14px] text-text-primary">{p.phone ?? "-"}</span>
                     {operator && <span className="block text-[12px] text-text-muted">{operator}</span>}
+                    {getcontact && <span className="block text-[12px] text-text-muted">{getcontact}</span>}
                   </span>
                   <Status text={status.label} kind={status.kind} />
                 </li>
               );
             })}
           </ul>
+          {phones.some((p) => p.getcontact?.probe_status) && (
+            <p className="mt-3 text-[12px] text-text-muted">
+              GetContact hanya memberi jumlah tag dan label spam, bukan nama pemilik. Sinyal komunitas ini uji coba;
+              jumlah tag bukan jaminan lowongan asli.
+            </p>
+          )}
         </Section>
       )}
 
