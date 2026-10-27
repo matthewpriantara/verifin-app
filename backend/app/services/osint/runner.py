@@ -1,7 +1,7 @@
 import asyncio
 import re
 
-from app.services.ner import is_multi_employer
+from app.services.ner import is_multi_employer, primary_employer_name
 from app.services.osint.address_validator import validate_address_and_business
 from app.services.osint.company_validator import validate_companies
 from app.services.osint.phone_validator import check_phones_reputation, normalize_phone_id
@@ -122,7 +122,7 @@ async def run_osint_probes(entities: dict) -> dict:
     ][:2]
     foreign_places = [a for a in raw_addresses if _FOREIGN_PLACE.search(a)]
     companies = entities.get("companies") or []
-    company_name = companies[0] if companies else None
+    company_name = primary_employer_name(companies) or None
 
     def _domain_job() -> tuple[dict, dict]:
         if not emails:

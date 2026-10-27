@@ -642,9 +642,12 @@ def collect_web_evidence(entities: dict) -> dict[str, Any]:
     cached_si_results: list[dict[str, Any]] | None = None
     if companies or emails:
         from app.services.osint.search_intelligence import intelligent_search
+        from app.services.ner import primary_employer_name
 
-        primary_company = str(companies[0]) if companies else ""
-        primary_address = str(addresses[0] if addresses else "")
+        primary_company = primary_employer_name(companies)
+        # Tanpa alamat, kota penempatan tetap dipakai sebagai konteks agar nama pendek ("PACC")
+        # tidak tertukar dengan organisasi lain bernama sama di luar negeri.
+        primary_address = str(addresses[0] if addresses else (entities.get("location_candidates") or [""])[0])
 
         si_result = intelligent_search(
             primary_company,
