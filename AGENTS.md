@@ -1,7 +1,7 @@
 # Verifin App — Codebase Guidelines, Architecture & Deployment SOP
 
 Full-stack codebase untuk **Verifin: Platform Deteksi Lowongan Kerja Palsu Berbasis AI & OSINT**.
-Repositori ini mengintegrasikan FastAPI (backend), Next.js 16 (frontend), on-premise LLM Gemma 4 di GPU RTX 5080, multi-channel OSINT probes, dan automated failover.
+Repositori ini mengintegrasikan FastAPI (backend), Next.js 16 (frontend), LLM Gemini 3.8 Flash (utama) dengan cadangan on-premise Gemma 4 di GPU RTX 5080 VPS, multi-channel OSINT probes, dan automated failover.
 
 ---
 
@@ -11,8 +11,16 @@ Repositori ini mengintegrasikan FastAPI (backend), Next.js 16 (frontend), on-pre
 | :--- | :--- | :--- |
 | `../gemastik19` | Dokumen lomba, proposal, materi finalis | `hafidzrizqullahprasetya/gemastik19` (`main`) |
 | `verifin-app` (local) | Codebase lokal pengerjaan di macOS | `matthewpriantara/verifin-app` (`main`) |
-| `verifin-app-server` | Mirror live VPS Produksi (`praktikum-beta`) | `praktikan@100.118.206.100:/home/praktikan/projects/verifin` |
-| `verifin-app-home` | Mirror live Home Server (`fizualinux`) | `hafidzprasetya@100.82.95.50:/home/hafidzprasetya/Project/verifin-app` |
+| `verifin-app-server` | Clone lokal yang melacak repo VPS Produksi (`praktikum-beta`), remote `vps` | `praktikan@100.118.206.100:/home/praktikan/projects/verifin` |
+| `verifin-app-home` | Clone lokal yang melacak repo Home Server (`fizualinux`), remote `home` | `hafidzprasetya@100.82.95.50:/home/hafidzprasetya/Project/verifin-app` |
+
+`verifin-app-server` dan `verifin-app-home` **bukan mount live**. Keduanya clone git biasa dengan upstream `main` diarahkan ke remote SSH (Tailscale) masing-masing, jadi `git pull` / `git push` tanpa argumen langsung ke repo di server. Kedua repo server memakai `receive.denyCurrentBranch = updateInstead`, sehingga push langsung memperbarui working tree server. Yang tidak ikut git: `backend/.env` (di-ignore) dan status container; untuk itu tetap pakai SSH. Push hanya memperbarui kode; jalankan `./deploy.sh` di server agar aktif.
+
+### Peran Host
+| Host | IP Tailscale | Isi |
+| :--- | :--- | :--- |
+| `praktikum-beta` (VPS kampus) | `100.118.206.100` | **Stack produksi** Verifin (backend, frontend, db, db-backup), **GPU RTX 5080 + Ollama** (`gemma4:12b-it-qat`, port `11434`). |
+| `fizualinux` (Home Server) | `100.82.95.50` | **Cloudflare Tunnel** (`cloudflared`, dua token), **SearXNG** (`searxng-core`, `searxng-valkey`), container `octane-ai` / `octane-app`, dan **stack Verifin cadangan** (tidak melayani publik). Tidak ada GPU maupun Ollama. |
 
 ---
 
@@ -32,7 +40,7 @@ Untuk mencegah tabrakan port (*port collision*) dengan layanan lain di host serv
 - **Routing:** Cloudflare Tunnel di `fizualinux` meneruskan traffic publik melalui jaringan mesh **Tailscale** langsung ke VPS:
   - `verifin.web.id` $\rightarrow$ `http://100.118.206.100:3019` (Frontend Next.js di VPS)
   - `api.verifin.web.id` $\rightarrow$ `http://100.118.206.100:8019` (Backend FastAPI di VPS)
-- **Keamanan Ollama:** Port `11434` **DILARANG** diekspos ke Cloudflare karena tidak memiliki otentikasi. Backend di VPS memanggil Ollama secara internal. Service `cloudflared` di VPS `praktikum-beta` dinonaktifkan (`disabled`).
+- **Keamanan Ollama:** Port `11434` **DILARANG** diekspos ke Cloudflare karena tidak memiliki otentikasi. Backend di VPS memanggil Ollama lewat `http://100.118.206.100:11434/v1`. Per 27 Okt 2026 Ollama mendengarkan di semua interface (`*:11434`), bukan hanya Tailscale; batasi ke IP Tailscale atau firewall bila jaringan kampus bisa menjangkaunya. Service `cloudflared` di VPS `praktikum-beta` dinonaktifkan (`disabled`).
 
 ---
 
@@ -41,8 +49,10 @@ Untuk mencegah tabrakan port (*port collision*) dengan layanan lain di host serv
 - **Backend:** FastAPI (Python 3.11), SQLAlchemy, PostgreSQL 17 Alpine, NetworkX (Fraud Graph), SHAP (Explainable AI), PaddleOCR (OCR).
 - **Frontend:** Next.js 16 (React 19, App Router, TypeScript), Tailwind CSS v4, Motion, Phosphor Icons.
 - **Database:** Self-hosted PostgreSQL 17 (`verifin-db`) dengan automated daily backup (`verifin-db-backup`). Semua jejak Supabase cloud telah dihapus total.
-- **LLM Provider Utama:** On-premise `gemma4:12b-it-qat` (Ollama di GPU RTX 5080 16GB, `OLLAMA_KEEP_ALIVE=-1` pinned di VRAM).
-- **LLM Provider Cadangan (Failover Otomatis):** Octane AI Cloud (`https://api.octane.web.id/v1`, model `ag/gemini-3.8-flash-medium` & `low`). Otomatis aktif jika Ollama lokal down/timeout.
+- **LLM Provider Utama:** Octane AI Cloud (`https://api.octane.web.id/v1`), `ag/gemini-3.8-flash-medium` untuk penalaran dan `ag/gemini-3.8-flash-low` untuk ekstraksi entitas. Angka uji 14 lowongan (run 9 dan run 11 di `test/okt-2026/README.md`) dihasilkan model ini.
+- **LLM Provider Cadangan (Failover Otomatis):** On-premise `gemma4:12b-it-qat` (Ollama di GPU RTX 5080 16GB pada VPS, `OLLAMA_KEEP_ALIVE=-1` pinned di VRAM). Otomatis aktif jika Gemini gagal/timeout.
+- **Thinking Gemma 4:** Gemma 4 berpikir dulu secara default, jawabannya masuk ke `reasoning_content` dan `content` kosong, sehingga penalaran jatuh ke Rule-Based Fallback. Wajib `LLM_FALLBACK_REASONING_EFFORT=none` (atau `LLM_REASONING_EFFORT=none` bila Gemma dijadikan utama). Uji Gemma sebagai utama (run 10): T9 lowongan asli dinilai WASPADA 70; lihat README uji.
+- **Cache Verifikasi:** `VERIFY_CACHE_ENABLED=true` di produksi. Set `false` sementara saat uji ulang agar setiap kasus dihitung ulang, lalu kembalikan. Hash cache memuat nama model, jadi mengganti `LLM_MODEL` otomatis membuat cache baru. Hasil Rule-Based Fallback tidak pernah dipakai ulang dari cache.
 
 ---
 
@@ -89,13 +99,18 @@ Gunakan skrip [`./deploy.sh`](file:///Users/fizualstd/Documents/GitHub/_LOMBA/ve
 ./deploy.sh verifin-backend
 ```
 
-### Bypass Jaringan Kampus (Push Langsung via SSH Tailscale)
-Jika koneksi internet kampus di VPS mengalami *TLS handshake reset* saat `git pull` dari GitHub:
+### Push Langsung via SSH Tailscale (Tanpa Lewat GitHub)
+Jika koneksi internet kampus di VPS mengalami *TLS handshake reset* saat `git pull` dari GitHub, push langsung dari laptop:
 ```bash
-# Push langsung dari laptop Mac ke VPS (instan ~1 detik):
-git -C verifin-app push praktikum-beta:/home/praktikan/projects/verifin main
+# Dari verifin-app (remote eksplisit):
+git -C verifin-app push praktikan@100.118.206.100:/home/praktikan/projects/verifin main
+git -C verifin-app push hafidzprasetya@100.82.95.50:/home/hafidzprasetya/Project/verifin-app main
+
+# Atau dari folder pelacak (upstream sudah diarahkan ke server):
+git -C verifin-app-server pull   # tarik isi repo VPS
+git -C verifin-app-home pull     # tarik isi repo Home
 ```
-*(Repo di VPS sudah dikonfigurasi `receive.denyCurrentBranch = updateInstead`)*.
+Lalu deploy di server terkait (`ssh ... 'cd <repo> && ./deploy.sh verifin-backend'`). Kedua repo server memakai `receive.denyCurrentBranch = updateInstead`.
 
 ---
 
@@ -109,7 +124,7 @@ Setelah deploy, lakukan verifikasi melalui salah satu cara berikut:
    - `"git_commit"`: Menampilkan short hash commit aktif (misal `"9e4bb31"`).
    - `"build_time"`: Waktu build UTC terbaru.
    - `"database"`: `{"postgres": "healthy"}`.
-   - `"llm"`: `{"target_model": "gemma4:12b-it-qat", "reachable": true}`.
+   - `"llm"`: `{"provider": "cloud", "target_model": "ag/gemini-3.8-flash-medium", "reachable": true}`.
 2. **Cek Badge Footer Frontend:**
    Buka `https://verifin.web.id`. Pada footer bagian bawah tertulis nomor build `#<short-sha>`.
 3. **Cek Waktu Build Container di Host:**
