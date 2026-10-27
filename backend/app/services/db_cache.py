@@ -8,7 +8,7 @@ from sqlalchemy import or_
 from sqlalchemy.orm import Session
 
 from app.api.v1.verify.schema import VerifyResponse
-from app.config import LLM_MODEL
+from app.config import LLM_MODEL, VERIFY_CACHE_ENABLED
 from app.database.models import JobCase
 from app.services.hasher import compute_content_sha256
 from app.api.v1.verify.pipeline import _build_osint_summary, _to_response
@@ -149,6 +149,10 @@ def _job_case_to_response(cached: JobCase) -> VerifyResponse | None:
     if not cached or not cached.verdict or cached.verdict == "ERROR":
         return None
     llm_payload = cached.llm_output or {}
+    # Hasil penilaian aturan berarti LLM gagal; jangan dipakai ulang agar permintaan berikutnya mencoba LLM lagi.
+    if "Rule-Based Fallback" in str(llm_payload.get("model_used", "")):
+        logger.info("[DB Cache Skip] rule-based fallback: %s", str(cached.id)[:8])
+        return None
     ent = cached.entities or {
         "companies": cached.companies or [],
         "phones": cached.phones or [],
@@ -186,6 +190,8 @@ def _job_case_to_response(cached: JobCase) -> VerifyResponse | None:
 
 
 def _get_cached_case_from_db(db: Session, raw_input_str: str) -> VerifyResponse | None:
+    if not VERIFY_CACHE_ENABLED:
+        return None
     if not raw_input_str or not raw_input_str.strip():
         return None
     try:
@@ -252,6 +258,8 @@ def _url_conditions(variants: list[str]) -> list:
 
 
 def _get_cached_case_by_url(db: Session, raw_url: str) -> VerifyResponse | None:
+    if not VERIFY_CACHE_ENABLED:
+        return None
     if not raw_url or not raw_url.strip():
         return None
     try:

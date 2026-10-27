@@ -13,6 +13,7 @@ from app.config import (
     LLM_BASE_URL,
     LLM_EXTRACTOR_MODEL,
     LLM_MODEL,
+    LLM_REASONING_EFFORT,
     LLM_TIMEOUT,
     LLM_FALLBACK_API_KEY,
     LLM_FALLBACK_BASE_URL,
@@ -166,6 +167,7 @@ async def _execute_chat_completion(
     max_tokens: int,
     seed: int | None,
     max_retries: int,
+    reasoning_effort: str | None = None,
 ) -> str:
     url = f"{base_url}/chat/completions"
     payload = {
@@ -177,6 +179,8 @@ async def _execute_chat_completion(
     }
     if seed is not None:
         payload["seed"] = seed
+    if reasoning_effort:
+        payload["reasoning_effort"] = reasoning_effort
     headers = {
         "Authorization": f"Bearer {api_key}",
         "Content-Type": "application/json",
@@ -260,6 +264,7 @@ async def chat_completion(
             max_tokens=max_tokens,
             seed=seed,
             max_retries=max_retries,
+            reasoning_effort=LLM_REASONING_EFFORT or None,
         )
     except Exception as exc:
         if LLM_FALLBACK_BASE_URL and LLM_FALLBACK_API_KEY:
