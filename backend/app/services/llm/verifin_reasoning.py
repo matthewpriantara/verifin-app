@@ -174,6 +174,23 @@ def _floor_telegram_channel(parsed: dict, text_signals: dict | None) -> dict:
     return parsed
 
 
+def _floor_fraud_site_content(parsed: dict, osint_results: dict) -> dict:
+    """Website lamaran memuat pola penipuan tugas/komisi → minimal WASPADA 55.
+
+    F1 (New Trendy) pernah WASPADA 65 pada satu run dan AMAN 12 pada run berikutnya karena
+    LLM/penjelajah situs tidak selalu berhasil membaca isi halaman. Bila isi halaman terbaca
+    dan memuat pola itu, skornya tidak boleh turun lagi."""
+    matches = ((osint_results.get("web") or {}).get("fraud_site_content") or {}).get("matches") or []
+    if not matches or float(parsed.get("risk_score") or 0) >= 55:
+        return parsed
+    parsed["verdict"] = "WASPADA"
+    parsed["risk_score"] = 55
+    parsed["calibrated_fraud_site"] = True
+    factor = "Isi website lamaran memuat pola penipuan tugas/komisi"
+    parsed["risk_factors"] = [factor] + [f for f in parsed.get("risk_factors") or [] if f != factor]
+    return parsed
+
+
 def _has_corrupt_text(
     text: str,
     entities: dict | None = None,
@@ -274,6 +291,39 @@ def _fallback_analysis(
     if scam_warnings:
         risk_score += 15
         risk_factors.append("Nama perusahaan pernah dicatut lowongan palsu.")
+    web = osint_results.get("web") or {}
+    if (web.get("fraud_site_content") or {}).get("matches"):
+        risk_score += 25
+        risk_factors.append("Isi website lamaran memuat pola penipuan tugas/komisi.")
+    if (web.get("open_registration_domain") or {}).get("domain"):
+        risk_score += 15
+        risk_factors.append("Domain bebas daftar dipakai mengatasnamakan badan usaha/merek.")
+    if (web.get("location_mismatch") or {}).get("profile_city"):
+        risk_score += 10
+        risk_factors.append("Profil publik usaha berada di kota lain dari alamat lowongan.")
+    if any(w.get("website_status") in ("NOT_FOUND", "HTTP_ERROR") for w in web.get("websites") or []):
+        risk_score += 20
+        risk_factors.append("Situs lamaran tidak dapat diakses atau tidak terdaftar.")
+    if (osint_results.get("domain") or {}).get("is_new"):
+        risk_score += 10
+        risk_factors.append("Domain lamaran baru dibuat (kurang dari 90 hari).")
+    getcontact = next(
+        (
+            p.get("getcontact") for p in phones
+            if isinstance(p.get("getcontact"), dict) and p["getcontact"].get("probe_status") == "COMPLETED"
+        ),
+        None,
+    )
+    if getcontact:
+        if getcontact.get("spam_flagged"):
+            risk_score += 15
+            risk_factors.append("Nomor ditandai spam oleh komunitas GetContact.")
+        elif getcontact.get("community_level") == "UNKNOWN":
+            risk_score += 10
+            risk_factors.append("Nomor belum dikenal komunitas GetContact.")
+        elif getcontact.get("community_level") == "WELL_KNOWN":
+            risk_score -= 5
+            safe_factors.append("Nomor dikenal luas di komunitas GetContact.")
     if has_free_email:
         risk_score += 8
         risk_factors.append(f"Email kontak ({entities.get('emails', [''])[0]}) memakai layanan gratisan.")
@@ -288,7 +338,7 @@ def _fallback_analysis(
         f"Penilaian berbasis aturan (penalaran AI tidak tersedia): lowongan {comp_name} dinilai {verdict_label}."
     )
 
-    return {
+    parsed = {
         "verdict": verdict,
         "risk_score": risk_score,
         "corrected_company_name": None,
@@ -302,6 +352,10 @@ def _fallback_analysis(
         "model_used": f"{LLM_MODEL} (Rule-Based Fallback)",
         "entities_analyzed": entities,
     }
+    # Aturan pengaman tetap berlaku walau LLM gagal: skor tidak boleh turun di bawah bukti keras.
+    parsed = _floor_dead_application_domain(parsed, osint_results)
+    parsed = _floor_fraud_site_content(parsed, osint_results)
+    return _floor_telegram_channel(parsed, signals)
 
 
 def _is_valid_llm_output(
@@ -557,6 +611,7 @@ async def analyze_with_verifin(
             parsed = _sanitize_llm_output(parsed, entities, osint_results, allowed_tokens)
             parsed = _calibrate_unknown_search_output(parsed, entities, osint_results, text_signals)
             parsed = _floor_dead_application_domain(parsed, osint_results)
+            parsed = _floor_fraud_site_content(parsed, osint_results)
             parsed = _floor_telegram_channel(parsed, text_signals)
             for field in ("risk_factors", "safe_factors", "recommendations"):
                 items = parsed.get(field) or []

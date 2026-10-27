@@ -534,6 +534,7 @@ def attach_shap_explanation(
             model_used=analysis.get("model_used"),
             guard_rule=(
                 "telegram" if analysis.get("calibrated_telegram")
+                else "fraud_site" if analysis.get("calibrated_fraud_site")
                 else "dead_domain" if analysis.get("calibrated_dead_domain")
                 else "unknown_search" if analysis.get("calibrated_unknown_search")
                 else None
