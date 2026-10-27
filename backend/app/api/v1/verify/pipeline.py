@@ -310,6 +310,12 @@ async def _extract_entities_hybrid(text: str) -> dict:
     merged["companies"] = _dedupe_companies(
         uniq_casefold(_merge_company_fragments(llm_companies or regex_companies, clean_text))
     )
+    # Nama pemberi kerja dari data terstruktur portal ("Perusahaan: X", dari schema.org JobPosting)
+    # diutamakan di atas tebakan dari OCR logo/banner, karena nama pertama yang dicari OSINT.
+    declared = re.search(r"^Perusahaan(?:/Pengiklan)?:\s*(.+)$", clean_text, re.M)
+    if declared and declared.group(1).strip():
+        name = declared.group(1).strip()
+        merged["companies"] = [name] + [c for c in merged["companies"] if c.casefold() != name.casefold()]
 
     # Alamat: harus lolos grounding dan terlihat seperti alamat fisik.
     llm_addresses = [v for v in accept(llm_extracted.get("addresses") or []) if _is_plausible_address(v)]
