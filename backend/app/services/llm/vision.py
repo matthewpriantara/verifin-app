@@ -8,7 +8,12 @@ import base64
 import logging
 import mimetypes
 
-from app.config import LLM_API_KEY, LLM_BASE_URL, LLM_REASONING_EFFORT, LLM_VISION_MODEL
+from app.config import (
+    LLM_VISION_API_KEY,
+    LLM_VISION_BASE_URL,
+    LLM_VISION_MODEL,
+    LLM_VISION_REASONING_EFFORT,
+)
 from app.services.llm.client import _execute_chat_completion
 from app.services.pii import PiiMasker
 
@@ -22,7 +27,7 @@ _PROMPT = (
 
 
 async def read_image_with_vision(image_path: str, timeout: float = 30.0) -> str:
-    if not (LLM_VISION_MODEL and LLM_API_KEY):
+    if not (LLM_VISION_MODEL and LLM_VISION_BASE_URL and LLM_VISION_API_KEY):
         return ""
     try:
         with open(image_path, "rb") as fh:
@@ -36,8 +41,8 @@ async def read_image_with_vision(image_path: str, timeout: float = 30.0) -> str:
             ],
         }]
         text = await _execute_chat_completion(
-            base_url=LLM_BASE_URL,
-            api_key=LLM_API_KEY,
+            base_url=LLM_VISION_BASE_URL,
+            api_key=LLM_VISION_API_KEY,
             model_name=LLM_VISION_MODEL,
             timeout_sec=timeout,
             messages=messages,
@@ -46,7 +51,7 @@ async def read_image_with_vision(image_path: str, timeout: float = 30.0) -> str:
             max_tokens=1500,
             seed=42,
             max_retries=1,
-            reasoning_effort=LLM_REASONING_EFFORT or None,
+            reasoning_effort=LLM_VISION_REASONING_EFFORT or None,
         )
         return (text or "").strip()
     except Exception as exc:
