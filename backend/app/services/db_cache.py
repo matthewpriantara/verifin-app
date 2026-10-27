@@ -161,6 +161,11 @@ def _job_case_to_response(cached: JobCase) -> VerifyResponse | None:
     if "Rule-Based Fallback" in str(llm_payload.get("model_used", "")):
         logger.info("[DB Cache Skip] rule-based fallback: %s", str(cached.id)[:8])
         return None
+    # Hasil "tetap periksa" atau input bukan lowongan tidak dipakai ulang: pengiriman berikutnya
+    # harus melewati tahap Memeriksa isi lagi.
+    if (cached.entities or {}).get("input_quality") == "forced" or llm_payload.get("not_a_job_posting"):
+        logger.info("[DB Cache Skip] input bermasalah: %s", str(cached.id)[:8])
+        return None
     ent = cached.entities or {
         "companies": cached.companies or [],
         "phones": cached.phones or [],

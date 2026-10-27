@@ -19,7 +19,10 @@ Skema JSON:
   "companies": ["nama perusahaan/PT/organisasi pemberi kerja, persis seperti tertulis"],
   "addresses": ["alamat fisik lengkap (jalan, gedung, kelurahan, kecamatan, kota, kode pos) persis seperti tertulis"],
   "location_candidates": ["lokasi/area/penempatan kerja yang disebut (kota, kecamatan, provinsi, atau alamat area) persis seperti tertulis"],
-  "salaries": ["nominal gaji/upah persis seperti tertulis, contoh: Rp 3.500.000, 5-7 juta, UMR"]
+  "salaries": ["nominal gaji/upah persis seperti tertulis, contoh: Rp 3.500.000, 5-7 juta, UMR"],
+  "is_job_posting": true,
+  "postings": [{"employer": "nama pemberi kerja", "position": "posisi utama", "first_words": "5-8 kata pertama bagian lowongan ini, persis"}],
+  "non_job_content": "jenis teks lain di luar lowongan (berita, promo akun, info grup), atau string kosong"
 }
 
 Aturan ketat:
@@ -28,7 +31,9 @@ Aturan ketat:
 3. location_candidates: lokasi/area/penempatan kerja yang disebut di teks. Termasuk kota, kecamatan, provinsi, atau area kerja. Contoh: "Karawang", "Jakarta Selatan", "Bantul". Ekstrak dari label "Penempatan", "Lokasi", "Domisili", "Area", "Wilayah", atau konteks lain. PERSIS seperti tertulis di teks.
 4. salaries: setiap nominal rentang gaji yang disebut. Simpan format aslinya.
 5. Jika suatu kategori tidak ada, kembalikan array kosong [].
-6. Jangan mengarang entitas yang tidak tertulis di teks. Ekstrak PERSIS substring dari teks sumber."""
+6. Jangan mengarang entitas yang tidak tertulis di teks. Ekstrak PERSIS substring dari teks sumber.
+7. is_job_posting: false bila teks bukan penawaran kerja (berita, invoice, promosi produk, meme, logo, percakapan). Lowongan yang mencurigakan tetap true.
+8. postings: SATU entri per pemberi kerja berbeda. Satu pemberi kerja dengan banyak posisi = satu entri. Nama brand dan nama PT induknya (mis. "Morgans Kebab" dan "PT Trinity Success Group") = satu entri. Kosong bila bukan lowongan."""
 
 _USER_TEMPLATE = """Ekstrak entitas dari teks lowongan berikut (mungkin hasil OCR, bisa mengandung salah ketik/spasi aneh):
 
@@ -82,7 +87,7 @@ async def extract_entities_llm(text: str) -> dict[str, Any] | None:
                 messages,
                 model=LLM_EXTRACTOR_MODEL,
                 temperature=0.0,
-                max_tokens=600,
+                max_tokens=900,
                 timeout=_EXTRACT_TIMEOUT,
                 max_retries=1,
             ),
@@ -114,5 +119,28 @@ async def extract_entities_llm(text: str) -> dict[str, Any] | None:
         "addresses": _clean_str_list(data.get("addresses")),
         "location_candidates": _clean_str_list(data.get("location_candidates")),
         "salaries": _clean_str_list(data.get("salaries")),
+        "content": _clean_content(data),
+    }
+
+
+def _clean_content(data: dict) -> dict[str, Any]:
+    """Klasifikasi isi untuk tahap "Memeriksa isi": lowongan atau bukan, dan berapa pemberi kerja."""
+    postings = []
+    for item in data.get("postings") or []:
+        if not isinstance(item, dict):
+            continue
+        employer = re.sub(r"\s+", " ", str(item.get("employer") or "")).strip()
+        if not employer:
+            continue
+        postings.append({
+            "employer": employer[:120],
+            "position": re.sub(r"\s+", " ", str(item.get("position") or "")).strip()[:120],
+            "first_words": re.sub(r"\s+", " ", str(item.get("first_words") or "")).strip()[:160],
+        })
+    is_job = data.get("is_job_posting")
+    return {
+        "is_job_posting": is_job if isinstance(is_job, bool) else None,
+        "postings": postings[:8],
+        "non_job_content": str(data.get("non_job_content") or "").strip()[:120],
     }
 

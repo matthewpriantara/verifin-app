@@ -40,7 +40,7 @@ export async function verifyText(
   signal,
   headers: { "Content-Type": "application/json" },
   body: JSON.stringify({
-   text: payload.text,
+   ...payload,
    include_raw_text: payload.include_raw_text ?? true,
   }),
  });
@@ -91,6 +91,7 @@ export type SSEEvent =
  | { event: "start"; data: { request_id: string; message: string } }
  | { event: "stage"; data: { stage: string; status: "processing" | "done"; message: string; entities?: Record<string, unknown> } }
  | { event: "done"; data: { message: string; case_id: string; verdict: string; risk_score: number; response: VerifyResponse } }
+ | { event: "needs_input"; data: VerifyResponse }
  | { event: "error"; data: { message: string } };
 
 export async function verifyUrlStream(

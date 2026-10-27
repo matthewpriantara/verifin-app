@@ -5,6 +5,8 @@ import paddleocr
 from paddleocr import PaddleOCR
 import numpy as np
 import threading
+import asyncio
+from concurrent.futures import ThreadPoolExecutor
 import time
 
 logging.getLogger("ppocr").setLevel(logging.ERROR)
@@ -196,6 +198,16 @@ def order_text_by_layout(items: list[tuple[list, str]]) -> str:
     return "\n\n".join(b["text"] for b in ordered)
 
 
+# Semua inferensi lewat satu thread tetap: predictor Paddle + oneDNN menyimpan cache per thread,
+# sedangkan asyncio.to_thread bisa memakai thread berbeda di tiap permintaan.
+_ocr_executor = ThreadPoolExecutor(max_workers=1, thread_name_prefix="ocr")
+
+
+async def extract_text_from_image_async(image_path: str, metrics: dict | None = None) -> str:
+    loop = asyncio.get_running_loop()
+    return await loop.run_in_executor(_ocr_executor, extract_text_from_image, image_path, metrics)
+
+
 def extract_text_from_image(image_path: str, metrics: dict | None = None) -> str:
     if not os.path.exists(image_path):
         raise FileNotFoundError(f"File gambar tidak ditemukan di path: {image_path}")
@@ -210,7 +222,13 @@ def extract_text_from_image(image_path: str, metrics: dict | None = None) -> str
             ocr = get_ocr_model()
             model_elapsed = time.perf_counter() - model_started
             inference_started = time.perf_counter()
-            result = ocr.ocr(processed_img)
+            try:
+                result = ocr.ocr(processed_img)
+            except RuntimeError as e:
+                # Predictor oneDNN sesekali gagal acak ("std::exception") pada satu panggilan;
+                # gambar yang sama berhasil saat diulang (poster Roemah Boenga, 27 Okt 2026).
+                logger.warning("[OCR] inferensi gagal (%s), diulang sekali", e)
+                result = ocr.ocr(processed_img)
             inference_elapsed = time.perf_counter() - inference_started
 
             # Teks dengan skor keyakinan rendah (ikon, ornamen) dibuang sebelum disusun.

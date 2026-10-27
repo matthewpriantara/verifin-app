@@ -113,6 +113,7 @@ def search_cases(
         r for r in rows
         if not (r.entities or {}).get("not_a_job_posting")
         and not (r.llm_output or {}).get("not_a_job_posting")
+        and (r.entities or {}).get("input_quality") != "forced"
     ]
     return {
         "query_kind": kind,

@@ -18,6 +18,9 @@ LLM_EXTRACTOR_MODEL = os.getenv("LLM_EXTRACTOR_MODEL") or LLM_MODEL
 LLM_REASONING_EFFORT = os.getenv("LLM_REASONING_EFFORT", "").strip()
 # Matikan (false) saat uji ulang agar setiap kasus dihitung ulang, bukan dibaca dari job_cases.
 VERIFY_CACHE_ENABLED = os.getenv("VERIFY_CACHE_ENABLED", "true").strip().lower() not in ("0", "false", "no", "off")
+# Pembacaan poster oleh model vision, berjalan bersamaan dengan OCR. Kosongkan untuk mematikan.
+# Hanya penyedia utama: gemma4:12b-it-qat di Ollama tidak menerima gambar.
+LLM_VISION_MODEL = os.getenv("LLM_VISION_MODEL", LLM_EXTRACTOR_MODEL).strip()
 
 # Fallback LLM Provider (Cadangan jika Primary gagal/down/timeout)
 LLM_FALLBACK_BASE_URL = os.getenv("LLM_FALLBACK_BASE_URL", "").rstrip("/")

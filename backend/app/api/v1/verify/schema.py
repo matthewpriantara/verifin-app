@@ -1,5 +1,5 @@
 from pydantic import BaseModel, Field, ConfigDict, field_validator
-from typing import List, Optional, Dict, Any
+from typing import List, Literal, Optional, Dict, Any
 from app.services.url_guard import validate_public_http_url
 
 
@@ -15,6 +15,18 @@ class TextVerifyRequest(BaseModel):
         default=True,
         description="Jika True, teks asli akan ikut disertakan dalam prompt LLM sebagai konteks tambahan."
     )
+    intervention: Optional[Literal["segment", "force"]] = Field(
+        default=None,
+        description=(
+            "Jawaban atas intervensi tahap Memeriksa isi: 'segment' = teks ini satu lowongan yang dipilih "
+            "pengguna; 'force' = tetap periksa walau input bermasalah (hasil tidak masuk graf penipuan)."
+        ),
+    )
+    intervention_kind: Optional[str] = Field(default=None, description="Jenis intervensi yang dijawab (not_job, too_short, multi_job).")
+    source: Optional[Literal["text", "image", "url"]] = Field(
+        default=None, description="Asal teks bila ini lanjutan dari gambar atau tautan."
+    )
+    source_url: Optional[str] = Field(default=None, description="Tautan asal bila source='url'.")
 
 
 class UrlVerifyRequest(BaseModel):
@@ -91,7 +103,18 @@ class VerifyResponse(BaseModel):
     )
     shap_explanation: Optional[Dict[str, Any]] = Field(
         default=None,
-        description="Penjelasan SHAP value XAI untuk visualisasi dashboard."
+        description="Atribusi bukti XAI untuk visualisasi laporan."
+    )
+    input_notes: List[str] = Field(
+        default=[],
+        description="Catatan tahap Memeriksa isi yang tidak menghentikan proses.",
+    )
+    needs_input: Optional[Dict[str, Any]] = Field(
+        default=None,
+        description=(
+            "Terisi bila proses berhenti di tahap Memeriksa isi: {issue, text, source, source_url}. "
+            "Frontend menampilkan kartu intervensi lalu memanggil /verify/text dengan `intervention`."
+        ),
     )
 
 

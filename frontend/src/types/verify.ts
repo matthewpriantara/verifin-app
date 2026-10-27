@@ -197,11 +197,44 @@ export interface VerifyResponse {
   model_used?: string | null;
   osint?: OsintPayload | null;
   shap_explanation?: ShapExplanation | null;
+  /** Catatan tahap "Memeriksa isi" yang tidak menghentikan proses. */
+  input_notes?: string[];
+  /** Terisi bila proses berhenti di tahap "Memeriksa isi" dan butuh jawaban pengguna. */
+  needs_input?: NeedsInput | null;
+}
+
+export type InterventionKind = "not_job" | "too_short" | "multi_job";
+
+export interface PostingSegment {
+  id: number;
+  employer: string;
+  position: string;
+  contacts: string[];
+  /** null bila potongan teks lowongan ini tidak ditemukan; kartunya tidak bisa dipilih. */
+  text: string | null;
+}
+
+export interface NeedsInput {
+  issue: {
+    id: string;
+    kind: InterventionKind;
+    title: string;
+    message: string;
+    can_force: boolean;
+    segments?: PostingSegment[];
+  };
+  text: string;
+  source: "text" | "image" | "url";
+  source_url?: string | null;
 }
 
 export interface TextVerifyRequest {
   text: string;
   include_raw_text?: boolean;
+  intervention?: "segment" | "force";
+  intervention_kind?: InterventionKind;
+  source?: "text" | "image" | "url";
+  source_url?: string | null;
 }
 
 export interface LlmStatusResponse {
