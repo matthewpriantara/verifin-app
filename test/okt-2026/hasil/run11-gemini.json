@@ -1,0 +1,595 @@
+{
+ "_meta": {
+  "tanggal": "2026-10-27",
+  "commit": "62c9dee",
+  "model": "ag/gemini-3.8-flash-medium (Octane, utama); gemma4:12b-it-qat cadangan",
+  "cache": "VERIFY_CACHE_ENABLED=false",
+  "jalur": "teks & tautan via https://api.verifin.web.id dari browser; P1 via localhost:8019 di VPS"
+ },
+ "T1": {
+  "verdict": "AMAN",
+  "risk_score": 12,
+  "duration_sec": 41.8,
+  "model_used": "ag/gemini-3.8-flash-medium (Evidence Reasoning)",
+  "case_id": "483b506e-4904-411c-b247-65f41dddf139",
+  "summary": "Domain email berumur panjang, situs karier aktif, serta nomor kontak bersih tanpa indikasi pungutan biaya.",
+  "risk_factors": [
+   "Nomor bangunan belum terkonfirmasi di peta"
+  ],
+  "safe_factors": [
+   "Domain email berumur tiga belas tahun",
+   "Proteksi SPF dan DMARC aktif",
+   "Nomor kontak bersih dari laporan penipuan"
+  ],
+  "recommendations": [
+   "Lamar melalui situs atau email tertera",
+   "Jangan pernah membayar biaya proses rekrutmen",
+   "Konfirmasi alamat saat mendapat panggilan wawancara"
+  ],
+  "ai_calibration_delta": -1,
+  "feature_contributions": [
+   [
+    "Entitas Muncul di Beberapa Kasus",
+    15
+   ],
+   [
+    "Ada Nama Usaha + Alamat Fisik",
+    -14
+   ],
+   [
+    "Nomor Alamat Belum Pasti di Peta",
+    10
+   ],
+   [
+    "Hasil Web Relevan Ditemukan",
+    -10
+   ],
+   [
+    "Penyesuaian Penalaran AI",
+    -1
+   ]
+  ]
+ },
+ "T9": {
+  "verdict": "AMAN",
+  "risk_score": 25,
+  "duration_sec": 41.2,
+  "model_used": "ag/gemini-3.8-flash-medium (Evidence Reasoning)",
+  "case_id": "1ca3e3d8-3824-4fc2-8327-b9e97b2ae66a",
+  "summary": "Perusahaan memiliki jejak digital kuat tanpa indikasi pungutan biaya, meski kandidat disarankan mengonfirmasi program rekrutmen melalui kanal perusahaannya.",
+  "risk_factors": [
+   "Nama perusahaan pernah dicatut modus penipuan."
+  ],
+  "safe_factors": [
+   "Tidak ada indikasi permintaan biaya rekrutmen.",
+   "Jejak digital perusahaan ditemukan sangat kuat.",
+   "Mencantumkan domain situs perusahaan yang aktif."
+  ],
+  "recommendations": [
+   "Konfirmasi program rekrutmen melalui situs perusahaan.",
+   "Jangan pernah mentransfer biaya seleksi apa pun.",
+   "Waspadai permintaan data pribadi berlebihan."
+  ],
+  "ai_calibration_delta": -7,
+  "feature_contributions": [
+   [
+    "Nama Pernah Dicatut Lowongan Palsu (3 artikel)",
+    15
+   ],
+   [
+    "Entitas Muncul di Beberapa Kasus",
+    15
+   ],
+   [
+    "Hasil Web Relevan Ditemukan",
+    -10
+   ],
+   [
+    "Penyesuaian Penalaran AI",
+    -7
+   ]
+  ]
+ },
+ "T10": {
+  "verdict": "AMAN",
+  "risk_score": 10,
+  "duration_sec": 30.5,
+  "model_used": "ag/gemini-3.8-flash-medium (Evidence Reasoning)",
+  "case_id": "31bade94-afed-40e9-b0b8-fdade2767a12",
+  "summary": "Domain email perusahaan sudah lama aktif, lokasi bisnis ditemukan di peta, dan nomor kontak bersih dari laporan kecurigaan.",
+  "risk_factors": [
+   "Besaran gaji tidak dicantumkan pada lowongan"
+  ],
+  "safe_factors": [
+   "Domain email korporat berumur 14 tahun",
+   "Bisnis dan alamat ditemukan di peta",
+   "Nomor kontak bersih dari laporan penipuan"
+  ],
+  "recommendations": [
+   "Kirimkan lamaran via email korporat tercantum",
+   "Konfirmasi proses seleksi tidak memungut biaya",
+   "Pantau korespondensi dari domain resmi perusahaan"
+  ],
+  "ai_calibration_delta": 22,
+  "feature_contributions": [
+   [
+    "Penyesuaian Penalaran AI",
+    22
+   ],
+   [
+    "Ada Nama Usaha + Alamat Fisik",
+    -14
+   ],
+   [
+    "Nomor Alamat Belum Pasti di Peta",
+    10
+   ],
+   [
+    "Indikator Rekrutmen Wajar (2 sinyal)",
+    -10
+   ],
+   [
+    "Hasil Web Relevan Ditemukan",
+    -10
+   ]
+  ]
+ },
+ "T11": {
+  "verdict": "AMAN",
+  "risk_score": 24,
+  "duration_sec": 30.6,
+  "model_used": "ag/gemini-3.8-flash-medium (Evidence Reasoning)",
+  "case_id": "0e6e1a8f-e8f8-4113-8da5-9d2aa888d4c9",
+  "summary": "Jejak digital merek ditemukan di platform publik dan nomor kontak bersih tanpa adanya indikasi pungutan biaya.",
+  "risk_factors": [
+   "Penggunaan alamat email gratisan untuk pendaftaran",
+   "Tautan pendaftaran memakai pemendek URL bit.ly"
+  ],
+  "safe_factors": [
+   "Tidak ada indikasi permintaan biaya rekrutmen",
+   "Nomor kontak bersih dari laporan penipuan",
+   "Jejak bisnis ditemukan pada berbagai platform publik"
+  ],
+  "recommendations": [
+   "Jangan pernah mentransfer uang kepada perekrut",
+   "Konfirmasikan lowongan melalui saluran media sosial terkait",
+   "Waspadai bila ada permintaan data pribadi berlebih"
+  ],
+  "ai_calibration_delta": -1,
+  "feature_contributions": [
+   [
+    "Entitas Muncul di Beberapa Kasus",
+    15
+   ],
+   [
+    "Hasil Web Relevan Ditemukan",
+    -10
+   ],
+   [
+    "Kontak Hanya Email Gratisan",
+    8
+   ],
+   [
+    "Penyesuaian Penalaran AI",
+    -1
+   ]
+  ]
+ },
+ "L1": {
+  "verdict": "AMAN",
+  "risk_score": 16,
+  "duration_sec": 39.4,
+  "model_used": "ag/gemini-3.8-flash-medium (Evidence Reasoning)",
+  "case_id": "f9308f47-54a6-4d08-af07-f2bde23529bc",
+  "summary": "Domain email berusia lama, jejak digital kuat, serta nomor kontak bersih tanpa indikasi penipuan.",
+  "risk_factors": [
+   "Proteksi SPF dan DMARC domain tidak aktif",
+   "Alamat peta hanya terkonfirmasi tingkat area"
+  ],
+  "safe_factors": [
+   "Domain email perusahaan berusia sembilan tahun lebih",
+   "Reputasi nomor kontak bersih dari laporan penipuan",
+   "Jejak publik perusahaan ditemukan di pencarian web"
+  ],
+  "recommendations": [
+   "Pastikan tidak ada pungutan biaya selama seleksi",
+   "Konfirmasi proses rekrutmen melalui kanal perusahaan"
+  ],
+  "ai_calibration_delta": 6,
+  "feature_contributions": [
+   [
+    "Ada Nama Usaha + Alamat Fisik",
+    -14
+   ],
+   [
+    "Tidak Ada SPF/DMARC pada Domain Korporat",
+    12
+   ],
+   [
+    "Nomor Alamat Belum Pasti di Peta",
+    10
+   ],
+   [
+    "Hasil Web Relevan Ditemukan",
+    -10
+   ],
+   [
+    "Penyesuaian Penalaran AI",
+    6
+   ]
+  ]
+ },
+ "P1": {
+  "verdict": "AMAN",
+  "risk_score": 28,
+  "duration_sec": 51.7,
+  "model_used": "ag/gemini-3.8-flash-medium (Evidence Reasoning)",
+  "case_id": "aebcf9cc-2cb8-4087-af41-8ae0bfd43645",
+  "summary": "Jejak perusahaan ditemukan di web publik dan kontak bersih dari laporan penipuan, meski pendaftaran hanya via WhatsApp.",
+  "risk_factors": [
+   "Pendaftaran kerja hanya melalui kontak WhatsApp pribadi",
+   "Alamat fisik lengkap tidak tercantum di lowongan"
+  ],
+  "safe_factors": [
+   "Tidak ada permintaan transfer atau pungutan biaya",
+   "Nomor kontak bebas dari riwayat laporan penipuan",
+   "Jejak digital perusahaan ditemukan pada pencarian web"
+  ],
+  "recommendations": [
+   "Jangan membayar biaya apa pun kepada perekrut",
+   "Verifikasi lowongan ke situs web perusahaan terkait",
+   "Pastikan lokasi tes sebelum menghadiri panggilan kerja"
+  ],
+  "ai_calibration_delta": -17.0,
+  "feature_contributions": [
+   [
+    "Daftar Hanya via WhatsApp/Tautan Bio",
+    20.0
+   ],
+   [
+    "Penyesuaian Penalaran AI",
+    -17.0
+   ],
+   [
+    "Entitas Muncul di Beberapa Kasus",
+    15.0
+   ],
+   [
+    "Hasil Web Relevan Ditemukan",
+    -10.0
+   ],
+   [
+    "Kata Kunci Penipuan (1 kata)",
+    8.0
+   ]
+  ]
+ },
+ "T2": {
+  "verdict": "WASPADA",
+  "risk_score": 52,
+  "duration_sec": 22.5,
+  "model_used": "ag/gemini-3.8-flash-medium (Evidence Reasoning)",
+  "case_id": "f29bc146-c4a0-4f96-871a-12a3c29532dc",
+  "summary": "Lowongan mengatasnamakan pabrik tanpa identitas perusahaan dan proses pendaftaran hanya diarahkan melalui kontak WhatsApp pribadi.",
+  "risk_factors": [
+   "Identitas nama pabrik tidak dicantumkan",
+   "Pendaftaran hanya melalui kontak WhatsApp pribadi",
+   "Nomor kontak pernah digunakan entitas lain"
+  ],
+  "safe_factors": [
+   "Tidak ada indikasi permintaan biaya transfer",
+   "Nomor kontak bebas dari laporan penipuan"
+  ],
+  "recommendations": [
+   "Tanyakan nama dan alamat fisik pabrik",
+   "Jangan mentransfer uang untuk alasan apa pun",
+   "Tolak jika diminta dokumen identitas sensitif"
+  ],
+  "ai_calibration_delta": -11,
+  "feature_contributions": [
+   [
+    "Daftar Hanya via WhatsApp/Tautan Bio",
+    20
+   ],
+   [
+    "Entitas Muncul di Beberapa Kasus",
+    15
+   ],
+   [
+    "Penyesuaian Penalaran AI",
+    -11
+   ],
+   [
+    "Kata Kunci Penipuan (1 kata)",
+    8
+   ],
+   [
+    "Gaji Ditawarkan tanpa Identitas Perusahaan",
+    8
+   ]
+  ]
+ },
+ "L2": {
+  "verdict": "WASPADA",
+  "risk_score": 58,
+  "duration_sec": 13.9,
+  "model_used": "ag/gemini-3.8-flash-medium (Evidence Reasoning)",
+  "case_id": "3e2ce564-21ff-4842-9e04-32b6f7ce6dd1",
+  "summary": "Informasi lowongan minim tanpa identitas perusahaan serta mensyaratkan akun LinkedIn pribadi patut diwaspadai.",
+  "risk_factors": [
+   "Identitas pemberi kerja tidak dicantumkan",
+   "Persyaratan akun LinkedIn berisiko eksploitasi",
+   "Deskripsi pekerjaan tidak transparan"
+  ],
+  "safe_factors": [
+   "Tidak ada permintaan biaya langsung"
+  ],
+  "recommendations": [
+   "Jangan berikan akses akun LinkedIn pribadi",
+   "Waspadai penyalahgunaan profil untuk penipuan",
+   "Hindari tawaran kerja tanpa identitas jelas"
+  ],
+  "ai_calibration_delta": 46,
+  "feature_contributions": [
+   [
+    "Penyesuaian Penalaran AI",
+    46
+   ]
+  ]
+ },
+ "T3": {
+  "verdict": "BAHAYA",
+  "risk_score": 96,
+  "duration_sec": 42.6,
+  "model_used": "ag/gemini-3.8-flash-medium (Evidence Reasoning)",
+  "case_id": "9c2457d1-7676-4a85-9969-85459f105b21",
+  "summary": "Panggilan kerja mencatut nama BUMN serta mewajibkan pembelian tiket perjalanan dengan nomor yang terhubung riwayat penipuan.",
+  "risk_factors": [
+   "Wajib membeli tiket dengan janji penggantian biaya",
+   "Nomor kontak tercatat pada lima kasus bahaya",
+   "Mencatut BUMN menggunakan jalur kontak WhatsApp pribadi"
+  ],
+  "safe_factors": [
+   "Pemeriksaan nomor di Kaspersky berstatus bersih"
+  ],
+  "recommendations": [
+   "Jangan mentransfer uang atau membeli tiket perantara",
+   "Abaikan seluruh instruksi panggilan tes dari pengirim",
+   "Pantau informasi lowongan langsung melalui situs BUMN"
+  ],
+  "ai_calibration_delta": -74,
+  "feature_contributions": [
+   [
+    "Penyesuaian Penalaran AI",
+    -74
+   ],
+   [
+    "Permintaan Biaya/Transfer",
+    40
+   ],
+   [
+    "Entitas Terhubung ke Jaringan Penipuan",
+    30
+   ],
+   [
+    "Daftar Hanya via WhatsApp/Tautan Bio",
+    20
+   ],
+   [
+    "Dilaporkan Komunitas",
+    20
+   ],
+   [
+    "Nama BUMN/Tbk, Daftar lewat WhatsApp",
+    15
+   ],
+   [
+    "Nama Pernah Dicatut Lowongan Palsu (1 artikel)",
+    15
+   ],
+   [
+    "Nomor Alamat Belum Pasti di Peta",
+    10
+   ],
+   [
+    "Kata Kunci Penipuan (1 kata)",
+    8
+   ]
+  ]
+ },
+ "T4": {
+  "verdict": "WASPADA",
+  "risk_score": 73,
+  "duration_sec": 27.8,
+  "model_used": "ag/gemini-3.8-flash-medium (Evidence Reasoning)",
+  "case_id": "1ec34af5-1ab1-414b-89f1-7dd98b04440e",
+  "summary": "Pendaftaran entitas BUMN melalui tautan bio atau WhatsApp berisiko tinggi dan marak terindikasi hoaks rekrutmen.",
+  "risk_factors": [
+   "Mengatasnamakan BUMN tetapi melamar via tautan bio",
+   "Ditemukan artikel bantahan hoaks rekrutmen serupa",
+   "Kanal pendaftaran bukan kontak domain korporasi"
+  ],
+  "safe_factors": [
+   "Tidak ada indikasi permintaan biaya di teks"
+  ],
+  "recommendations": [
+   "Cari informasi di situs posindonesia.co.id langsung",
+   "Jangan bagikan data pribadi melalui WhatsApp",
+   "Hindari klik tautan formulir tidak dikenal"
+  ],
+  "ai_calibration_delta": 11,
+  "feature_contributions": [
+   [
+    "Daftar Hanya via WhatsApp/Tautan Bio",
+    20
+   ],
+   [
+    "Nama BUMN/Tbk, Daftar lewat WhatsApp",
+    15
+   ],
+   [
+    "Nama Pernah Dicatut Lowongan Palsu (5 artikel)",
+    15
+   ],
+   [
+    "Penyesuaian Penalaran AI",
+    11
+   ]
+  ]
+ },
+ "T5": {
+  "verdict": "WASPADA",
+  "risk_score": 72,
+  "duration_sec": 29.0,
+  "model_used": "ag/gemini-3.8-flash-medium (Evidence Reasoning)",
+  "case_id": "bde832d7-8960-465f-a78f-ad218bec15e1",
+  "summary": "Pendaftaran perusahaan terbuka ini diarahkan melalui tautan bio dan memiliki riwayat pencatutan nama dalam modus hoaks serupa.",
+  "risk_factors": [
+   "Pendaftaran Tbk diarahkan ke tautan bio",
+   "Terdapat artikel bantahan hoaks lowongan serupa",
+   "Tidak mencantumkan kontak korporat langsung"
+  ],
+  "safe_factors": [
+   "Nama perusahaan memiliki jejak publik kuat",
+   "Tidak ada permintaan biaya di teks"
+  ],
+  "recommendations": [
+   "Lamar hanya melalui portal karier korporat",
+   "Hindari mengeklik tautan di bio profil",
+   "Jangan kirim data pribadi ke pihak perantara"
+  ],
+  "ai_calibration_delta": 10,
+  "feature_contributions": [
+   [
+    "Daftar Hanya via WhatsApp/Tautan Bio",
+    20
+   ],
+   [
+    "Nama BUMN/Tbk, Daftar lewat WhatsApp",
+    15
+   ],
+   [
+    "Nama Pernah Dicatut Lowongan Palsu (5 artikel)",
+    15
+   ],
+   [
+    "Penyesuaian Penalaran AI",
+    10
+   ]
+  ]
+ },
+ "T6": {
+  "verdict": "WASPADA",
+  "risk_score": 70,
+  "duration_sec": 31.2,
+  "model_used": "ag/gemini-3.8-flash-medium (Evidence Reasoning)",
+  "case_id": "814ebddf-d830-4b37-a7b7-86f8f37d1e47",
+  "summary": "Pendaftaran hanya melalui tautan bio dan terdapat artikel klarifikasi hoaks terkait lowongan mengatasnamakan pabrik susu Ultra Milk.",
+  "risk_factors": [
+   "Pendaftaran hanya melalui tautan di bio",
+   "Nama perusahaan tercatat dalam bantahan hoaks",
+   "Tanpa kontak dan alamat kantor jelas"
+  ],
+  "safe_factors": [
+   "Tidak ditemukan permintaan biaya pada input",
+   "Menyebutkan nama jenama yang dapat ditelusuri"
+  ],
+  "recommendations": [
+   "Hindari klik tautan pendaftaran di bio",
+   "Cek kanal informasi resmi korporasi bersangkutan",
+   "Jangan berikan data pribadi yang sensitif"
+  ],
+  "ai_calibration_delta": 33,
+  "feature_contributions": [
+   [
+    "Penyesuaian Penalaran AI",
+    33
+   ],
+   [
+    "Daftar Hanya via WhatsApp/Tautan Bio",
+    20
+   ],
+   [
+    "Nama Pernah Dicatut Lowongan Palsu (4 artikel)",
+    15
+   ],
+   [
+    "Hasil Web Relevan Ditemukan",
+    -10
+   ]
+  ]
+ },
+ "T7": {
+  "verdict": "WASPADA",
+  "risk_score": 45,
+  "duration_sec": 19.3,
+  "model_used": "ag/gemini-3.8-flash-medium (Evidence Reasoning)",
+  "case_id": "f5571f66-38e0-4350-9b18-56ceab243fca",
+  "summary": "Lowongan tidak mencantumkan identitas perusahaan maupun kontak penanggung jawab sehingga keabsahannya belum dapat dipastikan melalui bukti publik.",
+  "risk_factors": [
+   "Identitas perusahaan sama sekali tidak dicantumkan",
+   "Rincian posisi pekerjaan sangat tidak spesifik",
+   "Mengarahkan pendaftaran ke tautan tidak jelas"
+  ],
+  "safe_factors": [
+   "Tidak ada permintaan biaya ataupun transfer uang"
+  ],
+  "recommendations": [
+   "Jangan isi data pribadi pada tautan tersebut",
+   "Cari lowongan dengan identitas perusahaan jelas",
+   "Waspadai tawaran kerja yang terlalu umum"
+  ],
+  "ai_calibration_delta": 33,
+  "feature_contributions": [
+   [
+    "Penyesuaian Penalaran AI",
+    33
+   ]
+  ]
+ },
+ "T8": {
+  "verdict": "WASPADA",
+  "risk_score": 72,
+  "duration_sec": 27.0,
+  "model_used": "ag/gemini-3.8-flash-medium (Evidence Reasoning)",
+  "case_id": "7a30b505-27a9-46f9-99da-2441bd65c97b",
+  "summary": "Terdapat catatan publik bantahan hoaks rekrutmen dan pendaftaran hanya mengarahkan pelamar ke tautan di bio.",
+  "risk_factors": [
+   "Pendaftaran hanya mengarahkan ke tautan bio.",
+   "Beredar bantahan publik terkait hoaks lowongan.",
+   "Format lowongan memuat draf belum lengkap."
+  ],
+  "safe_factors": [
+   "Tidak ada indikasi permintaan biaya langsung.",
+   "Jejak pencarian web entitas ditemukan luas."
+  ],
+  "recommendations": [
+   "Cek rekrutmen lewat situs web perusahaan.",
+   "Hindari mengisi data pada tautan bio.",
+   "Jangan kirim uang atau dokumen sensitif."
+  ],
+  "ai_calibration_delta": 20,
+  "feature_contributions": [
+   [
+    "Daftar Hanya via WhatsApp/Tautan Bio",
+    20
+   ],
+   [
+    "Penyesuaian Penalaran AI",
+    20
+   ],
+   [
+    "Nama Pernah Dicatut Lowongan Palsu (5 artikel)",
+    15
+   ],
+   [
+    "Entitas Muncul di Beberapa Kasus",
+    15
+   ],
+   [
+    "Hasil Web Relevan Ditemukan",
+    -10
+   ]
+  ]
+ }
+}
