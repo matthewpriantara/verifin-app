@@ -14,6 +14,7 @@ from app.services.hasher import compute_content_sha256
 from app.services.ner import is_multi_employer
 from app.api.v1.verify.pipeline import _build_osint_summary, _to_response
 from app.services.llm.verifin_reasoning import _soften_summary_claims
+from app.services.pii import PiiMasker
 
 logger = logging.getLogger(__name__)
 CACHE_SCHEMA_VERSION = 15
@@ -100,7 +101,8 @@ def _save_case_to_db(
 
         osint_failed = _osint_has_failures(osint_results)
 
-        preview = (raw_text or "").strip()
+        # Data pribadi disamarkan sebelum disimpan: NIK, rekening, nomor, dan bagian lokal email.
+        preview = PiiMasker().mask((raw_text or "").strip())
         if len(preview) > 2000:
             preview = preview[:2000] + "..."
 

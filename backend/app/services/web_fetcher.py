@@ -4,7 +4,7 @@ import asyncio
 import logging
 import re
 import tempfile
-from urllib.parse import quote
+from urllib.parse import quote, urlparse
 
 from bs4 import BeautifulSoup
 from app.services.url_guard import resolve_public_url, safe_get, safe_get_async, validate_public_http_url
