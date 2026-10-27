@@ -176,6 +176,44 @@ Percobaan pertama hari ini (sebelum `c167f2a`) gagal: Gemma 4 berpikir dulu seca
 - Durasi tanpa cache 14–52 dtk (run 9: 15–52 dtk; run 10 Gemma: 4–36 dtk).
 - Semua kasus lewat Evidence Reasoning Gemini; tidak ada yang jatuh ke cadangan Gemma atau penilaian aturan.
 
+**Run 12 (27 Okt 2026, stack home, cache mati): tahap "Memeriksa isi" + pembacaan vision** (commit `69a50c9`–`d71d837`). Tujuannya memastikan gerbang baru tidak menghentikan lowongan normal dan aturan pengaman domain tidak menjatuhkan lowongan asli. L1 dan L2 (tautan) tidak diulang.
+
+| ID | Status sebenarnya | Run 11 | **Run 12** | Catatan |
+|---|---|---|---|---|
+| T1 | Asli | AMAN 12 | **AMAN 12** | |
+| T9 | Asli | AMAN 25 | **AMAN 25** | |
+| T10 | Asli | AMAN 10 | **AMAN 8** | |
+| T11 | Asli | AMAN 24 | **AMAN 20** | |
+| P1 | Asli | AMAN 28 | **AMAN 28** | Poster; OCR + vision |
+| T2 | Abu-abu | WASPADA 52 | **WASPADA 50** | |
+| T3 | Penipuan | BAHAYA 96 | **BAHAYA 95** | |
+| T4 | Penipuan | WASPADA 73 | **WASPADA 73** | Catatan I-05: ada promo akun di luar lowongan |
+| T5 | Penipuan | WASPADA 72 | **WASPADA 72** | |
+| T6 | Penipuan | WASPADA 70 | **WASPADA 72** | |
+| T7 | Penipuan | WASPADA 45 | **WASPADA 50** | |
+| T8 | Penipuan | WASPADA 72 | **WASPADA 72** | |
+
+Poster palsu dari LokerJogja.ID (sudah divalidasi palsu oleh tim mereka; tiga di antaranya ada di daftar penipu mereka):
+
+| ID | Poster | Produksi sebelum perubahan | **Run 12** | Catatan |
+|---|---|---|---|---|
+| F1 | New Trendy | WASPADA 65 | **WASPADA 55** | Domain baru, situs "Tiktok Task" |
+| F2 | Guardian Indonesia | WASPADA 45 | **AMAN 28 / WASPADA 45** | Tidak stabil: dua kali dijalankan, hasil berbeda. Gmail + WA atas nama ritel besar; AI kadang menilainya wajar |
+| F3 | Sociolla | WASPADA 52 | **WASPADA 55** | Tautan tinyurl hanya terbaca vision (OCR salah baca), jadi dicatat "hanya terbaca AI" |
+| F4 | Roemah Boenga | WASPADA 45 (nama terbaca "SBOENGA") | **WASPADA 45** | Nama kini benar dari vision. Tanpa aturan pengaman, IG toko bunga asli membuat AI memberi AMAN 28; domain `roemahboenga.store` tidak punya DNS → aturan "Domain Lamaran Tanpa DNS" menaikkan ke 45 |
+| F5 | Sharp Electronics | WASPADA 50 | **WASPADA 55** | `sharp-career.my.id` |
+
+Uji tepi ulang (dulu E1–E5):
+
+| Input | Dulu | **Run 12** |
+|---|---|---|
+| Berita harga cabai | AMAN 15 | **Berhenti I-01** "Ini sepertinya bukan lowongan kerja" (3 dtk) |
+| "loker admin wa 0812 3456 7890" | WASPADA 50 | **Berhenti I-03** "Informasinya terlalu sedikit" (3 dtk) |
+| T1 + T10 + T11 digabung | BAHAYA 75 | **Berhenti I-04**, 3 kartu (New Saphir, Komitrando, Dekayu) dengan kontak masing-masing (6 dtk). Memilih kartu Komitrando → AMAN 8 |
+| Berita + "Tetap periksa" | — | AMAN 10, catatan "tidak dipakai di graf penipuan dan pencarian publik" |
+
+Tangkapan layar kartu I-04 di produksi: `hasil/I04-kartu-intervensi.jpg`.
+
 **Ringkasan run 5** (kasus abu-abu tidak dihitung):
 - Penipuan yang ditandai (WASPADA atau BAHAYA): **6 dari 6**. Yang sampai BAHAYA hanya 1 dari 6 (T3, satu-satunya yang meminta biaya). Lima lainnya hanya mengarahkan ke WhatsApp/tautan bio tanpa bukti keras, sehingga berhenti di WASPADA.
 - Lowongan asli yang dinilai AMAN: **6 dari 6**; tidak ada lowongan asli yang ditandai.
