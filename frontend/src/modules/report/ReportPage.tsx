@@ -49,7 +49,8 @@ function vLabel(v: string) {
 }
 function riskLevelLabel(verdict: string) {
   const n = normalizeVerdict(verdict);
-  if (n === "AMAN") return "Risiko rendah";
+  // 36% responden uji (F1) mengira AMAN = pasti resmi; batasannya ditulis langsung di bawah label.
+  if (n === "AMAN") return "Risiko rendah, bukan jaminan perusahaan resmi";
   if (n === "WASPADA") return "Risiko sedang";
   if (n === "BAHAYA") return "Risiko tinggi";
   return "Tidak dapat dinilai";
