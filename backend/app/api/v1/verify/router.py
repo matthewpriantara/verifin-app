@@ -24,7 +24,8 @@ from app.services.ocr import extract_text_from_image_async
 from app.services.nlp.classifier import classify_text
 from app.services.ner import is_multi_employer
 from app.services.llm.vision import read_image_with_vision
-from app.services.precheck import VISION_MARKER, apply_forced, assess_input
+from app.services.precheck import VISION_MARKER, apply_forced, apply_non_job_filter, assess_input
+from app.services.web_fetcher import UrlInputError, is_social_post_url, validate_job_url
 from app.services.osint.whois_handler import (
     check_domain_age,
     check_email_security,
@@ -45,6 +46,8 @@ from app.config import RATE_LIMIT_VERIFY_PER_MIN, VERIFIN_DEBUG_RAW_JSON
 from app.services.case_search import like_escape
 
 MAX_IMAGE_BYTES = 20 * 1024 * 1024
+# Beberapa gambar boleh digabung sebagai satu lowongan (poster halaman 1–2), maksimal 5.
+MAX_IMAGES = 5
 from app.services.security import RateLimiter, require_admin
 
 logger = logging.getLogger(__name__)
@@ -194,6 +197,7 @@ async def verify_from_text(
             return stop
         if source == "url" and request.source_url:
             entities["urls"] = [request.source_url] + [u for u in entities.get("urls") or [] if u != request.source_url]
+        text_for_model = entities.pop("_analysis_text", None) or raw_text
 
         stage_started = time.perf_counter()
         osint_results = await _run_osint_on_entities(entities)
@@ -210,7 +214,7 @@ async def verify_from_text(
 
         stage_started = time.perf_counter()
         analysis = await analyze_with_verifin(
-            entities, osint_results, raw_text=raw_text, text_signals=nlp_result["behavioral_features"]
+            entities, osint_results, raw_text=text_for_model, text_signals=nlp_result["behavioral_features"]
         )
         _log_raw_json(request_id, "ANALYSIS", analysis)
         logger.info("[verify][%s] LLM done verdict=%s score=%s model=%s duration=%.2fs", request_id, analysis.get("verdict"), analysis.get("risk_score"), analysis.get("model_used"), time.perf_counter() - stage_started)
@@ -247,8 +251,12 @@ async def verify_from_text(
     ),
 )
 async def verify_from_image(
-    file: UploadFile = File(
-        ..., description="File gambar poster/screenshot lowongan (JPG/PNG/WEBP)"
+    files: list[UploadFile] | None = File(
+        default=None,
+        description="Satu atau beberapa gambar poster/screenshot lowongan yang membentuk SATU lowongan (JPG/PNG/WEBP)",
+    ),
+    file: UploadFile | None = File(
+        default=None, description="Kompatibilitas: satu file gambar (sama dengan files berisi satu)"
     ),
     additional_text: str | None = Form(
         default=None,
@@ -258,27 +266,44 @@ async def verify_from_image(
 ):
     request_id = _request_id()
     started = time.perf_counter()
-    logger.info("[verify][%s] START source=image filename=%s content_type=%s", request_id, file.filename, file.content_type)
-    allowed_types = ["image/jpeg", "image/jpg", "image/png", "image/webp"]
-    if file.content_type not in allowed_types:
+    uploads = [f for f in (files or []) if f is not None] or ([file] if file is not None else [])
+    if not uploads:
+        raise HTTPException(status_code=400, detail="Lampirkan satu gambar poster atau screenshot lowongan.")
+    if len(uploads) > MAX_IMAGES:
         raise HTTPException(
             status_code=400,
-            detail=f"Tipe file tidak didukung: {file.content_type}. Gunakan JPG, PNG, atau WEBP.",
+            detail=f"Maksimal {MAX_IMAGES} gambar per pemeriksaan. Gabungkan atau pilih bagian lowongannya saja.",
         )
-
-    # Dibaca bertahap supaya file raksasa ditolak sebelum memenuhi memori.
-    contents = await file.read(MAX_IMAGE_BYTES + 1)
-    if len(contents) > MAX_IMAGE_BYTES:
-        raise HTTPException(status_code=413, detail="Ukuran file terlalu besar. Maksimal 20 MB.")
-
-    ext = {"image/png": ".png", "image/webp": ".webp"}.get(file.content_type, ".jpg")
-    with tempfile.NamedTemporaryFile(delete=False, suffix=ext) as tmp:
-        tmp.write(contents)
-        tmp_path = tmp.name
+    logger.info("[verify][%s] START source=image files=%d names=%s", request_id, len(uploads), [u.filename for u in uploads])
+    allowed_types = ["image/jpeg", "image/jpg", "image/png", "image/webp"]
+    tmp_paths: list[str] = []
+    for upload in uploads:
+        if upload.content_type not in allowed_types:
+            raise HTTPException(
+                status_code=400,
+                detail=f"Tipe file tidak didukung: {upload.content_type}. Gunakan JPG, PNG, atau WEBP.",
+            )
+        # Dibaca bertahap supaya file raksasa ditolak sebelum memenuhi memori.
+        contents = await upload.read(MAX_IMAGE_BYTES + 1)
+        if len(contents) > MAX_IMAGE_BYTES:
+            raise HTTPException(status_code=413, detail="Ukuran file terlalu besar. Maksimal 20 MB.")
+        ext = {"image/png": ".png", "image/webp": ".webp"}.get(upload.content_type, ".jpg")
+        with tempfile.NamedTemporaryFile(delete=False, suffix=ext) as tmp:
+            tmp.write(contents)
+            tmp_paths.append(tmp.name)
 
     try:
         ocr_metrics: dict = {}
-        raw_text, vision_text = await _read_image(tmp_path, ocr_metrics)
+        ocr_parts: list[str] = []
+        vision_parts: list[str] = []
+        for index, tmp_path in enumerate(tmp_paths, start=1):
+            part_text, part_vision = await _read_image(tmp_path, ocr_metrics)
+            if part_text:
+                prefix = f"[GAMBAR {index}/{len(tmp_paths)}]\n" if len(tmp_paths) > 1 else ""
+                ocr_parts.append(prefix + part_text.strip())
+            if part_vision:
+                vision_parts.append(part_vision)
+        raw_text = "\n\n".join(ocr_parts).strip()
         if not raw_text:
             raise HTTPException(
                 status_code=422,
@@ -300,16 +325,17 @@ async def verify_from_image(
             _log_end(request_id, "image-cache", started, cached_resp)
             return cached_resp
 
-        analysis_text = _with_vision(raw_text, [vision_text])
+        analysis_text = _with_vision(raw_text, vision_parts)
         stage_started = time.perf_counter()
         entities = await _extract_entities_hybrid(analysis_text)
         _log_raw_json(request_id, "ENTITIES", entities)
-        logger.info("[verify][%s] NER done counts=%s meta=%s vision_chars=%d duration=%.2fs", request_id, _entity_counts(entities), entities.get("_ner_meta"), len(vision_text), time.perf_counter() - stage_started)
+        logger.info("[verify][%s] NER done counts=%s meta=%s vision_chars=%d duration=%.2fs", request_id, _entity_counts(entities), entities.get("_ner_meta"), sum(len(v) for v in vision_parts), time.perf_counter() - stage_started)
 
         nlp_result = _classify_text_signals(raw_text, entities)
         stop = _precheck(request_id, analysis_text, entities, source="image")
         if stop:
             return stop
+        analysis_text = entities.pop("_analysis_text", None) or analysis_text
 
         stage_started = time.perf_counter()
         osint_results = await _run_osint_on_entities(entities)
@@ -354,11 +380,12 @@ async def verify_from_image(
             status_code=500, detail="Gagal memproses verifikasi gambar. Coba lagi sebentar lagi."
         ) from e
     finally:
-        if os.path.exists(tmp_path):
-            try:
-                os.remove(tmp_path)
-            except Exception:
-                pass
+        for path in tmp_paths:
+            if path and os.path.exists(path):
+                try:
+                    os.remove(path)
+                except Exception:
+                    pass
 
 @router.post(
     "/verify/url",
@@ -389,6 +416,11 @@ async def verify_from_url(
         _log_raw_json(request_id, "RESPONSE_CACHE", cached_resp)
         _log_end(request_id, "url-cache", started, cached_resp)
         return cached_resp
+
+    try:
+        validate_job_url(request.url)
+    except UrlInputError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
 
     tmp_paths = []
     carousel_meta = {}
@@ -428,6 +460,14 @@ async def verify_from_url(
         if cached_resp_full:
             return cached_resp_full
 
+        if is_social_post_url(request.url) and not (caption_text or tmp_paths):
+            raise HTTPException(
+                status_code=422,
+                detail=(
+                    "Postingan tidak bisa dibuka tanpa login atau sudah dihapus. Screenshot postingannya "
+                    "lalu unggah sebagai gambar."
+                ),
+            )
         if not full_raw_text or len(full_raw_text) < 15:
             raise HTTPException(
                 status_code=422,
@@ -443,6 +483,7 @@ async def verify_from_url(
         stop = _precheck(request_id, analysis_text, entities, source="url", source_url=request.url)
         if stop:
             return stop
+        analysis_text = entities.pop("_analysis_text", None) or analysis_text
 
         stage_started = time.perf_counter()
         osint_results = await _run_osint_on_entities(entities)
@@ -783,6 +824,15 @@ def _precheck(
     entities["_input_notes"] = notes
     issue = result["issue"]
     if not issue or intervention:
+        job_text = result.get("job_text")
+        removed = result.get("removed") or []
+        if job_text and removed and job_text != text:
+            entities["_analysis_text"] = job_text
+            dropped = apply_non_job_filter(entities, job_text, removed)
+            logger.info(
+                "[verify][%s] PRECHECK non-job stripped spans=%d dropped_entities=%d",
+                request_id, len(removed), dropped,
+            )
         return None
     logger.info("[verify][%s] PRECHECK stop source=%s issue=%s", request_id, source, issue["id"])
     return VerifyResponse(
@@ -845,12 +895,24 @@ async def _verify_url_stream_generator(url: str, additional_text: str, db_sessio
 
     yield _sse_event("start", {"request_id": request_id, "message": "Memulai verifikasi..."})
 
+    try:
+        validate_job_url(url)
+    except UrlInputError as exc:
+        yield _sse_event("error", {"message": str(exc)})
+        return
+
     tmp_paths = []
     carousel_meta = {}
     try:
         yield _sse_event("stage", {"stage": "fetch", "status": "processing", "message": "Mengambil konten dari URL..."})
         caption_text, tmp_paths, carousel_meta = await _fetch_url_content_and_image(url)
         logger.info("[verify-stream][%s] URL fetch done duration=%.2fs", request_id, time.perf_counter() - started)
+        if is_social_post_url(url) and not (caption_text or tmp_paths):
+            yield _sse_event("error", {"message": (
+                "Postingan tidak bisa dibuka tanpa login atau sudah dihapus. Screenshot postingannya "
+                "lalu unggah sebagai gambar."
+            )})
+            return
         if carousel_meta.get("total_images", 0) > carousel_meta.get("processed_images", 0):
             yield _sse_event("stage", {
                 "stage": "fetch",
@@ -921,6 +983,7 @@ async def _verify_url_stream_generator(url: str, additional_text: str, db_sessio
         if stop:
             yield _sse_event("needs_input", stop.model_dump())
             return
+        analysis_text = entities.pop("_analysis_text", None) or analysis_text
         yield _sse_event("stage", {"stage": "check", "status": "done", "message": "Isi lowongan siap diperiksa"})
         yield _sse_event("stage", {"stage": "osint", "status": "processing", "message": "Menjalankan OSINT probes (WHOIS, peta, media sosial)..."})
         stage_started = time.perf_counter()

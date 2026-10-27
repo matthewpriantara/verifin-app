@@ -27,6 +27,14 @@ export interface OsintPhone {
   error?: string;
   authenticated?: boolean;
   comments?: string[];
+  getcontact?: {
+    probe_status?: string;
+    found?: boolean;
+    tag_count?: number | null;
+    spam_flagged?: boolean;
+    community_level?: string | null;
+    reason?: string;
+  };
 }
 
 export interface OsintWebsite {
@@ -84,6 +92,9 @@ export interface OsintPayload {
     safe_flags?: string[];
     neutral_notes?: string[];
     error?: string;
+    fraud_site_content?: { url?: string; matches?: string[] };
+    open_registration_domain?: { domain?: string; url?: string };
+    location_mismatch?: { posting_city?: string; profile_city?: string; source_url?: string };
   };
   social?: {
     enabled?: boolean;

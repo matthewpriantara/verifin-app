@@ -89,6 +89,19 @@ def _build_phone_osint_section(phones: list) -> str:
             lines.append(f"  → [info] {n}")
         if p.get("summary"):
             lines.append(f"  → ringkas: {p.get('summary')}")
+        gc = p.get("getcontact") or {}
+        if gc.get("probe_status") == "COMPLETED":
+            level = gc.get("community_level")
+            tag = gc.get("tag_count")
+            if level == "UNKNOWN":
+                lines.append("  → GetContact: 0 tag (belum dikenal komunitas)")
+            elif level == "SPAM":
+                lines.append(f"  → ⚠️ GetContact: {tag} tag, DITANDAI SPAM oleh komunitas")
+            else:
+                spam_note = "ditandai spam" if gc.get("spam_flagged") else "tidak ditandai spam"
+                lines.append(f"  → GetContact: {tag} tag, {spam_note} (sinyal komunitas, bukan jaminan)")
+        elif gc.get("probe_status") == "UNAVAILABLE":
+            lines.append(f"  → GetContact: tidak tersedia ({gc.get('reason') or 'kuota/akun'})")
         for rf in serp_risk:
             lines.append(f"  → [SERP] {rf}")
     return "\n".join(lines) if lines else "- Tidak ada data telepon."
@@ -425,6 +438,7 @@ def _build_text_signal_section(signals: dict | None) -> str:
 - Meminta biaya/transfer: {yn("has_fee_request")}
 - Menyebut kerja di luar negeri / negara rawan TPPO: {yn("has_foreign_work")}
 - Satu-satunya jalur melamar adalah WhatsApp pribadi atau tautan di bio (tanpa email/portal resmi): {yn("has_whatsapp_apply")}
+- Lamaran diarahkan ke Telegram: {yn("has_telegram_apply")}
 - Menyebut nama badan usaha yang bisa diperiksa: {yn("has_company")}
 - Mengaku pabrik/perusahaan/kantor tetapi tidak menyebut namanya: {yn("anonymous_employer_claim")}
 - Menawarkan gaji tanpa nama badan usaha: {yn("salary_no_company")}
@@ -481,7 +495,7 @@ Putuskan AMAN, WASPADA, atau BAHAYA hanya dari bukti di bawah.
 **Alamat di peta (OpenStreetMap):**
 {_build_address_osint_section(osint_results.get("address_validations", []))}
 
-**Reputasi nomor HP (Kaspersky Who Calls):**
+**Reputasi nomor HP (Kaspersky Who Calls + GetContact):**
 {_build_phone_osint_section(osint_results.get("phones", []))}
 
 **Jejak publik nama perusahaan (bukan cek legalitas AHU):**
@@ -515,6 +529,9 @@ Putuskan AMAN, WASPADA, atau BAHAYA hanya dari bukti di bawah.
 12. Marketplace, portal lowongan, hasil pencarian, dan akun medsos yang ditemukan lewat pencarian nama bukan kanal resmi lowongan. Sebut "resmi" hanya bila bukti menunjukkan hubungan resmi (mis. domain email sama dengan situs).
 13. Jika semua pencarian web berstatus `NO_RESULTS`/`UNAVAILABLE`, tulis "bukti publik tidak tersedia pada run ini", bukan "zero footprint". Jika `relevant_results > 0`, dilarang menulis keduanya.
 14. Jangan mengganti nama perusahaan hasil ekstraksi; `corrected_company_name` = null kecuali teks asli mengoreksinya.
+15. Telegram: lamaran yang diarahkan ke Telegram (t.me, "hubungi via Telegram", "join grup Telegram") hampir selalu penipuan. Kanal sah loker Indonesia: WhatsApp, email, formulir, atau walk-in. Kalimat peringatan ("tidak melalui Telegram", "waspada penipuan via Telegram") BUKAN sinyal.
+16. GetContact: 0 tag adalah sinyal lemah, bukan bukti penipuan (UMKM baru wajar sedikit tag). Banyak tag bukan jaminan lowongan asli (penipu bisa memakai nomor lama). `UNAVAILABLE` berarti tidak ada data. Nomor 0 tag + email gratisan + mengatasnamakan merek ritel/perusahaan besar: WASPADA 45–60.
+17. Domain bebas daftar (`*.my.id`, `*.web.id`, `*.biz.id`, blogspot, wixsite, vercel.app, netlify.app) baru mencurigakan bila lowongan mengatasnamakan PT atau merek besar. Isi website yang memuat pola "akun kerja", "tugas", "komisi", "deposit", "isi saldo", atau tautan Telegram adalah bukti keras.
 
 ## BAND SKOR
 
@@ -527,6 +544,7 @@ Putuskan AMAN, WASPADA, atau BAHAYA hanya dari bukti di bawah.
 - Kombinasi sinyal nyata tanpa bukti keras: alamat tidak ditemukan + jejak publik benar-benar nihil, instansi pemerintah + Gmail (45–60), atau sinyal scam lemah.
 - SINYAL TEKS "Mengaku perusahaan tetapi tidak menyebut namanya" = YA DAN "jalur melamar hanya WhatsApp/tautan bio" = YA: 45–60.
 - SINYAL TEKS "Mengatasnamakan BUMN/Persero/Tbk tetapi pendaftaran hanya lewat WhatsApp/tautan bio" = YA: minimal 60–74. Ada artikel peringatan/bantahan atas nama itu: mendekati 74.
+- SINYAL TEKS "Lamaran diarahkan ke Telegram" = YA: minimal 55–74. Bila ada permintaan biaya, data KTP, atau nomor terlapor: BAHAYA.
 - Ada artikel peringatan/bantahan lowongan palsu atas nama perusahaan ini DAN jalur melamar hanya WhatsApp/tautan bio (SINYAL TEKS): minimal 60–74, walau nama tidak memakai akhiran Persero/Tbk.
 
 **BAHAYA (75–100)**

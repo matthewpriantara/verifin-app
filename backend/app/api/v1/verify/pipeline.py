@@ -533,7 +533,8 @@ def attach_shap_explanation(
             entities=entities,
             model_used=analysis.get("model_used"),
             guard_rule=(
-                "dead_domain" if analysis.get("calibrated_dead_domain")
+                "telegram" if analysis.get("calibrated_telegram")
+                else "dead_domain" if analysis.get("calibrated_dead_domain")
                 else "unknown_search" if analysis.get("calibrated_unknown_search")
                 else None
             ),

@@ -1,0 +1,20 @@
+services:
+  getcontact-api:
+    build: .
+    container_name: getcontact-api
+    restart: unless-stopped
+    ports:
+      - "100.82.95.50:8091:8091"
+    env_file: .env
+    environment:
+      - GTC_CONFIG_DIR=/config
+      - GTC_CACHE_DB=/data/cache.db
+    volumes:
+      - ../../../getcontact-cli/gtc.py:/gtc/gtc.py:ro
+      - ${HOME}/.config/gtc:/config
+      - ./data:/data
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request;urllib.request.urlopen('http://127.0.0.1:8091/health')"]
+      interval: 60s
+      timeout: 5s
+      retries: 3

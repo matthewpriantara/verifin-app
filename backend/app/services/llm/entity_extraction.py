@@ -22,7 +22,8 @@ Skema JSON:
   "salaries": ["nominal gaji/upah persis seperti tertulis, contoh: Rp 3.500.000, 5-7 juta, UMR"],
   "is_job_posting": true,
   "postings": [{"employer": "nama pemberi kerja", "position": "posisi utama", "first_words": "5-8 kata pertama bagian lowongan ini, persis"}],
-  "non_job_content": "jenis teks lain di luar lowongan (berita, promo akun, info grup), atau string kosong"
+  "non_job_content": "jenis teks lain di luar lowongan (berita, promo akun, info grup), atau string kosong",
+  "non_job_spans": [{"text": "kutipan PERSIS 20-200 karakter bagian teks di luar lowongan", "reason": "berita/promo/info grup"}]
 }
 
 Aturan ketat:
@@ -34,7 +35,8 @@ Aturan ketat:
 6. Jangan mengarang entitas yang tidak tertulis di teks. Ekstrak PERSIS substring dari teks sumber.
 7. is_job_posting: false bila teks bukan penawaran kerja (berita, invoice, promosi produk, meme, logo, percakapan). Lowongan yang mencurigakan tetap true.
 8. Bagian setelah penanda "[PEMBACAAN AI DARI GAMBAR]" adalah bacaan kedua dari gambar yang sama, bukan konten lain; jangan masukkan ke non_job_content dan jangan hitung sebagai lowongan tambahan.
-9. postings: SATU entri per pemberi kerja berbeda. Satu pemberi kerja dengan banyak posisi = satu entri. Nama brand dan nama PT induknya (mis. "Morgans Kebab" dan "PT Trinity Success Group") = satu entri. Kosong bila bukan lowongan."""
+9. postings: SATU entri per pemberi kerja berbeda. Satu pemberi kerja dengan banyak posisi = satu entri. Nama brand dan nama PT induknya (mis. "Morgans Kebab" dan "PT Trinity Success Group") = satu entri. Kosong bila bukan lowongan.
+10. non_job_spans: isi HANYA bila teks memuat bagian yang jelas bukan bagian lowongan (berita, promo akun lain, info grup). Kutip persis dari teks sumber, tanpa mengubah satu huruf pun. Kosongkan bila seluruh teks adalah lowongan."""
 
 _USER_TEMPLATE = """Ekstrak entitas dari teks lowongan berikut (mungkin hasil OCR, bisa mengandung salah ketik/spasi aneh):
 
@@ -139,9 +141,20 @@ def _clean_content(data: dict) -> dict[str, Any]:
             "first_words": re.sub(r"\s+", " ", str(item.get("first_words") or "")).strip()[:160],
         })
     is_job = data.get("is_job_posting")
+    spans = []
+    for item in data.get("non_job_spans") or []:
+        if isinstance(item, str):
+            item = {"text": item}
+        if not isinstance(item, dict):
+            continue
+        text = re.sub(r"\s+", " ", str(item.get("text") or "")).strip()
+        if len(text) < 20:
+            continue
+        spans.append({"text": text[:400], "reason": str(item.get("reason") or "")[:60]})
     return {
         "is_job_posting": is_job if isinstance(is_job, bool) else None,
         "postings": postings[:8],
         "non_job_content": str(data.get("non_job_content") or "").strip()[:120],
+        "non_job_spans": spans[:3],
     }
 

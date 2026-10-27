@@ -52,9 +52,14 @@ export async function verifyText(
  return res.json() as Promise<VerifyResponse>;
 }
 
-export async function verifyImage(file: File, signal?: AbortSignal, additionalText?: string): Promise<VerifyResponse> {
+export async function verifyImage(
+ files: File | File[],
+ signal?: AbortSignal,
+ additionalText?: string,
+): Promise<VerifyResponse> {
  const form = new FormData();
- form.append("file", file);
+ // Beberapa gambar hanya dikirim bila pengguna menyatakan semuanya satu lowongan.
+ for (const f of Array.isArray(files) ? files : [files]) form.append("files", f);
  if (additionalText && additionalText.trim()) {
   form.append("additional_text", additionalText.trim());
  }

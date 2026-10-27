@@ -60,6 +60,7 @@ Untuk mencegah tabrakan port (*port collision*) dengan layanan lain di host serv
 
 1. **Ingestion & Text Extraction:**
    - Text direct (`/text`), Image OCR (`/image` via `app.services.ocr`), URL scraping (`/url-stream` via `app.services.web_fetcher`).
+   - `/verify/image` menerima satu atau beberapa gambar (field `files`, maks 5) sebagai SATU lowongan; frontend menanyakan lebih dulu apakah gambar-gambar itu satu lowongan. Teks yang diisi bersamaan dikirim sebagai konteks tambahan.
    - Gambar dibaca OCR dan model vision (`app.services.llm.vision`, `LLM_VISION_MODEL`, default = model ekstraksi) bersamaan. Bacaan vision ditempel setelah penanda `[PEMBACAAN AI DARI GAMBAR]`; kontak (nomor, email, URL) hanya dipakai bila juga terbaca OCR/regex, sisanya dicatat sebagai `ai_only_contacts`. Gemma 4 QAT di Ollama tidak menerima gambar, jadi vision punya penyedia sendiri (`LLM_VISION_BASE_URL`, `LLM_VISION_API_KEY`, `LLM_VISION_MODEL`) yang di produksi dan home dikunci ke Gemini Octane; saat penalaran pindah ke Gemma, vision tetap ke Gemini. Bila penyedia vision gagal, OCR saja yang dipakai.
    - OCR berjalan di satu thread khusus dan diulang sekali bila oneDNN melempar `std::exception`.
 2. **Hybrid NER:**
@@ -67,7 +68,7 @@ Untuk mencegah tabrakan port (*port collision*) dengan layanan lain di host serv
    - Normalisasi nomor telepon (+62) dan sanitasi domain/email.
 3. **Memeriksa Isi (`app.services.precheck`):** sebelum OSINT. Berhenti dengan respons `verdict="PERLU_INPUT"` + `needs_input` (SSE: event `needs_input`) bila input bukan lowongan (I-01), terlalu pendek (I-03), atau berisi beberapa pemberi kerja dengan kontak berbeda (I-04, dipotong per lowongan). Frontend menampilkan kartu intervensi di modal loading, lalu memanggil `/verify/text` dengan `intervention=segment|force`. Hasil `force` ditandai `input_quality="forced"` dan dikecualikan dari graf penipuan, `/cari`, dan cache. Klasifikasinya ikut panggilan ekstraksi entitas LLM (`entities["_content"]`), tanpa panggilan AI tambahan.
 4. **Multi-Channel OSINT Probes (`app.services.osint.runner`):**
-   - Telepon: Whocalls / Kaspersky & Kredibel (`phone_validator.py`)
+   - Telepon: Whocalls / Kaspersky & Kredibel (`phone_validator.py`), plus GetContact lewat layanan `getcontact-api` di home (`osint/getcontact.py`, `GETCONTACT_URL`). GetContact hanya memberi jumlah tag dan label spam; nama pemilik dan isi tag tidak diminta. Kosongkan `GETCONTACT_URL` untuk mematikan. Kuota 300/bulan, dibatasi 10 pencarian baru/hari + cache 14 hari; captcha diselesaikan manual (`python3 ~/Project/getcontact-cli/gtc.py captcha`).
    - Legalitas: Profil perusahaan & AHU/Pemerintah via SearXNG (`company_validator.py`)
    - Domain & Email: WHOIS/RDAP, usia domain, SPF/DKIM/MX (`whois_handler.py`)
    - Google Forms: Deteksi formulir rekrutmen mencurigakan (`gform_inspector.py`)
@@ -75,6 +76,7 @@ Untuk mencegah tabrakan port (*port collision*) dengan layanan lain di host serv
 5. **Graph & Explainable AI (XAI):**
    - Korelasi graf penipuan heterogen (`app.services.graph.fraud_network`).
    - Atribusi kontribusi bukti + waterfall (`app.services.xai.shap_explainer`): skor dari LLM, nilai dasar 12, bobot poin tetap, selisih = "Penyesuaian Penalaran AI".
+   - Sinyal teks tambahan: lamaran lewat Telegram (`has_telegram_apply`, aturan pengaman minimal WASPADA 55), domain bebas daftar atas nama badan usaha, isi website berpola penipuan tugas/komisi, lokasi profil publik berbeda dari alamat poster.
 6. **LLM Synthesis & Scoring Verdict:**
    - Multi-factor synthesis reasoning prompt (`app.services.llm.verifin_reasoning`).
    - Klasifikasi verdict: `AMAN` (0–39), `WASPADA` (40–74), `BAHAYA` (75–100), sesuai `app/services/constants.py`.

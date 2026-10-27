@@ -12,6 +12,7 @@ _FEATURE_WEIGHTS: dict[str, float] = {
     "has_fee_request":       40.0,
     "has_foreign_work":      25.0,
     "has_whatsapp_apply":    20.0,
+    "has_telegram_apply":    25.0,
     "fraud_keyword_count":    8.0,
     "fee_no_company":        15.0,
     "salary_no_company":      8.0,
@@ -20,9 +21,13 @@ _FEATURE_WEIGHTS: dict[str, float] = {
     "has_address":           -6.0,
     "safe_keyword_count":    -5.0,
     "phone_fraud_flag":      35.0,
+    "phone_unknown_community": 10.0,
+    "phone_spam_label":      15.0,
+    "phone_well_known":      -5.0,
     "free_email_only":        8.0,
     "domain_unreachable":    28.0,
     "domain_new":            15.0,
+    "open_registration_domain": 15.0,
     "no_spf_corporate":      12.0,
     "gform_phishing":        30.0,
     "fee_in_gform":          35.0,
@@ -30,15 +35,12 @@ _FEATURE_WEIGHTS: dict[str, float] = {
     "address_not_verified":  10.0,
     "company_found_web":     10.0,
     "scam_serp_result":      25.0,
+    "fraud_site_content":    25.0,
     "impersonation_warning": 15.0,
+    "location_mismatch":     10.0,
     "entity_in_fraud_network": 30.0,
     "entity_seen_multiple_cases": 15.0,
     "community_reported":    20.0,
-    # Alias / backward compatibility
-    "kredibel_fraud_flag":   35.0,
-    "address_not_found_osm": 10.0,
-    "company_not_found_web": 12.0,
-    "social_risk_flag":      10.0,
 }
 
 
@@ -92,6 +94,16 @@ def explain_verification_shap(
                 _FEATURE_WEIGHTS["has_whatsapp_apply"],
                 "risk",
                 "Pendaftaran hanya lewat WhatsApp pribadi atau tautan di bio, tanpa email atau portal resmi perusahaan",
+            ))
+
+        if bf.get("has_telegram_apply"):
+            contributions.append(_make_contrib(
+                "Lamaran Diarahkan ke Telegram",
+                "has_telegram_apply",
+                1,
+                _FEATURE_WEIGHTS["has_telegram_apply"],
+                "risk",
+                "Praktisi portal loker (LokerJogja.id): loker asli memakai WhatsApp, email, formulir, atau walk-in; Telegram hampir selalu penipuan",
             ))
 
         fraud_kw = bf.get("fraud_keyword_count", 0)
@@ -175,6 +187,46 @@ def explain_verification_shap(
             "Nomor HP terdeteksi berbahaya/spam di Kaspersky Who Calls",
         ))
 
+    # Sinyal komunitas GetContact (uji coba): hanya jumlah tag dan label, bukan isi tag.
+    getcontact = next(
+        (
+            p.get("getcontact") for p in phones
+            if isinstance(p, dict) and isinstance(p.get("getcontact"), dict)
+            and p["getcontact"].get("probe_status") == "COMPLETED"
+        ),
+        None,
+    )
+    if getcontact:
+        level = getcontact.get("community_level")
+        tag_count = getcontact.get("tag_count")
+        if getcontact.get("spam_flagged"):
+            contributions.append(_make_contrib(
+                "Nomor Ditandai Spam di GetContact",
+                "phone_spam_label",
+                1,
+                _FEATURE_WEIGHTS["phone_spam_label"],
+                "risk",
+                f"Nomor ditandai spam oleh komunitas GetContact ({tag_count if tag_count is not None else '?'} tag)",
+            ))
+        if level == "UNKNOWN":
+            contributions.append(_make_contrib(
+                "Nomor Belum Dikenal Komunitas (GetContact)",
+                "phone_unknown_community",
+                1,
+                _FEATURE_WEIGHTS["phone_unknown_community"],
+                "risk",
+                "Nomor tidak punya satu pun tag di GetContact; UMKM baru juga bisa begitu, jadi ini sinyal lemah",
+            ))
+        elif level == "WELL_KNOWN":
+            contributions.append(_make_contrib(
+                "Nomor Dikenal Luas di Komunitas (≥100 tag)",
+                "phone_well_known",
+                1,
+                abs(_FEATURE_WEIGHTS["phone_well_known"]),
+                "safe",
+                f"Nomor punya {tag_count} tag di GetContact; penipu juga bisa memakai nomor lama",
+            ))
+
     domain_info_pre = osint_results.get("domain") or {}
     if domain_info_pre.get("skipped") == "free_email":
         contributions.append(_make_contrib(
@@ -210,6 +262,42 @@ def explain_verification_shap(
             _FEATURE_WEIGHTS["domain_new"],
             "risk",
             f"Domain dibuat {domain_info.get('created_at', '?')} — domain baru sering dipakai penipu",
+        ))
+
+    open_domain = web_data.get("open_registration_domain") or {}
+    if open_domain.get("domain"):
+        contributions.append(_make_contrib(
+            "Domain Bebas Daftar atas Nama Badan Usaha",
+            "open_registration_domain",
+            1,
+            _FEATURE_WEIGHTS["open_registration_domain"],
+            "risk",
+            f"Domain `{open_domain.get('domain')}` bisa didaftarkan siapa saja tanpa verifikasi badan usaha, "
+            "padahal lowongan mengatasnamakan PT/merek",
+        ))
+
+    fraud_site = web_data.get("fraud_site_content") or {}
+    if fraud_site.get("matches"):
+        matched = ", ".join(fraud_site["matches"][:3])
+        contributions.append(_make_contrib(
+            "Isi Website Memuat Pola Penipuan Tugas/Komisi",
+            "fraud_site_content",
+            1,
+            _FEATURE_WEIGHTS["fraud_site_content"],
+            "risk",
+            f"Website lamaran memuat frasa penipuan tugas/komisi: {matched}",
+        ))
+
+    location_mismatch = web_data.get("location_mismatch") or {}
+    if location_mismatch.get("posting_city") and location_mismatch.get("profile_city"):
+        contributions.append(_make_contrib(
+            "Lokasi Usaha Tidak Cocok dengan Profil Publik",
+            "location_mismatch",
+            1,
+            _FEATURE_WEIGHTS["location_mismatch"],
+            "risk",
+            f"Lowongan menulis {location_mismatch.get('posting_city')}, sedangkan profil publik "
+            f"usaha dengan nama sama berada di {location_mismatch.get('profile_city')}",
         ))
 
     email_sec = osint_results.get("email_security") or {}
@@ -413,9 +501,9 @@ def _compose_attribution(
     evidence_delta = sum(c["delta"] for c in contributions)
     raw_uncapped = round(base_value + evidence_delta, 2)
 
-    # Penanganan pemotongan batas skala (Audit 007 temuan 4):
-    # Bila total bukti melebihi 100 atau kurang dari 0, kelebihan pemotongan ditampilkan secara eksplisit
-    # sebagai item clamping, bukan penyesuaian AI negatif yang membingungkan.
+    # Penanganan pemotongan batas skala (Audit 007 temuan 4): bila total bukti melewati 0–100,
+    # kelebihannya ditampilkan sebagai baris pemotongan, bukan penyesuaian AI negatif yang
+    # membingungkan. Penyesuaian AI sesudahnya hanya menutup selisih terhadap skor LLM.
     clamping_contribs = []
     if raw_uncapped > 100.0:
         excess = round(raw_uncapped - 100.0, 2)
@@ -436,7 +524,8 @@ def _compose_attribution(
             deficit,
             deficit,
             "risk",
-            "Total akumulasi sinyal aman melampaui batas minimal sistem (0). Skor dinaikkan sesuai batas skala.",
+            "Total akumulasi sinyal aman melampaui batas minimal sistem (0), jadi dinaikkan ke 0. "
+            "Skor akhir bisa lebih tinggi dari 0 bila penalaran AI menilai ada risiko yang tidak tertangkap bobot bukti.",
         ))
         remaining_delta = round(risk_score - 0.0, 2)
     else:
@@ -445,7 +534,13 @@ def _compose_attribution(
     calibration_contribs = []
     if abs(remaining_delta) >= 0.01:
         is_fallback = bool(model_used and any(k in str(model_used).lower() for k in ("fallback", "rule-based")))
-        if guard_rule == "dead_domain":
+        if guard_rule == "telegram":
+            cal_label = "Aturan Pengaman: Lamaran via Telegram"
+            cal_desc = (
+                "Lamaran diarahkan ke Telegram. Loker asli memakai WhatsApp, email, formulir, atau walk-in, "
+                "sehingga skor dinaikkan ke minimal WASPADA 55 walau tidak ada bukti keras lain."
+            )
+        elif guard_rule == "dead_domain":
             cal_label = "Aturan Pengaman: Domain Lamaran Tanpa DNS"
             cal_desc = (
                 "Domain email/tautan lamaran tidak terdaftar di DNS dan tidak ada situs resmi yang hidup. "
