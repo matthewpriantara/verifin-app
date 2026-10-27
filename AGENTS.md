@@ -60,7 +60,7 @@ Untuk mencegah tabrakan port (*port collision*) dengan layanan lain di host serv
 
 1. **Ingestion & Text Extraction:**
    - Text direct (`/text`), Image OCR (`/image` via `app.services.ocr`), URL scraping (`/url-stream` via `app.services.web_fetcher`).
-   - Gambar dibaca OCR dan model vision (`app.services.llm.vision`, `LLM_VISION_MODEL`, default = model ekstraksi) bersamaan. Bacaan vision ditempel setelah penanda `[PEMBACAAN AI DARI GAMBAR]`; kontak (nomor, email, URL) hanya dipakai bila juga terbaca OCR/regex, sisanya dicatat sebagai `ai_only_contacts`. Gemma 4 QAT di Ollama tidak menerima gambar, jadi saat Gemini mati vision dilewati dan OCR saja yang dipakai.
+   - Gambar dibaca OCR dan model vision (`app.services.llm.vision`, `LLM_VISION_MODEL`, default = model ekstraksi) bersamaan. Bacaan vision ditempel setelah penanda `[PEMBACAAN AI DARI GAMBAR]`; kontak (nomor, email, URL) hanya dipakai bila juga terbaca OCR/regex, sisanya dicatat sebagai `ai_only_contacts`. Gemma 4 QAT di Ollama tidak menerima gambar, jadi vision punya penyedia sendiri (`LLM_VISION_BASE_URL`, `LLM_VISION_API_KEY`, `LLM_VISION_MODEL`) yang di produksi dan home dikunci ke Gemini Octane; saat penalaran pindah ke Gemma, vision tetap ke Gemini. Bila penyedia vision gagal, OCR saja yang dipakai.
    - OCR berjalan di satu thread khusus dan diulang sekali bila oneDNN melempar `std::exception`.
 2. **Hybrid NER:**
    - Heuristik regex + ekstraksi LLM (`app.services.ner` & `app.services.llm.entity_extraction`).
