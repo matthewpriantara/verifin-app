@@ -700,6 +700,50 @@ def _cities_in(text: str) -> set[str]:
     return {city for city in found if not any(city != other and f" {city} " in f" {other} " for other in found)}
 
 
+def detect_location_mismatch(
+    companies: list,
+    posting_locations: list,
+    searches: list[dict],
+) -> dict[str, Any]:
+    """Kota di profil publik berbeda dari kota di lowongan.
+
+    Hanya memakai hasil yang menyebut alamat jalan dan TIDAK menyebut kota lowongan sama sekali,
+    karena banyak kota di Indonesia berbagi nama kecamatan (mis. "Depok, Yogyakarta")."""
+    posting_city = ""
+    for source in posting_locations:
+        cities = _cities_in(str(source))
+        if cities:
+            posting_city = sorted(cities)[0]
+            break
+    if not posting_city:
+        return {}
+    company_tokens = {
+        tok for c in companies if c
+        for tok in re.findall(r"[a-z0-9]+", str(c).lower())
+        if len(tok) >= 4
+    }
+    if not company_tokens:
+        return {}
+    for search in searches:
+        for result in search.get("results") or []:
+            blob = f"{result.get('title') or ''} {result.get('snippet') or ''}".lower()
+            if len(company_tokens & set(re.findall(r"[a-z0-9]+", blob))) < min(2, len(company_tokens)):
+                continue
+            if not re.search(r"\b(?:jl|jln|jalan|ruko|gedung|kantor)\b", blob):
+                continue
+            cities = _cities_in(blob)
+            if posting_city in cities:
+                continue
+            other = cities - {posting_city}
+            if other:
+                return {
+                    "posting_city": posting_city,
+                    "profile_city": sorted(other)[0],
+                    "source_url": result.get("url"),
+                }
+    return {}
+
+
 def collect_web_evidence(entities: dict) -> dict[str, Any]:
     emails = entities.get("emails") or []
     urls = entities.get("urls") or []
@@ -938,39 +982,17 @@ def collect_web_evidence(entities: dict) -> dict[str, Any]:
             break
 
     # R6: profil publik usaha dengan nama sama berada di kota lain dari alamat poster.
-    location_mismatch: dict[str, Any] = {}
-    posting_city = ""
-    for source in list(addresses or []) + list(entities.get("location_candidates") or []):
-        cities = _cities_in(str(source))
-        if cities:
-            posting_city = sorted(cities)[0]
-            break
-    if posting_city and companies:
-        company_tokens = {
-            t for c in company_forms
-            for t in re.findall(r"[a-z0-9]+", c.lower())
-            if len(t) >= 4
-        }
-        for s in searches:
-            for r in s.get("results") or []:
-                blob = f"{r.get('title') or ''} {r.get('snippet') or ''}".lower()
-                if len(company_tokens & set(re.findall(r"[a-z0-9]+", blob))) < min(2, len(company_tokens) or 2):
-                    continue
-                other_cities = _cities_in(blob) - {posting_city}
-                if other_cities:
-                    profile_city = sorted(other_cities)[0]
-                    location_mismatch = {
-                        "posting_city": posting_city,
-                        "profile_city": profile_city,
-                        "source_url": r.get("url"),
-                    }
-                    neutral_notes.append(
-                        f"Profil publik dengan nama sama ditemukan di {profile_city}, sedangkan lowongan menulis "
-                        f"{posting_city}. Ini petunjuk, bukan bukti penipuan: usaha bisa punya cabang."
-                    )
-                    break
-            if location_mismatch:
-                break
+    location_mismatch = detect_location_mismatch(
+        companies,
+        list(addresses or []) + list(entities.get("location_candidates") or []),
+        searches,
+    )
+    if location_mismatch:
+        neutral_notes.append(
+            f"Profil publik dengan nama sama ditemukan di {location_mismatch['profile_city']}, sedangkan "
+            f"lowongan menulis {location_mismatch['posting_city']}. Ini petunjuk, bukan bukti penipuan: "
+            "usaha bisa punya cabang."
+        )
 
     def uniq(xs: list[str]) -> list[str]:
         return list(dict.fromkeys(xs))

@@ -12,6 +12,7 @@ from app.services.osint.getcontact import (
 from app.services.osint.web_evidence import (
     _cities_in,
     _fraud_site_matches,
+    detect_location_mismatch,
     is_open_registration_domain,
 )
 from app.services.precheck import (
@@ -138,6 +139,31 @@ class TestWebHeuristics:
     def test_city_extraction(self):
         assert _cities_in("Jl. Raya Janti, Sleman, Yogyakarta") >= {"sleman", "yogyakarta"}
         assert _cities_in("Toko Bunga Roemah Boenga, Banda Aceh") == {"banda aceh"}
+
+    def test_location_mismatch_flags_other_city(self):
+        searches = [{"results": [{
+            "title": "Roemah Boenga - Toko Bunga",
+            "snippet": "Toko Bunga Roemah Boenga, Jl. Teuku Umar, Banda Aceh",
+            "url": "https://instagram.com/roemahboenga",
+        }]}]
+        found = detect_location_mismatch(["Roemah Boenga"], ["Jl. Kemang Raya No. 5, Jakarta"], searches)
+        assert found["posting_city"] == "jakarta"
+        assert found["profile_city"] == "banda aceh"
+
+    def test_location_mismatch_ignores_result_that_mentions_posting_city(self):
+        # "Depok, Yogyakarta" adalah kecamatan, bukan kota lain.
+        searches = [{"results": [{
+            "title": "Hotel New Saphir Yogyakarta",
+            "snippet": "Hotel New Saphir terletak di Jalan Laksda Adisucipto No. 38, Depok, Yogyakarta",
+            "url": "https://www.traveloka.com/hotel-new-saphir",
+        }]}]
+        assert detect_location_mismatch(["Hotel New Saphir"], ["Jl. Laksda Adisucipto, Yogyakarta"], searches) == {}
+
+    def test_location_mismatch_requires_street_address(self):
+        searches = [{"results": [{
+            "title": "PT Maju Jaya", "snippet": "cabang Bandung", "url": "https://example.com",
+        }]}]
+        assert detect_location_mismatch(["PT Maju Jaya"], ["Jakarta"], searches) == {}
 
 
 class TestPrecheckInterventions:
