@@ -233,3 +233,12 @@ class TestMultiEmployerHeuristic:
         morgans = {"companies": ["MORGANS", "PT TRINITY SUCCESS GROUP", "Morgans Kebab"],
                    "phones": ["+6285123871115"], "emails": ["recruitmentmorganskebab@gmail.com"]}
         assert not is_multi_employer(morgans)
+
+
+class TestPrimaryEmployerName:
+    def test_prefers_more_specific_variant(self):
+        from app.services.ner import primary_employer_name
+        assert primary_employer_name(["MORGANS", "PT TRINITY SUCCESS GROUP", "Morgans Kebab"]) == "Morgans Kebab"
+        assert primary_employer_name(["PACC"]) == "PACC"
+        assert primary_employer_name(["Malio Gelato"]) == "Malio Gelato"
+        assert primary_employer_name([]) == ""

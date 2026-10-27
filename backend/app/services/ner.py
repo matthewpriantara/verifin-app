@@ -118,6 +118,20 @@ def count_distinct_employers(companies: list[str]) -> int:
     return len(groups)
 
 
+def primary_employer_name(companies: list[str]) -> str:
+    """Nama yang dipakai untuk pencarian: nama pertama, kecuali ada varian yang lebih spesifik.
+
+    "MORGANS" (OCR logo) → "Morgans Kebab"; pencarian satu kata umum menghasilkan perusahaan lain.
+    """
+    names = [c for c in (companies or []) if isinstance(c, str) and c.strip()]
+    if not names:
+        return ""
+    first = names[0]
+    first_tokens = _employer_tokens(first)
+    richer = [n for n in names[1:] if first_tokens and first_tokens < _employer_tokens(n)]
+    return max(richer, key=lambda n: len(_employer_tokens(n))) if richer else first
+
+
 def is_multi_employer(entities: dict) -> bool:
     """Input memuat lowongan dari beberapa pemberi kerja: ≥ 2 nama berbeda DAN ≥ 2 nomor berbeda
     atau ≥ 2 domain email korporat berbeda.
