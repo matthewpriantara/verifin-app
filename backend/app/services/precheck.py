@@ -134,8 +134,11 @@ def assess_input(text: str, entities: dict) -> dict[str, Any]:
                 },
             }
 
-    if llm.get("non_job_content") or rule.get("has_mixed_content"):
-        kind = llm.get("non_job_content") or "teks lain"
+    non_job = llm.get("non_job_content") or ""
+    if "PEMBACAAN AI" in non_job.upper():
+        non_job = ""
+    if non_job or rule.get("has_mixed_content"):
+        kind = non_job or "teks lain"
         notes.append(f"Ada teks di luar lowongan ({kind}). Bagian itu ikut terbaca; abaikan bila tidak relevan.")
     ai_only = (entities.get("_ner_meta") or {}).get("ai_only_contacts") or []
     if ai_only:

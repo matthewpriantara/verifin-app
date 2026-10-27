@@ -33,7 +33,8 @@ Aturan ketat:
 5. Jika suatu kategori tidak ada, kembalikan array kosong [].
 6. Jangan mengarang entitas yang tidak tertulis di teks. Ekstrak PERSIS substring dari teks sumber.
 7. is_job_posting: false bila teks bukan penawaran kerja (berita, invoice, promosi produk, meme, logo, percakapan). Lowongan yang mencurigakan tetap true.
-8. postings: SATU entri per pemberi kerja berbeda. Satu pemberi kerja dengan banyak posisi = satu entri. Nama brand dan nama PT induknya (mis. "Morgans Kebab" dan "PT Trinity Success Group") = satu entri. Kosong bila bukan lowongan."""
+8. Bagian setelah penanda "[PEMBACAAN AI DARI GAMBAR]" adalah bacaan kedua dari gambar yang sama, bukan konten lain; jangan masukkan ke non_job_content dan jangan hitung sebagai lowongan tambahan.
+9. postings: SATU entri per pemberi kerja berbeda. Satu pemberi kerja dengan banyak posisi = satu entri. Nama brand dan nama PT induknya (mis. "Morgans Kebab" dan "PT Trinity Success Group") = satu entri. Kosong bila bukan lowongan."""
 
 _USER_TEMPLATE = """Ekstrak entitas dari teks lowongan berikut (mungkin hasil OCR, bisa mengandung salah ketik/spasi aneh):
 
