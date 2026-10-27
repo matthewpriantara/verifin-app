@@ -68,7 +68,7 @@ def _cached(conn: sqlite3.Connection, phone_hash: str) -> dict | None:
         "status": "COMPLETED",
         "found": bool(row[0]),
         "tag_count": int(row[1] or 0),
-        "spam_flagged": str(row[2] or "none").lower() not in ("none", "", "null"),
+        "spam_flagged": str(row[2] or "none").lower() == "flagged",
     }
 
 
@@ -94,14 +94,27 @@ def _consume_quota(conn: sqlite3.Connection) -> None:
     conn.commit()
 
 
+def _is_spam(spam: dict) -> str:
+    """GetContact memakai `degree` sebagai warna reputasi ("green" = aman) dan `type` untuk
+    label spam. Nomor dengan 2 tag dan degree "green" bukan spam; hanya type spam/scam atau
+    degree merah/oranye yang dihitung."""
+    degree = str(spam.get("degree") or "none").lower()
+    spam_type = str(spam.get("type") or "").lower()
+    if spam_type in ("spam", "scam", "fraud"):
+        return "flagged"
+    if degree in ("red", "orange"):
+        return "flagged"
+    return degree
+
+
 def _parse(body: dict) -> dict:
     result = body.get("result") or {}
     profile = result.get("profile") or {}
-    spam = (result.get("spamInfo") or {}).get("degree")
+    spam = result.get("spamInfo") or {}
     return {
         "found": True,
         "tag_count": int(profile.get("tagCount") or 0),
-        "spam_degree": str(spam or "none"),
+        "spam_degree": _is_spam(spam),
     }
 
 
@@ -161,7 +174,7 @@ async def lookup(
             "status": "COMPLETED",
             "found": parsed["found"],
             "tag_count": parsed["tag_count"],
-            "spam_flagged": parsed["spam_degree"].lower() not in ("none", "", "null"),
+            "spam_flagged": parsed["spam_degree"].lower() == "flagged",
         }
 
 
