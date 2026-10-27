@@ -26,6 +26,114 @@ _IG_NOISE_PATTERNS = [
     r"Laporkan masalah",
 ]
 
+_APPLY_LINK_HOSTS = re.compile(r"(?:^|\.)(?:s\.id|bit\.ly|forms\.gle|lynk\.id|linktr\.ee|tinyurl\.com)$|docs\.google\.com", re.I)
+_APPLY_LINK_TEXT = re.compile(r"formulir|form|lamar|apply|daftar|register", re.I)
+
+
+def _find_job_posting(node) -> dict | None:
+    if isinstance(node, list):
+        return next((p for p in (_find_job_posting(n) for n in node) if p), None)
+    if not isinstance(node, dict):
+        return None
+    types = node.get("@type")
+    if types == "JobPosting" or (isinstance(types, list) and "JobPosting" in types):
+        return node
+    return _find_job_posting(node.get("@graph")) if "@graph" in node else None
+
+
+def _decode_cfemail(hexstr: str) -> str:
+    try:
+        key = int(hexstr[:2], 16)
+        return "".join(chr(int(hexstr[i:i + 2], 16) ^ key) for i in range(2, len(hexstr), 2))
+    except ValueError:
+        return ""
+
+
+def _job_posting_page_text(html: str, url: str) -> tuple[str, str | None]:
+    """Halaman portal lowongan dengan schema.org JobPosting (LokerJogja, Jobstreet, Glints, KitaLulus).
+
+    Hanya data lowongan itu sendiri dan tautan kontak di isi utama yang diambil. Sidebar
+    "lowongan lain" sengaja tidak dibaca karena nama perusahaannya ikut terbaca sebagai
+    pemberi kerja dan bagian "Kirim Lamaran" terpotong.
+    """
+    import json
+    from urllib.parse import unquote, urlparse
+
+    soup = BeautifulSoup(html, "html.parser")
+    posting = None
+    for script in soup.find_all("script", type="application/ld+json"):
+        try:
+            posting = _find_job_posting(json.loads(script.string or script.get_text() or "", strict=False))
+        except ValueError:
+            continue
+        if posting:
+            break
+    if not posting or not posting.get("title"):
+        return "", None
+
+    def clean(value) -> str:
+        return re.sub(r"\s+", " ", str(value or "")).strip()
+
+    org = posting.get("hiringOrganization") or {}
+    lines = [f"Posisi: {clean(posting.get('title'))}"]
+    if isinstance(org, dict) and org.get("name"):
+        lines.append(f"Perusahaan: {clean(org['name'])}")
+    places = posting.get("jobLocation") or []
+    for place in places if isinstance(places, list) else [places]:
+        addr = (place or {}).get("address") if isinstance(place, dict) else None
+        if isinstance(addr, dict):
+            parts = [clean(addr.get(k)) for k in ("streetAddress", "addressLocality", "addressRegion", "postalCode")]
+            parts = [p for p in parts if p and "tidak diketahui" not in p.lower()]
+            if parts:
+                lines.append(f"Lokasi: {', '.join(parts)}")
+    salary = (posting.get("baseSalary") or {}).get("value") if isinstance(posting.get("baseSalary"), dict) else None
+    if isinstance(salary, dict) and (salary.get("minValue") or salary.get("value")):
+        lines.append(f"Gaji: {clean(salary.get('minValue') or salary.get('value'))}–{clean(salary.get('maxValue'))} {clean(salary.get('unitText'))}".strip("– "))
+    if posting.get("employmentType"):
+        lines.append(f"Tipe: {clean(posting['employmentType'])}")
+    if posting.get("validThrough"):
+        lines.append(f"Batas lamaran: {clean(posting['validThrough'])}")
+    description = BeautifulSoup(str(posting.get("description") or ""), "html.parser").get_text("\n")
+    description = "\n".join(l.strip() for l in description.splitlines() if l.strip())
+    if description:
+        lines.append(f"Deskripsi:\n{description}")
+
+    own_host = (urlparse(url).hostname or "").removeprefix("www.")
+    contacts: list[str] = []
+    for a in soup.find_all("a", href=True):
+        if a.find_parent(["footer", "header", "nav", "aside"]):
+            continue
+        href = a["href"].strip()
+        low = href.lower()
+        if "wa.me/" in low or "api.whatsapp.com" in low:
+            num = re.search(r"(?:wa\.me/|phone=)(\+?\d{9,15})", href)
+            if num:
+                contacts.append(f"WhatsApp: +{num.group(1).lstrip('+')}")
+        elif low.startswith("mailto:"):
+            contacts.append(f"Email: {unquote(href[7:].split('?')[0])}")
+        elif low.startswith("tel:"):
+            contacts.append(f"Telepon: {href[4:]}")
+        elif "/cdn-cgi/l/email-protection#" in low:
+            email = _decode_cfemail(href.split("#", 1)[1])
+            if "@" in email:
+                contacts.append(f"Email: {email}")
+        elif low.startswith("http"):
+            host = (urlparse(href).hostname or "").removeprefix("www.")
+            if host and host != own_host and (_APPLY_LINK_HOSTS.search(host) or _APPLY_LINK_TEXT.search(a.get_text(" ", strip=True))):
+                contacts.append(f"Tautan lamaran: {href}")
+    for el in soup.select("[data-cfemail]"):
+        if not el.find_parent(["footer", "header", "nav", "aside"]):
+            email = _decode_cfemail(el.get("data-cfemail", ""))
+            if "@" in email:
+                contacts.append(f"Email: {email}")
+    contacts = list(dict.fromkeys(contacts))
+    if contacts:
+        lines.append("Cara melamar:\n" + "\n".join(contacts))
+
+    og = soup.find("meta", property="og:image")
+    return "\n".join(lines), (og.get("content").strip() if og and og.get("content") else None)
+
+
 def _is_script_or_ad_junk(text: str) -> bool:
     if not text or not text.strip():
         return True
@@ -144,6 +252,18 @@ def _sync_scrapling_fetch(url: str) -> tuple[str, list[str]]:
                                 break
                     except Exception as exc:
                         logger.warning("[IG Proxy %s] %s", domain, exc)
+
+    if not combined_caption_text:
+        try:
+            res = safe_get(url, headers=headers, timeout=15.0)
+            if res.status_code == 200 and "JobPosting" in res.text:
+                posting_text, posting_img = _job_posting_page_text(res.text, url)
+                if posting_text:
+                    combined_caption_text = posting_text
+                    if posting_img:
+                        image_urls.append(posting_img)
+        except Exception as exc:
+            logger.warning("[JobPosting Fetch] %s", exc)
 
     if not combined_caption_text:
         try:

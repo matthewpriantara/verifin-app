@@ -227,3 +227,9 @@ class TestMultiEmployerHeuristic:
         e2 = {"companies": ["PT KOMITRANDO EMPORIO", "PT Pertamina (Persero)"],
               "phones": ["+6288706405063", "+6282221333836"], "emails": ["komitrando@komitrando.com"]}
         assert is_multi_employer(e2)
+
+    def test_parent_and_brand_with_phone_and_free_email(self):
+        from app.services.ner import is_multi_employer
+        morgans = {"companies": ["MORGANS", "PT TRINITY SUCCESS GROUP", "Morgans Kebab"],
+                   "phones": ["+6285123871115"], "emails": ["recruitmentmorganskebab@gmail.com"]}
+        assert not is_multi_employer(morgans)
