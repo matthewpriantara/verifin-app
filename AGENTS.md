@@ -46,7 +46,7 @@ Untuk mencegah tabrakan port (*port collision*) dengan layanan lain di host serv
 
 ## 3. Stack & Komponen Sistem
 
-- **Backend:** FastAPI (Python 3.11), SQLAlchemy, PostgreSQL 17 Alpine, NetworkX (Fraud Graph), XAI atribusi bukti aditif berbobot poin (bukan pustaka SHAP; lihat `anti-slop/audit-007-2026-10-27.md`), PaddleOCR (OCR).
+- **Backend:** FastAPI (Python 3.11), SQLAlchemy, PostgreSQL 17 Alpine, NetworkX (Fraud Graph), XAI atribusi bukti aditif berbobot poin (bukan pustaka SHAP, walau berkasnya bernama `shap_explainer.py`), PaddleOCR (OCR).
 - **Frontend:** Next.js 16 (React 19, App Router, TypeScript), Tailwind CSS v4, Motion, Phosphor Icons.
 - **Database:** Self-hosted PostgreSQL 17 (`verifin-db`) dengan automated daily backup (`verifin-db-backup`). Semua jejak Supabase cloud telah dihapus total.
 - **LLM Provider Utama:** Octane AI Cloud (`https://api.octane.web.id/v1`), `ag/gemini-3.8-flash-medium` untuk penalaran dan `ag/gemini-3.8-flash-low` untuk ekstraksi entitas. Angka uji 14 lowongan (run 9 dan run 11 di `test/okt-2026/README.md`) dihasilkan model ini.
@@ -60,19 +60,22 @@ Untuk mencegah tabrakan port (*port collision*) dengan layanan lain di host serv
 
 1. **Ingestion & Text Extraction:**
    - Text direct (`/text`), Image OCR (`/image` via `app.services.ocr`), URL scraping (`/url-stream` via `app.services.web_fetcher`).
+   - Gambar dibaca OCR dan model vision (`app.services.llm.vision`, `LLM_VISION_MODEL`, default = model ekstraksi) bersamaan. Bacaan vision ditempel setelah penanda `[PEMBACAAN AI DARI GAMBAR]`; kontak (nomor, email, URL) hanya dipakai bila juga terbaca OCR/regex, sisanya dicatat sebagai `ai_only_contacts`. Gemma 4 QAT di Ollama tidak menerima gambar, jadi saat Gemini mati vision dilewati dan OCR saja yang dipakai.
+   - OCR berjalan di satu thread khusus dan diulang sekali bila oneDNN melempar `std::exception`.
 2. **Hybrid NER:**
    - Heuristik regex + ekstraksi LLM (`app.services.ner` & `app.services.llm.entity_extraction`).
    - Normalisasi nomor telepon (+62) dan sanitasi domain/email.
-3. **Multi-Channel OSINT Probes (`app.services.osint.runner`):**
+3. **Memeriksa Isi (`app.services.precheck`):** sebelum OSINT. Berhenti dengan respons `verdict="PERLU_INPUT"` + `needs_input` (SSE: event `needs_input`) bila input bukan lowongan (I-01), terlalu pendek (I-03), atau berisi beberapa pemberi kerja dengan kontak berbeda (I-04, dipotong per lowongan). Frontend menampilkan kartu intervensi di modal loading, lalu memanggil `/verify/text` dengan `intervention=segment|force`. Hasil `force` ditandai `input_quality="forced"` dan dikecualikan dari graf penipuan, `/cari`, dan cache. Klasifikasinya ikut panggilan ekstraksi entitas LLM (`entities["_content"]`), tanpa panggilan AI tambahan.
+4. **Multi-Channel OSINT Probes (`app.services.osint.runner`):**
    - Telepon: Whocalls / Kaspersky & Kredibel (`phone_validator.py`)
    - Legalitas: Profil perusahaan & AHU/Pemerintah via SearXNG (`company_validator.py`)
    - Domain & Email: WHOIS/RDAP, usia domain, SPF/DKIM/MX (`whois_handler.py`)
    - Google Forms: Deteksi formulir rekrutmen mencurigakan (`gform_inspector.py`)
    - Lokasi: OpenStreetMap geocoding via Nominatim (`address_validator.py`)
-4. **Graph & Explainable AI (XAI):**
+5. **Graph & Explainable AI (XAI):**
    - Korelasi graf penipuan heterogen (`app.services.graph.fraud_network`).
    - Atribusi kontribusi bukti + waterfall (`app.services.xai.shap_explainer`): skor dari LLM, nilai dasar 12, bobot poin tetap, selisih = "Penyesuaian Penalaran AI".
-5. **LLM Synthesis & Scoring Verdict:**
+6. **LLM Synthesis & Scoring Verdict:**
    - Multi-factor synthesis reasoning prompt (`app.services.llm.verifin_reasoning`).
    - Klasifikasi verdict: `AMAN` (0–39), `WASPADA` (40–74), `BAHAYA` (75–100), sesuai `app/services/constants.py`.
    - Real-time stage updates dikirim ke frontend via Server-Sent Events (SSE).

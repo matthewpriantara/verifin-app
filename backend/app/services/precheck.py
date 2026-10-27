@@ -1,7 +1,9 @@
 """Tahap "Memeriksa isi": berhenti sebelum OSINT bila input tidak bisa dinilai sebagai satu lowongan.
 
-Rancangan dan katalog intervensi (I-01 bukan lowongan, I-03 teks terlalu sedikit, I-04 lebih dari
-satu lowongan, I-05 ada teks lain) ada di `anti-slop/audit-007-2026-10-27.md` bagian 4. Keputusan
+Intervensi: I-01 bukan lowongan, I-03 teks terlalu sedikit, I-04 lebih dari satu lowongan (dipotong
+per pemberi kerja); catatan tanpa berhenti untuk teks lain di luar lowongan dan kontak yang hanya
+terbaca AI. Pemicunya uji tepi 27 Okt 2026: tiga loker asli yang digabung setelah loker palsu
+dengan nomor yang sama dinilai BAHAYA 75 karena graf penipuan ikut tercemar. Keputusan
 memakai dua sumber: aturan kata kunci (`check_content_safety_and_type`) dan klasifikasi dari
 panggilan ekstraksi entitas LLM (`entities["_content"]`), jadi tidak ada panggilan AI tambahan.
 """
