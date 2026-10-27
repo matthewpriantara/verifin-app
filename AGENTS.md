@@ -46,7 +46,7 @@ Untuk mencegah tabrakan port (*port collision*) dengan layanan lain di host serv
 
 ## 3. Stack & Komponen Sistem
 
-- **Backend:** FastAPI (Python 3.11), SQLAlchemy, PostgreSQL 17 Alpine, NetworkX (Fraud Graph), SHAP (Explainable AI), PaddleOCR (OCR).
+- **Backend:** FastAPI (Python 3.11), SQLAlchemy, PostgreSQL 17 Alpine, NetworkX (Fraud Graph), XAI atribusi bukti aditif berbobot poin (bukan pustaka SHAP; lihat `anti-slop/audit-007-2026-10-27.md`), PaddleOCR (OCR).
 - **Frontend:** Next.js 16 (React 19, App Router, TypeScript), Tailwind CSS v4, Motion, Phosphor Icons.
 - **Database:** Self-hosted PostgreSQL 17 (`verifin-db`) dengan automated daily backup (`verifin-db-backup`). Semua jejak Supabase cloud telah dihapus total.
 - **LLM Provider Utama:** Octane AI Cloud (`https://api.octane.web.id/v1`), `ag/gemini-3.8-flash-medium` untuk penalaran dan `ag/gemini-3.8-flash-low` untuk ekstraksi entitas. Angka uji 14 lowongan (run 9 dan run 11 di `test/okt-2026/README.md`) dihasilkan model ini.
@@ -71,10 +71,10 @@ Untuk mencegah tabrakan port (*port collision*) dengan layanan lain di host serv
    - Lokasi: OpenStreetMap geocoding via Nominatim (`address_validator.py`)
 4. **Graph & Explainable AI (XAI):**
    - Korelasi graf penipuan heterogen (`app.services.graph.fraud_network`).
-   - SHAP local explanation waterfall (`app.services.xai.shap_explainer`).
+   - Atribusi kontribusi bukti + waterfall (`app.services.xai.shap_explainer`): skor dari LLM, nilai dasar 12, bobot poin tetap, selisih = "Penyesuaian Penalaran AI".
 5. **LLM Synthesis & Scoring Verdict:**
    - Multi-factor synthesis reasoning prompt (`app.services.llm.verifin_reasoning`).
-   - Klasifikasi verdict: `AMAN` (0–29), `WASPADA` (30–69), `BAHAYA` (70–100).
+   - Klasifikasi verdict: `AMAN` (0–39), `WASPADA` (40–74), `BAHAYA` (75–100), sesuai `app/services/constants.py`.
    - Real-time stage updates dikirim ke frontend via Server-Sent Events (SSE).
 
 ---
