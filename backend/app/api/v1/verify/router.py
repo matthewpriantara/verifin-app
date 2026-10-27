@@ -251,8 +251,8 @@ async def verify_from_text(
     ),
 )
 async def verify_from_image(
-    files: list[UploadFile] | None = File(
-        default=None,
+    files: list[UploadFile] = File(
+        default=[],
         description="Satu atau beberapa gambar poster/screenshot lowongan yang membentuk SATU lowongan (JPG/PNG/WEBP)",
     ),
     file: UploadFile | None = File(
