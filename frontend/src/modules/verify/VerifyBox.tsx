@@ -293,6 +293,7 @@ function LoadingModal({
               const Icon = step.icon;
               const isDone = i < stepIndex;
               const isActive = i === stepIndex && !needs;
+              const isWaiting = i === stepIndex && Boolean(needs);
               const isPending = i > stepIndex;
               const isLast = i === steps.length - 1;
 
@@ -406,10 +407,11 @@ function LoadingModal({
                             "rounded-full px-2 py-0.5 text-[11px] font-semibold",
                             isDone && "bg-aman-bg text-aman-fg border border-aman-border",
                             isActive && "bg-text-primary text-bg-elevated font-bold motion-safe:animate-pulse",
-                            isPending && "bg-bg-muted text-text-muted"
+                            isPending && !isWaiting && "bg-bg-muted text-text-muted",
+                            isWaiting && "bg-waspada-bg text-waspada-fg border border-waspada-border"
                           )}
                         >
-                          {isDone ? "Selesai" : isActive ? "Proses..." : "Menunggu"}
+                          {isDone ? "Selesai" : isActive ? "Proses..." : isWaiting ? "Perlu jawaban" : "Menunggu"}
                         </span>
                         <span className="font-mono text-[11px] text-text-muted">Langkah {i + 1}</span>
                       </div>
