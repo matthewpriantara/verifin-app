@@ -241,3 +241,33 @@ Run 2 sudah benar, tetapi sebagian perbaikannya masih tambalan. Akar masalahnya:
 ### Perubahan sebelum run 5
 - Masking data pribadi: nomor telepon, bagian lokal email, NIK, dan rekening diganti token sebelum teks dikirim ke LLM.
 - OCR: `requirements.txt` dulu meminta PaddleOCR 3.x untuk semua platform, sedangkan uji lokal memakai 2.8.1. Di image Docker, Paddle 3.3 tanpa oneDNN butuh 90–125 dtk per poster, dan oneDNN-nya crash. Sekarang Linux/Windows dikunci ke Paddle 3.1.1 + PaddleOCR 3.7.0 dengan oneDNN dan model mobile (17,8 dtk per poster di container setelah model dimuat), sedangkan macOS Intel tetap 2.6.2 + 2.8.1.
+
+## Run 13 (27 Okt 2026 malam, stack home, validasi data LokerJogja)
+
+Cache dimatikan (`VERIFY_CACHE_ENABLED=false`), model `ag/gemini-3.8-flash-medium`. Kode `75d5719`, tes otomatis 199 lulus. Set lengkap dijalankan dua kali (pass 1 dan pass 3); pass 2 dibuang karena LLM sedang tidak tersedia dan guard isi website belum ada saat itu.
+
+| ID | Pass 1 | Pass 3 | Harapan | Catatan |
+|---|---|---|---|---|
+| LJ1 Malio Gelato | AMAN 18 | AMAN 15 | AMAN | |
+| LJ2 PACC | AMAN 18 | AMAN 18 | AMAN | tautan LokerJogja |
+| LJ3 Morgans Kebab | AMAN 18 | AMAN 18 | AMAN | poster |
+| LJ4 Excelland | AMAN 24 | AMAN 20 | AMAN | |
+| LJ5 Al-Kautsar | AMAN 15 | AMAN 18 | AMAN | |
+| V1 Envipedia | AMAN 20 | AMAN 20 | AMAN | PT memakai WA tidak dihukum |
+| F1 New Trendy | WASPADA 65 | BAHAYA 78 | ≥ WASPADA 45 | isi situs "akun kerja"/tugas; guard WASPADA 55 |
+| F2 Guardian | WASPADA 50 | WASPADA 50 | stabil | nomor 0 tag GetContact (+10); sebelumnya AMAN 28 / WASPADA 45 |
+| F3 Sociolla | WASPADA 50 | WASPADA 55 | ≥ 45 | |
+| F4 Roemah Boenga | WASPADA 45 | WASPADA 45 | ≥ 45 | domain tanpa DNS |
+| F5 Sharp | WASPADA 55 | WASPADA 55 | ≥ 45 | `sharp-career.my.id` |
+| TG1 (teks sintetis + Telegram) | WASPADA 65 | WASPADA 60 | ≥ 55 | baris "Aturan Pengaman: Lamaran via Telegram" |
+| TG2 (= T5 Adaro) | WASPADA 72 | WASPADA 72 | tidak turun | |
+| T1 / T9 / T10 / T11 (asli) | 12 / 25 / 6 / 22 | 12 / 25 / 7 / 24 | AMAN | |
+| T3 (penipuan) | BAHAYA 95 | BAHAYA 95 | BAHAYA | |
+| T2, T4–T8 (abu-abu/penipuan) | 50–74 | 45–74 | WASPADA | |
+| P1 | AMAN 25 | AMAN 28 | regresi | |
+
+Kesimpulan: 6/6 lowongan asli AMAN, 5/5 poster palsu ≥ WASPADA 45, Telegram ≥ WASPADA 55, dan regresi T1–T11/P1 tetap.
+
+Dua bug ditemukan saat run ini:
+- F1 sempat AMAN 12 ketika LLM gagal dan penilaian aturan tidak memakai isi website. Guard "Isi Website Penipuan" sekarang berlaku di jalur LLM maupun fallback; F1–F5 diuji ulang dua putaran: 65/78, 52/50, 55/52, 45/45, 52/55.
+- T11 sempat WASPADA 42 karena `spamInfo.degree = "green"` dibaca sebagai spam. Hanya `type` spam/scam/fraud atau degree merah/oranye yang dihitung sekarang.
