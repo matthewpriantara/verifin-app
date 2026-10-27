@@ -13,12 +13,14 @@ import {
   CheckCircle,
   CircleNotch,
   ArrowRight,
+  ListChecks,
+  WarningCircle,
 } from "@phosphor-icons/react";
 import { Button, buttonClass } from "@/components/ui/Button";
 import { cn, REPORT_STORAGE_KEY, addHistory, normalizeVerdict } from "@/lib/utils";
 import { verifyImage, verifyText, verifyUrlStream } from "@/lib/api";
 import type { SSEEvent } from "@/lib/api";
-import type { VerifyResponse } from "@/types/verify";
+import type { NeedsInput, VerifyResponse } from "@/types/verify";
 
 const URL_RE = /^(?:https?:\/\/)?(?:www\.)?[a-z0-9-]+(?:\.[a-z0-9-]+)+(?:\/[^\s]*)?$/i;
 
@@ -56,6 +58,13 @@ function getSteps(source: InputSource) {
   return [
     { ...firstStep, icon: Scan, duration: 350 },
     {
+      id: "check",
+      label: "Memeriksa isi",
+      detail: "Lowongan atau bukan, berapa lowongan, dan cukup tidaknya informasi untuk diperiksa",
+      icon: ListChecks,
+      duration: 1500,
+    },
+    {
       id: "osint",
       label: "Cek ke sumber publik",
       detail: "Umur domain, reputasi nomor, alamat di peta, pencarian web, media sosial, artikel bantahan, dan Google Form bila ada",
@@ -83,6 +92,78 @@ function formatElapsed(sec: number): string {
   return `${Math.floor(sec / 60)}:${String(sec % 60).padStart(2, "0")}`;
 }
 
+function InterventionPanel({
+  needs,
+  onChoose,
+  onEdit,
+}: {
+  needs: NeedsInput;
+  onChoose: (choice: "segment" | "force", text?: string) => void;
+  onEdit: () => void;
+}) {
+  const { issue } = needs;
+  const segments = issue.segments ?? [];
+  const editLabel = issue.kind === "too_short" ? "Tambah info" : "Ganti input";
+  return (
+    <div className="space-y-4" role="alert">
+      <div className="flex items-start gap-3">
+        <WarningCircle size={22} weight="fill" className="mt-0.5 shrink-0 text-waspada-fg" aria-hidden />
+        <div>
+          <h4 className="text-[15px] font-bold text-text-primary">{issue.title}</h4>
+          <p className="mt-1 text-[13px] leading-relaxed text-text-secondary">{issue.message}</p>
+        </div>
+      </div>
+
+      {segments.length > 0 && (
+        <ul className="grid gap-3 sm:grid-cols-2">
+          {segments.map((seg) => (
+            <li key={seg.id} className="flex flex-col justify-between gap-3 rounded-2xl border border-border bg-bg-elevated p-4">
+              <div className="min-w-0">
+                <p className="truncate text-[14px] font-semibold text-text-primary">{seg.employer}</p>
+                {seg.position && <p className="truncate text-[12px] text-text-secondary">{seg.position}</p>}
+                {seg.contacts.length > 0 && (
+                  <p className="mt-1 break-words font-mono text-[12px] text-text-muted">{seg.contacts.join(" · ")}</p>
+                )}
+              </div>
+              {seg.text ? (
+                <button
+                  type="button"
+                  onClick={() => onChoose("segment", seg.text ?? undefined)}
+                  className={buttonClass({ variant: "primary", size: "sm" })}
+                >
+                  Periksa yang ini
+                </button>
+              ) : (
+                <p className="text-[12px] text-text-muted">Bagian ini tidak bisa dipisahkan otomatis. Tempel teksnya saja.</p>
+              )}
+            </li>
+          ))}
+        </ul>
+      )}
+
+      <div className="flex flex-col-reverse gap-2 border-t border-border pt-4 sm:flex-row sm:items-center sm:justify-between">
+        {issue.can_force && (
+          <button
+            type="button"
+            onClick={() => onChoose("force")}
+            className="min-h-11 text-left text-[13px] text-text-muted underline underline-offset-2 hover:text-text-primary"
+          >
+            {issue.kind === "multi_job" ? "Periksa semuanya sekaligus" : "Tetap periksa"}
+            <span className="block text-[11px] no-underline">Hasilnya diberi catatan dan tidak masuk graf penipuan</span>
+          </button>
+        )}
+        <button
+          type="button"
+          onClick={onEdit}
+          className={buttonClass({ variant: segments.length > 0 ? "secondary" : "primary" })}
+        >
+          {editLabel}
+        </button>
+      </div>
+    </div>
+  );
+}
+
 function LoadingModal({
   stepIndex,
   dotCount,
@@ -92,7 +173,13 @@ function LoadingModal({
   stageMessage,
   realProgress,
   elapsed,
+  needs,
+  onChoose,
+  onEdit,
 }: {
+  needs?: NeedsInput | null;
+  onChoose: (choice: "segment" | "force", text?: string) => void;
+  onEdit: () => void;
   stepIndex: number;
   dotCount: number;
   progress: number;
@@ -140,22 +227,28 @@ function LoadingModal({
           <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
             <div className="flex items-center gap-3">
               <div className="relative flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl bg-text-primary text-bg-elevated shadow-md">
-                <CircleNotch size={20} weight="bold" className="animate-spin motion-reduce:animate-none" />
+                {needs ? (
+                  <WarningCircle size={20} weight="bold" />
+                ) : (
+                  <CircleNotch size={20} weight="bold" className="animate-spin motion-reduce:animate-none" />
+                )}
               </div>
               <div className="min-w-0">
                 <h3 id="verify-loading-title" className="text-base font-bold text-text-primary">
-                  Memeriksa lowongan
+                  {needs ? "Memeriksa isi: perlu jawabanmu" : "Memeriksa lowongan"}
                 </h3>
                 <p className="text-[12px] text-text-muted">
-                  {elapsed >= 75
-                    ? "Masih berjalan. Sebagian sumber publik sedang lambat merespons."
-                    : "Biasanya kurang dari satu menit"}
+                  {needs
+                    ? "Pemeriksaan berhenti sebelum cek sumber publik, supaya hasilnya tidak menyesatkan"
+                    : elapsed >= 75
+                      ? "Masih berjalan. Sebagian sumber publik sedang lambat merespons."
+                      : "Biasanya kurang dari satu menit"}
                 </p>
               </div>
             </div>
 
             <div className="flex items-center gap-3 sm:text-right">
-              {realProgress ? (
+              {needs ? null : realProgress ? (
                 <>
                   <div className="h-1.5 w-32 overflow-hidden rounded-full bg-bg-muted hidden sm:block">
                     <motion.div
@@ -187,13 +280,19 @@ function LoadingModal({
           </div>
         </div>
 
+        {needs && (
+          <div className="border-b border-border p-6">
+            <InterventionPanel needs={needs} onChoose={onChoose} onEdit={onEdit} />
+          </div>
+        )}
+
         {/* Horizontal Step Flow with Animated Flow Connectors */}
-        <div className="p-6">
-          <div className="grid grid-cols-1 gap-4 md:grid-cols-4 md:gap-3">
+        <div className={cn("p-6", needs && "hidden md:block opacity-60")}>
+          <div className="grid grid-cols-1 gap-4 md:grid-cols-5 md:gap-3">
             {steps.map((step, i) => {
               const Icon = step.icon;
               const isDone = i < stepIndex;
-              const isActive = i === stepIndex;
+              const isActive = i === stepIndex && !needs;
               const isPending = i > stepIndex;
               const isLast = i === steps.length - 1;
 
@@ -340,7 +439,9 @@ function LoadingModal({
         <div className="border-t border-border bg-bg-subtle/30 px-6 py-3 text-center">
           <p className="text-[12px] font-medium text-text-muted flex items-center justify-center gap-1.5" aria-live="polite">
             <span className="h-1.5 w-1.5 rounded-full bg-aman-fg motion-safe:animate-pulse" aria-hidden />
-            {stageMessage || "Jangan tutup halaman ini. Hasil muncul otomatis setelah selesai."}
+            {needs
+              ? "Pilih salah satu untuk melanjutkan, atau Batal."
+              : stageMessage || "Jangan tutup halaman ini. Hasil muncul otomatis setelah selesai."}
           </p>
         </div>
       </motion.div>
@@ -370,8 +471,11 @@ export function VerifyBox({ onStageChange }: { onStageChange?: (stage: VerifySta
   const [stageMessage, setStageMessage] = useState<string>("");
   const [elapsed, setElapsed] = useState(0);
   const [fileNotice, setFileNotice] = useState<string | null>(null);
+  const [needs, setNeeds] = useState<NeedsInput | null>(null);
   const abortControllerRef = useRef<AbortController | null>(null);
   const isDoneRef = useRef(false);
+  // true selama kartu intervensi tampil; dibaca di `finally` yang tidak melihat state terbaru.
+  const pausedRef = useRef(false);
   // Label tombol pintas baru diketahui setelah mount (platform), supaya HTML server dan klien sama.
   const submitKey = useSyncExternalStore(
     noopSubscribe,
@@ -395,7 +499,7 @@ export function VerifyBox({ onStageChange }: { onStageChange?: (stage: VerifySta
   }, [preview]);
 
   useEffect(() => {
-    if (!loading) return;
+    if (!loading || needs) return;
     const startedAt = Date.now();
     const iv = setInterval(() => {
       setDotCount((d) => (d + 1) % 4);
@@ -407,21 +511,29 @@ export function VerifyBox({ onStageChange }: { onStageChange?: (stage: VerifySta
     let t2: NodeJS.Timeout | undefined;
     let t3: NodeJS.Timeout | undefined;
 
+    let t4: NodeJS.Timeout | undefined;
     if (inputSource !== "url") {
+      // Gambar: OCR + pembacaan AI berjalan dulu (sekitar 15 dtk) sebelum isi bisa diperiksa.
+      const offset = inputSource === "image" ? 12000 : 0;
       t1 = setTimeout(() => {
         setStepIndex((prev) => Math.max(prev, 1));
+        setStageMessage("Memeriksa apakah ini lowongan dan berapa lowongan di dalamnya...");
+      }, 4000 + offset);
+
+      t4 = setTimeout(() => {
+        setStepIndex((prev) => Math.max(prev, 2));
         setStageMessage("Mengecek nomor, domain, alamat, dan jejak di web...");
-      }, 4000);
+      }, 8000 + offset);
 
       t2 = setTimeout(() => {
-        setStepIndex((prev) => Math.max(prev, 2));
+        setStepIndex((prev) => Math.max(prev, 3));
         setStageMessage("Mencocokkan dengan laporan penipuan yang pernah masuk...");
-      }, 26000);
+      }, 28000 + offset);
 
       t3 = setTimeout(() => {
-        setStepIndex((prev) => Math.max(prev, 3));
+        setStepIndex((prev) => Math.max(prev, 4));
         setStageMessage("Menyusun penilaian dan alasannya...");
-      }, 30000);
+      }, 32000 + offset);
     }
 
     return () => {
@@ -429,8 +541,9 @@ export function VerifyBox({ onStageChange }: { onStageChange?: (stage: VerifySta
       clearTimeout(t1);
       clearTimeout(t2);
       clearTimeout(t3);
+      clearTimeout(t4);
     };
-  }, [loading, inputSource]);
+  }, [loading, inputSource, needs]);
 
   // Stage mapping: SSE stage name → step index
   // fetch/ocr → 0, ner → 1 (atau 0 untuk text), osint → 2, graph → 3, ai → 4
@@ -439,6 +552,7 @@ export function VerifyBox({ onStageChange }: { onStageChange?: (stage: VerifySta
   const _sseStageToStep = (stage: string): number => {
     const idx = steps.findIndex((s) => {
       if (stage === "fetch" || stage === "ocr" || stage === "ner") return s.id === "ocr" || s.id === "fetch" || s.id === "extract";
+      if (stage === "check") return s.id === "check";
       if (stage === "osint") return s.id === "osint";
       if (stage === "graph") return s.id === "graph";
       if (stage === "ai") return s.id === "ai";
@@ -494,6 +608,13 @@ export function VerifyBox({ onStageChange }: { onStageChange?: (stage: VerifySta
         router.push(result.case_id ? `/report/${result.case_id}` : "/report");
         break;
       }
+      case "needs_input":
+        if (event.data.needs_input) {
+          pausedRef.current = true;
+          setStepIndex(1);
+          setNeeds(event.data.needs_input);
+        }
+        break;
       case "error":
         setError(event.data.message || "Analisis gagal. Coba lagi sebentar lagi. Kalau masih gagal, tempel ulang teksnya.");
         break;
@@ -582,10 +703,73 @@ export function VerifyBox({ onStageChange }: { onStageChange?: (stage: VerifySta
       abortControllerRef.current.abort();
       abortControllerRef.current = null;
     }
+    pausedRef.current = false;
     setLoading(false);
+    setNeeds(null);
     setStepIndex(0);
     setStageMessage("");
   }, []);
+
+  const handleEdit = useCallback(() => {
+    pausedRef.current = false;
+    setNeeds(null);
+    setLoading(false);
+    setStepIndex(0);
+    setStageMessage("");
+    setTimeout(() => textareaRef.current?.focus(), 0);
+  }, []);
+
+  /** Hasil akhir sudah ada: modal tetap terbuka sampai halaman laporan termuat. */
+  function finish(result: VerifyResponse, inputLabel: string) {
+    isDoneRef.current = true;
+    setStepIndex(steps.length);
+    _saveToHistory(result, inputLabel);
+    sessionStorage.setItem(REPORT_STORAGE_KEY, JSON.stringify(result));
+    setTimeout(() => {
+      router.push(result.case_id ? `/report/${result.case_id}` : "/report");
+    }, 350);
+  }
+
+  /** Respons berhenti di tahap "Memeriksa isi": tampilkan kartu intervensi, jangan buka laporan. */
+  function pauseFor(result: VerifyResponse): boolean {
+    if (!result.needs_input) return false;
+    pausedRef.current = true;
+    setStepIndex(1);
+    setNeeds(result.needs_input);
+    return true;
+  }
+
+  async function handleChoice(choice: "segment" | "force", segmentText?: string) {
+    if (!needs) return;
+    const current = needs;
+    pausedRef.current = false;
+    setNeeds(null);
+    setError(null);
+    setStepIndex(2);
+    setStageMessage("Mengecek nomor, domain, alamat, dan jejak di web...");
+    const controller = new AbortController();
+    abortControllerRef.current = controller;
+    try {
+      const result = await verifyText(
+        {
+          text: (choice === "segment" && segmentText ? segmentText : current.text).slice(0, 10000),
+          intervention: choice,
+          intervention_kind: current.issue.kind,
+          source: current.source,
+          source_url: current.source_url,
+        },
+        controller.signal,
+      );
+      finish(result, (segmentText || current.text).slice(0, 80));
+    } catch (err) {
+      if (!(err instanceof DOMException && err.name === "AbortError")) {
+        setError(err instanceof Error ? err.message : "Analisis gagal. Coba lagi sebentar lagi.");
+        setLoading(false);
+      }
+    } finally {
+      abortControllerRef.current = null;
+    }
+  }
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -596,6 +780,8 @@ export function VerifyBox({ onStageChange }: { onStageChange?: (stage: VerifySta
       return;
     }
     isDoneRef.current = false;
+    pausedRef.current = false;
+    setNeeds(null);
     setLoading(true);
     setStepIndex(0);
     setElapsed(0);
@@ -608,33 +794,21 @@ export function VerifyBox({ onStageChange }: { onStageChange?: (stage: VerifySta
     try {
       if (file) {
         const result = await verifyImage(file, controller.signal, trimmed || undefined);
-        // Hasil sudah ada: modal tetap terbuka sampai halaman laporan termuat.
-        isDoneRef.current = true;
-        setStepIndex(steps.length);
-        _saveToHistory(result, file.name);
-        sessionStorage.setItem(REPORT_STORAGE_KEY, JSON.stringify(result));
-        setTimeout(() => {
-          router.push(result.case_id ? `/report/${result.case_id}` : "/report");
-        }, 350);
+        if (!pauseFor(result)) finish(result, file.name);
       } else if (isPureUrl(trimmed)) {
         await verifyUrlStream(
           normalizeUrl(trimmed),
           (event) => { _handleSSEEvent(event); },
           controller.signal,
         );
-        // Stream selesai tanpa event "done": koneksi putus di tengah jalan (mis. proxy memutus).
-        if (!isDoneRef.current && !controller.signal.aborted) {
+        // Stream selesai tanpa event "done": koneksi putus di tengah jalan (mis. proxy memutus),
+        // kecuali server berhenti untuk bertanya (event needs_input).
+        if (!isDoneRef.current && !controller.signal.aborted && !pausedRef.current) {
           setError((prev) => prev ?? "Koneksi ke server terputus sebelum hasil keluar. Coba lagi; hasil yang sudah selesai akan muncul dari riwayat.");
         }
       } else {
         const result = await verifyText({ text: trimmed, include_raw_text: true }, controller.signal);
-        isDoneRef.current = true;
-        setStepIndex(steps.length);
-        _saveToHistory(result, trimmed.slice(0, 80));
-        sessionStorage.setItem(REPORT_STORAGE_KEY, JSON.stringify(result));
-        setTimeout(() => {
-          router.push(result.case_id ? `/report/${result.case_id}` : "/report");
-        }, 350);
+        if (!pauseFor(result)) finish(result, trimmed.slice(0, 80));
       }
     } catch (err) {
       if (isDoneRef.current) {
@@ -653,7 +827,7 @@ export function VerifyBox({ onStageChange }: { onStageChange?: (stage: VerifySta
       }
     } finally {
       abortControllerRef.current = null;
-      if (!isDoneRef.current) {
+      if (!isDoneRef.current && !pausedRef.current) {
         setLoading(false);
       }
     }
@@ -675,6 +849,9 @@ export function VerifyBox({ onStageChange }: { onStageChange?: (stage: VerifySta
             stageMessage={stageMessage}
             realProgress={inputSource === "url"}
             elapsed={elapsed}
+            needs={needs}
+            onChoose={handleChoice}
+            onEdit={handleEdit}
           />
         )}
       </AnimatePresence>
@@ -787,7 +964,7 @@ export function VerifyBox({ onStageChange }: { onStageChange?: (stage: VerifySta
                 </button>
               </div>
               {fileNotice && (
-                <div className="rounded-lg border border-warning/30 bg-warning/10 px-3 py-2 text-[12px] text-warning-fg">
+                <div className="rounded-lg border border-waspada-border bg-waspada-bg px-3 py-2 text-[12px] text-waspada-fg">
                   {fileNotice}
                 </div>
               )}

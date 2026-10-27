@@ -389,6 +389,14 @@ export default function ReportPage() {
         </span>
       </div>
 
+      {(report.input_notes?.length ?? 0) > 0 && (
+        <ul className="mb-4 space-y-1 rounded-xl border border-waspada-border bg-waspada-bg px-4 py-3 text-[13px] leading-relaxed text-waspada-fg">
+          {report.input_notes!.map((note, i) => (
+            <li key={i}>{note}</li>
+          ))}
+        </ul>
+      )}
+
       {/* ── HERO: Verdict ── */}
       <motion.div
         {...fadeUp}

@@ -21,6 +21,7 @@ from app.services.ner import (
     is_multi_employer,
 )
 from app.services.osint.runner import run_osint_probes
+from app.services.precheck import VISION_MARKER
 from app.services.xai.shap_explainer import explain_verification_shap
 from app.services.graph.fraud_network import (
     build_fraud_network,
@@ -259,7 +260,34 @@ def _dedupe_companies(companies: list[str]) -> list[str]:
     return [max(names, key=quality) for names in groups.values()]
 
 
-async def _extract_entities_hybrid(text: str) -> dict:
+def _contact_key(kind: str, value: str) -> str:
+    if kind == "phones":
+        digits = re.sub(r"\D", "", value)
+        return digits[-9:]
+    return re.sub(r"^https?://(?:www\.)?|/+$", "", value.strip().lower())
+
+
+def _keep_proven_contacts(merged: dict, proof_text: str) -> list[str]:
+    """Kontak (nomor, email, URL) hanya dipakai bila juga terbaca OCR/regex dari sumber asli.
+
+    Pembacaan AI vision membantu nama dan alamat, tetapi bisa salah menyalin angka; nomor yang
+    hanya ada di bacaan AI tidak boleh dicek ke Who Calls atau masuk graf penipuan. Yang dibuang
+    dikembalikan supaya laporan bisa menulis "dibaca AI saja"."""
+    proof = extract_entities_from_text(_clean_text_for_ner(proof_text) or proof_text)
+    ai_only: list[str] = []
+    for kind in ("phones", "emails", "urls"):
+        proven = {_contact_key(kind, v) for v in proof.get(kind) or [] if isinstance(v, str)}
+        kept = []
+        for v in merged.get(kind) or []:
+            if not isinstance(v, str) or _contact_key(kind, v) in proven:
+                kept.append(v)
+            else:
+                ai_only.append(v)
+        merged[kind] = kept
+    return ai_only
+
+
+async def _extract_entities_hybrid(text: str, proof_text: str | None = None) -> dict:
     """NER hibrida: regex untuk entitas struktural (nomor, email, URL, nominal),
     LLM untuk entitas semantik (perusahaan, alamat, lokasi, gaji), lalu divalidasi.
 
@@ -269,12 +297,16 @@ async def _extract_entities_hybrid(text: str) -> dict:
     - gaji wajib memuat angka atau UMR/UMK/UMP.
     Regex semantik hanya menjadi cadangan saat LLM tidak tersedia.
     """
+    if proof_text is None and VISION_MARKER in (text or ""):
+        proof_text = text.split(VISION_MARKER)[0]
     clean_text = _clean_text_for_ner(text) or text
 
     regex_entities, llm_extracted = await asyncio.gather(
         asyncio.to_thread(extract_entities_from_text, clean_text),
         _run_llm_ner(clean_text),
     )
+
+    ai_only_contacts = _keep_proven_contacts(regex_entities, proof_text) if proof_text else []
 
     if llm_extracted is None:
         regex_entities["companies"] = [v for v in (regex_entities.get("companies") or []) if not is_junk_entity(v)]
@@ -285,6 +317,7 @@ async def _extract_entities_hybrid(text: str) -> dict:
             "used": False,
             "source": "regex_fallback",
             "validation_applied": True,
+            "ai_only_contacts": ai_only_contacts,
         }
         return regex_entities
 
@@ -356,7 +389,9 @@ async def _extract_entities_hybrid(text: str) -> dict:
         "validation_applied": True,
         "dropped_ungrounded": _uniq(dropped["ungrounded"]),
         "dropped_junk": _uniq(dropped["junk"]),
+        "ai_only_contacts": ai_only_contacts,
     }
+    merged["_content"] = llm_extracted.get("content") or {}
     return merged
 
 
@@ -545,6 +580,7 @@ def _to_response(
         model_used=analysis.get("model_used"),
         osint=osint_results,
         shap_explanation=shap_explanation,
+        input_notes=(osint_results or {}).get("input_notes") or [],
     )
 
 

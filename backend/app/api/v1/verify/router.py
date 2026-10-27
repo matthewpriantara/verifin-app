@@ -20,10 +20,11 @@ from app.api.v1.verify.schema import (
     VerifyResponse,
 )
 from app.services.llm.verifin_reasoning import analyze_with_verifin, check_ai_status
-from app.services.ocr import extract_text_from_image
+from app.services.ocr import extract_text_from_image_async
 from app.services.nlp.classifier import classify_text
 from app.services.ner import is_multi_employer
-from app.services.ner import is_multi_employer
+from app.services.llm.vision import read_image_with_vision
+from app.services.precheck import VISION_MARKER, apply_forced, assess_input
 from app.services.osint.whois_handler import (
     check_domain_age,
     check_email_security,
@@ -183,10 +184,21 @@ async def verify_from_text(
 
         raw_text = request.text
         nlp_result = _classify_text_signals(raw_text, entities)
+        source = request.source or "text"
+        stop = _precheck(
+            request_id, raw_text, entities,
+            source=source, source_url=request.source_url,
+            intervention=request.intervention, intervention_kind=request.intervention_kind,
+        )
+        if stop:
+            return stop
+        if source == "url" and request.source_url:
+            entities["urls"] = [request.source_url] + [u for u in entities.get("urls") or [] if u != request.source_url]
 
         stage_started = time.perf_counter()
         osint_results = await _run_osint_on_entities(entities)
         _log_osint_summary(request_id, osint_results)
+        _attach_input_notes(osint_results, entities)
         logger.info("[verify][%s] OSINT duration=%.2fs", request_id, time.perf_counter() - stage_started)
 
         entities = await _enrich_entities_from_osint(entities, osint_results)
@@ -208,7 +220,7 @@ async def verify_from_text(
         attach_shap_explanation(analysis, entities, osint_results)
         save_status = await asyncio.to_thread(
             _save_case_to_db,
-            db, request.text, analysis, osint_results, entities=entities, source="text"
+            db, request.text, analysis, osint_results, entities=entities, source=source
         )
         analysis["case_id"] = save_status.get("case_id")
         response = _to_response(analysis, entities, osint_results)
@@ -266,11 +278,14 @@ async def verify_from_image(
 
     try:
         ocr_metrics: dict = {}
-        raw_text = await asyncio.to_thread(extract_text_from_image, tmp_path, ocr_metrics)
-        if not raw_text or not raw_text.strip():
+        raw_text, vision_text = await _read_image(tmp_path, ocr_metrics)
+        if not raw_text:
             raise HTTPException(
                 status_code=422,
-                detail="Tidak ada teks yang berhasil dibaca dari gambar. Coba unggah gambar yang lebih jelas.",
+                detail=(
+                    "Teks di gambar tidak terbaca. Coba screenshot langsung dari layar (bukan foto layar), "
+                    "potong bagian lowongannya saja, atau tempel teksnya."
+                ),
             )
         if additional_text and additional_text.strip():
             raw_text = f"{raw_text.strip()}\n\n[Konteks Tambahan]:\n{additional_text.strip()}"
@@ -285,16 +300,21 @@ async def verify_from_image(
             _log_end(request_id, "image-cache", started, cached_resp)
             return cached_resp
 
+        analysis_text = _with_vision(raw_text, [vision_text])
         stage_started = time.perf_counter()
-        entities = await _extract_entities_hybrid(raw_text)
+        entities = await _extract_entities_hybrid(analysis_text)
         _log_raw_json(request_id, "ENTITIES", entities)
-        logger.info("[verify][%s] NER done counts=%s meta=%s duration=%.2fs", request_id, _entity_counts(entities), entities.get("_ner_meta"), time.perf_counter() - stage_started)
+        logger.info("[verify][%s] NER done counts=%s meta=%s vision_chars=%d duration=%.2fs", request_id, _entity_counts(entities), entities.get("_ner_meta"), len(vision_text), time.perf_counter() - stage_started)
 
         nlp_result = _classify_text_signals(raw_text, entities)
+        stop = _precheck(request_id, analysis_text, entities, source="image")
+        if stop:
+            return stop
 
         stage_started = time.perf_counter()
         osint_results = await _run_osint_on_entities(entities)
         _log_osint_summary(request_id, osint_results)
+        _attach_input_notes(osint_results, entities)
         logger.info("[verify][%s] OSINT duration=%.2fs", request_id, time.perf_counter() - stage_started)
 
         entities = await _enrich_entities_from_osint(entities, osint_results)
@@ -306,7 +326,7 @@ async def verify_from_image(
 
         stage_started = time.perf_counter()
         analysis = await analyze_with_verifin(
-            entities, osint_results, raw_text=raw_text, text_signals=nlp_result["behavioral_features"]
+            entities, osint_results, raw_text=analysis_text, text_signals=nlp_result["behavioral_features"]
         )
         _log_raw_json(request_id, "ANALYSIS", analysis)
         logger.info("[verify][%s] LLM done verdict=%s score=%s model=%s duration=%.2fs", request_id, analysis.get("verdict"), analysis.get("risk_score"), analysis.get("model_used"), time.perf_counter() - stage_started)
@@ -380,12 +400,15 @@ async def verify_from_url(
         )
 
         ocr_texts = []
+        vision_texts = []
         for p in tmp_paths:
             if p and os.path.exists(p):
                 try:
-                    t = await asyncio.to_thread(extract_text_from_image, p)
-                    if t and t.strip():
-                        ocr_texts.append(t.strip())
+                    t, v = await _read_image(p)
+                    if t:
+                        ocr_texts.append(t)
+                    if v:
+                        vision_texts.append(v)
                 except Exception as exc:
                     logger.warning("URL OCR Error: %s", exc)
 
@@ -411,15 +434,20 @@ async def verify_from_url(
                 detail="Sistem tidak dapat mengambil konten atau teks dari URL tersebut. Pastikan link dapat diakses publik.",
             )
 
-        entities = await _extract_entities_hybrid(full_raw_text)
+        analysis_text = _with_vision(full_raw_text, vision_texts)
+        entities = await _extract_entities_hybrid(analysis_text)
         _log_raw_json(request_id, "ENTITIES", entities)
         logger.info("[verify][%s] NER done counts=%s meta=%s duration=%.2fs", request_id, _entity_counts(entities), entities.get("_ner_meta"), time.perf_counter() - started)
 
         nlp_result = _classify_text_signals(full_raw_text, entities)
+        stop = _precheck(request_id, analysis_text, entities, source="url", source_url=request.url)
+        if stop:
+            return stop
 
         stage_started = time.perf_counter()
         osint_results = await _run_osint_on_entities(entities)
         _log_osint_summary(request_id, osint_results)
+        _attach_input_notes(osint_results, entities)
         logger.info("[verify][%s] OSINT duration=%.2fs", request_id, time.perf_counter() - stage_started)
 
         entities = await _enrich_entities_from_osint(entities, osint_results)
@@ -431,7 +459,7 @@ async def verify_from_url(
 
         stage_started = time.perf_counter()
         analysis = await analyze_with_verifin(
-            entities, osint_results, raw_text=full_raw_text, text_signals=nlp_result["behavioral_features"]
+            entities, osint_results, raw_text=analysis_text, text_signals=nlp_result["behavioral_features"]
         )
         _log_raw_json(request_id, "ANALYSIS", analysis)
         logger.info("[verify][%s] LLM done verdict=%s score=%s model=%s duration=%.2fs", request_id, analysis.get("verdict"), analysis.get("risk_score"), analysis.get("model_used"), time.perf_counter() - stage_started)
@@ -729,6 +757,62 @@ def _classify_text_signals(raw_text: str, entities: dict) -> dict:
     return nlp_result
 
 
+def _precheck(
+    request_id: str,
+    text: str,
+    entities: dict,
+    *,
+    source: str,
+    source_url: str | None = None,
+    intervention: str | None = None,
+    intervention_kind: str | None = None,
+) -> VerifyResponse | None:
+    """Tahap "Memeriksa isi". Mengembalikan respons `needs_input` bila proses harus berhenti dan
+    bertanya; None bila boleh lanjut ke OSINT. Catatan yang tidak menghentikan proses disimpan di
+    entities["_input_notes"]."""
+    result = assess_input(text, entities)
+    entities["not_a_job_posting"] = result["not_job"]
+    notes = list(result["notes"])
+    if intervention == "force":
+        apply_forced(entities, intervention_kind)
+        notes.insert(0, {
+            "not_job": "Kamu memilih tetap memeriksa input yang sepertinya bukan lowongan. Hasil ini tidak disimpan ke riwayat dan graf penipuan.",
+            "multi_job": "Input berisi lebih dari satu lowongan dan diperiksa sekaligus. Bukti bisa tercampur; hasil ini tidak disimpan ke graf penipuan.",
+            "too_short": "Bukti sangat terbatas: teks lowongan terlalu pendek.",
+        }.get(intervention_kind or "", "Input diperiksa walau bermasalah."))
+    entities["_input_notes"] = notes
+    issue = result["issue"]
+    if not issue or intervention:
+        return None
+    logger.info("[verify][%s] PRECHECK stop source=%s issue=%s", request_id, source, issue["id"])
+    return VerifyResponse(
+        verdict="PERLU_INPUT",
+        risk_score=0,
+        summary=issue["title"],
+        needs_input={"issue": issue, "text": text[:10000], "source": source, "source_url": source_url},
+    )
+
+
+def _attach_input_notes(osint_results: dict, entities: dict) -> None:
+    notes = entities.pop("_input_notes", None)
+    if notes and isinstance(osint_results, dict):
+        osint_results["input_notes"] = notes
+
+
+async def _read_image(path: str, metrics: dict | None = None) -> tuple[str, str]:
+    """OCR dan pembacaan AI vision berjalan bersamaan. OCR tetap sumber bukti kontak."""
+    ocr_text, vision_text = await asyncio.gather(
+        extract_text_from_image_async(path, metrics),
+        read_image_with_vision(path),
+    )
+    return (ocr_text or "").strip(), (vision_text or "").strip()
+
+
+def _with_vision(text: str, vision_texts: list[str]) -> str:
+    vision = "\n\n".join(t for t in vision_texts if t)
+    return f"{text}\n\n{VISION_MARKER}\n{vision}" if vision else text
+
+
 def _sse_event(event: str, data: dict) -> str:
     return f"event: {event}\ndata: {json.dumps(data, ensure_ascii=False)}\n\n"
 
@@ -776,12 +860,15 @@ async def _verify_url_stream_generator(url: str, additional_text: str, db_sessio
 
         yield _sse_event("stage", {"stage": "ocr", "status": "processing", "message": "Mengenali teks dari gambar poster..."})
         ocr_texts = []
+        vision_texts = []
         for p in tmp_paths:
             if p and os.path.exists(p):
                 try:
-                    t = await asyncio.to_thread(extract_text_from_image, p)
-                    if t and t.strip():
-                        ocr_texts.append(t.strip())
+                    t, v = await _read_image(p)
+                    if t:
+                        ocr_texts.append(t)
+                    if v:
+                        vision_texts.append(v)
                 except Exception as exc:
                     logger.warning("URL OCR Error: %s", exc)
 
@@ -819,15 +906,22 @@ async def _verify_url_stream_generator(url: str, additional_text: str, db_sessio
             return
 
         yield _sse_event("stage", {"stage": "ner", "status": "processing", "message": "Mengekstrak entitas (perusahaan, kontak, alamat)..."})
-        entities = await _extract_entities_hybrid(full_raw_text)
+        analysis_text = _with_vision(full_raw_text, vision_texts)
+        entities = await _extract_entities_hybrid(analysis_text)
         _log_raw_json(request_id, "ENTITIES", entities)
         logger.info("[verify-stream][%s] NER done counts=%s duration=%.2fs", request_id, _entity_counts(entities), time.perf_counter() - started)
         nlp_result = _classify_text_signals(full_raw_text, entities)
         yield _sse_event("stage", {
             "stage": "ner", "status": "done",
             "message": f"Ditemukan {len(entities.get('companies', []))} perusahaan, {len(entities.get('phones', []))} kontak",
-            "entities": {k: v for k, v in entities.items() if k != "_ner_meta"}
+            "entities": {k: v for k, v in entities.items() if not k.startswith("_")}
         })
+        yield _sse_event("stage", {"stage": "check", "status": "processing", "message": "Memeriksa isi: lowongan atau bukan, berapa lowongan..."})
+        stop = _precheck(request_id, analysis_text, entities, source="url", source_url=url)
+        if stop:
+            yield _sse_event("needs_input", stop.model_dump())
+            return
+        yield _sse_event("stage", {"stage": "check", "status": "done", "message": "Isi lowongan siap diperiksa"})
         yield _sse_event("stage", {"stage": "osint", "status": "processing", "message": "Menjalankan OSINT probes (WHOIS, peta, media sosial)..."})
         stage_started = time.perf_counter()
         osint_task = asyncio.create_task(_run_osint_on_entities(entities))
@@ -837,6 +931,7 @@ async def _verify_url_stream_generator(url: str, additional_text: str, db_sessio
                 break
             yield ": keepalive\n\n"
         osint_results = osint_task.result()
+        _attach_input_notes(osint_results, entities)
         entities = await _enrich_entities_from_osint(entities, osint_results)
         yield _sse_event("stage", {"stage": "osint", "status": "done", "message": "OSINT selesai"})
 
@@ -850,7 +945,7 @@ async def _verify_url_stream_generator(url: str, additional_text: str, db_sessio
         yield _sse_event("stage", {"stage": "ai", "status": "processing", "message": "AI menganalisis dan menyusun verdict..."})
         stage_started = time.perf_counter()
         llm_task = asyncio.create_task(analyze_with_verifin(
-            entities, osint_results, raw_text=full_raw_text, text_signals=nlp_result["behavioral_features"]
+            entities, osint_results, raw_text=analysis_text, text_signals=nlp_result["behavioral_features"]
         ))
         while not llm_task.done():
             done, _ = await asyncio.wait({llm_task}, timeout=3.0)
