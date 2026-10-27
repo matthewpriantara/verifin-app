@@ -9,6 +9,7 @@ interface ShapChartProps {
 }
 
 const CALIBRATION_KEY = "model_calibration";
+const CLAMPING_KEY = "score_cap_clamping";
 
 function formatSigned(value: number) {
   const rounded = Math.round(value * 10) / 10;
@@ -19,14 +20,15 @@ export function ShapChart({ shap }: ShapChartProps) {
   const contributions = shap.feature_contributions;
   const maxAbs = Math.max(...contributions.map((c) => Math.abs(c.contribution)), 1);
   const totalDelta = contributions.reduce((sum, c) => sum + c.delta, 0);
-  const hasCalibration = contributions.some((c) => c.feature_key === CALIBRATION_KEY);
+  const hasCalibration = contributions.some((c) => c.feature_key === CALIBRATION_KEY || c.feature_key === CLAMPING_KEY);
 
   return (
     <div className="space-y-3">
       {/* Header */}
       <div className="flex items-center justify-between">
-        <p className="text-[12px] text-text-muted">
+        <p className="text-[12px] text-text-muted" title="Titik awal netral untuk lowongan tanpa indikator risiko atau keabsahan">
           Nilai dasar: <span className="font-mono text-text-secondary">{shap.base_value}</span>
+          <span className="ml-1 text-[11px] text-text-muted">(titik awal netral)</span>
         </p>
         <p className="text-[12px] text-text-muted">
           Skor akhir: <span className="font-mono font-semibold text-text-primary">{shap.final_risk_score}/100</span>
@@ -37,7 +39,7 @@ export function ShapChart({ shap }: ShapChartProps) {
       <div className="space-y-2.5">
         {contributions.map((c, i) => {
           const isRisk = c.impact === "risk";
-          const isCalibration = c.feature_key === CALIBRATION_KEY;
+          const isSpecial = c.feature_key === CALIBRATION_KEY || c.feature_key === CLAMPING_KEY;
           const barWidth = (Math.abs(c.contribution) / maxAbs) * 100;
           return (
             <motion.div
@@ -49,14 +51,14 @@ export function ShapChart({ shap }: ShapChartProps) {
             >
               <div className="flex items-center justify-between gap-2">
                 <p
-                  className={cn("text-[12px] truncate flex-1", isCalibration ? "text-text-muted italic" : "text-text-secondary")}
+                  className={cn("text-[12px] truncate flex-1", isSpecial ? "text-text-muted italic" : "text-text-secondary")}
                   title={c.description}
                 >
                   {c.feature}
                 </p>
                 <span className={cn(
                   "shrink-0 font-mono text-[12px] font-medium",
-                  isCalibration ? "text-text-muted" : isRisk ? "text-bahaya-fg" : "text-aman-fg"
+                  isSpecial ? "text-text-muted" : isRisk ? "text-bahaya-fg" : "text-aman-fg"
                 )}>
                   {formatSigned(c.delta)}
                 </span>
@@ -65,7 +67,7 @@ export function ShapChart({ shap }: ShapChartProps) {
                 <motion.div
                   className={cn(
                     "h-full rounded-full",
-                    isCalibration ? "bg-text-muted/60" : isRisk ? "bg-bahaya-fg" : "bg-aman-fg"
+                    isSpecial ? "bg-text-muted/60" : isRisk ? "bg-bahaya-fg" : "bg-aman-fg"
                   )}
                   initial={{ width: "0%" }}
                   animate={{ width: `${barWidth}%` }}
@@ -88,7 +90,7 @@ export function ShapChart({ shap }: ShapChartProps) {
         </p>
         {hasCalibration && (
           <p className="mt-1 text-[12px] leading-relaxed text-text-muted">
-            &ldquo;Penyesuaian Penalaran AI&rdquo; adalah selisih antara skor dari AI dan jumlah bobot bukti terukur.
+            &ldquo;Penyesuaian Penalaran AI&rdquo; atau &ldquo;Pemotongan Batas Atas&rdquo; adalah penyesuaian kontekstual agar skor akhir mencerminkan batas skala dan evaluasi holistik.
           </p>
         )}
       </div>

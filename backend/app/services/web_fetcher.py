@@ -236,12 +236,18 @@ def _sync_scrapling_fetch(url: str) -> tuple[str, list[str]]:
             seen_urls.add(img_u)
             dedup_images.append(img_u)
 
-    return combined_caption_text, dedup_images[:3]
+    total_count = len(dedup_images)
+    return combined_caption_text, dedup_images[:3], total_count
 
-async def _fetch_url_content_and_image(url: str) -> tuple[str, list[str]]:
+async def _fetch_url_content_and_image(url: str) -> tuple[str, list[str], dict[str, int]]:
     validate_public_http_url(url)
     loop = asyncio.get_running_loop()
-    combined_caption_text, image_urls = await loop.run_in_executor(None, _sync_scrapling_fetch, url)
+    fetch_res = await loop.run_in_executor(None, _sync_scrapling_fetch, url)
+    if len(fetch_res) == 3:
+        combined_caption_text, image_urls, total_images = fetch_res
+    else:
+        combined_caption_text, image_urls = fetch_res
+        total_images = len(image_urls)
 
     tmp_img_paths = []
     headers = {
@@ -261,4 +267,8 @@ async def _fetch_url_content_and_image(url: str) -> tuple[str, list[str]]:
         except Exception as exc:
             logger.warning("[URL Fetch] gagal unduh gambar %s: %s", img_url, exc)
 
-    return combined_caption_text, tmp_img_paths
+    carousel_meta = {
+        "total_images": total_images,
+        "processed_images": len(tmp_img_paths),
+    }
+    return combined_caption_text, tmp_img_paths, carousel_meta

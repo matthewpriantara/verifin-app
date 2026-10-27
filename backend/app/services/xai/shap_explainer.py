@@ -20,20 +20,25 @@ _FEATURE_WEIGHTS: dict[str, float] = {
     "has_address":           -6.0,
     "safe_keyword_count":    -5.0,
     "phone_fraud_flag":      35.0,
-    "kredibel_fraud_flag":   35.0,
+    "free_email_only":        8.0,
     "domain_unreachable":    28.0,
     "domain_new":            15.0,
     "no_spf_corporate":      12.0,
     "gform_phishing":        30.0,
     "fee_in_gform":          35.0,
-    "address_not_found_osm": 10.0,
-    "company_not_found_web": 12.0,
+    "address_osm_valid":     12.0,
+    "address_not_verified":  10.0,
+    "company_found_web":     10.0,
     "scam_serp_result":      25.0,
-    "social_risk_flag":      10.0,
+    "impersonation_warning": 15.0,
     "entity_in_fraud_network": 30.0,
     "entity_seen_multiple_cases": 15.0,
     "community_reported":    20.0,
-    "impersonation_warning": 15.0,
+    # Alias / backward compatibility
+    "kredibel_fraud_flag":   35.0,
+    "address_not_found_osm": 10.0,
+    "company_not_found_web": 12.0,
+    "social_risk_flag":      10.0,
 }
 
 
@@ -46,6 +51,7 @@ def explain_verification_shap(
     nlp_result: dict[str, Any] | None = None,
     network_context: dict[str, Any] | None = None,
     entities: dict[str, Any] | None = None,
+    model_used: str | None = None,
 ) -> dict[str, Any]:
     base_value = 12.0
     input_addresses = (entities or {}).get("addresses") or []
@@ -171,7 +177,7 @@ def explain_verification_shap(
             "Kontak Hanya Email Gratisan",
             "free_email_only",
             1,
-            8.0,
+            _FEATURE_WEIGHTS["free_email_only"],
             "risk",
             "Tidak ada domain korporat — kontak hanya via Gmail/Yahoo tanpa infrastruktur resmi",
         ))
@@ -275,7 +281,7 @@ def explain_verification_shap(
             "Alamat Terverifikasi di OpenStreetMap",
             "address_osm_valid",
             1,
-            12.0,
+            _FEATURE_WEIGHTS["address_osm_valid"],
             "safe",
             "Jalan dan nomor bangunan cocok di OpenStreetMap",
         ))
@@ -285,7 +291,7 @@ def explain_verification_shap(
             "Nomor Alamat Belum Pasti di Peta",
             "address_not_verified",
             1,
-            10.0,
+            _FEATURE_WEIGHTS["address_not_verified"],
             "risk",
             "Alamat tercantum, tetapi jalan dan nomor bangunannya belum cocok persis di peta",
         ))
@@ -301,7 +307,7 @@ def explain_verification_shap(
              "Hasil Web Relevan Ditemukan",
             "company_found_web",
             1,
-            10.0,
+            _FEATURE_WEIGHTS["company_found_web"],
              "safe",
              f"Ditemukan {(web_data.get('evidence_counts') or {}).get('relevant_results', 1)} hasil web relevan dengan nama perusahaan; keterkaitan resmi belum terverifikasi.",
         ))
@@ -337,7 +343,7 @@ def explain_verification_shap(
         if community.get("status") == "COMPLETED" and approved_reports > 0:
             contributions.append(_community_contrib(approved_reports))
 
-    attribution = _compose_attribution(base_value, risk_score, contributions)
+    attribution = _compose_attribution(base_value, risk_score, contributions, model_used=model_used)
     risk_contribs = [c for c in contributions if c["impact"] == "risk"]
     safe_contribs = [c for c in contributions if c["impact"] == "safe"]
 
@@ -389,33 +395,76 @@ def _community_contrib(approved_reports: int) -> dict[str, Any]:
     )
 
 
-def _compose_attribution(base_value: float, risk_score: float, contributions: list[dict[str, Any]]) -> dict[str, Any]:
+def _compose_attribution(
+    base_value: float,
+    risk_score: float,
+    contributions: list[dict[str, Any]],
+    model_used: str | None = None,
+) -> dict[str, Any]:
     """Susun kontribusi bukti + penyesuaian penalaran AI sehingga skor = base_value + Σ delta."""
     risk_contribs = [c for c in contributions if c["impact"] == "risk"]
     safe_contribs = [c for c in contributions if c["impact"] == "safe"]
 
-    # Skor akhir berasal dari penalaran LLM, bukan dari jumlah bobot di atas.
-    # Bobot bukti tidak diskalakan; selisihnya ditampilkan sebagai kontribusi
-    # tersendiri agar skor akhir = base_value + Σ delta selalu berlaku.
     evidence_delta = sum(c["delta"] for c in contributions)
-    calibration_delta = round(risk_score - base_value - evidence_delta, 2)
+    raw_uncapped = round(base_value + evidence_delta, 2)
+
+    # Penanganan pemotongan batas skala (Audit 007 temuan 4):
+    # Bila total bukti melebihi 100 atau kurang dari 0, kelebihan pemotongan ditampilkan secara eksplisit
+    # sebagai item clamping, bukan penyesuaian AI negatif yang membingungkan.
+    clamping_contribs = []
+    if raw_uncapped > 100.0:
+        excess = round(raw_uncapped - 100.0, 2)
+        clamping_contribs.append(_make_contrib(
+            "Pemotongan Batas Atas Skor (Maks 100)",
+            "score_cap_clamping",
+            excess,
+            excess,
+            "safe",
+            "Total akumulasi bukti risiko melampaui batas maksimal sistem (100). Skor dipotong sesuai batas skala.",
+        ))
+        remaining_delta = round(risk_score - 100.0, 2)
+    elif raw_uncapped < 0.0:
+        deficit = round(0.0 - raw_uncapped, 2)
+        clamping_contribs.append(_make_contrib(
+            "Pemotongan Batas Bawah Skor (Min 0)",
+            "score_cap_clamping",
+            deficit,
+            deficit,
+            "risk",
+            "Total akumulasi sinyal aman melampaui batas minimal sistem (0). Skor dinaikkan sesuai batas skala.",
+        ))
+        remaining_delta = round(risk_score - 0.0, 2)
+    else:
+        remaining_delta = round(risk_score - raw_uncapped, 2)
+
     calibration_contribs = []
-    if abs(calibration_delta) >= 0.01:
-        calibration_contribs.append(_make_contrib(
-            "Penyesuaian Penalaran AI",
-            "model_calibration",
-            calibration_delta,
-            abs(calibration_delta),
-            "risk" if calibration_delta > 0 else "safe",
-            (
+    if abs(remaining_delta) >= 0.01:
+        is_fallback = bool(model_used and any(k in str(model_used).lower() for k in ("fallback", "rule-based")))
+        if is_fallback:
+            cal_label = "Penyesuaian Aturan (Mode Fallback)"
+            cal_desc = (
+                "Sistem beroperasi dalam mode Rule-Based Fallback deterministik. "
+                "Penyesuaian aturan diterapkan untuk menyelaraskan skor tanpa model AI."
+            )
+        else:
+            cal_label = "Penyesuaian Penalaran AI"
+            cal_desc = (
                 "Penalaran AI atas seluruh teks dan bukti menilai risiko "
-                f"{'lebih tinggi' if calibration_delta > 0 else 'lebih rendah'} daripada jumlah bobot "
+                f"{'lebih tinggi' if remaining_delta > 0 else 'lebih rendah'} daripada jumlah bobot "
                 "bukti terukur. Selisihnya ditampilkan terpisah agar skor akhir = nilai dasar + Σ kontribusi."
-            ),
+            )
+
+        calibration_contribs.append(_make_contrib(
+            cal_label,
+            "model_calibration",
+            remaining_delta,
+            abs(remaining_delta),
+            "risk" if remaining_delta > 0 else "safe",
+            cal_desc,
         ))
 
     all_contributions = sorted(
-        risk_contribs + safe_contribs + calibration_contribs,
+        risk_contribs + safe_contribs + clamping_contribs + calibration_contribs,
         key=lambda x: abs(x["contribution"]),
         reverse=True,
     )
@@ -433,6 +482,7 @@ def _compose_attribution(base_value: float, risk_score: float, contributions: li
         })
         cumulative += delta
 
+    calibration_delta = remaining_delta
     return {
         "feature_contributions": all_contributions,
         "waterfall_chart": waterfall,

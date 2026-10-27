@@ -73,6 +73,112 @@ _SAFE_KEYWORDS = [
     r"\b(?:tidak\s*dipungut\s*biaya|tidak\s*ada\s*biaya\s*apapun)\b",
 ]
 
+# Sinyal eksplisit lowongan kerja / rekrutmen (Audit 007 temuan 2)
+_JOB_POSTING_SIGNALS = [
+    r"\b(?:lowongan|loker|dibutuhkan|dicari|we\s*are\s*hiring|recruitment|rekrutmen|hiring|open\s*recruitment|open\s*position|posisi|job\s*vacancy|karir|career|kesempatan\s*berkarir)\b",
+    r"\b(?:kualifikasi|persyaratan|syarat\s*kualifikasi|kriteria|requirement|requirements|qualification|qualifications)\b",
+    r"\b(?:kirim\s*(?:cv|lamaran|resume|berkas)|send\s*(?:cv|resume)|apply\s*(?:here|via|now)|melamar|surat\s*lamaran|daftar\s*sekarang)\b",
+    r"\b(?:gaji|salary|upah|benefit|fasilitas|uang\s*makan|uang\s*transport|tunjangan|bpjs|thr)\b",
+    r"\b(?:deskripsi\s*pekerjaan|job\s*desc|tanggung\s*jawab|tugas|penempatan|lokasi\s*kerja|jam\s*kerja|shift)\b",
+    r"\b(?:walk\s*in\s*interview|interview|seleksi\s*kerja|tahapan\s*seleksi)\b",
+    r"\b(?:fresh\s*graduate|pengalaman\s*(?:kerja|min|minimal)|pendidikan\s*minimal|usia\s*maksimal|pria\s*/\s*wanita)\b",
+    r"\b(?:staff|staf|admin|operator|supervisor|manager|kasir|barista|waiter|waitress|driver|supir|kurir|teknisi|programmer|designer|sales|marketing|security|satpam)\b",
+]
+
+# Sinyal artikel berita / pers
+_NEWS_ARTICLE_SIGNALS = [
+    r"\b(?:wartawan|jurnalis|diberitakan|dilaporkan|redaksi|pemred|narasumber)\b",
+    r"\b(?:ujar|tutur|kata|jelas|pungkas|terang)\w*\s+(?:beliau|dia|kepala|menteri|direktur|pejabat|petugas|kapolres|humas)\b",
+    r"\b(?:sebagaimana\s+dikutip|dilansir\s+dari|menurut\s+keterangan|dikutip\s+dari)\b",
+    r"\b(?:detikcom|kompas\.com|tribunnews|tempo\.co|antara|cnn\s*indonesia|liputan6|kumparan)\b",
+]
+
+# Sinyal invoice / transaksi komersial bukan loker
+_INVOICE_SIGNALS = [
+    r"\b(?:invoice|faktur|kwitansi|tanda\s*terima|nota\s*penjualan|pembayaran\s*tagihan|rekening\s*koran|bukti\s*transfer|tagihan\s*sebesar|total\s*bayar)\b",
+    r"\b(?:subtotal|diskon|jatuh\s*tempo|due\s*date|nomor\s*pesanan|order\s*id|status\s*pembayaran)\b",
+]
+
+
+def check_content_safety_and_type(text: str, companies: list[str] | None = None) -> dict[str, Any]:
+    """Deteksi gerbang isi lowongan (Audit 007 temuan 2):
+    Mendeteksi apakah teks merupakan lowongan kerja, artikel berita, invoice, atau teks non-loker acak.
+    """
+    text_lower = (text or "").lower()
+    words = text_lower.split()
+    word_count = len(words)
+
+    job_hits = sum(1 for p in _JOB_POSTING_SIGNALS if re.search(p, text_lower))
+    news_hits = sum(1 for p in _NEWS_ARTICLE_SIGNALS if re.search(p, text_lower))
+    invoice_hits = sum(1 for p in _INVOICE_SIGNALS if re.search(p, text_lower))
+
+    # Kasus teks sangat pendek (< 10 kata)
+    if word_count < 10:
+        if job_hits == 0:
+            return {
+                "is_job_posting": False,
+                "confidence": "tinggi",
+                "content_type": "non_job_text",
+                "text_too_short": True,
+                "job_signal_count": 0,
+                "warning": "Teks terlalu pendek dan tidak memuat penanda posisi atau lowongan kerja.",
+            }
+        else:
+            return {
+                "is_job_posting": True,
+                "confidence": "sedang",
+                "content_type": "job_posting_minimal",
+                "text_too_short": True,
+                "job_signal_count": job_hits,
+                "warning": "Informasi lowongan sangat sedikit untuk dianalisis secara akurat.",
+            }
+
+    # Berita / artikel umum
+    if news_hits >= 2 and job_hits <= 1:
+        return {
+            "is_job_posting": False,
+            "confidence": "tinggi",
+            "content_type": "news_article",
+            "text_too_short": False,
+            "job_signal_count": job_hits,
+            "warning": "Teks terdeteksi sebagai artikel berita atau publikasi pers, bukan lowongan kerja.",
+        }
+
+    # Invoice / faktur komersial
+    if invoice_hits >= 2 and job_hits == 0:
+        return {
+            "is_job_posting": False,
+            "confidence": "tinggi",
+            "content_type": "invoice_receipt",
+            "text_too_short": False,
+            "job_signal_count": 0,
+            "warning": "Teks terdeteksi sebagai faktur tagihan/invoice, bukan lowongan kerja.",
+        }
+
+    # Teks umum tanpa sinyal rekrutmen sama sekali
+    if job_hits == 0 and not bool(re.search(r"\b(gaji\w*|salary|upah)\b", text_lower)):
+        return {
+            "is_job_posting": False,
+            "confidence": "sedang",
+            "content_type": "general_text",
+            "text_too_short": False,
+            "job_signal_count": 0,
+            "warning": "Teks tidak menunjukkan karakteristik penawaran kerja atau proses rekrutmen.",
+        }
+
+    # Campuran loker + teks acak/berita
+    has_mixed = news_hits >= 2 and job_hits >= 2
+
+    return {
+        "is_job_posting": True,
+        "confidence": "tinggi",
+        "content_type": "job_posting",
+        "text_too_short": False,
+        "job_signal_count": job_hits,
+        "has_mixed_content": has_mixed,
+        "warning": "Ada teks tambahan di luar lowongan kerja yang ikut terdeteksi." if has_mixed else None,
+    }
+
 
 def extract_behavioral_features(text: str, companies: list[str] | None = None) -> dict[str, Any]:
     """Sinyal perilaku dari teks lowongan.
@@ -118,6 +224,7 @@ def extract_behavioral_features(text: str, companies: list[str] | None = None) -
 
 def classify_text(text: str, companies: list[str] | None = None) -> dict[str, Any]:
     behavioral = extract_behavioral_features(text, companies)
+    content_meta = check_content_safety_and_type(text, companies)
     has_fee = behavioral.get("has_fee_request", False)
     has_foreign = behavioral.get("has_foreign_work", False)
     fraud_hits = behavioral.get("fraud_keyword_count", 0.0)
@@ -146,4 +253,5 @@ def classify_text(text: str, companies: list[str] | None = None) -> dict[str, An
         "label": label,
         "nlp_score": score,
         "behavioral_features": behavioral,
+        "content_validation": content_meta,
     }

@@ -369,6 +369,7 @@ export function VerifyBox({ onStageChange }: { onStageChange?: (stage: VerifySta
   const [dotCount, setDotCount] = useState(0);
   const [stageMessage, setStageMessage] = useState<string>("");
   const [elapsed, setElapsed] = useState(0);
+  const [fileNotice, setFileNotice] = useState<string | null>(null);
   const abortControllerRef = useRef<AbortController | null>(null);
   const isDoneRef = useRef(false);
   // Label tombol pintas baru diketahui setelah mount (platform), supaya HTML server dan klien sama.
@@ -503,6 +504,7 @@ export function VerifyBox({ onStageChange }: { onStageChange?: (stage: VerifySta
     if (!f) {
       setFile(null);
       setPreview((prev) => { if (prev) URL.revokeObjectURL(prev); return null; });
+      setFileNotice(null);
       return;
     }
     if (!["image/jpeg", "image/jpg", "image/png", "image/webp"].includes(f.type)) {
@@ -605,7 +607,7 @@ export function VerifyBox({ onStageChange }: { onStageChange?: (stage: VerifySta
 
     try {
       if (file) {
-        const result = await verifyImage(file, controller.signal);
+        const result = await verifyImage(file, controller.signal, trimmed || undefined);
         // Hasil sudah ada: modal tetap terbuka sampai halaman laporan termuat.
         isDoneRef.current = true;
         setStepIndex(steps.length);
@@ -687,7 +689,17 @@ export function VerifyBox({ onStageChange }: { onStageChange?: (stage: VerifySta
           )}
           onDragOver={(e) => { e.preventDefault(); setDragOver(true); }}
           onDragLeave={() => setDragOver(false)}
-          onDrop={(e) => { e.preventDefault(); setDragOver(false); attachFile(e.dataTransfer.files[0] ?? null); }}
+          onDrop={(e) => {
+            e.preventDefault();
+            setDragOver(false);
+            const files = e.dataTransfer.files;
+            if (files.length > 1) {
+              setFileNotice(`Verifin menganalisis 1 gambar per verifikasi. Gambar pertama ("${files[0].name}") dipilih.`);
+            } else {
+              setFileNotice(null);
+            }
+            attachFile(files[0] ?? null);
+          }}
         >
           {!file ? (
             <>
@@ -750,23 +762,35 @@ export function VerifyBox({ onStageChange }: { onStageChange?: (stage: VerifySta
               )}
             </>
           ) : (
-            <div className="flex items-start gap-3 p-4">
-              {preview && (
-                // eslint-disable-next-line @next/next/no-img-element
-                <img src={preview} alt="preview" className="h-16 w-16 shrink-0 rounded-lg border border-border object-cover" />
-              )}
-              <div className="min-w-0 flex-1">
-                <p className="truncate text-[14px] font-medium text-text-primary">{file.name}</p>
-                <p className="mt-0.5 text-[12px] text-text-muted">{(file.size / 1024).toFixed(0)} KB</p>
+            <div className="space-y-2 p-4">
+              <div className="flex items-start gap-3">
+                {preview && (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img src={preview} alt="preview" className="h-16 w-16 shrink-0 rounded-lg border border-border object-cover" />
+                )}
+                <div className="min-w-0 flex-1">
+                  <p className="truncate text-[14px] font-medium text-text-primary">{file.name}</p>
+                  <p className="mt-0.5 text-[12px] text-text-muted">{(file.size / 1024).toFixed(0)} KB</p>
+                  {text.trim() && (
+                    <p className="mt-1 text-[12px] text-aman-fg">
+                      ✓ Disertai catatan teks tambahan ({text.trim().length} karakter)
+                    </p>
+                  )}
+                </div>
+                <button
+                  type="button"
+                  onClick={() => attachFile(null)}
+                  aria-label="Hapus gambar"
+                  className="flex h-11 w-11 items-center justify-center rounded-md text-text-muted transition-colors hover:bg-bg-subtle hover:text-text-primary"
+                >
+                  <X size={14} />
+                </button>
               </div>
-              <button
-                type="button"
-                onClick={() => attachFile(null)}
-                aria-label="Hapus gambar"
-                className="flex h-11 w-11 items-center justify-center rounded-md text-text-muted transition-colors hover:bg-bg-subtle hover:text-text-primary"
-              >
-                <X size={14} />
-              </button>
+              {fileNotice && (
+                <div className="rounded-lg border border-warning/30 bg-warning/10 px-3 py-2 text-[12px] text-warning-fg">
+                  {fileNotice}
+                </div>
+              )}
             </div>
           )}
         </div>
@@ -776,7 +800,15 @@ export function VerifyBox({ onStageChange }: { onStageChange?: (stage: VerifySta
           type="file"
           accept="image/jpeg,image/jpg,image/png,image/webp"
           className="hidden"
-          onChange={(e) => attachFile(e.target.files?.[0] ?? null)}
+          onChange={(e) => {
+            const files = e.target.files;
+            if (files && files.length > 1) {
+              setFileNotice(`Verifin menganalisis 1 gambar per verifikasi. Gambar pertama ("${files[0].name}") dipilih.`);
+            } else {
+              setFileNotice(null);
+            }
+            attachFile(files?.[0] ?? null);
+          }}
         />
 
         <Button

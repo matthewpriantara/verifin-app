@@ -77,13 +77,23 @@ async def run_osint_probes(entities: dict) -> dict:
             ] + [
                 {"id": addr, "type": "address", "risk_score": 0, "status": "VALID_GIS"} for addr in (entities.get("addresses") or [])
             ],
-            "edges": [
-                {"source": phone, "target": comp, "relation": "contact_of"} for comp in (entities.get("companies") or []) for phone in (entities.get("phones") or [])
-            ] + [
-                {"source": email, "target": comp, "relation": "email_of"} for comp in (entities.get("companies") or []) for email in (entities.get("emails") or [])
-            ] + [
-                {"source": addr, "target": comp, "relation": "location_of"} for comp in (entities.get("companies") or []) for addr in (entities.get("addresses") or [])
-            ],
+            # Anti-kontaminasi lokal: Jika input memuat lebih dari satu perusahaan (mixed input / multi-loker),
+            # jangan buat hubungan Cartesian product antara semua kontak dan semua perusahaan.
+            "edges": (
+                [
+                    {"source": phone, "target": comp, "relation": "contact_of"}
+                    for comp in (entities.get("companies") or [])
+                    for phone in (entities.get("phones") or [])
+                ] + [
+                    {"source": email, "target": comp, "relation": "email_of"}
+                    for comp in (entities.get("companies") or [])
+                    for email in (entities.get("emails") or [])
+                ] + [
+                    {"source": addr, "target": comp, "relation": "location_of"}
+                    for comp in (entities.get("companies") or [])
+                    for addr in (entities.get("addresses") or [])
+                ]
+            ) if len(entities.get("companies") or []) <= 1 else [],
             "cluster_id": None,
             "entity_in_fraud_network": False,
             "total_case_count": 0,

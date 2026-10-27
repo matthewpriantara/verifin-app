@@ -52,9 +52,12 @@ export async function verifyText(
  return res.json() as Promise<VerifyResponse>;
 }
 
-export async function verifyImage(file: File, signal?: AbortSignal): Promise<VerifyResponse> {
+export async function verifyImage(file: File, signal?: AbortSignal, additionalText?: string): Promise<VerifyResponse> {
  const form = new FormData();
  form.append("file", file);
+ if (additionalText && additionalText.trim()) {
+  form.append("additional_text", additionalText.trim());
+ }
 
  const res = await fetch(`${API_BASE}/api/v1/verify/image`, {
   method: "POST",

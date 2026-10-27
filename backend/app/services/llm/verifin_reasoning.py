@@ -111,6 +111,7 @@ def _calibrate_unknown_search_output(
     if parsed.get("verdict") == "BAHAYA" or float(parsed.get("risk_score") or 0) >= 40:
         parsed["verdict"] = "AMAN"
         parsed["risk_score"] = 28
+        parsed["calibrated_unknown_search"] = True
     for field in ("risk_factors", "safe_factors", "recommendations"):
         values = parsed.get(field) or []
         if not isinstance(values, list):
