@@ -532,6 +532,11 @@ def attach_shap_explanation(
             network_context=analysis.get("network_context"),
             entities=entities,
             model_used=analysis.get("model_used"),
+            guard_rule=(
+                "dead_domain" if analysis.get("calibrated_dead_domain")
+                else "unknown_search" if analysis.get("calibrated_unknown_search")
+                else None
+            ),
         )
     except Exception as exc:
         logging.getLogger(__name__).warning("SHAP explanation gagal: %s", exc)

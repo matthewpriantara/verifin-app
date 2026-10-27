@@ -52,7 +52,11 @@ def explain_verification_shap(
     network_context: dict[str, Any] | None = None,
     entities: dict[str, Any] | None = None,
     model_used: str | None = None,
+    guard_rule: str | None = None,
 ) -> dict[str, Any]:
+    """`guard_rule` menandai skor yang ditetapkan aturan pengaman setelah LLM (lihat
+    `verifin_reasoning._calibrate_unknown_search_output` dan `_floor_dead_application_domain`),
+    supaya selisihnya tidak dilabeli sebagai penalaran AI."""
     base_value = 12.0
     input_addresses = (entities or {}).get("addresses") or []
 
@@ -343,7 +347,7 @@ def explain_verification_shap(
         if community.get("status") == "COMPLETED" and approved_reports > 0:
             contributions.append(_community_contrib(approved_reports))
 
-    attribution = _compose_attribution(base_value, risk_score, contributions, model_used=model_used)
+    attribution = _compose_attribution(base_value, risk_score, contributions, model_used=model_used, guard_rule=guard_rule)
     risk_contribs = [c for c in contributions if c["impact"] == "risk"]
     safe_contribs = [c for c in contributions if c["impact"] == "safe"]
 
@@ -400,6 +404,7 @@ def _compose_attribution(
     risk_score: float,
     contributions: list[dict[str, Any]],
     model_used: str | None = None,
+    guard_rule: str | None = None,
 ) -> dict[str, Any]:
     """Susun kontribusi bukti + penyesuaian penalaran AI sehingga skor = base_value + Σ delta."""
     risk_contribs = [c for c in contributions if c["impact"] == "risk"]
@@ -440,7 +445,20 @@ def _compose_attribution(
     calibration_contribs = []
     if abs(remaining_delta) >= 0.01:
         is_fallback = bool(model_used and any(k in str(model_used).lower() for k in ("fallback", "rule-based")))
-        if is_fallback:
+        if guard_rule == "dead_domain":
+            cal_label = "Aturan Pengaman: Domain Lamaran Tanpa DNS"
+            cal_desc = (
+                "Domain email/tautan lamaran tidak terdaftar di DNS dan tidak ada situs resmi yang hidup. "
+                "Skor dinaikkan ke minimal WASPADA 45: jejak usaha yang ditemukan belum terbukti terhubung "
+                "dengan domain itu (pola pencatutan nama usaha)."
+            )
+        elif guard_rule == "unknown_search":
+            cal_label = "Aturan Pengaman: Bukti Publik Kosong"
+            cal_desc = (
+                "Semua pencarian publik kosong dan tidak ada sinyal bahaya keras. Skor diturunkan ke AMAN 28: "
+                "tidak adanya data bukan bukti penipuan."
+            )
+        elif is_fallback:
             cal_label = "Penyesuaian Aturan (Mode Fallback)"
             cal_desc = (
                 "Sistem beroperasi dalam mode Rule-Based Fallback deterministik. "

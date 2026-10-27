@@ -109,3 +109,20 @@ def test_vision_name_replaces_ocr_misread():
     vision = "WE ARE HIRING\nROEMAH BOENGA\nFLORIST & GIFT"
     assert _drop_ocr_misreads(["SBOENGA", "ROEMAH BOENGA"], vision) == ["ROEMAH BOENGA"]
     assert _drop_ocr_misreads(["PT Maju Jaya"], vision) == ["PT Maju Jaya"]
+
+
+def test_dead_application_domain_is_not_aman():
+    from app.services.llm.verifin_reasoning import _floor_dead_application_domain
+    osint = {"web": {"websites": [{"url": "https://roemahboenga.store", "website_status": "NOT_FOUND"}]}}
+    out = _floor_dead_application_domain({"verdict": "AMAN", "risk_score": 28, "risk_factors": []}, osint)
+    assert (out["verdict"], out["risk_score"]) == ("WASPADA", 45)
+    alive = {"web": {"websites": [{"website_status": "NOT_FOUND"}, {"website_status": "AVAILABLE"}]}}
+    assert _floor_dead_application_domain({"verdict": "AMAN", "risk_score": 20}, alive)["risk_score"] == 20
+
+
+def test_guard_rule_labels_residual():
+    from app.services.xai.shap_explainer import explain_verification_shap
+    sh = explain_verification_shap(45, "WASPADA", {}, [], [], guard_rule="dead_domain")
+    labels = [c["feature"] for c in sh["feature_contributions"]]
+    assert "Aturan Pengaman: Domain Lamaran Tanpa DNS" in labels
+    assert "Penyesuaian Penalaran AI" not in labels
