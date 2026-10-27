@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import re
 
+from app.services.constants import FREE_EMAIL_DOMAINS
 from app.services.hasher import compute_content_sha256
 
 def clean_indonesian_phone(ph: str) -> str:
@@ -118,15 +119,20 @@ def count_distinct_employers(companies: list[str]) -> int:
 
 
 def is_multi_employer(entities: dict) -> bool:
-    """Input memuat lowongan dari beberapa pemberi kerja: ≥ 2 nama berbeda DAN ≥ 2 kontak berbeda.
+    """Input memuat lowongan dari beberapa pemberi kerja: ≥ 2 nama berbeda DAN ≥ 2 nomor berbeda
+    atau ≥ 2 domain email korporat berbeda.
 
-    Nama induk + nama dagang tanpa kontak ganda (Medela Potentia / Anugrah Argon Medica) tidak dihitung.
+    Satu lowongan wajar mencantumkan satu nomor + satu email, dan sering menyebut nama induk +
+    nama dagang (PT Trinity Success Group / Morgans Kebab); itu tidak dihitung multi.
     """
     if count_distinct_employers(entities.get("companies") or []) < 2:
         return False
-    contacts = {re.sub(r"\D", "", p)[-9:] for p in (entities.get("phones") or []) if isinstance(p, str)}
-    contacts |= {e.split("@")[-1].casefold() for e in (entities.get("emails") or []) if isinstance(e, str) and "@" in e}
-    return len(contacts) >= 2
+    phones = {re.sub(r"\D", "", p)[-9:] for p in (entities.get("phones") or []) if isinstance(p, str)}
+    domains = {
+        e.split("@")[-1].casefold() for e in (entities.get("emails") or [])
+        if isinstance(e, str) and "@" in e and e.split("@")[-1].casefold() not in FREE_EMAIL_DOMAINS
+    }
+    return len(phones) >= 2 or len(domains) >= 2
 
 
 def _uniq(items: list[str]) -> list[str]:
