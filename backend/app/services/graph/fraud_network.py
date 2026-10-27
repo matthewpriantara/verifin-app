@@ -20,10 +20,32 @@ def _canonical_phone(value: Any) -> str:
     return digits
 
 
-def build_fraud_network(job_cases: list[dict[str, Any]]) -> nx.MultiDiGraph:
+def build_fraud_network(
+    job_cases: list[dict[str, Any]],
+    skip_multi_employer: bool = True,
+) -> nx.MultiDiGraph:
     G = nx.MultiDiGraph()
 
     for case in job_cases:
+        # PENGAMAN ANTI-KONTAMINASI GRAF (Audit 007):
+        # 1. Kasus non-lowongan (berita, invoice, meme) tidak boleh masuk graf penipuan.
+        # 2. Kasus campuran multi-loker (multi-employer) tidak diindeks ke dalam graf korelasi
+        #    karena entitas kontak berisiko menghubungkan HRD perusahaan legal dengan penipu (E2 -> E5).
+        if case.get("not_a_job_posting"):
+            continue
+
+        raw_companies = case.get("companies") or []
+        uniq_companies = {
+            c.upper().strip() for c in raw_companies
+            if isinstance(c, str) and c.strip()
+        }
+        if skip_multi_employer and (
+            case.get("is_multi_employer")
+            or case.get("is_mixed_input")
+            or (case.get("entities") or {}).get("is_multi_employer")
+        ):
+            continue
+
         case_id = str(case.get("id", ""))
         verdict = case.get("verdict", "AMAN")
         risk_score = case.get("risk_score", 0)

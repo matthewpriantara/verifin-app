@@ -65,13 +65,19 @@ def _save_case_to_db(
 
     try:
         text_hash = _case_hash(raw_text)
-        ent = entities or analysis.get("entities_analyzed") or {}
+        ent = dict(entities or analysis.get("entities_analyzed") or {})
         companies = list(ent.get("companies") or [])
         phones = list(ent.get("phones") or [])
         emails = list(ent.get("emails") or [])
         urls = list(ent.get("urls") or [])
         addresses = list(ent.get("addresses") or [])
         salaries = list(ent.get("salaries") or [])
+
+        uniq_c = {x.upper().strip() for x in companies if isinstance(x, str) and x.strip()}
+        if len(uniq_c) > 1 or (len(companies) > 1 and len(phones) > 1) or analysis.get("is_multi_employer"):
+            ent["is_multi_employer"] = True
+        if analysis.get("not_a_job_posting") or ent.get("not_a_job_posting"):
+            ent["not_a_job_posting"] = True
 
         if source == "url" and not urls:
             match_target = re.search(r"^URL Target:\s*(\S+)", raw_text or "", re.M)
@@ -88,6 +94,8 @@ def _save_case_to_db(
             "model_used": analysis.get("model_used"),
             "corrected_company_name": analysis.get("corrected_company_name"),
             "shap_explanation": analysis.get("shap_explanation"),
+            "not_a_job_posting": bool(ent.get("not_a_job_posting")),
+            "is_multi_employer": bool(ent.get("is_multi_employer")),
         }
 
         osint_failed = _osint_has_failures(osint_results)

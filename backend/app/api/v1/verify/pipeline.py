@@ -41,19 +41,33 @@ def _check_fraud_network(db: Session, entities: dict, raw_text: str | None = Non
         if not cases:
             return {"status": "NO_DATA", "entity_in_fraud_network": False, "total_case_count": 0}
 
-        cases_data = [
-            {
+        cases_data = []
+        for c in cases:
+            comps = c.companies or []
+            phones = c.phones or []
+            ent_meta = c.entities or {}
+            uniq_c = {x.upper().strip() for x in comps if isinstance(x, str) and x.strip()}
+            is_multi = (
+                ent_meta.get("is_multi_employer", False)
+                or ent_meta.get("is_mixed_input", False)
+                or (len(uniq_c) > 1 and len(phones) > 1)
+            )
+            is_non_job = (
+                ent_meta.get("not_a_job_posting", False)
+                or (c.llm_output or {}).get("not_a_job_posting", False)
+            )
+            cases_data.append({
                 "id": str(c.id),
                 "verdict": c.verdict,
                 "risk_score": c.risk_score,
-                "phones": c.phones or [],
+                "phones": phones,
                 "emails": c.emails or [],
-                "companies": c.companies or [],
+                "companies": comps,
                 "urls": c.urls or [],
                 "created_at": str(c.created_at),
-            }
-            for c in cases
-        ]
+                "is_multi_employer": is_multi,
+                "not_a_job_posting": is_non_job,
+            })
 
         G = build_fraud_network(cases_data)
 
@@ -67,6 +81,7 @@ def _check_fraud_network(db: Session, entities: dict, raw_text: str | None = Non
                     "company_name": (cd.get("companies") or [None])[0],
                 }
                 for cd in cases_data
+                if not cd.get("is_multi_employer") and not cd.get("not_a_job_posting")
             ]
             network_ctx["syndicate_analysis"] = detect_identity_syndicate(
                 contacts=entities.get("phones") or [],
@@ -453,6 +468,7 @@ def attach_shap_explanation(
             ),
             network_context=analysis.get("network_context"),
             entities=entities,
+            model_used=analysis.get("model_used"),
         )
     except Exception as exc:
         logging.getLogger(__name__).warning("SHAP explanation gagal: %s", exc)

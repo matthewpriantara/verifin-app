@@ -109,9 +109,14 @@ def search_cases(
 
     total = query.count()
     rows = query.order_by(JobCase.created_at.desc()).offset(skip).limit(limit).all()
+    filtered_rows = [
+        r for r in rows
+        if not (r.entities or {}).get("not_a_job_posting")
+        and not (r.llm_output or {}).get("not_a_job_posting")
+    ]
     return {
         "query_kind": kind,
-        "total": total,
-        "cases": [summarize(r, kind) for r in rows],
+        "total": len(filtered_rows) if len(filtered_rows) != len(rows) else total,
+        "cases": [summarize(r, kind) for r in filtered_rows],
         "too_short": False,
     }

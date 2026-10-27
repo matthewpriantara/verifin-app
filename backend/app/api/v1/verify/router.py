@@ -8,7 +8,7 @@ import time
 from uuid import UUID, uuid4
 from sqlalchemy.orm import Session
 
-from fastapi import APIRouter, Body, File, HTTPException, Query, UploadFile, Depends
+from fastapi import APIRouter, Body, File, Form, HTTPException, Query, UploadFile, Depends
 from fastapi.responses import StreamingResponse
 from app.database.postgres_client import get_db
 from app.database.models import JobCase
@@ -179,6 +179,9 @@ async def verify_from_text(
         _log_raw_json(request_id, "ENTITIES", entities)
         logger.info("[verify][%s] NER done counts=%s meta=%s duration=%.2fs", request_id, _entity_counts(entities), entities.get("_ner_meta"), time.perf_counter() - stage_started)
 
+        raw_text = request.text
+        nlp_result = _classify_text_signals(raw_text, entities)
+
         stage_started = time.perf_counter()
         osint_results = await _run_osint_on_entities(entities)
         _log_osint_summary(request_id, osint_results)
@@ -191,8 +194,6 @@ async def verify_from_text(
         _merge_network(osint_results, network_context)
         logger.info("[verify][%s] fraud-network done status=%s in_network=%s reports=%s duration=%.2fs", request_id, network_context.get("status"), network_context.get("entity_in_fraud_network"), (network_context.get("community_reports") or {}).get("report_count"), time.perf_counter() - stage_started)
 
-        raw_text = request.text
-        nlp_result = _classify_text_signals(raw_text, entities)
         stage_started = time.perf_counter()
         analysis = await analyze_with_verifin(
             entities, osint_results, raw_text=raw_text, text_signals=nlp_result["behavioral_features"]
@@ -235,6 +236,10 @@ async def verify_from_image(
     file: UploadFile = File(
         ..., description="File gambar poster/screenshot lowongan (JPG/PNG/WEBP)"
     ),
+    additional_text: str | None = Form(
+        default=None,
+        description="Konteks teks tambahan atau catatan dari postingan untuk melengkapi OCR",
+    ),
     db: Session = Depends(get_db)
 ):
     request_id = _request_id()
@@ -265,6 +270,8 @@ async def verify_from_image(
                 status_code=422,
                 detail="Tidak ada teks yang berhasil dibaca dari gambar. Coba unggah gambar yang lebih jelas.",
             )
+        if additional_text and additional_text.strip():
+            raw_text = f"{raw_text.strip()}\n\n[Konteks Tambahan]:\n{additional_text.strip()}"
         logger.info("[OCR] image metrics=%s", ocr_metrics)
         logger.info("[verify][%s] OCR done chars=%d metrics=%s duration=%.2fs", request_id, len(raw_text), ocr_metrics, time.perf_counter() - started)
 
@@ -281,6 +288,8 @@ async def verify_from_image(
         _log_raw_json(request_id, "ENTITIES", entities)
         logger.info("[verify][%s] NER done counts=%s meta=%s duration=%.2fs", request_id, _entity_counts(entities), entities.get("_ner_meta"), time.perf_counter() - stage_started)
 
+        nlp_result = _classify_text_signals(raw_text, entities)
+
         stage_started = time.perf_counter()
         osint_results = await _run_osint_on_entities(entities)
         _log_osint_summary(request_id, osint_results)
@@ -294,7 +303,6 @@ async def verify_from_image(
         logger.info("[verify][%s] fraud-network done status=%s in_network=%s reports=%s duration=%.2fs", request_id, network_context.get("status"), network_context.get("entity_in_fraud_network"), (network_context.get("community_reports") or {}).get("report_count"), time.perf_counter() - stage_started)
 
         stage_started = time.perf_counter()
-        nlp_result = _classify_text_signals(raw_text, entities)
         analysis = await analyze_with_verifin(
             entities, osint_results, raw_text=raw_text, text_signals=nlp_result["behavioral_features"]
         )
@@ -361,9 +369,13 @@ async def verify_from_url(
         return cached_resp
 
     tmp_paths = []
+    carousel_meta = {}
     try:
-        caption_text, tmp_paths = await _fetch_url_content_and_image(request.url)
-        logger.info("[verify][%s] URL fetch done caption_chars=%d images=%d duration=%.2fs", request_id, len(caption_text or ""), len(tmp_paths), time.perf_counter() - started)
+        caption_text, tmp_paths, carousel_meta = await _fetch_url_content_and_image(request.url)
+        logger.info(
+            "[verify][%s] URL fetch done caption_chars=%d images=%d total_images=%d duration=%.2fs",
+            request_id, len(caption_text or ""), len(tmp_paths), carousel_meta.get("total_images", 0), time.perf_counter() - started
+        )
 
         ocr_texts = []
         for p in tmp_paths:
@@ -400,6 +412,9 @@ async def verify_from_url(
         entities = await _extract_entities_hybrid(full_raw_text)
         _log_raw_json(request_id, "ENTITIES", entities)
         logger.info("[verify][%s] NER done counts=%s meta=%s duration=%.2fs", request_id, _entity_counts(entities), entities.get("_ner_meta"), time.perf_counter() - started)
+
+        nlp_result = _classify_text_signals(full_raw_text, entities)
+
         stage_started = time.perf_counter()
         osint_results = await _run_osint_on_entities(entities)
         _log_osint_summary(request_id, osint_results)
@@ -413,7 +428,6 @@ async def verify_from_url(
         logger.info("[verify][%s] fraud-network done status=%s in_network=%s reports=%s duration=%.2fs", request_id, network_context.get("status"), network_context.get("entity_in_fraud_network"), (network_context.get("community_reports") or {}).get("report_count"), time.perf_counter() - stage_started)
 
         stage_started = time.perf_counter()
-        nlp_result = _classify_text_signals(full_raw_text, entities)
         analysis = await analyze_with_verifin(
             entities, osint_results, raw_text=full_raw_text, text_signals=nlp_result["behavioral_features"]
         )
@@ -421,6 +435,12 @@ async def verify_from_url(
         logger.info("[verify][%s] LLM done verdict=%s score=%s model=%s duration=%.2fs", request_id, analysis.get("verdict"), analysis.get("risk_score"), analysis.get("model_used"), time.perf_counter() - stage_started)
         analysis["network_context"] = network_context
         analysis["nlp_result"] = nlp_result
+        if carousel_meta.get("total_images", 0) > carousel_meta.get("processed_images", 0):
+            if "recommendations" not in analysis or not isinstance(analysis["recommendations"], list):
+                analysis["recommendations"] = []
+            analysis["recommendations"].append(
+                f"Postingan memuat {carousel_meta['total_images']} gambar (hanya {carousel_meta['processed_images']} slide pertama yang terbaca). Bila kontak atau kualifikasi ada di slide berikutnya, unggah tangkapan layar langsung ke Verifin."
+            )
         if request.url:
             if "urls" not in entities or not isinstance(entities["urls"], list):
                 entities["urls"] = [request.url]
@@ -699,6 +719,12 @@ def _classify_text_signals(raw_text: str, entities: dict) -> dict:
     nlp_result = classify_text(raw_text, entities.get("companies"))
     if nlp_result["behavioral_features"].get("has_fee_request"):
         entities["has_fee_request"] = True
+    c_meta = nlp_result.get("content_validation") or {}
+    if not c_meta.get("is_job_posting"):
+        entities["not_a_job_posting"] = True
+    uniq_comps = {c.upper().strip() for c in (entities.get("companies") or []) if isinstance(c, str) and c.strip()}
+    if len(uniq_comps) > 1 or (len(entities.get("companies") or []) > 1 and len(entities.get("phones") or []) > 1):
+        entities["is_multi_employer"] = True
     return nlp_result
 
 
@@ -735,10 +761,17 @@ async def _verify_url_stream_generator(url: str, additional_text: str, db_sessio
     yield _sse_event("start", {"request_id": request_id, "message": "Memulai verifikasi..."})
 
     tmp_paths = []
+    carousel_meta = {}
     try:
         yield _sse_event("stage", {"stage": "fetch", "status": "processing", "message": "Mengambil konten dari URL..."})
-        caption_text, tmp_paths = await _fetch_url_content_and_image(url)
+        caption_text, tmp_paths, carousel_meta = await _fetch_url_content_and_image(url)
         logger.info("[verify-stream][%s] URL fetch done duration=%.2fs", request_id, time.perf_counter() - started)
+        if carousel_meta.get("total_images", 0) > carousel_meta.get("processed_images", 0):
+            yield _sse_event("stage", {
+                "stage": "fetch",
+                "status": "processing",
+                "message": f"Postingan berisi {carousel_meta['total_images']} gambar; {carousel_meta['processed_images']} gambar pertama dibaca...",
+            })
 
         yield _sse_event("stage", {"stage": "ocr", "status": "processing", "message": "Mengenali teks dari gambar poster..."})
         ocr_texts = []
@@ -788,6 +821,7 @@ async def _verify_url_stream_generator(url: str, additional_text: str, db_sessio
         entities = await _extract_entities_hybrid(full_raw_text)
         _log_raw_json(request_id, "ENTITIES", entities)
         logger.info("[verify-stream][%s] NER done counts=%s duration=%.2fs", request_id, _entity_counts(entities), time.perf_counter() - started)
+        nlp_result = _classify_text_signals(full_raw_text, entities)
         yield _sse_event("stage", {
             "stage": "ner", "status": "done",
             "message": f"Ditemukan {len(entities.get('companies', []))} perusahaan, {len(entities.get('phones', []))} kontak",
@@ -814,7 +848,6 @@ async def _verify_url_stream_generator(url: str, additional_text: str, db_sessio
 
         yield _sse_event("stage", {"stage": "ai", "status": "processing", "message": "AI menganalisis dan menyusun verdict..."})
         stage_started = time.perf_counter()
-        nlp_result = _classify_text_signals(full_raw_text, entities)
         llm_task = asyncio.create_task(analyze_with_verifin(
             entities, osint_results, raw_text=full_raw_text, text_signals=nlp_result["behavioral_features"]
         ))
@@ -826,6 +859,13 @@ async def _verify_url_stream_generator(url: str, additional_text: str, db_sessio
         analysis = llm_task.result()
         _log_raw_json(request_id, "ANALYSIS", analysis)
         logger.info("[verify-stream][%s] LLM done verdict=%s score=%s duration=%.2fs", request_id, analysis.get("verdict"), analysis.get("risk_score"), time.perf_counter() - stage_started)
+
+        if carousel_meta.get("total_images", 0) > carousel_meta.get("processed_images", 0):
+            if "recommendations" not in analysis or not isinstance(analysis["recommendations"], list):
+                analysis["recommendations"] = []
+            analysis["recommendations"].append(
+                f"Postingan memuat {carousel_meta['total_images']} gambar (hanya {carousel_meta['processed_images']} slide pertama yang terbaca). Bila kontak atau kualifikasi ada di slide berikutnya, unggah tangkapan layar langsung ke Verifin."
+            )
 
         analysis["network_context"] = network_context
         analysis["nlp_result"] = nlp_result
