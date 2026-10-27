@@ -1,5 +1,6 @@
 import asyncio
 import copy
+from difflib import SequenceMatcher
 import logging
 import re
 from sqlalchemy.orm import Session
@@ -260,6 +261,24 @@ def _dedupe_companies(companies: list[str]) -> list[str]:
     return [max(names, key=quality) for names in groups.values()]
 
 
+def _drop_ocr_misreads(companies: list[str], vision_text: str) -> list[str]:
+    """Buang nama hasil salah baca OCR pada logo bergaya ("SBOENGA") bila model vision membaca
+    nama yang mirip dengan benar ("ROEMAH BOENGA"): nama itu tidak ada di bacaan vision, sedangkan
+    nama lain yang ada di bacaan vision berbagi potongan huruf panjang dengannya."""
+    seen = _squash(vision_text)
+    in_vision = [c for c in companies if _squash(c) and _squash(c) in seen]
+    kept = []
+    for c in companies:
+        sc = _squash(c)
+        if c not in in_vision and any(
+            SequenceMatcher(None, sc, _squash(v)).find_longest_match(0, len(sc), 0, len(_squash(v))).size >= 5
+            for v in in_vision
+        ):
+            continue
+        kept.append(c)
+    return in_vision + [c for c in kept if c not in in_vision]
+
+
 def _contact_key(kind: str, value: str) -> str:
     if kind == "phones":
         digits = re.sub(r"\D", "", value)
@@ -349,6 +368,9 @@ async def _extract_entities_hybrid(text: str, proof_text: str | None = None) -> 
     if declared and declared.group(1).strip():
         name = declared.group(1).strip()
         merged["companies"] = [name] + [c for c in merged["companies"] if c.casefold() != name.casefold()]
+
+    if VISION_MARKER in text:
+        merged["companies"] = _drop_ocr_misreads(merged["companies"], text.split(VISION_MARKER, 1)[1])
 
     # Alamat: harus lolos grounding dan terlihat seperti alamat fisik.
     llm_addresses = [v for v in accept(llm_extracted.get("addresses") or []) if _is_plausible_address(v)]

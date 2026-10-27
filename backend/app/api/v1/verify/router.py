@@ -776,7 +776,7 @@ def _precheck(
     if intervention == "force":
         apply_forced(entities, intervention_kind)
         notes.insert(0, {
-            "not_job": "Kamu memilih tetap memeriksa input yang sepertinya bukan lowongan. Hasil ini tidak disimpan ke riwayat dan graf penipuan.",
+            "not_job": "Kamu memilih tetap memeriksa input yang sepertinya bukan lowongan. Hasil ini tidak dipakai di graf penipuan dan pencarian publik.",
             "multi_job": "Input berisi lebih dari satu lowongan dan diperiksa sekaligus. Bukti bisa tercampur; hasil ini tidak disimpan ke graf penipuan.",
             "too_short": "Bukti sangat terbatas: teks lowongan terlalu pendek.",
         }.get(intervention_kind or "", "Input diperiksa walau bermasalah."))

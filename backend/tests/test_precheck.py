@@ -102,3 +102,10 @@ def test_forced_input_is_kept_out_of_graph():
     apply_forced(ents, "not_job")
     assert ents["input_quality"] == "forced"
     assert ents["is_mixed_input"] and ents["not_a_job_posting"]
+
+
+def test_vision_name_replaces_ocr_misread():
+    from app.api.v1.verify.pipeline import _drop_ocr_misreads
+    vision = "WE ARE HIRING\nROEMAH BOENGA\nFLORIST & GIFT"
+    assert _drop_ocr_misreads(["SBOENGA", "ROEMAH BOENGA"], vision) == ["ROEMAH BOENGA"]
+    assert _drop_ocr_misreads(["PT Maju Jaya"], vision) == ["PT Maju Jaya"]
