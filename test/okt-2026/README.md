@@ -126,6 +126,56 @@ Run 4 (arsip tidak disimpan) dipakai untuk menemukan dua celah yang diperbaiki s
 - Percobaan pertama run 9 (`hasil/run9-percobaan1`, tidak disimpan) dihentikan karena tiga bug: kota penempatan "Wilayah Kerja PT. Pos Indonesia (Persero)" dipetakan ke Tuban, "Indonesia" dipetakan ke titik tengah negara, dan "Kirim CV terbaik Anda" terbaca sebagai badan usaha. Saat itu penyedia LLM juga sempat membalas error 520, sehingga T11 jatuh ke penilaian aturan. Ketiga bug diperbaiki (`f5be179`) sebelum run final.
 - Laporan komunitas nyata untuk nomor T3 (sumber: IDN Times) dikirim lewat form produksi dan berstatus *menunggu* moderasi; laporan T3 menampilkannya sebagai "1 laporan menunggu tinjauan admin", belum dipakai sebagai bukti.
 
+**Run 10 (27 Okt 2026): seluruh 14 kasus dengan LLM lokal `gemma4:12b-it-qat`** (Ollama 0.40.10 di VPS, commit `c167f2a`). Run 9 memakai `ag/gemini-3.8-flash-medium`. JSON: `hasil/run10-gemma.json`.
+
+Percobaan pertama hari ini (sebelum `c167f2a`) gagal: Gemma 4 berpikir dulu secara default, jawabannya masuk ke `reasoning_content` dan `content` kosong, sehingga penalaran gagal validasi tiga kali dan jatuh ke penilaian aturan (T9, T4, T5), dan NER LLM jatuh ke regex. Bukan timeout. Hasil penilaian aturan itu juga tersimpan di cache (T3 terbaca BAHAYA 100 dari cache). Perbaikan: `LLM_REASONING_EFFORT=none` (uji kecil: 696 → 30 token, 7,2 → 0,4 dtk), cache tidak lagi memakai hasil penilaian aturan, dan `VERIFY_CACHE_ENABLED=false` selama uji ulang.
+
+| ID | Status sebenarnya | Run 9 (Gemini) | **Run 10 (Gemma)** | Durasi | Penyesuaian AI |
+|---|---|---|---|---|---|
+| T1 | Asli | AMAN 12 | **AMAN 12** | 28 dtk | −1 |
+| T9 | Asli | AMAN 25 | **WASPADA 70** | 17 dtk | +53 |
+| T10 | Asli | AMAN 10 | **AMAN 15** | 16 dtk | +27 |
+| T11 | Asli | AMAN 22 | **AMAN 25** | 19 dtk | 0 |
+| L1 | Asli | AMAN 18 | **AMAN 15** | 33 dtk | +5 |
+| P1 | Asli | AMAN 28 | **AMAN 15** | 36 dtk | −30 |
+| T2 | Abu-abu | WASPADA 52 | **WASPADA 55** | 9 dtk | −8 |
+| L2 | Abu-abu | WASPADA 55 | **WASPADA 55** | 6 dtk | +43 |
+| T3 | Penipuan | BAHAYA 92 | **BAHAYA 98** | 25 dtk | −72 |
+| T4 | Penipuan | WASPADA 73 | **WASPADA 74** | 13 dtk | +12 |
+| T5 | Penipuan | WASPADA 74 | **WASPADA 74** | 17 dtk | +12 |
+| T6 | Penipuan | WASPADA 72 | **WASPADA 72** | 17 dtk | +35 |
+| T7 | Penipuan | WASPADA 45 | **WASPADA 55** | 4 dtk | +43 |
+| T8 | Penipuan | WASPADA 72 | **WASPADA 72** | 11 dtk | +20 |
+
+- Penipuan yang ditandai: **6 dari 6**. Lowongan asli yang dinilai AMAN: **5 dari 6**. T9 (Anugrah Argon Medica) naik ke WASPADA 70: bukti terukur hanya +5 (artikel pencatutan +15, jejak web −10), sisanya +53 dari penalaran Gemma yang menimbang "nama pernah dicatut" dan pendaftaran lewat bit.ly terlalu berat.
+- Durasi tanpa cache 4–36 dtk (run 9: 15–52 dtk).
+- "Penyesuaian AI" Gemma lebih besar daripada Gemini pada kasus dengan sedikit bukti (L2, T7: +43). Pada T3, nilai −72 hanya karena jumlah bukti melebihi 100 dan skor dipotong.
+- T3 tidak punya `safe_factors` dan `recommendations` (keluaran Gemma kosong di dua kolom itu).
+- "Entitas Muncul di Beberapa Kasus" (+15) muncul pada T1, T11, T2, T8, P1. Hash cache memuat nama model, jadi teks yang sama kini tersimpan sebagai baris Gemini dan baris Gemma, dan keduanya saling terhitung sebagai kasus lain.
+
+**Run 11 (27 Okt 2026): Gemini kembali jadi LLM utama** (commit `62c9dee`). Produksi kini memakai `ag/gemini-3.8-flash-medium` lewat Octane sebagai utama dan `gemma4:12b-it-qat` sebagai cadangan (`LLM_FALLBACK_REASONING_EFFORT=none`). Cache tetap dimatikan selama run. JSON: `hasil/run11-gemini.json`.
+
+| ID | Status sebenarnya | Run 9 (Gemini) | Run 10 (Gemma) | **Run 11 (Gemini)** | Durasi |
+|---|---|---|---|---|---|
+| T1 | Asli | AMAN 12 | AMAN 12 | **AMAN 12** | 42 dtk |
+| T9 | Asli | AMAN 25 | WASPADA 70 | **AMAN 25** | 41 dtk |
+| T10 | Asli | AMAN 10 | AMAN 15 | **AMAN 10** | 31 dtk |
+| T11 | Asli | AMAN 22 | AMAN 25 | **AMAN 24** | 31 dtk |
+| L1 | Asli | AMAN 18 | AMAN 15 | **AMAN 16** | 39 dtk |
+| P1 | Asli | AMAN 28 | AMAN 15 | **AMAN 28** | 52 dtk |
+| T2 | Abu-abu | WASPADA 52 | WASPADA 55 | **WASPADA 52** | 23 dtk |
+| L2 | Abu-abu | WASPADA 55 | WASPADA 55 | **WASPADA 58** | 14 dtk |
+| T3 | Penipuan | BAHAYA 92 | BAHAYA 98 | **BAHAYA 96** | 43 dtk |
+| T4 | Penipuan | WASPADA 73 | WASPADA 74 | **WASPADA 73** | 28 dtk |
+| T5 | Penipuan | WASPADA 74 | WASPADA 74 | **WASPADA 72** | 29 dtk |
+| T6 | Penipuan | WASPADA 72 | WASPADA 72 | **WASPADA 70** | 31 dtk |
+| T7 | Penipuan | WASPADA 45 | WASPADA 55 | **WASPADA 45** | 19 dtk |
+| T8 | Penipuan | WASPADA 72 | WASPADA 72 | **WASPADA 72** | 27 dtk |
+
+- Penipuan yang ditandai: **6 dari 6**. Lowongan asli yang dinilai AMAN: **6 dari 6**. Semua verdict sama dengan run 9; skor bergeser paling banyak 4 poin (T3 92 → 96).
+- Durasi tanpa cache 14–52 dtk (run 9: 15–52 dtk; run 10 Gemma: 4–36 dtk).
+- Semua kasus lewat Evidence Reasoning Gemini; tidak ada yang jatuh ke cadangan Gemma atau penilaian aturan.
+
 **Ringkasan run 5** (kasus abu-abu tidak dihitung):
 - Penipuan yang ditandai (WASPADA atau BAHAYA): **6 dari 6**. Yang sampai BAHAYA hanya 1 dari 6 (T3, satu-satunya yang meminta biaya). Lima lainnya hanya mengarahkan ke WhatsApp/tautan bio tanpa bukti keras, sehingga berhenti di WASPADA.
 - Lowongan asli yang dinilai AMAN: **6 dari 6**; tidak ada lowongan asli yang ditandai.
