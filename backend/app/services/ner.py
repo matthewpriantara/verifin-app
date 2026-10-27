@@ -93,6 +93,42 @@ def uniq_casefold(items: list[str]) -> list[str]:
     return out
 
 
+_EMPLOYER_NOISE = re.compile(
+    r"\b(?:pt|cv|ud|pd|tbk|persero|perseroan|group|grup|indonesia|official|hotel|the)\b|[^\w\s]",
+    re.I,
+)
+
+
+def _employer_tokens(name: str) -> frozenset[str]:
+    # "(AAM)" dan "(Persero)" dibuang; sisanya token nama inti.
+    core = re.sub(r"\([^)]*\)", " ", name or "")
+    return frozenset(t for t in _EMPLOYER_NOISE.sub(" ", core.casefold()).split() if len(t) > 1)
+
+
+def count_distinct_employers(companies: list[str]) -> int:
+    """Varian nama yang sama ("PT Pertamina (Persero)", "Pertamina Group") dihitung satu."""
+    groups: list[frozenset[str]] = []
+    for name in companies or []:
+        tokens = _employer_tokens(name) if isinstance(name, str) else frozenset()
+        if not tokens:
+            continue
+        if not any(tokens <= g or g <= tokens or len(tokens & g) * 2 >= min(len(tokens), len(g)) for g in groups):
+            groups.append(tokens)
+    return len(groups)
+
+
+def is_multi_employer(entities: dict) -> bool:
+    """Input memuat lowongan dari beberapa pemberi kerja: ≥ 2 nama berbeda DAN ≥ 2 kontak berbeda.
+
+    Nama induk + nama dagang tanpa kontak ganda (Medela Potentia / Anugrah Argon Medica) tidak dihitung.
+    """
+    if count_distinct_employers(entities.get("companies") or []) < 2:
+        return False
+    contacts = {re.sub(r"\D", "", p)[-9:] for p in (entities.get("phones") or []) if isinstance(p, str)}
+    contacts |= {e.split("@")[-1].casefold() for e in (entities.get("emails") or []) if isinstance(e, str) and "@" in e}
+    return len(contacts) >= 2
+
+
 def _uniq(items: list[str]) -> list[str]:
     return list(dict.fromkeys(re.sub(r"\s+", " ", (i or "")).strip() for i in items if (i or "").strip()))
 _DATE_TIME_JUNK = re.compile(

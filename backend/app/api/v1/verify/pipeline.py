@@ -18,6 +18,7 @@ from app.services.ner import (
     _DATE_PATTERNS,
     _uniq,
     fix_email_ocr_typos,
+    is_multi_employer,
 )
 from app.services.osint.runner import run_osint_probes
 from app.services.xai.shap_explainer import explain_verification_shap
@@ -46,11 +47,10 @@ def _check_fraud_network(db: Session, entities: dict, raw_text: str | None = Non
             comps = c.companies or []
             phones = c.phones or []
             ent_meta = c.entities or {}
-            uniq_c = {x.upper().strip() for x in comps if isinstance(x, str) and x.strip()}
             is_multi = (
                 ent_meta.get("is_multi_employer", False)
                 or ent_meta.get("is_mixed_input", False)
-                or (len(uniq_c) > 1 and len(phones) > 1)
+                or is_multi_employer({"companies": comps, "phones": phones, "emails": c.emails or []})
             )
             is_non_job = (
                 ent_meta.get("not_a_job_posting", False)

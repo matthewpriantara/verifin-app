@@ -1,6 +1,7 @@
 import asyncio
 import re
 
+from app.services.ner import is_multi_employer
 from app.services.osint.address_validator import validate_address_and_business
 from app.services.osint.company_validator import validate_companies
 from app.services.osint.phone_validator import check_phones_reputation, normalize_phone_id
@@ -77,7 +78,7 @@ async def run_osint_probes(entities: dict) -> dict:
             ] + [
                 {"id": addr, "type": "address", "risk_score": 0, "status": "VALID_GIS"} for addr in (entities.get("addresses") or [])
             ],
-            # Anti-kontaminasi lokal: Jika input memuat lebih dari satu perusahaan (mixed input / multi-loker),
+            # Anti-kontaminasi lokal: bila input memuat beberapa pemberi kerja dengan kontak berbeda,
             # jangan buat hubungan Cartesian product antara semua kontak dan semua perusahaan.
             "edges": (
                 [
@@ -93,7 +94,7 @@ async def run_osint_probes(entities: dict) -> dict:
                     for comp in (entities.get("companies") or [])
                     for addr in (entities.get("addresses") or [])
                 ]
-            ) if len(entities.get("companies") or []) <= 1 else [],
+            ) if not is_multi_employer(entities) else [],
             "cluster_id": None,
             "entity_in_fraud_network": False,
             "total_case_count": 0,
