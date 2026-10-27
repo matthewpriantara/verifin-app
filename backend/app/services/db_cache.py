@@ -11,6 +11,7 @@ from app.api.v1.verify.schema import VerifyResponse
 from app.config import LLM_MODEL, VERIFY_CACHE_ENABLED
 from app.database.models import JobCase
 from app.services.hasher import compute_content_sha256
+from app.services.ner import is_multi_employer
 from app.api.v1.verify.pipeline import _build_osint_summary, _to_response
 from app.services.llm.verifin_reasoning import _soften_summary_claims
 
@@ -73,8 +74,7 @@ def _save_case_to_db(
         addresses = list(ent.get("addresses") or [])
         salaries = list(ent.get("salaries") or [])
 
-        uniq_c = {x.upper().strip() for x in companies if isinstance(x, str) and x.strip()}
-        if len(uniq_c) > 1 or (len(companies) > 1 and len(phones) > 1) or analysis.get("is_multi_employer"):
+        if is_multi_employer(ent) or analysis.get("is_multi_employer"):
             ent["is_multi_employer"] = True
         if analysis.get("not_a_job_posting") or ent.get("not_a_job_posting"):
             ent["not_a_job_posting"] = True

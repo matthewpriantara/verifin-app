@@ -22,6 +22,8 @@ from app.api.v1.verify.schema import (
 from app.services.llm.verifin_reasoning import analyze_with_verifin, check_ai_status
 from app.services.ocr import extract_text_from_image
 from app.services.nlp.classifier import classify_text
+from app.services.ner import is_multi_employer
+from app.services.ner import is_multi_employer
 from app.services.osint.whois_handler import (
     check_domain_age,
     check_email_security,
@@ -722,8 +724,7 @@ def _classify_text_signals(raw_text: str, entities: dict) -> dict:
     c_meta = nlp_result.get("content_validation") or {}
     if not c_meta.get("is_job_posting"):
         entities["not_a_job_posting"] = True
-    uniq_comps = {c.upper().strip() for c in (entities.get("companies") or []) if isinstance(c, str) and c.strip()}
-    if len(uniq_comps) > 1 or (len(entities.get("companies") or []) > 1 and len(entities.get("phones") or []) > 1):
+    if is_multi_employer(entities):
         entities["is_multi_employer"] = True
     return nlp_result
 

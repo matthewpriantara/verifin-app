@@ -201,3 +201,29 @@ class TestAudit007XAIExplanationAndWeights:
         assert res["verdict"] == "AMAN"
         assert res["risk_score"] == 28
         assert res.get("calibrated_unknown_search") is True
+
+
+class TestMultiEmployerHeuristic:
+    """Varian nama satu pemberi kerja tidak boleh dianggap multi-loker (regresi b76b83a)."""
+
+    def test_name_variants_single_employer(self):
+        from app.services.ner import count_distinct_employers, is_multi_employer
+        assert count_distinct_employers(["PT Pertamina (Persero)", "Pertamina Group"]) == 1
+        assert count_distinct_employers(["HOTEL NEW SAPHIR YOGYAKARTA", "New Saphir Hotel Yogyakarta"]) == 1
+        t3 = {"companies": ["PT Pertamina (Persero)", "Pertamina Group"], "phones": ["+6282221333836"], "emails": []}
+        assert not is_multi_employer(t3)
+        t1 = {"companies": ["HOTEL NEW SAPHIR YOGYAKARTA", "New Saphir Hotel Yogyakarta"],
+              "phones": ["+6282323863434"], "emails": ["hrm@newsaphirhotel.com"]}
+        assert not is_multi_employer(t1)
+
+    def test_parent_and_brand_without_extra_contacts(self):
+        from app.services.ner import is_multi_employer
+        t9 = {"companies": ["PT MEDELA POTENTIA TBK", "ANUGRAH ARGON MEDICA", "Anugrah Argon Medica (AAM)"],
+              "phones": [], "emails": []}
+        assert not is_multi_employer(t9)
+
+    def test_two_postings_merged(self):
+        from app.services.ner import is_multi_employer
+        e2 = {"companies": ["PT KOMITRANDO EMPORIO", "PT Pertamina (Persero)"],
+              "phones": ["+6288706405063", "+6282221333836"], "emails": ["komitrando@komitrando.com"]}
+        assert is_multi_employer(e2)
