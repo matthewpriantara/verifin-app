@@ -271,3 +271,20 @@ Kesimpulan: 6/6 lowongan asli AMAN, 5/5 poster palsu ≥ WASPADA 45, Telegram �
 Dua bug ditemukan saat run ini:
 - F1 sempat AMAN 12 ketika LLM gagal dan penilaian aturan tidak memakai isi website. Guard "Isi Website Penipuan" sekarang berlaku di jalur LLM maupun fallback; F1–F5 diuji ulang dua putaran: 65/78, 52/50, 55/52, 45/45, 52/55.
 - T11 sempat WASPADA 42 karena `spamInfo.degree = "green"` dibaca sebagai spam. Hanya `type` spam/scam/fraud atau degree merah/oranye yang dihitung sekarang.
+
+## Run 14 (28 Okt 2026 dini hari, stack home, uji ulang oleh Claude)
+
+Kode `75d5719`, cache mati, `ag/gemini-3.8-flash-medium`, dua pass penuh. Tambahan kasus: TG3 (Telegram + "dijamin bukan penipuan"), TG4 ("chat Tele: @…"), S1 (NIK + rekening + biaya seragam, sintetis).
+
+| ID | Pass A | Pass B |
+|---|---|---|
+| LJ1–LJ5 | AMAN 16/18/18/20/18 | AMAN 18/18/18/18/18 |
+| V1 | AMAN 20 | AMAN 18 |
+| F1–F5 | WASPADA 65/50/52/45/58 | WASPADA 65/50/50/45/60 |
+| TG1 / TG3 / TG4 | WASPADA 65/65/70 | WASPADA 68/65/70 |
+| S1 | BAHAYA 90 | BAHAYA 90 |
+| T1 / T9 / T10 / T11 / P1 | AMAN 12/28/8/24/25 | AMAN 12/25/8/20/28 |
+| T3 | BAHAYA 95 | BAHAYA 95 |
+| T2, T4–T8 | WASPADA 50/73/73/72/45/72 | WASPADA 50/73/74/70/45/72 |
+
+Semua lowongan asli AMAN dan semua poster palsu ≥ WASPADA 45, tetapi belum ada poster palsu LokerJogja yang BAHAYA. Data sensitif S1 tidak muncul di respons. Blind spot B1–B10 dan rencana run 15 ada di `anti-slop/audit-007-2026-10-27.md` bagian 10.
