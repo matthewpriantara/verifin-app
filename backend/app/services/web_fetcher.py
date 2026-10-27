@@ -259,9 +259,9 @@ def _sync_scrapling_fetch(url: str) -> tuple[str, list[str]]:
             if res.status_code == 200 and "JobPosting" in res.text:
                 posting_text, posting_img = _job_posting_page_text(res.text, url)
                 if posting_text:
+                    # Banner promosi portal tidak di-OCR: isi lowongan dan kontak sudah terstruktur,
+                    # sedangkan OCR logo/banner menambah nama perusahaan palsu ("PACC" → "Ppace").
                     combined_caption_text = posting_text
-                    if posting_img:
-                        image_urls.append(posting_img)
         except Exception as exc:
             logger.warning("[JobPosting Fetch] %s", exc)
 
