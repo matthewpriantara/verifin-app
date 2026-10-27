@@ -19,6 +19,7 @@ from app.config import (
     LLM_FALLBACK_BASE_URL,
     LLM_FALLBACK_EXTRACTOR_MODEL,
     LLM_FALLBACK_MODEL,
+    LLM_FALLBACK_REASONING_EFFORT,
     LLM_FALLBACK_TIMEOUT,
 )
 
@@ -292,6 +293,7 @@ async def chat_completion(
                 max_tokens=max_tokens,
                 seed=seed,
                 max_retries=2,
+                reasoning_effort=LLM_FALLBACK_REASONING_EFFORT or None,
             )
         raise
 
