@@ -21,7 +21,7 @@ from app.services.precheck import (
     detect_personal_data,
     split_non_job,
 )
-from app.services.llm.verifin_reasoning import _floor_telegram_channel
+from app.services.llm.verifin_reasoning import _fallback_analysis, _floor_fraud_site_content, _floor_telegram_channel
 from app.services.xai.shap_explainer import explain_verification_shap
 
 
@@ -211,3 +211,33 @@ class TestPrecheckInterventions:
         )
         assert detect_language_note(english) is not None
         assert detect_language_note(self.JOB) is None
+
+
+class TestFraudSiteGuard:
+    def test_floor_raises_aman_to_waspada_55(self):
+        parsed = {"verdict": "AMAN", "risk_score": 12, "risk_factors": []}
+        out = _floor_fraud_site_content(parsed, {"web": {"fraud_site_content": {"matches": ["akun kerja"]}}})
+        assert out["verdict"] == "WASPADA"
+        assert out["risk_score"] == 55
+        assert out["calibrated_fraud_site"] is True
+
+    def test_floor_ignores_empty_matches(self):
+        parsed = {"verdict": "AMAN", "risk_score": 12, "risk_factors": []}
+        out = _floor_fraud_site_content(parsed, {"web": {"fraud_site_content": {}}})
+        assert out["risk_score"] == 12
+
+    def test_fallback_keeps_fraud_site_floor(self):
+        out = _fallback_analysis(
+            {"companies": ["NEW TRENDY"]},
+            {
+                "phones": [{"probe_status": "UNAVAILABLE"}],
+                "web": {
+                    "fraud_site_content": {"matches": ["akun kerja", "t.me/"]},
+                    "open_registration_domain": {"domain": "newtrendy.my.id"},
+                    "websites": [{"website_status": "AVAILABLE"}],
+                },
+            },
+        )
+        assert out["verdict"] == "WASPADA"
+        assert out["risk_score"] >= 55
+        assert "Rule-Based Fallback" in out["model_used"]

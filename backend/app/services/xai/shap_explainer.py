@@ -540,6 +540,13 @@ def _compose_attribution(
                 "Lamaran diarahkan ke Telegram. Loker asli memakai WhatsApp, email, formulir, atau walk-in, "
                 "sehingga skor dinaikkan ke minimal WASPADA 55 walau tidak ada bukti keras lain."
             )
+        elif guard_rule == "fraud_site":
+            cal_label = "Aturan Pengaman: Isi Website Penipuan"
+            cal_desc = (
+                "Website tempat melamar memuat pola penipuan tugas/komisi (akun kerja, tugas, deposit, "
+                "atau tautan Telegram). Skor dinaikkan ke minimal WASPADA 55 karena bukti ini tidak "
+                "boleh hilang saat model tidak berhasil membaca seluruh halaman."
+            )
         elif guard_rule == "dead_domain":
             cal_label = "Aturan Pengaman: Domain Lamaran Tanpa DNS"
             cal_desc = (
