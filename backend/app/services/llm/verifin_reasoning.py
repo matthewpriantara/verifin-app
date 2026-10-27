@@ -126,6 +126,27 @@ def _calibrate_unknown_search_output(
     return parsed
 
 
+def _floor_dead_application_domain(parsed: dict, osint_results: dict) -> dict:
+    """Domain tempat melamar (email/tautan di lowongan) tidak punya DNS sama sekali, dan tidak ada
+    situs lain yang hidup: hasil minimal WASPADA 45.
+
+    Pola pencatutan yang ditolak LokerJogja.ID (27 Okt 2026): penipu memakai nama usaha nyata
+    ("Roemah Boenga") dengan domain buatan (roemahboenga.store) yang tidak pernah dipasang. Jejak
+    Instagram/Facebook usaha aslinya ditemukan, dan AI menilai AMAN 28 walau bukti menjumlah 52;
+    jejak usaha asli tidak membuktikan domain lamaran itu milik usaha tersebut."""
+    websites = (osint_results.get("web") or {}).get("websites") or []
+    dead = [w for w in websites if w.get("website_status") == "NOT_FOUND"]
+    alive = any(w.get("website_status") == "AVAILABLE" for w in websites)
+    if not dead or alive or float(parsed.get("risk_score") or 0) >= 40:
+        return parsed
+    parsed["verdict"] = "WASPADA"
+    parsed["risk_score"] = 45
+    parsed["calibrated_dead_domain"] = True
+    factor = "Domain tempat melamar tidak terdaftar di DNS; jejak usaha yang ditemukan belum terbukti terhubung dengan domain itu"
+    parsed["risk_factors"] = [factor] + [f for f in parsed.get("risk_factors") or [] if f != factor]
+    return parsed
+
+
 def _has_corrupt_text(
     text: str,
     entities: dict | None = None,
@@ -505,6 +526,7 @@ async def analyze_with_verifin(
             parsed = extract_json_from_response(raw)
             parsed = _sanitize_llm_output(parsed, entities, osint_results, allowed_tokens)
             parsed = _calibrate_unknown_search_output(parsed, entities, osint_results, text_signals)
+            parsed = _floor_dead_application_domain(parsed, osint_results)
             for field in ("risk_factors", "safe_factors", "recommendations"):
                 items = parsed.get(field) or []
                 parsed[field] = [s for s in items if isinstance(s, str) and len(s) > 3]
