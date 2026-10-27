@@ -48,6 +48,17 @@ _BUSINESS_GENERIC = {
 }
 
 
+_STREET_FILLER = frozenset({
+    "jl", "jln", "jalan", "prof", "dr", "drs", "ir", "h", "hj", "kh", "st", "sh", "mr", "raya", "gang", "gg", "no",
+})
+
+
+def _has_street_name(street: str) -> bool:
+    """Nama jalan harus punya minimal satu kata nama, bukan hanya awalan/gelar ("Jl. Prof")."""
+    tokens = re.findall(r"[a-z]+", (street or "").casefold())
+    return any(len(t) >= 3 and t not in _STREET_FILLER for t in tokens)
+
+
 def _business_tokens(company_name: str | None) -> list[str]:
     name = re.sub(r"\([^)]*\)", " ", company_name or "")
     name = re.sub(r"\b(?:pt|cv|ud|pd|tbk|persero)\b\.?", " ", name, flags=re.I)
@@ -463,7 +474,9 @@ def _verify_address_via_web(address: str, company_name: str, web_results: list[d
 
         if name_match and not best_discovered_street:
             street_m = re.search(r"\b((?:Jl\.?|Jln\.?|Jalan)\s+[A-Za-z0-9\s.,/-]{4,60}?)(?=[,.\n]|\bKec|\bKab|\bSleman|\bKota|$)", snippet, re.I)
-            if street_m:
+            # Potongan "Jl. Prof" (terpotong di titik gelar) bukan nama jalan: dicocokkan ke peta,
+            # ia mendarat di jalan mana pun yang bergelar "Prof" (mis. kantor pihak lain di Sewon).
+            if street_m and _has_street_name(street_m.group(0)):
                 best_discovered_street = street_m.group(0).strip(" .,;:-")
     found = best_score >= 0.4
     maps_match = bool(best_coordinates and best_name_match)

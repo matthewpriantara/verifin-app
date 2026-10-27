@@ -242,3 +242,11 @@ class TestPrimaryEmployerName:
         assert primary_employer_name(["PACC"]) == "PACC"
         assert primary_employer_name(["Malio Gelato"]) == "Malio Gelato"
         assert primary_employer_name([]) == ""
+
+
+def test_street_fragment_with_only_titles_is_not_a_street():
+    from app.services.osint.address_validator import _has_street_name
+    assert not _has_street_name("jl. prof")
+    assert not _has_street_name("Jalan Raya")
+    assert _has_street_name("Jl. Malioboro No.129A")
+    assert _has_street_name("Jl. Prof. Dr. Wirjono Prodjodikoro")
