@@ -32,3 +32,19 @@ disalin ke repo publik ini).
 ## Matikan
 
 Di `backend/.env` server: `GETCONTACT_URL=` (kosong), lalu deploy ulang backend.
+
+## Produksi (VPS) lewat reverse tunnel
+
+Tailnet VPS tidak bisa membuka TCP ke home, tetapi home bisa SSH ke VPS.
+1. Home: pasang `gtc-tunnel.service` sebagai user service (petunjuk di kepala berkas). Tunnel membuka `127.0.0.1:8091` di VPS.
+2. VPS: container backend ada di bridge Docker, jadi butuh relay dari gateway bridge ke loopback:
+   ```bash
+   cd ~/projects/verifin
+   docker run -d --name gtc-relay --restart unless-stopped --network host \
+     -v "$PWD/infra/getcontact-api/relay.py:/relay.py:ro" --entrypoint python \
+     ghcr.io/matthewpriantara/verifin-app-backend:latest /relay.py
+   ```
+   `RELAY_LISTEN_HOST` bawaan `172.26.0.1` (gateway `verifin_default`; cek dengan `docker network inspect verifin_default`).
+3. `backend/.env` VPS: `GETCONTACT_URL=http://172.26.0.1:8091` dan `GETCONTACT_TOKEN` sama dengan home.
+
+Mematikan: kosongkan `GETCONTACT_URL` di VPS. Bila home mati, backend menerima `UNAVAILABLE` dan skor tidak berubah.

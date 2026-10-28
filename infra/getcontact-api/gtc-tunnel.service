@@ -1,0 +1,14 @@
+# Home (fizualinux): ~/.config/systemd/user/gtc-tunnel.service, lalu
+#   systemctl --user daemon-reload && systemctl --user enable --now gtc-tunnel
+# Butuh `loginctl enable-linger` (sudah aktif di home) dan kunci SSH home -> praktikan@VPS.
+[Unit]
+Description=Reverse tunnel getcontact-api ke VPS produksi (audit-007 RC7)
+After=network-online.target
+
+[Service]
+ExecStart=/usr/bin/ssh -N -o BatchMode=yes -o ExitOnForwardFailure=yes -o ServerAliveInterval=30 -o ServerAliveCountMax=3 -R 127.0.0.1:8091:100.82.95.50:8091 praktikan@100.118.206.100
+Restart=always
+RestartSec=15
+
+[Install]
+WantedBy=default.target
