@@ -35,6 +35,9 @@ services:
         BUILD_TIME: ${BUILD_TIME:-}
     container_name: verifin-frontend
     restart: unless-stopped
+    # Untuk rewrite /api/v1 ke backend yang memakai network_mode host (stack home).
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
     ports:
       - "3019:3000"
     env_file:
