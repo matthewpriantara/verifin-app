@@ -39,7 +39,7 @@ def _has_hard_risk_evidence(entities: dict, osint_results: dict, text_signals: d
         or any(web_search.get("risk_flags") for web_search in web.get("searches") or [])
         or network.get("entity_in_fraud_network")
         or int(community.get("report_count") or 0) > 0
-        # 10.4: dua tag GetContact atau lebih yang memuat kata penipuan (satu tag bisa salah tandai).
+        # Dua tag GetContact atau lebih yang memuat kata penipuan (satu tag bisa salah tandai).
         or fraud_tag_summary(phones)[0] >= 2
     )
 
@@ -161,7 +161,7 @@ _BRAND_IMPERSONATION_LABEL = "Pencatutan Merek: Jalur Lamaran di Luar Domain Res
 
 
 def _brand_impersonation_evidence(parsed: dict, entities: dict, osint_results: dict, text_signals: dict | None) -> dict | None:
-    """B1/B10: merek yang punya domain resmi, tetapi jalur lamaran di luar domain itu, plus satu bukti lain.
+    """Merek yang punya domain resmi, tetapi jalur lamaran di luar domain itu, plus satu bukti lain.
 
     Syaratnya sengaja tiga lapis supaya UMKM tanpa domain resmi (Morgans Kebab, Excelland, Dekayu)
     tidak ikut kena. Yang diperiksa hanya sinyal yang sudah dihitung sistem, bukan tebakan LLM.
@@ -179,7 +179,7 @@ def _brand_impersonation_evidence(parsed: dict, entities: dict, osint_results: d
         if host and site.get("website_status") == "AVAILABLE" and not site.get("social_profile_found"):
             official_domains.add(host)
     # Poster palsu tidak pernah mencantumkan situs resmi merek; domain resmi dinilai di tahap OSINT
-    # dari hasil pencarian (osint/official_domain.py, audit-007 10.7 B).
+    # Dari hasil pencarian (osint/official_domain.py).
     official_domains |= {str(c.get("domain")) for c in web.get("official_domains") or [] if c.get("domain")}
     official_domains = {d for d in official_domains if not site_kinds.is_third_party(d)}
     if not official_domains:
@@ -219,7 +219,7 @@ def _brand_impersonation_evidence(parsed: dict, entities: dict, osint_results: d
     if not extra:
         return None
 
-    # B10: nama BUMN/Tbk dengan artikel pencatutan minimal 3 adalah pola yang sudah terbukti.
+    # Nama BUMN/Tbk dengan artikel pencatutan minimal 3 adalah pola yang sudah terbukti.
     scam_warnings = int((web.get("scam_check") or {}).get("warnings") or 0)
     brand_claim = bool(signals.get("brand_unofficial_channel")) or bool(
         _re.search(r"\b(?:bumn|persero|tbk)\b", " ".join(str(c) for c in entities.get("companies") or []), _re.I)

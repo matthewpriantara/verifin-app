@@ -15,7 +15,7 @@ from typing import Any
 _EMAIL = re.compile(r"\b([A-Za-z0-9._%+-]+)@([A-Za-z0-9-]+(?:\.[A-Za-z0-9-]+)+)\b")
 # Nomor seluler Indonesia; jumlah digit dicek terpisah supaya jam "08.00-20.00" tidak ikut.
 _PHONE = re.compile(r"(?<![\w.])(?:\+?62|0)\s?8[\d\s.\-]{7,16}\d(?!\d)")
-# B5: NIK boleh ditulis berspasi atau bertitik ("3404 0123 4567 0001").
+# NIK boleh ditulis berspasi atau bertitik ("3404 0123 4567 0001").
 _NIK = re.compile(r"(?<!\d)(?:\d{4}[\s.]?){3}\d{4}(?!\d)")
 _ACCOUNT = re.compile(
     r"(?i)\b((?:no\.?\s*)?rek(?:ening)?\.?(?:\s+(?:bank\s+)?[A-Za-z]{2,10})?|virtual\s*account|va"
@@ -23,11 +23,11 @@ _ACCOUNT = re.compile(
     r"|seabank|jago|blu|neo\s*bank|line\s*bank|btpn|jenius|allo\s*bank|bank\s*jago)"
     r"\s*[:\-]?\s*((?:\d[\s\-]?){8,18}\d)"
 )
-# B5: "transfer ke 1234567890", "tf 9012...", "kirim ke rek BCA 123..." tanpa kata "rekening".
+# "transfer ke 1234567890", "tf 9012...", "kirim ke rek BCA 123..." tanpa kata "rekening".
 _TRANSFER_ACCOUNT = re.compile(
     r"(?i)\b(transfer|tf|kirim(?:kan)?)\s+(?:ke\s+)?(?:(?:rek(?:ening)?|akun|bank)\s+)?(?:[A-Za-z]{2,12}\s+)?((?:\d[\s\-]?){8,18}\d)"
 )
-# B5: nama pemilik rekening ("a.n. Budi Santoso", "atas nama: Budi") adalah data pribadi.
+# Nama pemilik rekening ("a.n. Budi Santoso", "atas nama: Budi") adalah data pribadi.
 _ACCOUNT_NAME = re.compile(
     # Titik atau garis miring wajib: "an" tanpa tanda baca adalah awal kata biasa ("Analis", "Anak").
     r"(?i)\b(a\.\s?n\b\.?|a\s?[/\\]\s?n\b\.?|atas\s+nama)\s*[:\-]?\s*([A-Za-z][A-Za-z.'\-]*(?:\s+[A-Za-z][A-Za-z.'\-]*){0,3})"

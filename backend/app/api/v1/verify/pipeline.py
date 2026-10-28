@@ -436,7 +436,7 @@ async def _run_llm_ner(text: str) -> dict | None:
 
 
 async def _run_osint_on_entities(entities: dict) -> dict:
-    # 10.4: classifier sudah menaruh sinyal teks di entities["_text_signals"] sebelum OSINT,
+    # Classifier sudah menaruh sinyal teks di entities["_text_signals"] sebelum OSINT,
     # sehingga runner bisa memutuskan apakah isi tag GetContact perlu dibaca (kuota 1/hari).
     return await run_osint_probes(entities)
 

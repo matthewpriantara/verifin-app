@@ -229,7 +229,7 @@ def explain_verification_shap(
                 "safe",
                 f"Nomor punya {tag_count} tag di GetContact; penipu juga bisa memakai nomor lama",
             ))
-        # 10.4: hanya hitungan tag yang memuat kata penipuan; teks tag tidak pernah sampai ke sini.
+        # Hanya hitungan tag yang memuat kata penipuan; teks tag tidak pernah sampai ke sini.
         fraud_tags = getcontact.get("fraud_tags") or {}
         tag_hits = int(fraud_tags.get("fraud_tag_hits") or 0) if fraud_tags.get("probe_status") == "COMPLETED" else 0
         tag_terms = ", ".join(fraud_tags.get("fraud_tag_terms") or [])
@@ -313,7 +313,7 @@ def explain_verification_shap(
             f"Website lamaran memuat frasa penipuan tugas/komisi: {matched}",
         ))
 
-    # B1: merek dengan domain resmi, tetapi jalur lamaran di luar domain itu.
+    # Merek dengan domain resmi, tetapi jalur lamaran di luar domain itu.
     if (web_data.get("brand_impersonation") or {}).get("official_domains"):
         contributions.append(_make_contrib(
             "Jalur Lamaran di Luar Domain Resmi Merek",
@@ -555,7 +555,7 @@ def _compose_attribution(
         ))
         remaining_delta = round(risk_score - 100.0, 2)
     elif raw_uncapped < 0.0 and risk_score <= 0.0:
-        # B9: baris batas bawah hanya ditampilkan bila skor akhir benar-benar berhenti di 0.
+        # Baris batas bawah hanya ditampilkan bila skor akhir benar-benar berhenti di 0.
         # Pada kasus AMAN seperti V1 (bukti aman −20, skor akhir 20) batas bawah tidak mengubah
         # verdict, jadi barisnya hanya membingungkan pembaca.
         deficit = round(0.0 - raw_uncapped, 2)

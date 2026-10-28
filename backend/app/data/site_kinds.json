@@ -1,5 +1,5 @@
 {
-  "_readme": "Satu sumber data jenis situs (audit-007 10.7 C). Ubah daftar di sini, bukan di kode. Host dicocokkan persis atau sebagai subdomain; suffix open_registration butuh label di depannya.",
+  "_readme": "Satu sumber data jenis situs. Ubah daftar di sini, bukan di kode. Host dicocokkan persis atau sebagai subdomain; suffix open_registration butuh label di depannya.",
   "free_email": [
     "gmail.com", "yahoo.com", "yahoo.co.id", "hotmail.com", "outlook.com", "live.com",
     "ymail.com", "icloud.com", "protonmail.com", "mail.com"

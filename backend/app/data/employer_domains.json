@@ -1,5 +1,5 @@
 {
-  "_readme": "Registri domain resmi pemberi kerja yang sudah diverifikasi manusia (audit-007 10.7 A). Bila nama perusahaan di lowongan memuat `brand`, domain di sini dipakai sebagai domain resmi dan pencarian otomatis (osint/official_domain.py) dilewati. Tambah lewat PR dengan sumber yang bisa dicek. Data mitra (LokerJogja) masuk ke sini hanya setelah ada izin tertulis.",
+  "_readme": "Registri domain resmi pemberi kerja yang sudah diverifikasi manusia. Bila nama perusahaan di lowongan memuat `brand`, domain di sini dipakai sebagai domain resmi dan pencarian otomatis (osint/official_domain.py) dilewati. Tambah lewat PR dengan sumber yang bisa dicek. Data mitra (LokerJogja) masuk ke sini hanya setelah ada izin tertulis.",
   "employers": [
     {"brand": "guardian indonesia", "domains": ["guardianindonesia.co.id"], "source": "situs resmi, dicek 28 Okt 2026"},
     {"brand": "sociolla", "domains": ["sociolla.com", "soco.id"], "source": "situs resmi, dicek 28 Okt 2026"},

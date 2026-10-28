@@ -225,7 +225,7 @@ async def run_osint_probes(entities: dict) -> dict:
         for phone, lookup in zip(phones, lookups):
             if isinstance(phone, dict) and isinstance(lookup, dict):
                 phone["getcontact"] = lookup
-        # 10.4: isi tag hanya dibaca bila nomor punya 1–99 tag DAN teks memuat sinyal risiko.
+        # Isi tag hanya dibaca bila nomor punya 1–99 tag DAN teks memuat sinyal risiko.
         # Kuota number-detail 1/hari, jadi jangan dipakai untuk lowongan yang jelas aman.
         if lookups and isinstance(lookups[0], dict) and lookups[0].get("probe_status") == COMPLETED:
             level = lookups[0].get("community_level")
