@@ -42,7 +42,8 @@ def _text_has_risk_signal(entities: dict) -> bool:
     signals = entities.get("_text_signals") or {}
     if any(signals.get(k) for k in _RISK_TEXT_KEYS):
         return True
-    if float(signals.get("fraud_keyword_count") or 0) > 0:
+    # Satu kata kunci terlalu lemah: LJ1 (Malio Gelato, loker asli) memakai kuota 1/hari di run 15.
+    if float(signals.get("fraud_keyword_count") or 0) >= 2:
         return True
     return bool((entities.get("extraction_meta") or {}).get("has_fee_request"))
 

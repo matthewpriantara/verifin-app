@@ -156,3 +156,45 @@ class TestBrandImpersonationB1:
         parsed = {"verdict": "AMAN", "risk_score": 20, "risk_factors": []}
         out = _apply_brand_impersonation(parsed, {"emails": ["hrd.toko@gmail.com"]}, self._osint(), {})
         assert out["risk_score"] == 20
+
+
+class TestOfficialDomainDiscovery:
+    @staticmethod
+    def _search(*urls: str) -> list[dict]:
+        return [{"results": [{"url": u} for u in urls]}]
+
+    def test_brand_site_found_marketplace_ignored(self):
+        from app.services.llm.verifin_reasoning import _official_domains_from_search
+
+        found = _official_domains_from_search(
+            ["guardian INDONESIA"],
+            self._search(
+                "https://www.instagram.com/guardian_id/",
+                "https://guardianindonesia.co.id/",
+                "https://www.tokopedia.com/guardian-official",
+            ),
+        )
+        assert found == {"guardianindonesia.co.id"}
+
+    def test_job_boards_are_not_official(self):
+        from app.services.llm.verifin_reasoning import _official_domains_from_search
+
+        found = _official_domains_from_search(
+            ["Excelland Properti"],
+            self._search("https://www.lokerjogja.id/lowongan/excelland", "https://gudangkarir.com/excelland"),
+        )
+        assert found == set()
+
+    def test_vision_only_shortener_counts_as_hidden_channel(self):
+        parsed = {"verdict": "WASPADA", "risk_score": 50, "risk_factors": []}
+        osint = {
+            "web": {
+                "searches": self._search("https://www.sociolla.com/"),
+                "scam_check": {"warnings": 1},
+                "vision_shortener_failures": ["https://tinyurl.com/Sciolla"],
+            },
+            "phones": [],
+            "domain": {},
+        }
+        out = _apply_brand_impersonation(parsed, {"companies": ["sociolla"]}, osint, {})
+        assert out["risk_score"] == 68

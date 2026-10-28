@@ -797,6 +797,7 @@ def collect_web_evidence(entities: dict) -> dict[str, Any]:
     from app.services.web_fetcher import expand_short_url, is_shortener
 
     shortener_failures: list[str] = []
+    vision_shortener_failures: list[str] = []
     expanded_urls: list[str] = []
     neutral_notes_urls: list[str] = []
     expanded_count = 0
@@ -826,6 +827,7 @@ def collect_web_evidence(entities: dict) -> dict[str, Any]:
             )
         else:
             neutral_notes_urls.append(f"Tautan pendek {u} (dibaca AI dari gambar) tidak bisa dibuka.")
+            vision_shortener_failures.append(u)
     urls = list(dict.fromkeys(expanded_urls))
 
     seen_urls = set()
@@ -1104,6 +1106,8 @@ def collect_web_evidence(entities: dict) -> dict[str, Any]:
         "risk_flags": uniq(risk_flags),
         "safe_flags": uniq(safe_flags),
         "neutral_notes": uniq(neutral_notes),
+        # Bukan bukti risiko sendirian (bisa salah baca AI); dipakai aturan pencatutan merek.
+        "vision_shortener_failures": vision_shortener_failures,
         "platform_evidence": platform_evidence,
         "search_intelligence": intelligence_signals,
         "fraud_site_content": fraud_site_content,
