@@ -13,8 +13,11 @@ Situs pihak ketiga (media sosial, marketplace, portal loker, direktori, berita) 
 """
 from __future__ import annotations
 
+import json
 import re
 from collections import defaultdict
+from functools import lru_cache
+from pathlib import Path
 from typing import Any, Callable
 
 from app.services import site_kinds
@@ -83,6 +86,28 @@ def score_candidates(companies: list, searches: list) -> list[dict[str, Any]]:
     return scored
 
 
+_REGISTRY = Path(__file__).resolve().parents[2] / "data" / "employer_domains.json"
+
+
+@lru_cache(maxsize=1)
+def _registry() -> list[dict]:
+    try:
+        return list(json.loads(_REGISTRY.read_text(encoding="utf-8")).get("employers") or [])
+    except (OSError, ValueError):
+        return []
+
+
+def registry_domains(companies: list) -> list[str]:
+    """Domain resmi dari registri terverifikasi (10.7 A) untuk nama perusahaan di lowongan."""
+    names = " | ".join(re.sub(r"\s+", " ", str(c).lower()) for c in companies or [])
+    found: list[str] = []
+    for entry in _registry():
+        brand = str(entry.get("brand") or "").lower().strip()
+        if brand and re.search(rf"\b{re.escape(brand)}\b", names):
+            found.extend(str(d).lower() for d in entry.get("domains") or [])
+    return list(dict.fromkeys(found))
+
+
 def find_official_domains(
     companies: list,
     searches: list,
@@ -93,6 +118,9 @@ def find_official_domains(
     `age_lookup` dipanggil paling banyak sekali. Umur tidak diketahui tidak menggugurkan kandidat,
     karena banyak TLD (mis. `.sharp`) tidak menjawab WHOIS/RDAP.
     """
+    verified = registry_domains(companies)
+    if verified:
+        return [{"domain": d, "score": None, "source": "registry"} for d in verified]
     candidates = score_candidates(companies, searches)[:3]
     if not candidates or age_lookup is None:
         return candidates

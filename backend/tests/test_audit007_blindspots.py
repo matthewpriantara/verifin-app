@@ -202,8 +202,8 @@ class TestOfficialDomainDiscovery:
         from app.services.osint.official_domain import find_official_domains
 
         found = find_official_domains(
-            ["sociolla"],
-            self._search(("https://www.sociolla.com/", "Sociolla"), ("https://www.sociolla.com/about", "Sociolla")),
+            ["glowberry"],
+            self._search(("https://www.glowberry.com/", "Glowberry"), ("https://www.glowberry.com/about", "Glowberry")),
             age_lookup=lambda _d: {"age_days": 40},
         )
         assert found == []
@@ -253,3 +253,21 @@ class TestSiteKinds:
         pattern = re.compile(r'\(\s*"(?:bit\.ly|tinyurl\.com)"|"tokopedia\.com",\s*"shopee\.co\.id"|"\.my\.id",\s*\n')
         offenders = [str(p) for p in root.rglob("*.py") if pattern.search(p.read_text(encoding="utf-8"))]
         assert offenders == []
+
+
+class TestEmployerRegistry:
+    def test_registry_wins_over_search(self):
+        from app.services.osint.official_domain import find_official_domains
+
+        found = find_official_domains(
+            ["PT SHARP ELECTRONICS INDONESIA"],
+            [{"results": [{"url": "https://sharp-career.my.id/", "title": "Sharp Career"}]}],
+            age_lookup=lambda _d: (_ for _ in ()).throw(AssertionError("WHOIS tidak boleh dipanggil")),
+        )
+        assert [c["domain"] for c in found] == ["id.sharp"]
+        assert found[0]["source"] == "registry"
+
+    def test_unlisted_brand_falls_back_to_search(self):
+        from app.services.osint.official_domain import registry_domains
+
+        assert registry_domains(["Morgans Kebab"]) == []
