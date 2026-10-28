@@ -68,7 +68,8 @@ Untuk mencegah tabrakan port (*port collision*) dengan layanan lain di host serv
    - Normalisasi nomor telepon (+62) dan sanitasi domain/email.
 3. **Memeriksa Isi (`app.services.precheck`):** sebelum OSINT. Berhenti dengan respons `verdict="PERLU_INPUT"` + `needs_input` (SSE: event `needs_input`) bila input bukan lowongan (I-01), terlalu pendek (I-03), atau berisi beberapa pemberi kerja dengan kontak berbeda (I-04, dipotong per lowongan). Frontend menampilkan kartu intervensi di modal loading, lalu memanggil `/verify/text` dengan `intervention=segment|force`. Hasil `force` ditandai `input_quality="forced"` dan dikecualikan dari graf penipuan, `/cari`, dan cache. Klasifikasinya ikut panggilan ekstraksi entitas LLM (`entities["_content"]`), tanpa panggilan AI tambahan.
 4. **Multi-Channel OSINT Probes (`app.services.osint.runner`):**
-   - Telepon: Whocalls / Kaspersky & Kredibel (`phone_validator.py`), plus GetContact lewat layanan `getcontact-api` di home (`osint/getcontact.py`, `GETCONTACT_URL`). GetContact hanya memberi jumlah tag dan label spam; nama pemilik dan isi tag tidak diminta. Kosongkan `GETCONTACT_URL` untuk mematikan. Kuota 300/bulan, dibatasi 10 pencarian baru/hari + cache 14 hari; captcha diselesaikan manual (`python3 ~/Project/getcontact-cli/gtc.py captcha`).
+   - Telepon: Whocalls / Kaspersky & Kredibel (`phone_validator.py`), plus GetContact lewat layanan `getcontact-api` di home (`osint/getcontact.py`, `GETCONTACT_URL`). GetContact memberi jumlah tag dan label spam; untuk paling banyak 1 nomor/hari (nomor 1–99 tag + teks berisiko) isi tag dibaca di layanan home dan yang keluar hanya hitungan kata penipuan. Nama pemilik dan teks tag tidak pernah disimpan atau dikembalikan. Kosongkan `GETCONTACT_URL` untuk mematikan. Kuota `search` 300/bulan (10 baru/hari + cache 14 hari), `numberDetail` 40/bulan; captcha diselesaikan manual (`python3 ~/Project/getcontact-cli/gtc.py captcha`). Produksi memanggilnya lewat reverse SSH tunnel home→VPS yang berakhir di unix socket (`GETCONTACT_UDS`), lihat `infra/getcontact-api/README.md`.
+   - Jenis situs (email gratisan, pemendek URL, marketplace, portal loker, domain bebas daftar) hanya di `backend/app/data/site_kinds.json`; domain resmi pemberi kerja yang sudah diverifikasi di `backend/app/data/employer_domains.json`. Jangan menulis daftar host di kode; tes `test_no_host_lists_left_in_code` akan gagal.
    - Legalitas: Profil perusahaan & AHU/Pemerintah via SearXNG (`company_validator.py`)
    - Domain & Email: WHOIS/RDAP, usia domain, SPF/DKIM/MX (`whois_handler.py`)
    - Google Forms: Deteksi formulir rekrutmen mencurigakan (`gform_inspector.py`)
@@ -89,6 +90,9 @@ Untuk mencegah tabrakan port (*port collision*) dengan layanan lain di host serv
 ### Standar Industri (Anti-Desync)
 1. **Dilarang Deploy Buta dengan `:latest`:** Tag `:latest` bersifat ambigu. Gunakan Git SHA atau skrip deploy yang menginjeksi commit metadata.
 2. **Wajib Tambahkan `--build`:** Jika menjalankan `docker compose`, selalu sertakan flag `--build` agar Docker meng-compile ulang file source code terbaru, bukan menjalankan image lama di cache.
+
+### Frontend home vs produksi
+`NEXT_PUBLIC_API_URL` dipanggang saat build. Produksi memakai nilai bawaan `https://api.verifin.web.id`. Home memakai `.env` di root repo (tidak di-commit) berisi `NEXT_PUBLIC_API_URL=` (kosong) dan `BACKEND_INTERNAL_URL=http://host.docker.internal:8000`, sehingga frontend home memanggil `/api/v1` di origin yang sama dan Next meneruskannya ke backend home. Tanpa `.env` itu, frontend home diam-diam menulis ke DB produksi.
 
 ### Perintah Deploy Standar (`deploy.sh`)
 Gunakan skrip [`./deploy.sh`](file:///Users/fizualstd/Documents/GitHub/_LOMBA/verifin-app/deploy.sh) di root repo:

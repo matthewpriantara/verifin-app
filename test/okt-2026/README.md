@@ -326,3 +326,22 @@ Kesimpulan:
 - **Stabilitas:** variasi antar-pass ≤ 3 poin.
 
 F2, F3, dan F5 tidak dinaikkan ke BAHAYA karena tidak ada bukti keras di poster. Jalur naiknya adalah ≥ 2 tag GetContact berkata penipuan, nomor terlapor, atau laporan komunitas.
+
+## TestSprite (28 Okt 2026)
+
+Frontend diuji dari cloud TestSprite lewat tunnel ke port lokal 3019. Rencana uji 16 kasus dibuat TestSprite dari PRD singkat (input sintetis berawalan "UJI TESTSPRITE"). Baris uji di DB ditandai `entities.input_quality = 'forced'` dan `test_case = 'testsprite'` (home 8 baris, produksi 2 baris), sehingga keluar dari graf penipuan dan `/cari`.
+
+**Home, run 1 (16 kasus):** 8 lulus, 5 gagal, 3 terblokir. Dari yang gagal:
+
+| Kasus | Penyebab | Tindakan |
+|---|---|---|
+| TC001, TC008 verifikasi teks → "Request gagal (500)" | Backend menjawab 200 setelah 54–85 dtk, tetapi rewrite `/api/v1` di Next memutus pada 30 dtk (batas proxy bawaan) | `experimental.proxyTimeout = 180000` di `next.config.ts` (`18eaabb`) |
+| TC015 pencarian dengan spasi di awal/akhir tidak ketemu | Query tidak di-trim | `q.strip()` di `/cases/search` (`18eaabb`) |
+| TC002 "tidak ada tab Link" | Bukan bug: satu kotak input menerima teks, URL, atau gambar. Rencana uji salah membaca PRD | – |
+| TC016 pencarian kosong menampilkan daftar kasus | Bukan bug: pencarian kosong memang menampilkan kasus terbaru | – |
+
+Terblokir: TC004 (TestSprite tidak punya berkas poster), TC006 dan TC011 (data uji tidak dipakai agen). Alur laporan tetap tercakup di TC001 dan TC007.
+
+**Home, run 2 (kasus yang gagal):** TC001, TC008, dan TC015 lulus. TC006 masih terblokir karena alasan yang sama.
+
+**Produksi `c2fa79d`, smoke test (2 verifikasi):** TC001 (teks → laporan AMAN), TC003 (kartu "Informasinya terlalu sedikit"), dan TC012 (halaman privasi) **3/3 lulus**.
