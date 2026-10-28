@@ -1,12 +1,16 @@
 # Home (fizualinux): ~/.config/systemd/user/gtc-tunnel.service, lalu
 #   systemctl --user daemon-reload && systemctl --user enable --now gtc-tunnel
 # Butuh `loginctl enable-linger` (sudah aktif di home) dan kunci SSH home -> praktikan@VPS.
+# Tunnel berakhir di unix socket yang di-mount ke container backend produksi (/run/gtc/gtc.sock);
+# firewall VPS menolak container -> port host, jadi TCP loopback tidak bisa dipakai.
 [Unit]
 Description=Reverse tunnel getcontact-api ke VPS produksi (audit-007 RC7)
 After=network-online.target
 
 [Service]
-ExecStart=/usr/bin/ssh -N -o BatchMode=yes -o ExitOnForwardFailure=yes -o ServerAliveInterval=30 -o ServerAliveCountMax=3 -R 127.0.0.1:8091:100.82.95.50:8091 praktikan@100.118.206.100
+# sshd VPS tidak menghapus socket lama (StreamLocalBindUnlink no), jadi hapus dulu sebelum tersambung.
+ExecStartPre=/usr/bin/ssh -o BatchMode=yes praktikan@100.118.206.100 "mkdir -p /home/praktikan/projects/verifin/infra/getcontact-api/run && rm -f /home/praktikan/projects/verifin/infra/getcontact-api/run/gtc.sock"
+ExecStart=/usr/bin/ssh -N -o BatchMode=yes -o ExitOnForwardFailure=yes -o ServerAliveInterval=30 -o ServerAliveCountMax=3 -R /home/praktikan/projects/verifin/infra/getcontact-api/run/gtc.sock:100.82.95.50:8091 praktikan@100.118.206.100
 Restart=always
 RestartSec=15
 

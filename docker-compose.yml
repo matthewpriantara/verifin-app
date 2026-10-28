@@ -21,6 +21,8 @@ services:
       - "host.docker.internal:host-gateway"
     volumes:
       - ./backend/uploads:/app/uploads/evidence
+      # Unix socket reverse tunnel GetContact (produksi). Di home direktori ini kosong.
+      - ${GETCONTACT_SOCKET_DIR:-./infra/getcontact-api/run}:/run/gtc
 
   verifin-frontend:
     image: ghcr.io/matthewpriantara/verifin-app-frontend:latest
