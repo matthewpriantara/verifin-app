@@ -788,6 +788,8 @@ def _classify_text_signals(raw_text: str, entities: dict) -> dict:
     """Sinyal teks deterministik; nama perusahaan hasil NER ikut dipakai supaya "Kirim CV" atau
     nama hotel tanpa awalan PT tidak salah dibaca."""
     nlp_result = classify_text(raw_text, entities.get("companies"))
+    # Runner OSINT memakai sinyal ini untuk memutuskan apakah isi tag GetContact dibaca (kuota 1/hari).
+    entities["_text_signals"] = dict(nlp_result.get("behavioral_features") or {})
     if nlp_result["behavioral_features"].get("has_fee_request"):
         entities["has_fee_request"] = True
     c_meta = nlp_result.get("content_validation") or {}

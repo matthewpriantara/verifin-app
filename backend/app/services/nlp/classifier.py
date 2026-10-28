@@ -49,28 +49,40 @@ _OFFICIAL_CHANNEL = re.compile(r"[a-z0-9._%+-]+@[a-z0-9.-]+\.[a-z]{2,}|https?://
 
 # Lamaran diarahkan ke Telegram (masukan praktisi portal loker, 27 Okt 2026: "90% pasti penipuan").
 # Kanal sah loker Indonesia: WhatsApp, email, formulir, atau walk-in.
+# B4: "Tele"/"tg" adalah singkatan yang lazim di poster; handle tanpa titik dua juga dihitung.
+_TELEGRAM_MENTION = re.compile(r"\btelegram\b|\btele\b|\btg\b|t\.me/|telegram\.me/", re.I)
 _TELEGRAM_APPLY_PATTERNS = [
     r"(?:https?://)?(?:t|telegram|telegram\.dog)\.me/[\w+%-]+",
     r"\btelegram\s*[:@]\s*@?[a-z0-9_]{3,}",
+    r"\btelegram\b[^.\n!?;]{0,12}@[a-z0-9_]{4,}",
+    r"\b(?:tele|tg)\b\s*[:=@]\s*@?[a-z0-9_]{3,}",
     r"\b(?:via|lewat|melalui|hubungi|chat|kontak|dm|join|gabung|grup|group|channel|kanal|masuk)\b"
-    r"[^.\n!?;]{0,25}\btelegram\b",
-    r"\btelegram\b[^.\n!?;]{0,25}\b(?:daftar|lamar|melamar|apply|hubungi|chat|kirim|admin|hrd)\b",
+    r"[^.\n!?;]{0,25}\b(?:telegram|tele|tg)\b",
+    r"\b(?:telegram|tele|tg)\b[^.\n!?;]{0,25}\b(?:daftar|lamar|melamar|apply|hubungi|chat|kirim|admin|hrd)\b",
+    r"\b(?:info|detail|keterangan)\b[^.\n!?;]{0,20}\b(?:telegram|tele|tg)\b",
 ]
-# Kalimat peringatan ("tidak melalui Telegram", "waspada penipuan via Telegram") bukan bukti lamaran.
-_TELEGRAM_NEGATION = re.compile(
+# Negasi hanya dihitung bila kata negasinya MENDAHULUI "telegram" di kalimat yang sama.
+# "Daftar lewat Telegram @x, dijamin bukan penipuan" bukan peringatan, melainkan ajakan.
+_TELEGRAM_NEGATION_BEFORE = re.compile(
     r"\b(?:tidak|bukan|tanpa|jangan|hindari|awas|waspada|hati-hati|penipuan|scam|modus|hoaks)\b"
-    r"[^.\n]{0,45}\btelegram\b"
-    r"|\btelegram\b[^.\n]{0,45}\b(?:penipuan|scam|modus|tidak resmi|bukan)\b",
+    r"[^.\n!?;]{0,40}$",
     re.I,
 )
+_TELEGRAM_HANDLE_OR_LINK = re.compile(r"@[a-z0-9_]{3,}|t\.me/|telegram\.me/", re.I)
 
 
 def _has_telegram_apply(text_lower: str) -> bool:
     segments = re.split(r"(?<=[.!?])\s+|\n+", text_lower)
     for segment in segments:
-        if not re.search(r"\btelegram\b|t\.me/", segment):
+        mention = _TELEGRAM_MENTION.search(segment)
+        if not mention:
             continue
-        if _TELEGRAM_NEGATION.search(segment):
+        before = segment[: mention.start()]
+        has_handle = bool(_TELEGRAM_HANDLE_OR_LINK.search(segment))
+        # Peringatan ("tidak melalui Telegram", "waspada penipuan via Telegram") bukan ajakan.
+        # Bila kalimat itu tetap memuat handle/tautan, negasi diabaikan: bisa jadi penipu menulis
+        # "dijamin bukan penipuan" tepat setelah handle.
+        if _TELEGRAM_NEGATION_BEFORE.search(before) and not has_handle:
             continue
         if any(re.search(pattern, segment) for pattern in _TELEGRAM_APPLY_PATTERNS):
             return True

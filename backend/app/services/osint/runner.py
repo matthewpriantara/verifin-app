@@ -4,7 +4,7 @@ import re
 from app.services.ner import is_multi_employer, primary_employer_name
 from app.services.osint.address_validator import validate_address_and_business
 from app.services.osint.company_validator import validate_companies
-from app.services.osint.getcontact import lookup_getcontact
+from app.services.osint.getcontact import lookup_getcontact, lookup_getcontact_tags
 from app.services.osint.phone_validator import check_phones_reputation, normalize_phone_id
 from app.services.osint.social import run_social_osint
 from app.services.osint.web_evidence import run_web_evidence
@@ -26,6 +26,25 @@ _NOT_A_PLACE = re.compile(
     r"^\s*(?:seluruh\s+)?(?:wilayah\s+)?indonesia\s*$|\bnasional\b|\bseluruh\b|\b(?:pt|cv|persero|tbk)\b\.?",
     re.I,
 )
+
+
+_RISK_TEXT_KEYS = (
+    "has_fee_request",
+    "brand_unofficial_channel",
+    "has_telegram_apply",
+    "anonymous_employer_claim",
+    "salary_no_company",
+)
+
+
+def _text_has_risk_signal(entities: dict) -> bool:
+    """Sinyal risiko teks yang sudah dihitung classifier, plus kata kunci penipuan."""
+    signals = entities.get("_text_signals") or {}
+    if any(signals.get(k) for k in _RISK_TEXT_KEYS):
+        return True
+    if float(signals.get("fraud_keyword_count") or 0) > 0:
+        return True
+    return bool((entities.get("extraction_meta") or {}).get("has_fee_request"))
 
 
 async def run_osint_probes(entities: dict) -> dict:
@@ -205,6 +224,18 @@ async def run_osint_probes(entities: dict) -> dict:
         for phone, lookup in zip(phones, lookups):
             if isinstance(phone, dict) and isinstance(lookup, dict):
                 phone["getcontact"] = lookup
+        # 10.4: isi tag hanya dibaca bila nomor punya 1–99 tag DAN teks memuat sinyal risiko.
+        # Kuota number-detail 1/hari, jadi jangan dipakai untuk lowongan yang jelas aman.
+        if lookups and isinstance(lookups[0], dict) and lookups[0].get("probe_status") == COMPLETED:
+            level = lookups[0].get("community_level")
+            risky_text = _text_has_risk_signal(entities)
+            if level in ("FEW", "KNOWN") and risky_text:
+                try:
+                    tags_result = await lookup_getcontact_tags(raw_numbers[0])
+                except Exception:
+                    tags_result = {}
+                if isinstance(tags_result, dict) and tags_result.get("probe_status") == COMPLETED:
+                    lookups[0]["fraud_tags"] = tags_result
         osint_results["timing"]["getcontact_ms"] = round((loop.time() - started) * 1000)
         return phones
 

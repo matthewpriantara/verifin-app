@@ -221,6 +221,25 @@ def _host_resolves(url: str) -> bool:
         return False
 
 
+def _dynamic_page_text(url: str, max_len: int = 1200) -> str:
+    """Baca teks halaman yang isinya dirender JavaScript (B3).
+
+    Dipakai hanya bila fetch biasa tidak menghasilkan snippet sama sekali, supaya tidak menambah
+    waktu pada situs normal. Kegagalan di sini netral: bukan bukti situs mati.
+    """
+    try:
+        from scrapling.fetchers import DynamicFetcher  # type: ignore
+
+        page = DynamicFetcher.fetch(url, headless=True, network_idle=True, timeout=15000)
+        if page is None or getattr(page, "status", 200) >= 400:
+            return ""
+        text = " ".join(t.strip() for t in page.css("body *::text").getall() if t and t.strip())
+        return re.sub(r"\s+", " ", text)[:max_len]
+    except Exception as exc:  # pragma: no cover - bergantung browser di server
+        logger.info("[WebEvidence] dynamic fetch gagal untuk %s: %s", url, type(exc).__name__)
+        return ""
+
+
 def fetch_company_website(url_or_domain: str) -> dict[str, Any]:
     """Buka situs yang disebut lowongan.
 
@@ -270,7 +289,15 @@ def fetch_company_website(url_or_domain: str) -> dict[str, Any]:
         except Exception:
             pass
         snippet = _snippet_from_page(page)
-        low = (title + " " + snippet).lower()
+        try:
+            og_desc = (
+                page.css("meta[property='og:description']::attr(content)").get()
+                or page.css("meta[name='description']::attr(content)").get()
+                or ""
+            )
+        except Exception:
+            og_desc = ""
+        low = (title + " " + og_desc + " " + snippet).lower()
         try:
             body_low = str(getattr(page, "html_content", "") or "")[:4000].lower()
         except Exception:
@@ -309,7 +336,12 @@ def fetch_company_website(url_or_domain: str) -> dict[str, Any]:
             for w in ("karir", "career", "lowongan", "about", "tentang", "kontak", "contact")
         ):
             safe_flags.append("Website memuat indikasi halaman perusahaan/karir.")
-        fraud_matches = _fraud_site_matches(title, snippet) if ok else []
+        # B3: isi kosong (situs render JS) → satu fetch ulang untuk membaca teks halaman.
+        if ok and not snippet and not og_desc:
+            dynamic_text = _dynamic_page_text(final_url)
+            if dynamic_text:
+                snippet = dynamic_text
+        fraud_matches = _fraud_site_matches(title, snippet, og_desc) if ok else []
         if fraud_matches:
             risk_flags.append(
                 "Isi website memuat pola penipuan tugas/komisi: " + ", ".join(fraud_matches[:3])
@@ -638,15 +670,20 @@ _STRONG_SITE_SCAM_PHRASES = (
     "akun kerja",
     "selesaikan tugas",
     "isi saldo",
-    "deposit",
     "rajin menonton",
     "tugas komisi",
+    "tiktok task",
+    "task center",
+    "earn commission",
+    "vip level",
+    "like and earn",
 )
 _WEAK_SITE_SCAM_PHRASES = (
     "komisi",
     "tugas harian",
     "tugas vip",
     "raih keuntungan",
+    "deposit",
     "t.me/",
     "telegram.me/",
 )
@@ -679,8 +716,10 @@ def is_open_registration_domain(host: str) -> str | None:
     return None
 
 
-def _fraud_site_matches(title: str, snippet: str) -> list[str]:
-    low = f"{title} {snippet}".lower()
+def _fraud_site_matches(title: str, snippet: str, description: str = "") -> list[str]:
+    # B3: banyak situs penipuan merender isi lewat JS sehingga `snippet` kosong; judul dan
+    # og:description tetap ada dan sering memuat nama modus ("Tiktok Task").
+    low = f"{title} {description} {snippet}".lower()
     strong = [p for p in _STRONG_SITE_SCAM_PHRASES if p in low]
     weak = [p for p in _WEAK_SITE_SCAM_PHRASES if p in low]
     if strong:
@@ -752,6 +791,42 @@ def collect_web_evidence(entities: dict) -> dict[str, Any]:
 
     website_checks: list[dict[str, Any]] = []
     domains: list[str] = []
+
+    # B2: pemendek URL (bit.ly/tinyurl) dibuka dulu. Bila tujuannya bisa dibaca, domain tujuan
+    # yang diperiksa; bila tidak, itu sendiri menjadi bukti bahwa jalur lamaran disembunyikan.
+    from app.services.web_fetcher import expand_short_url, is_shortener
+
+    shortener_failures: list[str] = []
+    expanded_urls: list[str] = []
+    neutral_notes_urls: list[str] = []
+    expanded_count = 0
+    for u in urls:
+        if is_shortener(u) and expanded_count < 2:
+            expanded_count += 1
+            final, ok = expand_short_url(u)
+            if ok and final != u:
+                expanded_urls.append(final)
+                neutral_notes_urls.append(f"Tautan pendek {u} mengarah ke {urlparse(final).hostname}.")
+            else:
+                shortener_failures.append(u)
+        expanded_urls.append(u)
+
+    # Tautan pendek yang hanya terbaca vision (OCR gagal, kasus F3 Sociolla) tetap dibuka. Karena
+    # bisa saja hasil salah baca AI, tautan itu dipakai hanya bila tujuannya benar-benar terbuka;
+    # bila gagal, cukup catatan netral, bukan bukti risiko.
+    ai_only = (entities.get("_ner_meta") or {}).get("ai_only_contacts") or []
+    for u in [c for c in ai_only if isinstance(c, str) and is_shortener(c)][:1]:
+        if u in expanded_urls:
+            continue
+        final, ok = expand_short_url(u)
+        if ok and final != u:
+            expanded_urls.append(final)
+            neutral_notes_urls.append(
+                f"Tautan pendek {u} (dibaca AI dari gambar) mengarah ke {urlparse(final).hostname}."
+            )
+        else:
+            neutral_notes_urls.append(f"Tautan pendek {u} (dibaca AI dari gambar) tidak bisa dibuka.")
+    urls = list(dict.fromkeys(expanded_urls))
 
     seen_urls = set()
     for em in emails[:1]:
@@ -866,7 +941,13 @@ def collect_web_evidence(entities: dict) -> dict[str, Any]:
 
     risk_flags: list[str] = []
     safe_flags: list[str] = []
-    neutral_notes: list[str] = []
+    neutral_notes: list[str] = list(neutral_notes_urls)
+    # B2: tautan pendek yang tidak bisa dibuka menyembunyikan tujuan lamaran.
+    if shortener_failures:
+        risk_flags.append(
+            "Tautan pendaftaran memakai pemendek URL yang tujuannya tidak bisa dibuka: "
+            + ", ".join(shortener_failures[:2])
+        )
     for gf in gform_inspections:
         risk_flags.extend(gf.get("risk_flags") or [])
         safe_flags.extend(gf.get("safe_flags") or [])

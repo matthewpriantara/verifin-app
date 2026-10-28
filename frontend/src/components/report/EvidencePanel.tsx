@@ -230,8 +230,8 @@ export function EvidencePanel({ osint }: EvidencePanelProps) {
           </ul>
           {phones.some((p) => p.getcontact?.probe_status) && (
             <p className="mt-3 text-[12px] text-text-muted">
-              GetContact hanya memberi jumlah tag dan label spam, bukan nama pemilik. Sinyal komunitas ini uji coba;
-              jumlah tag bukan jaminan lowongan asli.
+              GetContact memberi jumlah tag, label spam, dan (untuk sebagian nomor) berapa tag yang memuat kata
+              penipuan. Nama pemilik dan isi tag tidak ditampilkan atau disimpan. Sinyal ini uji coba.
             </p>
           )}
         </Section>

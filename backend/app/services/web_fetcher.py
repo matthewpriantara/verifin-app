@@ -4,7 +4,7 @@ import asyncio
 import logging
 import re
 import tempfile
-from urllib.parse import quote, urlparse
+from urllib.parse import quote, urljoin, urlparse
 
 from bs4 import BeautifulSoup
 from app.services.url_guard import resolve_public_url, safe_get, safe_get_async, validate_public_http_url
@@ -14,6 +14,48 @@ logger = logging.getLogger(__name__)
 
 class UrlInputError(ValueError):
     """Tautan yang tidak bisa diproses karena bentuknya, bukan karena jaringan."""
+
+
+_SHORTENER_HOSTS = (
+    "bit.ly", "tinyurl.com", "s.id", "lynk.id", "linktr.ee", "cutt.ly", "t.ly",
+    "rebrand.ly", "shorturl.at", "is.gd", "rb.gy", "tiny.cc", "bit.do", "goo.gl",
+    "ow.ly", "buff.ly", "trib.al", "short.link", "surl.id", "link.s.id",
+)
+
+
+def is_shortener(url: str) -> bool:
+    host = (urlparse(url or "").hostname or "").lower().removeprefix("www.")
+    return any(host == h or host.endswith("." + h) for h in _SHORTENER_HOSTS)
+
+
+def expand_short_url(url: str, max_hops: int = 3) -> tuple[str, bool]:
+    """Ikuti redirect pemendek URL tanpa membuka isinya (B2).
+
+    Mengikuti tautan pendek tidak mengirim data pribadi; yang dibuka hanya halaman publiknya.
+    Kembalikan (url_akhir, berhasil). Gagal = tetap pakai URL pendek dan dicatat sebagai bukti
+    bahwa tujuan lamaran disembunyikan.
+    """
+    if not is_shortener(url):
+        return url, True
+    current = url
+    for _ in range(max_hops):
+        try:
+            res = safe_get(current, headers={"User-Agent": "Mozilla/5.0 (compatible; Verifin/1.0)"}, timeout=8.0)
+        except Exception:
+            return current, False
+        # safe_get sudah mengikuti redirect dan memvalidasi setiap hop; URL akhir ada di .url.
+        final = str(getattr(res, "url", current))
+        if final and final != current:
+            try:
+                validate_public_http_url(final)
+            except Exception:
+                return current, False
+            current = final
+            if not is_shortener(current):
+                return current, True
+            continue
+        return current, getattr(res, "status_code", 0) < 400
+    return current, not is_shortener(current)
 
 
 _PROFILE_URL = re.compile(

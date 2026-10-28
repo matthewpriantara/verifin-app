@@ -27,7 +27,7 @@ const SECTIONS: { title: string; items: string[] }[] = [
     items: [
       "Model bahasa (LLM) eksternal menerima teks lowongan untuk ekstraksi dan penalaran. Sebelum dikirim, nomor HP, bagian depan email, NIK, dan nomor rekening diganti token.",
       "Kaspersky Who Calls menerima nomor HP yang diperiksa.",
-      "GetContact menerima nomor HP yang diperiksa. Verifin hanya memakai jumlah tag dan label spam; nama pemilik dan isi tag tidak disimpan atau ditampilkan. Layanan ini uji coba dan bisa dimatikan.",
+      "GetContact menerima nomor HP yang diperiksa. Verifin memakai jumlah tag dan label spam. Untuk sebagian nomor, isi tag diperiksa sesaat di server kami untuk mencari kata seperti \"penipu\"; yang disimpan hanya jumlahnya. Teks tag dan nama pemilik tidak disimpan atau ditampilkan. Layanan ini uji coba dan bisa dimatikan.",
       "OpenStreetMap (Nominatim) menerima alamat atau wilayah yang tertulis di lowongan.",
       "Mesin pencari SearXNG yang dijalankan tim menerima nama perusahaan dan nomor.",
       "Situs pada tautan lowongan dibuka oleh server Verifin, bukan oleh perangkatmu.",

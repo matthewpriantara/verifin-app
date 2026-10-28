@@ -436,6 +436,8 @@ async def _run_llm_ner(text: str) -> dict | None:
 
 
 async def _run_osint_on_entities(entities: dict) -> dict:
+    # 10.4: classifier sudah menaruh sinyal teks di entities["_text_signals"] sebelum OSINT,
+    # sehingga runner bisa memutuskan apakah isi tag GetContact perlu dibaca (kuota 1/hari).
     return await run_osint_probes(entities)
 
 
@@ -533,7 +535,8 @@ def attach_shap_explanation(
             entities=entities,
             model_used=analysis.get("model_used"),
             guard_rule=(
-                "telegram" if analysis.get("calibrated_telegram")
+                "brand_impersonation" if analysis.get("brand_impersonation_guard")
+                else "telegram" if analysis.get("calibrated_telegram")
                 else "fraud_site" if analysis.get("calibrated_fraud_site")
                 else "dead_domain" if analysis.get("calibrated_dead_domain")
                 else "unknown_search" if analysis.get("calibrated_unknown_search")

@@ -100,6 +100,12 @@ def _build_phone_osint_section(phones: list) -> str:
             else:
                 spam_note = "ditandai spam" if gc.get("spam_flagged") else "tidak ditandai spam"
                 lines.append(f"  → GetContact: {tag} tag, {spam_note} (sinyal komunitas, bukan jaminan)")
+            fraud_tags = gc.get("fraud_tags") or {}
+            if fraud_tags.get("probe_status") == "COMPLETED":
+                hits = int(fraud_tags.get("fraud_tag_hits") or 0)
+                terms = ", ".join(fraud_tags.get("fraud_tag_terms") or []) or "-"
+                mark = "⚠️ " if hits >= 2 else ""
+                lines.append(f"  → {mark}GetContact: {hits} tag memuat kata penipuan ({terms})")
         elif gc.get("probe_status") == "UNAVAILABLE":
             lines.append(f"  → GetContact: tidak tersedia ({gc.get('reason') or 'kuota/akun'})")
         for rf in serp_risk:
@@ -548,7 +554,7 @@ Putuskan AMAN, WASPADA, atau BAHAYA hanya dari bukti di bawah.
 - Ada artikel peringatan/bantahan lowongan palsu atas nama perusahaan ini DAN jalur melamar hanya WhatsApp/tautan bio (SINYAL TEKS): minimal 60–74, walau nama tidak memakai akhiran Persero/Tbk.
 
 **BAHAYA (75–100)**
-- Wajib ada bukti keras: permintaan biaya/transfer/KTP/rekening (termasuk tiket atau akomodasi dengan janji reimburse), HP `reported_fraud`, form phishing, laporan penipuan spesifik yang menyebut nomor/perusahaan/modus lowongan ini, laporan komunitas yang sudah disetujui admin, atau nomor/email yang sama dengan kasus BAHAYA lain.
+- Wajib ada bukti keras: permintaan biaya/transfer/KTP/rekening (termasuk tiket atau akomodasi dengan janji reimburse), HP `reported_fraud`, form phishing, laporan penipuan spesifik yang menyebut nomor/perusahaan/modus lowongan ini, laporan komunitas yang sudah disetujui admin, ≥ 2 tag GetContact berisi kata penipuan, atau nomor/email yang sama dengan kasus BAHAYA lain.
 
 ## URUTAN PENALARAN
 
