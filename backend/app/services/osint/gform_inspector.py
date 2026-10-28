@@ -46,8 +46,10 @@ NORMAL_JOB_KEYWORDS = {
 }
 
 
-_FORM_HOSTS = ("forms.gle", "docs.google.com", "forms.google.com")
-_SHORTLINK_HOSTS = ("bit.ly", "tinyurl.com", "s.id", "linktr.ee", "lynk.id", "cutt.ly", "shorturl.at", "rebrand.ly")
+from app.services.site_kinds import hosts as _site_hosts
+
+_FORM_HOSTS = _site_hosts("form")
+_SHORTLINK_HOSTS = _site_hosts("shortener")
 
 
 def _host_of(url: str) -> str:

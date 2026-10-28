@@ -1,0 +1,46 @@
+{
+  "_readme": "Satu sumber data jenis situs (audit-007 10.7 C). Ubah daftar di sini, bukan di kode. Host dicocokkan persis atau sebagai subdomain; suffix open_registration butuh label di depannya.",
+  "free_email": [
+    "gmail.com", "yahoo.com", "yahoo.co.id", "hotmail.com", "outlook.com", "live.com",
+    "ymail.com", "icloud.com", "protonmail.com", "mail.com"
+  ],
+  "shortener": [
+    "bit.ly", "tinyurl.com", "s.id", "lynk.id", "linktr.ee", "cutt.ly", "t.ly", "rebrand.ly",
+    "shorturl.at", "is.gd", "rb.gy", "tiny.cc", "bit.do", "goo.gl", "ow.ly", "buff.ly",
+    "trib.al", "short.link", "surl.id", "link.s.id"
+  ],
+  "form": ["forms.gle", "docs.google.com", "forms.google.com"],
+  "open_registration_suffix": [
+    ".my.id", ".web.id", ".biz.id", ".store", ".boutique", ".shop", ".online", ".site", ".xyz", ".top"
+  ],
+  "open_registration_host": [
+    "blogspot.com", "blogspot.co.id", "wixsite.com", "wordpress.com", "github.io", "vercel.app",
+    "netlify.app", "web.app", "firebaseapp.com", "weebly.com", "000webhostapp.com", "r2.dev"
+  ],
+  "social_platform": [
+    "instagram.com", "facebook.com", "fb.com", "tiktok.com", "threads.net", "threads.com",
+    "x.com", "twitter.com", "linkedin.com", "youtube.com", "t.me", "telegram.me", "wa.me", "lemon8-app.com"
+  ],
+  "marketplace": [
+    "tokopedia.com", "shopee.co.id", "lazada.co.id", "blibli.com", "bukalapak.com"
+  ],
+  "job_portal": [
+    "glints.com", "jobstreet.co.id", "jobstreet.com", "kalibrr.com", "indeed.com", "id.indeed.com",
+    "lokerjogja.id", "gudangkarir.com", "sololoker.id", "lokercepat.id", "lokerkarawang.net",
+    "lokertegal.id", "karir.com", "jobs.id"
+  ],
+  "directory": [
+    "opencorpdata.com", "companieshouse.id", "emis.com", "idalamat.com", "scribd.com",
+    "wikipedia.org", "google.com", "rumah123.com", "ec21.com"
+  ],
+  "travel": ["traveloka.com", "tiket.com", "agoda.com", "booking.com", "pergimulu.com", "dinogo.com"],
+  "news": [
+    "detik.com", "kompas.com", "tribunnews.com", "liputan6.com", "cnnindonesia.com", "kumparan.com",
+    "okezone.com", "suara.com", "mediaindonesia.com", "theguardian.com", "antaranews.com", "tempo.co"
+  ],
+  "job_portal_url_tokens": ["loker", "lowongan", "karir", "jobstreet", "glints", "kalibrr", "linkedin.com/jobs"],
+  "aggregator_text_tokens": [
+    "lokerjogja", "loker jogja", "lokerterbaru", "loker terbaru", "loker indonesia",
+    "lowongan kerja", "pusat loker", "info loker"
+  ]
+}

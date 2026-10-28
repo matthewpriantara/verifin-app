@@ -7,6 +7,7 @@ import tempfile
 from urllib.parse import quote, urljoin, urlparse
 
 from bs4 import BeautifulSoup
+from app.services.site_kinds import kind_of
 from app.services.url_guard import resolve_public_url, safe_get, safe_get_async, validate_public_http_url
 
 logger = logging.getLogger(__name__)
@@ -16,16 +17,8 @@ class UrlInputError(ValueError):
     """Tautan yang tidak bisa diproses karena bentuknya, bukan karena jaringan."""
 
 
-_SHORTENER_HOSTS = (
-    "bit.ly", "tinyurl.com", "s.id", "lynk.id", "linktr.ee", "cutt.ly", "t.ly",
-    "rebrand.ly", "shorturl.at", "is.gd", "rb.gy", "tiny.cc", "bit.do", "goo.gl",
-    "ow.ly", "buff.ly", "trib.al", "short.link", "surl.id", "link.s.id",
-)
-
-
 def is_shortener(url: str) -> bool:
-    host = (urlparse(url or "").hostname or "").lower().removeprefix("www.")
-    return any(host == h or host.endswith("." + h) for h in _SHORTENER_HOSTS)
+    return kind_of(url) == "shortener"
 
 
 def expand_short_url(url: str, max_hops: int = 3) -> tuple[str, bool]:
@@ -94,7 +87,6 @@ _IG_NOISE_PATTERNS = [
     r"Laporkan masalah",
 ]
 
-_APPLY_LINK_HOSTS = re.compile(r"(?:^|\.)(?:s\.id|bit\.ly|forms\.gle|lynk\.id|linktr\.ee|tinyurl\.com)$|docs\.google\.com", re.I)
 _APPLY_LINK_TEXT = re.compile(r"formulir|form|lamar|apply|daftar|register", re.I)
 
 
@@ -193,7 +185,7 @@ def _job_posting_page_text(html: str, url: str) -> tuple[str, str | None]:
                 contacts.append(f"Email: {email}")
         elif low.startswith("http"):
             host = (urlparse(href).hostname or "").removeprefix("www.")
-            if host and host != own_host and (_APPLY_LINK_HOSTS.search(host) or _APPLY_LINK_TEXT.search(a.get_text(" ", strip=True))):
+            if host and host != own_host and (kind_of(host) in ("shortener", "form") or _APPLY_LINK_TEXT.search(a.get_text(" ", strip=True))):
                 contacts.append(f"Tautan lamaran: {href}")
     for el in soup.select("[data-cfemail]"):
         if not el.find_parent(["footer", "header", "nav", "aside"]):

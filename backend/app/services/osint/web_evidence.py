@@ -4,6 +4,10 @@ import logging
 from typing import Any
 from urllib.parse import urlparse
 
+from app.services import site_kinds
+from app.services.osint.official_domain import find_official_domains
+from app.services.osint.whois_handler import check_domain_age
+
 from scrapling.fetchers import Fetcher
 from app.services.osint.gform_inspector import inspect_gform, is_gform_url
 from app.services.constants import FREE_EMAIL_DOMAINS
@@ -15,10 +19,7 @@ from app.services.osint.search_intelligence import ordered_match_count
 
 logger = logging.getLogger(__name__)
 
-_SOCIAL_AGGREGATOR_TOKENS = (
-    "lokerjogja", "loker jogja", "lokerterbaru", "loker terbaru",
-    "loker indonesia", "lowongan kerja", "pusat loker", "info loker",
-)
+_SOCIAL_AGGREGATOR_TOKENS = site_kinds.tokens("aggregator_text_tokens")
 
 _ENTITY_QUERY_STOPWORDS = {
     "pt", "cv", "ud", "tbk", "firma", "yayasan", "lowongan", "penipuan",
@@ -45,9 +46,10 @@ def _url_matches_domains(url: str, target_domains: tuple[str, ...] | list[str]) 
 
 def _public_source_type(url: str, title: str = "", snippet: str = "") -> str:
     url_title = f"{url} {title}".lower()
-    if any(domain in url.lower() for domain in ("tokopedia.com", "shopee.co.id")):
+    kind = site_kinds.kind_of(url)
+    if kind == "marketplace":
         return "marketplace"
-    if any(domain in url.lower() for domain in ("loker", "jobstreet", "glints", "kalibrr", "linkedin.com/jobs", "karir")):
+    if kind == "job_portal" or any(t in url.lower() for t in site_kinds.tokens("job_portal_url_tokens")):
         return "job_portal"
     if any(token in url_title for token in _SOCIAL_AGGREGATOR_TOKENS):
         return "social_aggregator"
@@ -636,33 +638,6 @@ def _has_maps_evidence(platform_evidence: dict) -> bool:
     return maps_data.get("count", 0) > 0
 
 
-_OPEN_REGISTRATION_TLDS = (
-    ".my.id",
-    ".web.id",
-    ".biz.id",
-    ".store",
-    ".boutique",
-    ".shop",
-    ".online",
-    ".site",
-    ".xyz",
-    ".top",
-)
-
-_OPEN_REGISTRATION_HOSTS = (
-    "blogspot.com",
-    "blogspot.co.id",
-    "wixsite.com",
-    "wordpress.com",
-    "github.io",
-    "vercel.app",
-    "netlify.app",
-    "web.app",
-    "firebaseapp.com",
-    "weebly.com",
-    "000webhostapp.com",
-    "r2.dev",
-)
 
 # Isi website penipuan rekrutmen (masukan LokerJogja.id): halaman "Akun Kerja", tugas/komisi,
 # deposit, lalu tautan Telegram. Satu frasa kuat sudah cukup; frasa lemah butuh dua.
@@ -704,16 +679,7 @@ _KNOWN_CITIES = (
 def is_open_registration_domain(host: str) -> str | None:
     """Domain yang bisa didaftarkan siapa saja tanpa verifikasi badan usaha."""
     host = (host or "").lower().removeprefix("www.")
-    if not host:
-        return None
-    for suffix in _OPEN_REGISTRATION_TLDS:
-        if host.endswith(suffix) and host.count(".") >= 2:
-            return host
-    for free_host in _OPEN_REGISTRATION_HOSTS:
-        # Domain induknya sendiri (mis. vercel.app) bukan situs milik pengguna.
-        if host.endswith("." + free_host):
-            return host
-    return None
+    return host if host and site_kinds.is_open_registration(host) else None
 
 
 def _fraud_site_matches(title: str, snippet: str, description: str = "") -> list[str]:
@@ -1080,8 +1046,20 @@ def collect_web_evidence(entities: dict) -> dict[str, Any]:
     def uniq(xs: list[str]) -> list[str]:
         return list(dict.fromkeys(xs))
 
+    # 10.7 B: domain resmi merek hanya dicari bila jalur lamaran tidak resmi (email gratisan,
+    # pemendek URL, domain bebas daftar). Kasus biasa tidak menambah panggilan WHOIS.
+    unofficial_channel = (
+        any(site_kinds.kind_of(e) == "free_email" for e in emails)
+        or any(site_kinds.kind_of(u) in ("shortener", "open_registration") for u in urls)
+        or bool(vision_shortener_failures)
+    )
+    official_domains = (
+        find_official_domains(companies, searches, age_lookup=check_domain_age) if unofficial_channel else []
+    )
+
     return {
         "enabled": True,
+        "official_domains": official_domains,
         "engine": "searxng",
         "websites": website_checks,
         "probe_status": "COMPLETED",
