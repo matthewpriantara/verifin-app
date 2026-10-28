@@ -287,4 +287,42 @@ Kode `75d5719`, cache mati, `ag/gemini-3.8-flash-medium`, dua pass penuh. Tambah
 | T3 | BAHAYA 95 | BAHAYA 95 |
 | T2, T4–T8 | WASPADA 50/73/73/72/45/72 | WASPADA 50/73/74/70/45/72 |
 
-Semua lowongan asli AMAN dan semua poster palsu ≥ WASPADA 45, tetapi belum ada poster palsu LokerJogja yang BAHAYA. Data sensitif S1 tidak muncul di respons. Blind spot B1–B10 dan rencana run 15 ada di `anti-slop/audit-007-2026-10-27.md` bagian 10.
+Semua lowongan asli AMAN dan semua poster palsu ≥ WASPADA 45, tetapi belum ada poster palsu LokerJogja yang BAHAYA. Data sensitif S1 tidak muncul di respons. Blind spot yang ditemukan diperbaiki dan diuji di run 15 di bawah.
+
+## Run 15 (28 Okt 2026, stack home, kode akhir)
+
+Kode `7af2fd5` dan sesudahnya (perubahan sesudahnya hanya komentar, proxy timeout, dan trim pencarian). Cache mati, `ag/gemini-3.8-flash-medium`, dua pass penuh (A/B) ditambah satu pass konfirmasi (C) setelah perbaikan kasus negatif N1. 220–229 tes otomatis lulus.
+
+Perubahan yang diuji:
+- **Pencatutan merek.** Domain resmi dicari dari hasil pencarian (skor generik + umur domain) atau dari registri terverifikasi `app/data/employer_domains.json`. Lamaran walk-in di alamat fisik membatalkan aturan ini.
+- **Daftar jenis situs** dipindah ke `app/data/site_kinds.json`.
+- **Tautan pendek** dibuka, termasuk yang hanya terbaca AI dari gambar. Judul dan `og:description` situs ikut dicocokkan.
+- **Regex Telegram** sekarang menangkap "tele"/"tg" dan negasi palsu ("dijamin bukan penipuan").
+- **Masking** mencakup rekening tanpa kata "rekening", bank digital, NIK berspasi, dan nama pemilik rekening.
+- **Isi tag GetContact** dibaca maksimal 1/hari; yang keluar hanya hitungan kata penipuan.
+- **Frontend home** sekarang same-origin ke backend home (sebelumnya diam-diam memanggil API produksi).
+
+| ID | Pass A | Pass B | Pass C (kode akhir) |
+|---|---|---|---|
+| LJ1–LJ5 (tayang di LokerJogja) | AMAN 18/18/18/18/18 | AMAN 18/20/18/18/18 | AMAN 16/18/18/20/18 |
+| V1 Envipedia | AMAN 22 | AMAN 25 | AMAN 22 |
+| F1 New Trendy | BAHAYA 82 | BAHAYA 82 | BAHAYA 80 |
+| F2 Guardian | WASPADA 68 | WASPADA 68 | WASPADA 68 |
+| F3 Sociolla | WASPADA 68 | WASPADA 68 | WASPADA 68 |
+| F4 Roemah Boenga | WASPADA 45 | WASPADA 45 | WASPADA 45 |
+| F5 Sharp | WASPADA 68 | WASPADA 68 | WASPADA 68 |
+| N1 cabang ritel + Gmail + walk-in (negatif) | WASPADA 68 | WASPADA 68 | **AMAN 25** (setelah perbaikan) |
+| TG1 / TG3 / TG4 (Telegram) | WASPADA 65/65/70 | WASPADA 65/65/70 | – |
+| S1 / S2 (NIK, rekening, biaya) | BAHAYA 92/90 | BAHAYA 92/90 | – |
+| T1, T9, T10, T11, P1 (asli) | AMAN 12/25/8/22/28 | AMAN 12/25/8/22/28 | T11 AMAN 22 |
+| T3 | BAHAYA 95 | BAHAYA 96 | – |
+| T2, T4–T8 | WASPADA 50/74/73/72/45/72 | WASPADA 50/73/73/70/45/72 | – |
+
+Kesimpulan:
+- **Lowongan asli:** 12/12 AMAN di pass akhir (LJ1–LJ5, V1, T1, T9–T11, P1, N1).
+- **Poster yang ditolak LokerJogja:** 5/5 ≥ WASPADA 45. F1 BAHAYA. F2, F3, dan F5 WASPADA 68 dengan baris "Aturan Pengaman: Pencatutan Merek".
+- **Telegram:** semua kasus kena aturan pengaman. TG3 dan TG4 sekarang tertangkap regex, bukan hanya oleh LLM.
+- **Data sensitif:** NIK, rekening, dan nama pemilik rekening tidak muncul di respons maupun DB.
+- **Stabilitas:** variasi antar-pass ≤ 3 poin.
+
+F2, F3, dan F5 tidak dinaikkan ke BAHAYA karena tidak ada bukti keras di poster. Jalur naiknya adalah ≥ 2 tag GetContact berkata penipuan, nomor terlapor, atau laporan komunitas.
