@@ -10,6 +10,8 @@ const nextConfig: NextConfig = {
   allowedDevOrigins: ["100.111.60.81"],
   // SSE /verify/stream lewat rewrite: kompresi menahan event sampai respons selesai.
   compress: !backend,
+  // Verifikasi berjalan 20–90 dtk; batas proxy bawaan Next 30 dtk membuat rewrite menjawab 500.
+  experimental: { proxyTimeout: 180_000 },
   async rewrites() {
     return backend ? [{ source: "/api/v1/:path*", destination: `${backend}/api/v1/:path*` }] : [];
   },
