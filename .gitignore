@@ -46,3 +46,8 @@ backend/app/debug_json/
 # --- Docker Local Overrides ---
 docker-compose.override.yml
 docker-compose.*.override.yml
+
+# Artefak TestSprite (konfigurasi lokal dan hasil uji), tidak untuk repo publik
+testsprite_tests/
+testsprite_tests/tmp/
+testsprite_tests/tmp/config.json

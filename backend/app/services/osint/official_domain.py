@@ -28,6 +28,7 @@ _GENERIC_WORDS = {
     "official", "store", "ritel", "retail", "electronics", "electronic", "distribusi", "global",
     "jaya", "abadi", "mandiri", "sejahtera", "nusantara", "the", "and", "dan", "yogyakarta", "jogja",
     "media", "digital", "sinar", "mitra", "karya", "utama", "makmur", "sentosa", "indo", "company",
+    "cabang", "kantor", "pusat", "area", "wilayah", "sumber",
 }
 MIN_SCORE = 3
 MIN_AGE_DAYS = 365
@@ -69,7 +70,9 @@ def score_candidates(companies: list, searches: list) -> list[dict[str, Any]]:
         in_host = any(t in label for t in tokens for label in labels)
         text = " ".join(entry["titles"])
         in_title = any(re.search(rf"\b{re.escape(t)}\b", text) for t in tokens)
-        if not (in_host or in_title):
+        # Token merek wajib ada di nama host: judul halaman pihak ketiga juga bisa memuat nama PT
+        # (semuabis.com berjudul "PT Sumber Alfaria Trijaya" sempat dianggap situs resmi Alfamart).
+        if not in_host:
             continue
         if want_id and not (host.endswith(".id") or labels[0] == "id" or "indonesia" in text or "indonesia" in host):
             continue
