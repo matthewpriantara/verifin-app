@@ -271,3 +271,29 @@ class TestEmployerRegistry:
         from app.services.osint.official_domain import registry_domains
 
         assert registry_domains(["Morgans Kebab"]) == []
+
+
+class TestBrandGuardNegatives:
+    def test_title_only_match_is_not_official(self):
+        from app.services.osint.official_domain import find_official_domains
+
+        found = find_official_domains(
+            ["ALFAMART CABANG SLEMAN", "PT Sumber Alfaria Trijaya Tbk"],
+            [{"results": [{"url": "https://semuabis.com/pt-sumber-alfaria", "title": "PT Sumber Alfaria Trijaya - Semuabis"}]}],
+        )
+        assert found == []
+
+    def test_walk_in_at_address_skips_guard(self):
+        from app.services.nlp.classifier import extract_behavioral_features
+
+        text = "Walk-in interview di Kantor Cabang Alfamart Sleman, Jl. Magelang Km 10. Email rekrutmen.alfa@gmail.com"
+        signals = extract_behavioral_features(text, ["Alfamart"])
+        assert signals["has_walk_in"] and signals["has_address"]
+        parsed = {"verdict": "WASPADA", "risk_score": 41, "risk_factors": []}
+        osint = {
+            "web": {"official_domains": [{"domain": "alfamart.co.id"}], "scam_check": {"warnings": 2}},
+            "phones": [],
+            "domain": {},
+        }
+        out = _apply_brand_impersonation(parsed, {"emails": ["rekrutmen.alfa@gmail.com"]}, osint, signals)
+        assert out["risk_score"] == 41

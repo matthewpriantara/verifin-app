@@ -71,6 +71,12 @@ _TELEGRAM_NEGATION_BEFORE = re.compile(
 _TELEGRAM_HANDLE_OR_LINK = re.compile(r"@[a-z0-9_]{3,}|t\.me/|telegram\.me/", re.I)
 
 
+_WALK_IN = re.compile(
+    r"\bwalk[\s-]?in\b|\b(?:wawancara|interview|tes|seleksi)\s+(?:langsung|tatap\s+muka|di\s+kantor)"
+    r"|\bdatang\s+langsung\s+(?:ke|di)\b|\bantar\s+(?:langsung\s+)?lamaran\s+ke\b"
+)
+
+
 def _has_telegram_apply(text_lower: str) -> bool:
     segments = re.split(r"(?<=[.!?])\s+|\n+", text_lower)
     for segment in segments:
@@ -248,6 +254,8 @@ def extract_behavioral_features(text: str, companies: list[str] | None = None) -
         "has_foreign_work": bool(has_foreign),
         "has_whatsapp_apply": bool(has_wa),
         "has_telegram_apply": _has_telegram_apply(text_lower),
+        # Lamaran tatap muka di alamat fisik: modus pencatutan merek yang terlihat selalu daring.
+        "has_walk_in": bool(_WALK_IN.search(text_lower)),
         "fraud_keyword_count": float(fraud_hits),
         "safe_keyword_count": float(safe_hits),
         "has_company": bool(has_company),

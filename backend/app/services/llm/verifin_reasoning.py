@@ -184,6 +184,10 @@ def _brand_impersonation_evidence(parsed: dict, entities: dict, osint_results: d
     official_domains = {d for d in official_domains if not site_kinds.is_third_party(d)}
     if not official_domains:
         return None
+    # Lowongan yang mengundang pelamar datang ke alamat fisik bukan pola pencatutan merek daring
+    # (kasus negatif N1: cabang ritel memakai Gmail tetapi walk-in di kantor cabang).
+    if signals.get("has_walk_in") and signals.get("has_address"):
+        return None
 
     apply_domains = {e.split("@")[-1].lower() for e in emails if "@" in e}
     open_domain = (web.get("open_registration_domain") or {}).get("domain")
