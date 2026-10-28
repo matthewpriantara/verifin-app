@@ -160,36 +160,69 @@ class TestBrandImpersonationB1:
 
 class TestOfficialDomainDiscovery:
     @staticmethod
-    def _search(*urls: str) -> list[dict]:
-        return [{"results": [{"url": u} for u in urls]}]
+    def _search(*items: tuple[str, str]) -> list[dict]:
+        return [{"results": [{"url": u, "title": t} for u, t in items]}]
 
-    def test_brand_site_found_marketplace_ignored(self):
-        from app.services.llm.verifin_reasoning import _official_domains_from_search
+    def test_brand_site_found_platforms_ignored(self):
+        from app.services.osint.official_domain import find_official_domains
 
-        found = _official_domains_from_search(
+        found = find_official_domains(
             ["guardian INDONESIA"],
             self._search(
-                "https://www.instagram.com/guardian_id/",
-                "https://guardianindonesia.co.id/",
-                "https://www.tokopedia.com/guardian-official",
+                ("https://www.instagram.com/guardian_id/", "Guardian Indonesia (@guardian_id)"),
+                ("https://guardianindonesia.co.id/", "Guardian Online Shop - Guardian Indonesia"),
+                ("https://www.tokopedia.com/guardian-official", "Toko Guardian Official Store"),
+                ("https://www.theguardian.com/world", "The Guardian"),
             ),
         )
-        assert found == {"guardianindonesia.co.id"}
+        assert [c["domain"] for c in found] == ["guardianindonesia.co.id"]
 
-    def test_job_boards_are_not_official(self):
-        from app.services.llm.verifin_reasoning import _official_domains_from_search
+    def test_job_boards_and_directories_are_not_official(self):
+        from app.services.osint.official_domain import find_official_domains
 
-        found = _official_domains_from_search(
+        found = find_official_domains(
             ["Excelland Properti"],
-            self._search("https://www.lokerjogja.id/lowongan/excelland", "https://gudangkarir.com/excelland"),
+            self._search(
+                ("https://www.lokerjogja.id/lowongan/excelland", "Excelland Properti"),
+                ("https://idalamat.com/alamat/excelland", "Kantor Excelland Properti"),
+            ),
         )
-        assert found == set()
+        assert found == []
+
+    def test_country_mismatch_rejected(self):
+        from app.services.osint.official_domain import find_official_domains
+
+        found = find_official_domains(
+            ["PT TRINITY SUCCESS GROUP"],
+            self._search(("https://trinitysuccessgroup.com.au/", "Trinity Success Group Australia")),
+        )
+        assert found == []
+
+    def test_young_top_candidate_dropped(self):
+        from app.services.osint.official_domain import find_official_domains
+
+        found = find_official_domains(
+            ["sociolla"],
+            self._search(("https://www.sociolla.com/", "Sociolla"), ("https://www.sociolla.com/about", "Sociolla")),
+            age_lookup=lambda _d: {"age_days": 40},
+        )
+        assert found == []
+
+    def test_unknown_age_keeps_candidate(self):
+        from app.services.osint.official_domain import find_official_domains
+
+        found = find_official_domains(
+            ["SHARP ELECTRONICS INDONESIA"],
+            self._search(("https://id.sharp/contact_us", "Kontak Kami | SHARP Indonesia")),
+            age_lookup=lambda _d: {"age_days": -1},
+        )
+        assert [c["domain"] for c in found] == ["id.sharp"]
 
     def test_vision_only_shortener_counts_as_hidden_channel(self):
         parsed = {"verdict": "WASPADA", "risk_score": 50, "risk_factors": []}
         osint = {
             "web": {
-                "searches": self._search("https://www.sociolla.com/"),
+                "official_domains": [{"domain": "sociolla.com", "score": 4}],
                 "scam_check": {"warnings": 1},
                 "vision_shortener_failures": ["https://tinyurl.com/Sciolla"],
             },
@@ -198,3 +231,25 @@ class TestOfficialDomainDiscovery:
         }
         out = _apply_brand_impersonation(parsed, {"companies": ["sociolla"]}, osint, {})
         assert out["risk_score"] == 68
+
+
+class TestSiteKinds:
+    def test_kinds_from_data_file(self):
+        from app.services.site_kinds import kind_of
+
+        assert kind_of("https://bit.ly/x") == "shortener"
+        assert kind_of("hrd@gmail.com") == "free_email"
+        assert kind_of("sharp-career.my.id") == "open_registration"
+        assert kind_of("my.id") == ""
+        assert kind_of("m.tokopedia.com") == "marketplace"
+        assert kind_of("guardianindonesia.co.id") == ""
+
+    def test_no_host_lists_left_in_code(self):
+        """Daftar host hanya boleh ada di app/data/site_kinds.json (10.7 C)."""
+        import re
+        from pathlib import Path
+
+        root = Path(__file__).resolve().parents[1] / "app"
+        pattern = re.compile(r'\(\s*"(?:bit\.ly|tinyurl\.com)"|"tokopedia\.com",\s*"shopee\.co\.id"|"\.my\.id",\s*\n')
+        offenders = [str(p) for p in root.rglob("*.py") if pattern.search(p.read_text(encoding="utf-8"))]
+        assert offenders == []

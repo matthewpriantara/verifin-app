@@ -275,7 +275,7 @@ _BARE_URL = re.compile(
     re.I,
 )
 # Domain email gratisan yang muncul tanpa '@' karena OCR, bukan tautan lowongan.
-_BARE_URL_IGNORE = {"gmail.com", "yahoo.com", "yahoo.co.id", "hotmail.com", "outlook.com", "ymail.com", "icloud.com"}
+_BARE_URL_IGNORE = set(FREE_EMAIL_DOMAINS)
 
 
 def extract_entities_from_text(text: str) -> dict:

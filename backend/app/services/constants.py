@@ -1,8 +1,7 @@
-FREE_EMAIL_DOMAINS: frozenset[str] = frozenset({
-    "gmail.com", "yahoo.com", "yahoo.co.id", "hotmail.com",
-    "outlook.com", "live.com", "ymail.com", "icloud.com",
-    "protonmail.com", "mail.com",
-})
+from app.services.site_kinds import hosts as _site_hosts
+
+# Daftar ada di app/data/site_kinds.json (audit-007 10.7 C).
+FREE_EMAIL_DOMAINS: frozenset[str] = frozenset(_site_hosts("free_email"))
 
 RISK_THRESHOLD_WASPADA = 40
 RISK_THRESHOLD_BAHAYA = 75

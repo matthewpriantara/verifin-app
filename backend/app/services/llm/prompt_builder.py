@@ -1,4 +1,5 @@
 import re
+from app.services import site_kinds
 
 from app.services.constants import DOMAIN_NEW_THRESHOLD_DAYS, FREE_EMAIL_DOMAINS
 
@@ -195,11 +196,12 @@ def _build_web_osint_section(web: dict) -> str:
         lines.append(f"- Search: `{s.get('query')}` (status={s.get('status', 'UNKNOWN')}, engine={s.get('engine', 'unknown')})")
         for r in (s.get("results") or [])[:3]:
             url = r.get("url") or ""
-            if any(domain in url.lower() for domain in ("tokopedia.com", "shopee.co.id")):
+            kind = site_kinds.kind_of(url)
+            if kind == "marketplace":
                 source_note = "public marketplace listing; bukan bukti akun resmi perusahaan"
-            elif any(domain in url.lower() for domain in ("lokerjogja", "jobstreet", "glints", "kalibrr", "linkedin.com/jobs")):
+            elif kind == "job_portal" or "linkedin.com/jobs" in url.lower():
                 source_note = "public job portal listing; bukan kanal resmi perusahaan"
-            elif any(domain in url.lower() for domain in ("instagram.com", "facebook.com", "tiktok.com", "threads.net")):
+            elif kind == "social_platform":
                 source_note = "public social result; status resmi tidak terverifikasi"
             else:
                 source_note = "public web result; status resmi tidak terverifikasi"

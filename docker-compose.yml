@@ -28,7 +28,9 @@ services:
       context: ./frontend
       dockerfile: Dockerfile
       args:
-        NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL:-https://api.verifin.web.id}
+        # Tanpa titik dua: NEXT_PUBLIC_API_URL= (kosong) di .env berarti same-origin + rewrite.
+        NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL-https://api.verifin.web.id}
+        BACKEND_INTERNAL_URL: ${BACKEND_INTERNAL_URL:-}
         GIT_COMMIT: ${GIT_COMMIT:-dev}
         BUILD_TIME: ${BUILD_TIME:-}
     container_name: verifin-frontend

@@ -5,7 +5,7 @@ from app.config import LLM_MODEL, LLM_TIMEOUT
 REASONING_BUDGET_SEC = 55.0
 from app.services.constants import FREE_EMAIL_DOMAINS
 from app.services.osint.getcontact import fraud_tag_summary
-from app.services.osint.web_evidence import is_open_registration_domain
+from app.services import site_kinds
 import re as _re
 import logging
 from difflib import SequenceMatcher
@@ -157,49 +157,6 @@ def _floor_dead_application_domain(parsed: dict, osint_results: dict) -> dict:
     return parsed
 
 
-# Situs yang memuat nama merek tetapi bukan milik merek: marketplace, media sosial, portal loker,
-# direktori perusahaan, dan berita.
-_NOT_OFFICIAL_HOSTS = (
-    "instagram.", "facebook.", "tiktok.", "twitter.", "x.com", "linkedin.", "youtube.", "threads.",
-    "tokopedia.", "shopee.", "lazada.", "blibli.", "bukalapak.", "traveloka.", "tiket.com", "agoda.",
-    "glints.", "jobstreet.", "kalibrr.", "indeed.", "loker", "lowongan", "rumah123.",
-    "opencorpdata.", "companieshouse.", "emis.com", "idalamat.", "scribd.", "wikipedia.", "google.",
-    "detik.", "kompas.", "tribunnews.", "liputan6.", "cnn", "kumparan.", "okezone.", "suara.",
-    "pergimulu.", "dinogo.", "gudangkarir.", "sololoker.", "lokercepat.",
-)
-_BRAND_STOPWORDS = {
-    "pt", "cv", "ud", "tbk", "persero", "indonesia", "group", "grup", "hotel", "resto", "toko",
-    "official", "store", "ritel", "retail", "electronics", "electronic", "distribusi", "global",
-    "jaya", "abadi", "mandiri", "sejahtera", "nusantara", "the", "and", "dan", "yogyakarta", "jogja",
-}
-
-
-def _brand_tokens(companies: list) -> set[str]:
-    tokens: set[str] = set()
-    for name in companies:
-        for word in _re.findall(r"[a-z0-9]+", str(name).lower()):
-            if len(word) >= 4 and word not in _BRAND_STOPWORDS:
-                tokens.add(word)
-    return tokens
-
-
-def _official_domains_from_search(companies: list, searches: list) -> set[str]:
-    """Host dari hasil pencarian yang namanya memuat token merek dan bukan situs pihak ketiga."""
-    tokens = _brand_tokens(companies)
-    if not tokens:
-        return set()
-    found: set[str] = set()
-    for search in searches:
-        for item in (search or {}).get("results") or []:
-            host = _re.sub(r"^https?://(?:www\.)?", "", str(item.get("url") or "")).split("/")[0].lower()
-            if not host or any(bad in host for bad in _NOT_OFFICIAL_HOSTS):
-                continue
-            labels = host.split(".")
-            if any(token in label for token in tokens for label in labels):
-                found.add(host)
-    return found
-
-
 _BRAND_IMPERSONATION_LABEL = "Pencatutan Merek: Jalur Lamaran di Luar Domain Resmi"
 
 
@@ -221,10 +178,10 @@ def _brand_impersonation_evidence(parsed: dict, entities: dict, osint_results: d
         host = _re.sub(r"^https?://(?:www\.)?", "", url).split("/")[0].lower()
         if host and site.get("website_status") == "AVAILABLE" and not site.get("social_profile_found"):
             official_domains.add(host)
-    # Poster palsu tidak pernah mencantumkan situs resmi merek, jadi domain resmi dicari dari
-    # hasil pencarian nama perusahaan (guardianindonesia.co.id, sociolla.com, id.sharp).
-    official_domains |= _official_domains_from_search(entities.get("companies") or [], web.get("searches") or [])
-    official_domains -= {d for d in official_domains if is_open_registration_domain(d)}
+    # Poster palsu tidak pernah mencantumkan situs resmi merek; domain resmi dinilai di tahap OSINT
+    # dari hasil pencarian (osint/official_domain.py, audit-007 10.7 B).
+    official_domains |= {str(c.get("domain")) for c in web.get("official_domains") or [] if c.get("domain")}
+    official_domains = {d for d in official_domains if not site_kinds.is_third_party(d)}
     if not official_domains:
         return None
 

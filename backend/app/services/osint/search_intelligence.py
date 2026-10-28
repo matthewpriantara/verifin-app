@@ -5,6 +5,8 @@ import re
 from urllib.parse import urlparse
 from typing import Any
 
+from app.services import site_kinds
+
 logger = logging.getLogger(__name__)
 
 
@@ -27,12 +29,13 @@ _LOCATION_STOPWORDS = {
 }
 
 _DOMAIN_CATEGORY: list[tuple[tuple[str, ...], str]] = [
-    (("instagram.com", "facebook.com", "tiktok.com", "threads.net", "x.com", "twitter.com"), "social"),
-    (("tokopedia.com", "shopee.co.id", "bukalapak.com", "lazada.co.id"), "marketplace"),
-    (("jobstreet.co.id", "glints.com", "kalibrr.com", "linkedin.com", "karir.com"), "job_portal"),
+    # Tiga jenis pertama dari app/data/site_kinds.json; sisanya khusus kategori pencarian.
+    (site_kinds.hosts("social_platform"), "social"),
+    (site_kinds.hosts("marketplace"), "marketplace"),
+    (site_kinds.hosts("job_portal") + ("linkedin.com",), "job_portal"),
     (("gofood", "grabfood", "shopeefood"), "food_delivery"),
     (("maps.google", "google.com/maps"), "maps"),
-    (("kompas.com", "detik.com", "tribunnews.com", "liputan6.com"), "news"),
+    (site_kinds.hosts("news"), "news"),
     (("wikipedia.org",), "wiki"),
     (("kaskus.co.id", "reddit.com", "quora.com"), "forum"),
 ]
