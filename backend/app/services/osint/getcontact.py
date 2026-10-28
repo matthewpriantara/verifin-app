@@ -51,6 +51,40 @@ def _unavailable(reason: str) -> dict:
     }
 
 
+async def lookup_getcontact_tags(phone: str) -> dict:
+    """Baca isi tag (10.4). Hanya hitungan kata penipuan yang diterima; teks tag tidak pernah masuk
+    ke backend ini. Status selain COMPLETED diperlakukan sebagai UNAVAILABLE tanpa efek skor."""
+    if not GETCONTACT_URL:
+        return _unavailable("layanan belum dikonfigurasi")
+    meta = normalize_phone_id(phone)
+    if not meta.get("local") or len(meta["local"]) < 8:
+        return _unavailable("format nomor tidak valid")
+    try:
+        async with httpx.AsyncClient(timeout=GETCONTACT_TIMEOUT) as client:
+            res = await client.get(
+                f"{GETCONTACT_URL}/tags",
+                params={"phone": meta["e164"]},
+                headers={"X-Api-Key": GETCONTACT_TOKEN},
+            )
+    except Exception:
+        return _unavailable("layanan tidak dapat dihubungi")
+    if res.status_code != 200:
+        return _unavailable(f"layanan menjawab HTTP {res.status_code}")
+    try:
+        data = res.json()
+    except ValueError:
+        return _unavailable("jawaban layanan bukan JSON")
+    if str(data.get("status") or "").upper() != COMPLETED:
+        return _unavailable(f"status {data.get('status') or 'tidak diketahui'}")
+    hits = data.get("fraud_tag_hits")
+    terms = data.get("fraud_tag_terms") or []
+    return {
+        "probe_status": COMPLETED,
+        "fraud_tag_hits": int(hits) if isinstance(hits, (int, float)) else 0,
+        "fraud_tag_terms": [str(t) for t in terms][:6],
+    }
+
+
 async def lookup_getcontact(phone: str) -> dict:
     """Cek satu nomor. Tidak pernah melempar exception ke pemanggil."""
     if not GETCONTACT_URL:
@@ -94,3 +128,18 @@ async def lookup_getcontact(phone: str) -> dict:
         "spam_flagged": spam_flagged,
         "community_level": classify_community_level(found, tag_count, spam_flagged),
     }
+
+
+def fraud_tag_summary(phones: list) -> tuple[int, list[str]]:
+    """Hasil 10.4 terbesar dari daftar nomor OSINT: (jumlah tag berkata penipuan, istilah)."""
+    best: tuple[int, list[str]] = (0, [])
+    for phone in phones or []:
+        if not isinstance(phone, dict):
+            continue
+        tags = (phone.get("getcontact") or {}).get("fraud_tags") or {}
+        if tags.get("probe_status") != COMPLETED:
+            continue
+        hits = int(tags.get("fraud_tag_hits") or 0)
+        if hits > best[0]:
+            best = (hits, [str(t) for t in tags.get("fraud_tag_terms") or []][:4])
+    return best

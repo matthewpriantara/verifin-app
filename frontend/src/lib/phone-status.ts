@@ -32,6 +32,10 @@ export function getPhoneStatus(p: OsintPhone, communityReported?: Set<string>): 
   // nomor tanpa tag belum tentu penipu (UMKM baru), tetapi tidak pantas disebut tanpa laporan.
   const gc = p.getcontact;
   if (gc?.probe_status === "COMPLETED") {
+    const tagHits = gc.fraud_tags?.probe_status === "COMPLETED" ? gc.fraud_tags.fraud_tag_hits ?? 0 : 0;
+    if (tagHits >= 2) {
+      return { kind: "risk", label: "Diberi label penipuan oleh pengguna GetContact", shortLabel: "Label penipuan" };
+    }
     if (gc.spam_flagged || gc.community_level === "SPAM") {
       return { kind: "risk", label: "Ditandai spam di komunitas GetContact", shortLabel: "Spam GetContact" };
     }
@@ -51,5 +55,8 @@ export function getcontactLine(gc?: OsintPhone["getcontact"]): string | null {
   if (gc.probe_status !== "COMPLETED") return "GetContact: tidak tersedia saat ini";
   if (gc.community_level === "UNKNOWN") return "GetContact: belum ada tag (belum dikenal komunitas)";
   const spam = gc.spam_flagged ? "ditandai spam" : "tidak ditandai spam";
+  if (gc.fraud_tags?.probe_status === "COMPLETED") {
+    return `GetContact: ${gc.tag_count ?? 0} tag · ${gc.fraud_tags.fraud_tag_hits ?? 0} menyebut penipuan`;
+  }
   return `GetContact: ${gc.tag_count ?? 0} tag · ${spam}`;
 }

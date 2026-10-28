@@ -24,6 +24,8 @@ _FEATURE_WEIGHTS: dict[str, float] = {
     "phone_unknown_community": 10.0,
     "phone_spam_label":      15.0,
     "phone_well_known":      -5.0,
+    "phone_fraud_tags":      20.0,
+    "phone_fraud_tag_single": 10.0,
     "free_email_only":        8.0,
     "domain_unreachable":    28.0,
     "domain_new":            15.0,
@@ -38,6 +40,7 @@ _FEATURE_WEIGHTS: dict[str, float] = {
     "fraud_site_content":    25.0,
     "impersonation_warning": 15.0,
     "location_mismatch":     10.0,
+    "brand_impersonation":   25.0,
     "entity_in_fraud_network": 30.0,
     "entity_seen_multiple_cases": 15.0,
     "community_reported":    20.0,
@@ -226,6 +229,28 @@ def explain_verification_shap(
                 "safe",
                 f"Nomor punya {tag_count} tag di GetContact; penipu juga bisa memakai nomor lama",
             ))
+        # 10.4: hanya hitungan tag yang memuat kata penipuan; teks tag tidak pernah sampai ke sini.
+        fraud_tags = getcontact.get("fraud_tags") or {}
+        tag_hits = int(fraud_tags.get("fraud_tag_hits") or 0) if fraud_tags.get("probe_status") == "COMPLETED" else 0
+        tag_terms = ", ".join(fraud_tags.get("fraud_tag_terms") or [])
+        if tag_hits >= 2:
+            contributions.append(_make_contrib(
+                "Nomor Diberi Label Penipuan oleh Pengguna GetContact",
+                "phone_fraud_tags",
+                tag_hits,
+                _FEATURE_WEIGHTS["phone_fraud_tags"],
+                "risk",
+                f"{tag_hits} dari {tag_count} tag memuat kata seperti: {tag_terms}",
+            ))
+        elif tag_hits == 1:
+            contributions.append(_make_contrib(
+                "Satu Pengguna GetContact Menandai Nomor sebagai Penipuan",
+                "phone_fraud_tag_single",
+                1,
+                _FEATURE_WEIGHTS["phone_fraud_tag_single"],
+                "risk",
+                f"1 dari {tag_count} tag memuat kata seperti: {tag_terms}; satu tag bisa salah tandai",
+            ))
 
     domain_info_pre = osint_results.get("domain") or {}
     if domain_info_pre.get("skipped") == "free_email":
@@ -286,6 +311,19 @@ def explain_verification_shap(
             _FEATURE_WEIGHTS["fraud_site_content"],
             "risk",
             f"Website lamaran memuat frasa penipuan tugas/komisi: {matched}",
+        ))
+
+    # B1: merek dengan domain resmi, tetapi jalur lamaran di luar domain itu.
+    if (web_data.get("brand_impersonation") or {}).get("official_domains"):
+        contributions.append(_make_contrib(
+            "Jalur Lamaran di Luar Domain Resmi Merek",
+            "brand_impersonation",
+            1,
+            _FEATURE_WEIGHTS["brand_impersonation"],
+            "risk",
+            "Nama merek besar dengan domain resmi, tetapi lamaran lewat email gratisan, pemendek URL, "
+            "atau domain bebas daftar, ditambah bukti lain (domain baru/mati, artikel pencatutan, "
+            "isi situs penipuan, atau nomor tanpa tag)",
         ))
 
     location_mismatch = web_data.get("location_mismatch") or {}
@@ -516,7 +554,10 @@ def _compose_attribution(
             "Total akumulasi bukti risiko melampaui batas maksimal sistem (100). Skor dipotong sesuai batas skala.",
         ))
         remaining_delta = round(risk_score - 100.0, 2)
-    elif raw_uncapped < 0.0:
+    elif raw_uncapped < 0.0 and risk_score <= 0.0:
+        # B9: baris batas bawah hanya ditampilkan bila skor akhir benar-benar berhenti di 0.
+        # Pada kasus AMAN seperti V1 (bukti aman −20, skor akhir 20) batas bawah tidak mengubah
+        # verdict, jadi barisnya hanya membingungkan pembaca.
         deficit = round(0.0 - raw_uncapped, 2)
         clamping_contribs.append(_make_contrib(
             "Pemotongan Batas Bawah Skor (Min 0)",
@@ -534,7 +575,15 @@ def _compose_attribution(
     calibration_contribs = []
     if abs(remaining_delta) >= 0.01:
         is_fallback = bool(model_used and any(k in str(model_used).lower() for k in ("fallback", "rule-based")))
-        if guard_rule == "telegram":
+        if guard_rule == "brand_impersonation":
+            cal_label = "Aturan Pengaman: Pencatutan Merek"
+            cal_desc = (
+                "Merek ini punya domain resmi yang ditemukan, tetapi jalur lamaran memakai email gratisan, "
+                "pemendek URL, atau domain bebas daftar, ditambah bukti lain (domain baru/mati, artikel "
+                "pencatutan, isi situs penipuan, atau nomor tanpa tag). Skor dinaikkan ke minimal WASPADA 68; "
+                "untuk nama BUMN/Tbk dengan tiga artikel pencatutan atau lebih, minimal BAHAYA 75."
+            )
+        elif guard_rule == "telegram":
             cal_label = "Aturan Pengaman: Lamaran via Telegram"
             cal_desc = (
                 "Lamaran diarahkan ke Telegram. Loker asli memakai WhatsApp, email, formulir, atau walk-in, "

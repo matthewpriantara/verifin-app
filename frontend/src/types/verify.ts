@@ -34,6 +34,12 @@ export interface OsintPhone {
     spam_flagged?: boolean;
     community_level?: string | null;
     reason?: string;
+    // Hanya hitungan tag yang memuat kata penipuan; teks tag tidak pernah dikirim.
+    fraud_tags?: {
+      probe_status?: string;
+      fraud_tag_hits?: number;
+      fraud_tag_terms?: string[];
+    };
   };
 }
 

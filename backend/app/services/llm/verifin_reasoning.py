@@ -4,6 +4,7 @@ from app.config import LLM_MODEL, LLM_TIMEOUT
 
 REASONING_BUDGET_SEC = 55.0
 from app.services.constants import FREE_EMAIL_DOMAINS
+from app.services.osint.getcontact import fraud_tag_summary
 import re as _re
 import logging
 from difflib import SequenceMatcher
@@ -37,6 +38,8 @@ def _has_hard_risk_evidence(entities: dict, osint_results: dict, text_signals: d
         or any(web_search.get("risk_flags") for web_search in web.get("searches") or [])
         or network.get("entity_in_fraud_network")
         or int(community.get("report_count") or 0) > 0
+        # 10.4: dua tag GetContact atau lebih yang memuat kata penipuan (satu tag bisa salah tandai).
+        or fraud_tag_summary(phones)[0] >= 2
     )
 
 
@@ -149,6 +152,96 @@ def _floor_dead_application_domain(parsed: dict, osint_results: dict) -> dict:
     parsed["risk_score"] = 45
     parsed["calibrated_dead_domain"] = True
     factor = "Domain tempat melamar tidak terdaftar di DNS; jejak usaha yang ditemukan belum terbukti terhubung dengan domain itu"
+    parsed["risk_factors"] = [factor] + [f for f in parsed.get("risk_factors") or [] if f != factor]
+    return parsed
+
+
+_BRAND_IMPERSONATION_LABEL = "Pencatutan Merek: Jalur Lamaran di Luar Domain Resmi"
+
+
+def _brand_impersonation_evidence(parsed: dict, entities: dict, osint_results: dict, text_signals: dict | None) -> dict | None:
+    """B1/B10: merek yang punya domain resmi, tetapi jalur lamaran di luar domain itu, plus satu bukti lain.
+
+    Syaratnya sengaja tiga lapis supaya UMKM tanpa domain resmi (Morgans Kebab, Excelland, Dekayu)
+    tidak ikut kena. Yang diperiksa hanya sinyal yang sudah dihitung sistem, bukan tebakan LLM.
+    """
+    web = osint_results.get("web") or {}
+    domain_info = osint_results.get("domain") or {}
+    signals = text_signals or {}
+    phones = [p for p in (osint_results.get("phones") or []) if isinstance(p, dict)]
+    emails = entities.get("emails") or []
+
+    official_domains: set[str] = set()
+    for site in web.get("websites") or []:
+        url = str(site.get("url") or "")
+        host = _re.sub(r"^https?://(?:www\.)?", "", url).split("/")[0].lower()
+        if host and site.get("website_status") == "AVAILABLE" and not site.get("social_profile_found"):
+            official_domains.add(host)
+    if not official_domains:
+        return None
+
+    apply_domains = {e.split("@")[-1].lower() for e in emails if "@" in e}
+    open_domain = (web.get("open_registration_domain") or {}).get("domain")
+    shortener_fail = any("pemendek URL" in str(f) for f in (web.get("risk_flags") or []))
+    unofficial = bool(
+        apply_domains & set(FREE_EMAIL_DOMAINS)
+        or open_domain
+        or shortener_fail
+        or (apply_domains and not (apply_domains & official_domains))
+    )
+    if not unofficial:
+        return None
+
+    extra: list[str] = []
+    if domain_info.get("is_new"):
+        extra.append("domain baru")
+    if any(w.get("website_status") == "NOT_FOUND" for w in web.get("websites") or []):
+        extra.append("domain mati")
+    if int((web.get("scam_check") or {}).get("warnings") or 0) > 0:
+        extra.append("artikel pencatutan")
+    if any((p.get("getcontact") or {}).get("community_level") == "UNKNOWN" for p in phones):
+        extra.append("nomor tanpa tag komunitas")
+    if (web.get("fraud_site_content") or {}).get("matches"):
+        extra.append("isi situs penipuan")
+    if signals.get("has_telegram_apply"):
+        extra.append("lamaran via Telegram")
+    if not extra:
+        return None
+
+    # B10: nama BUMN/Tbk dengan artikel pencatutan minimal 3 adalah pola yang sudah terbukti.
+    scam_warnings = int((web.get("scam_check") or {}).get("warnings") or 0)
+    brand_claim = bool(signals.get("brand_unofficial_channel")) or bool(
+        _re.search(r"\b(?:bumn|persero|tbk)\b", " ".join(str(c) for c in entities.get("companies") or []), _re.I)
+    )
+    severity = "BAHAYA" if (brand_claim and scam_warnings >= 3) else "WASPADA"
+    floor = 75 if severity == "BAHAYA" else 68
+    return {"floor": floor, "verdict": severity, "extra": extra, "official": sorted(official_domains)[:2]}
+
+
+def _apply_brand_impersonation(
+    parsed: dict, entities: dict, osint_results: dict, text_signals: dict | None
+) -> dict:
+    """Naikkan skor ke minimal WASPADA 68, atau BAHAYA 75 untuk pola BUMN + artikel pencatutan."""
+    evidence = _brand_impersonation_evidence(parsed, entities, osint_results, text_signals)
+    if not evidence:
+        return parsed
+    web = osint_results.setdefault("web", {})
+    web["brand_impersonation"] = {
+        "official_domains": evidence["official"],
+        "extra_evidence": evidence["extra"],
+        "floor": evidence["floor"],
+    }
+    if float(parsed.get("risk_score") or 0) >= evidence["floor"]:
+        parsed["brand_impersonation_guard"] = True
+        return parsed
+    parsed["verdict"] = evidence["verdict"]
+    parsed["risk_score"] = evidence["floor"]
+    parsed["brand_impersonation_guard"] = True
+    detail = ", ".join(evidence["extra"][:3])
+    factor = (
+        f"{_BRAND_IMPERSONATION_LABEL}: merek punya domain resmi ({', '.join(evidence['official'])}), "
+        f"tetapi jalur lamaran di luar domain itu ({detail})"
+    )
     parsed["risk_factors"] = [factor] + [f for f in parsed.get("risk_factors") or [] if f != factor]
     return parsed
 
@@ -324,6 +417,13 @@ def _fallback_analysis(
         elif getcontact.get("community_level") == "WELL_KNOWN":
             risk_score -= 5
             safe_factors.append("Nomor dikenal luas di komunitas GetContact.")
+    tag_hits, tag_terms = fraud_tag_summary(phones)
+    if tag_hits >= 2:
+        risk_score += 20
+        risk_factors.append(f"{tag_hits} tag GetContact untuk nomor ini memuat kata penipuan ({', '.join(tag_terms)}).")
+    elif tag_hits == 1:
+        risk_score += 10
+        risk_factors.append(f"Satu tag GetContact untuk nomor ini memuat kata penipuan ({', '.join(tag_terms)}).")
     if has_free_email:
         risk_score += 8
         risk_factors.append(f"Email kontak ({entities.get('emails', [''])[0]}) memakai layanan gratisan.")
@@ -355,7 +455,8 @@ def _fallback_analysis(
     # Aturan pengaman tetap berlaku walau LLM gagal: skor tidak boleh turun di bawah bukti keras.
     parsed = _floor_dead_application_domain(parsed, osint_results)
     parsed = _floor_fraud_site_content(parsed, osint_results)
-    return _floor_telegram_channel(parsed, signals)
+    parsed = _floor_telegram_channel(parsed, signals)
+    return _apply_brand_impersonation(parsed, entities, osint_results, signals)
 
 
 def _is_valid_llm_output(
@@ -613,6 +714,7 @@ async def analyze_with_verifin(
             parsed = _floor_dead_application_domain(parsed, osint_results)
             parsed = _floor_fraud_site_content(parsed, osint_results)
             parsed = _floor_telegram_channel(parsed, text_signals)
+            parsed = _apply_brand_impersonation(parsed, entities, osint_results, text_signals)
             for field in ("risk_factors", "safe_factors", "recommendations"):
                 items = parsed.get(field) or []
                 parsed[field] = [s for s in items if isinstance(s, str) and len(s) > 3]
