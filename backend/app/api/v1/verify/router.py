@@ -703,7 +703,8 @@ def search_cases_public(
     from app.services.case_search import search_cases
 
     try:
-        return search_cases(db, q, verdict=verdict, limit=limit, skip=skip)
+        # Spasi di awal/akhir dari salin-tempel tidak boleh membuat kasus yang ada tidak ditemukan.
+        return search_cases(db, (q or "").strip() or None, verdict=verdict, limit=limit, skip=skip)
     except Exception as e:
         logger.warning("[Case Search] %s", e)
         raise HTTPException(status_code=500, detail="Gagal mencari riwayat lowongan")
