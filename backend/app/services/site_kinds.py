@@ -1,4 +1,4 @@
-"""Jenis situs dari satu berkas data (`app/data/site_kinds.json`, audit-007 10.7 C).
+"""Jenis situs dari satu berkas data (`app/data/site_kinds.json`).
 
 Sebelumnya daftar pemendek URL, marketplace, portal loker, domain bebas daftar, dan email gratisan
 tersebar di beberapa modul yang tidak saling tahu. Menambah portal baru cukup mengubah JSON.

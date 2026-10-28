@@ -28,7 +28,7 @@ logger = logging.getLogger("getcontact-api")
 
 API_TOKEN = os.environ.get("GETCONTACT_API_TOKEN", "")
 DAILY_LIMIT = int(os.environ.get("GTC_DAILY_LIMIT", "10"))
-# B8/10.4: kuota number-detail terpisah dan sangat kecil (40/bulan di akun).
+# Kuota number-detail terpisah dan sangat kecil (40/bulan di akun).
 DETAIL_DAILY_LIMIT = int(os.environ.get("GTC_DETAIL_DAILY_LIMIT", "1"))
 CACHE_TTL_DAYS = int(os.environ.get("GTC_CACHE_TTL_DAYS", "14"))
 DB_PATH = os.environ.get("GTC_CACHE_DB", "/data/cache.db")
@@ -47,7 +47,7 @@ def _db() -> sqlite3.Connection:
         " is_business INTEGER, checked_at TEXT)"
     )
     conn.execute("CREATE TABLE IF NOT EXISTS usage (day TEXT PRIMARY KEY, count INTEGER)")
-    # 10.4: kolom tambahan untuk hasil number-detail (hanya hitungan, bukan teks tag).
+    # Kolom tambahan untuk hasil number-detail (hanya hitungan, bukan teks tag).
     for column, decl in (
         ("fraud_tag_hits", "INTEGER"),
         ("fraud_tag_terms", "TEXT"),
@@ -103,7 +103,7 @@ def _used_today(conn: sqlite3.Connection, kind: str = "search") -> int:
 
 
 def _consume_quota(conn: sqlite3.Connection, kind: str = "search") -> None:
-    # B8: kuota dipanggil setelah jawaban sah (200/404), bukan sebelum request.
+    # Kuota dipanggil setelah jawaban sah (200/404), bukan sebelum request.
     day = _today() if kind == "search" else f"{kind}:{_today()}"
     conn.execute(
         "INSERT INTO usage (day, count) VALUES (?, 1) ON CONFLICT(day) DO UPDATE SET count = count + 1",
@@ -136,7 +136,7 @@ def _parse(body: dict) -> dict:
     }
 
 
-# 10.4: daftar kata tetap. Teks tag TIDAK PERNAH disimpan, dicatat di log, atau dikembalikan;
+# Daftar kata tetap. Teks tag TIDAK PERNAH disimpan, dicatat di log, atau dikembalikan;
 # yang keluar hanya jumlah tag yang cocok dan istilah dari daftar ini.
 FRAUD_TERMS = (
     "penipu",

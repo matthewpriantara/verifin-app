@@ -1,6 +1,6 @@
 from app.services.site_kinds import hosts as _site_hosts
 
-# Daftar ada di app/data/site_kinds.json (audit-007 10.7 C).
+# Daftar ada di app/data/site_kinds.json.
 FREE_EMAIL_DOMAINS: frozenset[str] = frozenset(_site_hosts("free_email"))
 
 RISK_THRESHOLD_WASPADA = 40

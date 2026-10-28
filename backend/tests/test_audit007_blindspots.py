@@ -1,4 +1,4 @@
-"""Uji audit-007 bagian 10: blind spot B1–B10 dari run 14 dan pembacaan isi tag GetContact (10.4)."""
+"""Uji blind spot run 14 (pencatutan merek, tautan pendek, isi situs, Telegram, masking, kuota) dan pembacaan isi tag GetContact."""
 import importlib.util
 import sys
 import types
@@ -245,7 +245,7 @@ class TestSiteKinds:
         assert kind_of("guardianindonesia.co.id") == ""
 
     def test_no_host_lists_left_in_code(self):
-        """Daftar host hanya boleh ada di app/data/site_kinds.json (10.7 C)."""
+        """Daftar host hanya boleh ada di app/data/site_kinds.json."""
         import re
         from pathlib import Path
 

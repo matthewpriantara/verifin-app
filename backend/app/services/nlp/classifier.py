@@ -49,7 +49,7 @@ _OFFICIAL_CHANNEL = re.compile(r"[a-z0-9._%+-]+@[a-z0-9.-]+\.[a-z]{2,}|https?://
 
 # Lamaran diarahkan ke Telegram (masukan praktisi portal loker, 27 Okt 2026: "90% pasti penipuan").
 # Kanal sah loker Indonesia: WhatsApp, email, formulir, atau walk-in.
-# B4: "Tele"/"tg" adalah singkatan yang lazim di poster; handle tanpa titik dua juga dihitung.
+# "Tele"/"tg" adalah singkatan yang lazim di poster; handle tanpa titik dua juga dihitung.
 _TELEGRAM_MENTION = re.compile(r"\btelegram\b|\btele\b|\btg\b|t\.me/|telegram\.me/", re.I)
 _TELEGRAM_APPLY_PATTERNS = [
     r"(?:https?://)?(?:t|telegram|telegram\.dog)\.me/[\w+%-]+",

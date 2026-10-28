@@ -1,4 +1,4 @@
-"""Uji audit-007 bagian 8: sinyal Telegram, GetContact, domain bebas daftar, isi website
+"""Uji sinyal Telegram, GetContact, domain bebas daftar, isi website
 penipuan, lokasi tidak cocok, serta intervensi I-05/I-12/I-13 di tahap Memeriksa isi."""
 from app.services.nlp.classifier import _has_telegram_apply, extract_behavioral_features
 from app.services.osint.getcontact import (

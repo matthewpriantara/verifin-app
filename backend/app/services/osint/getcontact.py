@@ -57,7 +57,7 @@ def _unavailable(reason: str) -> dict:
 
 
 async def lookup_getcontact_tags(phone: str) -> dict:
-    """Baca isi tag (10.4). Hanya hitungan kata penipuan yang diterima; teks tag tidak pernah masuk
+    """Baca isi tag. Hanya hitungan kata penipuan yang diterima; teks tag tidak pernah masuk
     ke backend ini. Status selain COMPLETED diperlakukan sebagai UNAVAILABLE tanpa efek skor."""
     if not GETCONTACT_URL:
         return _unavailable("layanan belum dikonfigurasi")
@@ -136,7 +136,7 @@ async def lookup_getcontact(phone: str) -> dict:
 
 
 def fraud_tag_summary(phones: list) -> tuple[int, list[str]]:
-    """Hasil 10.4 terbesar dari daftar nomor OSINT: (jumlah tag berkata penipuan, istilah)."""
+    """Hasil pembacaan tag terbesar dari daftar nomor OSINT: (jumlah tag berkata penipuan, istilah)."""
     best: tuple[int, list[str]] = (0, [])
     for phone in phones or []:
         if not isinstance(phone, dict):

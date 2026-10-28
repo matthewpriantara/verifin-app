@@ -4,7 +4,7 @@
 # Tunnel berakhir di unix socket yang di-mount ke container backend produksi (/run/gtc/gtc.sock);
 # firewall VPS menolak container -> port host, jadi TCP loopback tidak bisa dipakai.
 [Unit]
-Description=Reverse tunnel getcontact-api ke VPS produksi (audit-007 RC7)
+Description=Reverse tunnel getcontact-api ke VPS produksi
 After=network-online.target
 
 [Service]

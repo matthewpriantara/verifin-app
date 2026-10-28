@@ -1,4 +1,4 @@
-"""Domain resmi pemberi kerja dari hasil pencarian, tanpa daftar merek (audit-007 10.7 B).
+"""Domain resmi pemberi kerja dari hasil pencarian, tanpa daftar merek.
 
 Poster palsu tidak pernah mencantumkan situs resmi merek yang dicatutnya, jadi domain resmi dicari
 dari hasil pencarian nama perusahaan. Kandidat dinilai dengan fitur umum:
@@ -101,7 +101,7 @@ def _registry() -> list[dict]:
 
 
 def registry_domains(companies: list) -> list[str]:
-    """Domain resmi dari registri terverifikasi (10.7 A) untuk nama perusahaan di lowongan."""
+    """Domain resmi dari registri terverifikasi untuk nama perusahaan di lowongan."""
     names = " | ".join(re.sub(r"\s+", " ", str(c).lower()) for c in companies or [])
     found: list[str] = []
     for entry in _registry():

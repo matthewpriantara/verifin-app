@@ -338,7 +338,7 @@ def fetch_company_website(url_or_domain: str) -> dict[str, Any]:
             for w in ("karir", "career", "lowongan", "about", "tentang", "kontak", "contact")
         ):
             safe_flags.append("Website memuat indikasi halaman perusahaan/karir.")
-        # B3: isi kosong (situs render JS) → satu fetch ulang untuk membaca teks halaman.
+        # Isi kosong (situs render JS) → satu fetch ulang untuk membaca teks halaman.
         if ok and not snippet and not og_desc:
             dynamic_text = _dynamic_page_text(final_url)
             if dynamic_text:
@@ -683,7 +683,7 @@ def is_open_registration_domain(host: str) -> str | None:
 
 
 def _fraud_site_matches(title: str, snippet: str, description: str = "") -> list[str]:
-    # B3: banyak situs penipuan merender isi lewat JS sehingga `snippet` kosong; judul dan
+    # Banyak situs penipuan merender isi lewat JS sehingga `snippet` kosong; judul dan
     # og:description tetap ada dan sering memuat nama modus ("Tiktok Task").
     low = f"{title} {description} {snippet}".lower()
     strong = [p for p in _STRONG_SITE_SCAM_PHRASES if p in low]
@@ -758,7 +758,7 @@ def collect_web_evidence(entities: dict) -> dict[str, Any]:
     website_checks: list[dict[str, Any]] = []
     domains: list[str] = []
 
-    # B2: pemendek URL (bit.ly/tinyurl) dibuka dulu. Bila tujuannya bisa dibaca, domain tujuan
+    # Pemendek URL (bit.ly/tinyurl) dibuka dulu. Bila tujuannya bisa dibaca, domain tujuan
     # yang diperiksa; bila tidak, itu sendiri menjadi bukti bahwa jalur lamaran disembunyikan.
     from app.services.web_fetcher import expand_short_url, is_shortener
 
@@ -910,7 +910,7 @@ def collect_web_evidence(entities: dict) -> dict[str, Any]:
     risk_flags: list[str] = []
     safe_flags: list[str] = []
     neutral_notes: list[str] = list(neutral_notes_urls)
-    # B2: tautan pendek yang tidak bisa dibuka menyembunyikan tujuan lamaran.
+    # Tautan pendek yang tidak bisa dibuka menyembunyikan tujuan lamaran.
     if shortener_failures:
         risk_flags.append(
             "Tautan pendaftaran memakai pemendek URL yang tujuannya tidak bisa dibuka: "
@@ -1046,7 +1046,7 @@ def collect_web_evidence(entities: dict) -> dict[str, Any]:
     def uniq(xs: list[str]) -> list[str]:
         return list(dict.fromkeys(xs))
 
-    # 10.7 B: domain resmi merek hanya dicari bila jalur lamaran tidak resmi (email gratisan,
+    # Domain resmi merek hanya dicari bila jalur lamaran tidak resmi (email gratisan,
     # pemendek URL, domain bebas daftar). Kasus biasa tidak menambah panggilan WHOIS.
     unofficial_channel = (
         any(site_kinds.kind_of(e) == "free_email" for e in emails)
