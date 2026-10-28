@@ -10,7 +10,7 @@ import logging
 
 import httpx
 
-from app.config import GETCONTACT_TIMEOUT, GETCONTACT_TOKEN, GETCONTACT_URL
+from app.config import GETCONTACT_TIMEOUT, GETCONTACT_TOKEN, GETCONTACT_UDS, GETCONTACT_URL
 from app.services.osint.phone_validator import normalize_phone_id
 from app.services.status_contract import COMPLETED, UNAVAILABLE
 
@@ -39,6 +39,11 @@ def classify_community_level(found: bool | None, tag_count: int | None, spam_fla
     return WELL_KNOWN
 
 
+def _client() -> httpx.AsyncClient:
+    transport = httpx.AsyncHTTPTransport(uds=GETCONTACT_UDS) if GETCONTACT_UDS else None
+    return httpx.AsyncClient(timeout=GETCONTACT_TIMEOUT, transport=transport)
+
+
 def _unavailable(reason: str) -> dict:
     return {
         "source": "getcontact",
@@ -60,7 +65,7 @@ async def lookup_getcontact_tags(phone: str) -> dict:
     if not meta.get("local") or len(meta["local"]) < 8:
         return _unavailable("format nomor tidak valid")
     try:
-        async with httpx.AsyncClient(timeout=GETCONTACT_TIMEOUT) as client:
+        async with _client() as client:
             res = await client.get(
                 f"{GETCONTACT_URL}/tags",
                 params={"phone": meta["e164"]},
@@ -94,7 +99,7 @@ async def lookup_getcontact(phone: str) -> dict:
         return _unavailable("format nomor tidak valid")
 
     try:
-        async with httpx.AsyncClient(timeout=GETCONTACT_TIMEOUT) as client:
+        async with _client() as client:
             res = await client.get(
                 f"{GETCONTACT_URL}/lookup",
                 params={"phone": meta["e164"]},

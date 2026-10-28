@@ -47,6 +47,9 @@ NOMINATIM_URL = os.getenv("NOMINATIM_URL", "https://nominatim.openstreetmap.org/
 GETCONTACT_URL = os.getenv("GETCONTACT_URL", "").rstrip("/")
 GETCONTACT_TOKEN = os.getenv("GETCONTACT_TOKEN", "")
 GETCONTACT_TIMEOUT = float(os.getenv("GETCONTACT_TIMEOUT", "8"))
+# Produksi: layanan dicapai lewat unix socket hasil reverse SSH tunnel dari home (audit-007 RC7),
+# karena firewall VPS menolak koneksi container ke port host. Kosong = TCP biasa ke GETCONTACT_URL.
+GETCONTACT_UDS = os.getenv("GETCONTACT_UDS", "")
 OSINT_TIMEOUT_SEC = float(os.getenv("OSINT_TIMEOUT_SEC", "15.0"))
 OSINT_USER_AGENT = os.getenv("OSINT_USER_AGENT", "Verifin-OSINT-App/1.0 (gemastik; contact@verifin.app)")
 
