@@ -49,6 +49,8 @@ def test_chat_completion_never_sends_raw_pii(monkeypatch):
     transport = httpx.MockTransport(handler)
     real_client = httpx.AsyncClient
     monkeypatch.setattr(client, "LLM_API_KEY", "test")
+    # CI tidak punya .env; tanpa base URL request jadi "/chat/completions" dan ditolak httpx.
+    monkeypatch.setattr(client, "LLM_BASE_URL", "http://llm.test/v1")
     monkeypatch.setattr(client.httpx, "AsyncClient", lambda **kw: real_client(transport=transport))
     reply = asyncio.run(client.chat_completion([{"role": "user", "content": "WA 0812-3456-7890, email budi@gmail.com"}]))
     assert "0812-3456-7890" not in sent["body"] and "budi@" not in sent["body"]
