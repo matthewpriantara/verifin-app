@@ -208,7 +208,8 @@ def _extract_salaries(text: str) -> list[str]:
     for m in re.finditer(pat, text or "", re.I):
         if not _is_fee_context(text or "", m.start(), m.end()):
             found.append(re.sub(r"\s+", " ", m.group(0)).strip())
-    for m in re.finditer(r"\b\d{1,2}(?:[.,]\d{1,2})?\s*(?:-\s*\d{1,2}(?:[.,]\d{1,2})?\s*)?juta(?:\s*/\s*(?:bulan|bln))?\b", text or "", re.I):
+    # Lookbehind: "Rp30,5 juta" tidak boleh terbaca lagi sebagai "5 juta".
+    for m in re.finditer(r"(?<![\d.,])\b\d{1,2}(?:[.,]\d{1,2})?\s*(?:-\s*\d{1,2}(?:[.,]\d{1,2})?\s*)?juta(?:\s*/\s*(?:bulan|bln))?\b", text or "", re.I):
         if not _is_fee_context(text or "", m.start(), m.end()):
             found.append(re.sub(r"\s+", " ", m.group(0)).strip())
     return _uniq(found)

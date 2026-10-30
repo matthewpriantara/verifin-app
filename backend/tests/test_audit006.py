@@ -165,3 +165,12 @@ def test_recruiting_line_keeps_phone_even_if_line_above_mentions_admin_group():
     text = "Bawa bukti pembayaran dari admin grup.\nKonfirmasi kehadiran via WhatsApp +62 822-2133-3836"
     e = extract_entities_from_text(text)
     assert e["phones"] == ["+6282221333836"] and e["promoter_phones"] == []
+
+
+def test_city_named_with_foreign_country_is_not_geocoded():
+    from app.services.osint.runner import _part_of_foreign_place
+
+    foreign = ["Jepang", "Osaka, Jepang"]
+    assert _part_of_foreign_place("Osaka", foreign)
+    assert not _part_of_foreign_place("Sleman", foreign)
+    assert not _part_of_foreign_place("Osaka", [])
