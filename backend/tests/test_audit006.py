@@ -167,10 +167,14 @@ def test_recruiting_line_keeps_phone_even_if_line_above_mentions_admin_group():
     assert e["phones"] == ["+6282221333836"] and e["promoter_phones"] == []
 
 
-def test_city_named_with_foreign_country_is_not_geocoded():
-    from app.services.osint.runner import _part_of_foreign_place
+def test_foreign_work_location_is_not_geocoded_in_indonesia():
+    import re
+    from app.services.osint.runner import _mappable_places
 
-    foreign = ["Jepang", "Osaka, Jepang"]
-    assert _part_of_foreign_place("Osaka", foreign)
-    assert not _part_of_foreign_place("Sleman", foreign)
-    assert not _part_of_foreign_place("Osaka", [])
+    non_geo = re.compile(r"^remote$", re.I)
+    # Poster: OCR memisahkan "JAPAN" dan "Osaka"; Osaka tidak boleh dicari di peta Indonesia.
+    assert _mappable_places(["JAPAN", "Osaka"], "location_candidate", non_geo) == ([], ["JAPAN"])
+    # Alamat fisik yang tertulis tetap dipetakan walau lowongan menyebut kerja di Jepang.
+    places, foreign = _mappable_places(["Jl. Ahmad Yani No. 5, Bekasi", "Jepang"], "posting_address", non_geo)
+    assert places == ["Jl. Ahmad Yani No. 5, Bekasi"] and foreign == ["Jepang"]
+    assert _mappable_places(["Sleman"], "location_candidate", non_geo) == (["Sleman"], [])
