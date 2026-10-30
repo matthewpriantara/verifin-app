@@ -115,3 +115,9 @@ def test_company_spelling_variants_are_deduplicated():
     from app.api.v1.verify.pipeline import _dedupe_companies
     names = ["PT pos Indonesia persero", "PT POS INDONESIA", "PT Pos Indonesia (Persero)", "Pertamina Group"]
     assert _dedupe_companies(names) == ["PT Pos Indonesia (Persero)", "Pertamina Group"]
+
+
+def test_decimal_juta_is_not_read_twice():
+    sal = extract_entities_from_text("S1: JP¥270,000/bulan (±Rp30,5 juta). S2 ±Rp31,4 juta")["salaries"]
+    assert "5 juta" not in sal and "4 juta" not in sal
+    assert {"Rp30,5 juta", "Rp31,4 juta"} <= set(sal)

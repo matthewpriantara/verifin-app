@@ -20,6 +20,17 @@ _FOREIGN_PLACE = re.compile(
 )
 
 
+def _part_of_foreign_place(place: str, foreign_places: list[str]) -> bool:
+    """Kota yang juga disebut bersama negara asing ("Osaka" dari "Osaka, Jepang") tidak dipetakan.
+
+    Tanpa ini "Osaka" dicari di peta Indonesia dan jatuh ke kelurahan acak di Makassar.
+    """
+    key = place.strip().lower()
+    return bool(key) and any(
+        key in [p.strip() for p in f.lower().split(",")] for f in foreign_places
+    )
+
+
 # Wilayah yang bukan tempat yang bisa dipetakan: seluruh negeri, atau frasa yang memuat nama
 # perusahaan ("Wilayah Kerja PT. Pos Indonesia (Persero)").
 _NOT_A_PLACE = re.compile(
@@ -135,13 +146,14 @@ async def run_osint_probes(entities: dict) -> dict:
     # ditandai supaya laporan tidak menampilkannya sebagai alamat yang tertulis di lowongan.
     address_source = "posting_address" if entities.get("addresses") else "location_candidate"
     raw_addresses = (entities.get("addresses") or entities.get("location_candidates") or [])
+    foreign_places = [a for a in raw_addresses if _FOREIGN_PLACE.search(a)]
     addresses = [
         a for a in raw_addresses
         if not _NON_GEO_PATTERNS.match(a.strip())
         and not _FOREIGN_PLACE.search(a)
         and not (address_source == "location_candidate" and _NOT_A_PLACE.search(a))
+        and not _part_of_foreign_place(a, foreign_places)
     ][:2]
-    foreign_places = [a for a in raw_addresses if _FOREIGN_PLACE.search(a)]
     companies = entities.get("companies") or []
     company_name = primary_employer_name(companies) or None
 
