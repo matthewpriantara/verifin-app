@@ -16,6 +16,7 @@ from app.services.osint.searxng_client import searxng_search, is_searxng_availab
 from app.services.status_contract import COMPLETED, FOUND, NO_RESULTS, NO_RELEVANT_RESULTS, UNAVAILABLE
 from app.services.url_guard import resolve_public_url
 from app.services.osint.search_intelligence import ordered_match_count
+from app.services.osint.executor import OSINT_EXECUTOR
 
 logger = logging.getLogger(__name__)
 
@@ -1096,4 +1097,4 @@ def collect_web_evidence(entities: dict) -> dict[str, Any]:
 
 async def run_web_evidence(entities: dict) -> dict[str, Any]:
     loop = asyncio.get_running_loop()
-    return await loop.run_in_executor(None, collect_web_evidence, entities)
+    return await loop.run_in_executor(OSINT_EXECUTOR, collect_web_evidence, entities)

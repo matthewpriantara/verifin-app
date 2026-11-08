@@ -56,6 +56,16 @@ router = APIRouter()
 _verify_limit = RateLimiter(RATE_LIMIT_VERIFY_PER_MIN).dependency("verify")
 
 
+
+def _release_db(db) -> None:
+    """Kembalikan koneksi ke pool setelah query baca, supaya tidak ditahan selama OSINT/LLM."""
+    if db is None:
+        return
+    try:
+        db.rollback()
+    except Exception:
+        pass
+
 def _request_id() -> str:
     return uuid4().hex[:8]
 
@@ -173,6 +183,7 @@ async def verify_from_text(
     try:
         cache_started = time.perf_counter()
         cached_resp = await asyncio.to_thread(_get_cached_case_from_db, db, request.text)
+        await asyncio.to_thread(_release_db, db)
         logger.info("[verify][%s] cache lookup hit=%s duration=%.2fs", request_id, bool(cached_resp), time.perf_counter() - cache_started)
         if cached_resp:
             logger.info("[verify][%s] CACHE_HIT source=text", request_id)
@@ -209,6 +220,7 @@ async def verify_from_text(
 
         stage_started = time.perf_counter()
         network_context = await asyncio.to_thread(_check_fraud_network, db, entities, request.text)
+        await asyncio.to_thread(_release_db, db)
         _merge_network(osint_results, network_context)
         logger.info("[verify][%s] fraud-network done status=%s in_network=%s reports=%s duration=%.2fs", request_id, network_context.get("status"), network_context.get("entity_in_fraud_network"), (network_context.get("community_reports") or {}).get("report_count"), time.perf_counter() - stage_started)
 
@@ -318,6 +330,8 @@ async def verify_from_image(
         logger.info("[verify][%s] OCR done chars=%d metrics=%s duration=%.2fs", request_id, len(raw_text), ocr_metrics, time.perf_counter() - started)
 
         cached_resp = await asyncio.to_thread(_get_cached_case_from_db, db, raw_text)
+
+        await asyncio.to_thread(_release_db, db)
         if cached_resp:
             logger.info("[verify][%s] cache hit source=image", request_id)
             logger.info("[verify][%s] CACHE_HIT source=image", request_id)
@@ -347,6 +361,7 @@ async def verify_from_image(
 
         stage_started = time.perf_counter()
         network_context = await asyncio.to_thread(_check_fraud_network, db, entities, raw_text)
+        await asyncio.to_thread(_release_db, db)
         _merge_network(osint_results, network_context)
         logger.info("[verify][%s] fraud-network done status=%s in_network=%s reports=%s duration=%.2fs", request_id, network_context.get("status"), network_context.get("entity_in_fraud_network"), (network_context.get("community_reports") or {}).get("report_count"), time.perf_counter() - stage_started)
 
@@ -408,8 +423,10 @@ async def verify_from_url(
     # Teks tambahan mengubah isi yang dianalisis, jadi cache per-URL tidak boleh dipakai.
     if not (request.additional_text and request.additional_text.strip()):
         cached_resp = await asyncio.to_thread(_get_cached_case_by_url, db, request.url)
+        await asyncio.to_thread(_release_db, db)
         if not cached_resp:
             cached_resp = await asyncio.to_thread(_get_cached_case_from_db, db, request.url)
+            await asyncio.to_thread(_release_db, db)
     if cached_resp:
         logger.info("[verify][%s] cache hit source=url", request_id)
         logger.info("[verify][%s] CACHE_HIT source=url", request_id)
@@ -457,6 +474,8 @@ async def verify_from_url(
         full_raw_text = "\n\n".join(text_blocks).strip()
 
         cached_resp_full = await asyncio.to_thread(_get_cached_case_from_db, db, full_raw_text)
+
+        await asyncio.to_thread(_release_db, db)
         if cached_resp_full:
             return cached_resp_full
 
@@ -495,6 +514,7 @@ async def verify_from_url(
 
         stage_started = time.perf_counter()
         network_context = await asyncio.to_thread(_check_fraud_network, db, entities, full_raw_text)
+        await asyncio.to_thread(_release_db, db)
         _merge_network(osint_results, network_context)
         logger.info("[verify][%s] fraud-network done status=%s in_network=%s reports=%s duration=%.2fs", request_id, network_context.get("status"), network_context.get("entity_in_fraud_network"), (network_context.get("community_reports") or {}).get("report_count"), time.perf_counter() - stage_started)
 
@@ -876,8 +896,10 @@ async def _verify_url_stream_generator(url: str, additional_text: str, db_sessio
 
     if not (additional_text and additional_text.strip()):
         cached_resp = await asyncio.to_thread(_get_cached_case_by_url, db_session, url)
+        await asyncio.to_thread(_release_db, db_session)
         if not cached_resp:
             cached_resp = await asyncio.to_thread(_get_cached_case_from_db, db_session, url)
+            await asyncio.to_thread(_release_db, db_session)
         if cached_resp:
             logger.info("[verify-stream][%s] CACHE_HIT source=url case_id=%s", request_id, cached_resp.case_id)
             yield _sse_event("start", {"request_id": request_id, "message": "Memeriksa riwayat verifikasi..."})
@@ -949,6 +971,8 @@ async def _verify_url_stream_generator(url: str, additional_text: str, db_sessio
         full_raw_text = "\n\n".join(text_blocks).strip()
 
         cached_resp_full = await asyncio.to_thread(_get_cached_case_from_db, db_session, full_raw_text)
+
+        await asyncio.to_thread(_release_db, db_session)
         if cached_resp_full:
             logger.info("[verify-stream][%s] CACHE_HIT source=url-content case_id=%s", request_id, cached_resp_full.case_id)
             yield _sse_event("stage", {
@@ -1004,6 +1028,7 @@ async def _verify_url_stream_generator(url: str, additional_text: str, db_sessio
         yield _sse_event("stage", {"stage": "graph", "status": "processing", "message": "Memeriksa jaringan fraud..."})
         stage_started = time.perf_counter()
         network_context = await asyncio.to_thread(_check_fraud_network, db_session, entities, full_raw_text)
+        await asyncio.to_thread(_release_db, db_session)
         _merge_network(osint_results, network_context)
         logger.info("[verify-stream][%s] fraud-network done duration=%.2fs", request_id, time.perf_counter() - stage_started)
         yield _sse_event("stage", {"stage": "graph", "status": "done", "message": "Pemeriksaan jaringan selesai"})

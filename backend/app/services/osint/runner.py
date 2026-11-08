@@ -10,6 +10,7 @@ from app.services.osint.social import run_social_osint
 from app.services.osint.web_evidence import run_web_evidence
 from app.services.osint.whois_handler import check_domain_age, check_email_security
 from app.services.status_contract import COMPLETED, NOT_PROVIDED, UNAVAILABLE
+from app.services.osint.executor import OSINT_EXECUTOR
 
 # Lokasi di luar negeri tidak dicari di peta Indonesia ("Jepang" bukan Desa Jepang, Kudus).
 _FOREIGN_PLACE = re.compile(
@@ -291,7 +292,7 @@ async def run_osint_probes(entities: dict) -> dict:
     t0 = loop.time()
     web, domain_pair = await asyncio.gather(
         _web_job(),
-        loop.run_in_executor(None, _domain_job),
+        loop.run_in_executor(OSINT_EXECUTOR, _domain_job),
     )
 
     shared_web_results: list = [
@@ -329,7 +330,7 @@ async def run_osint_probes(entities: dict) -> dict:
         }
     osint_results["web"] = web
     try:
-        social = await asyncio.to_thread(run_social_osint, entities, web)
+        social = await asyncio.get_running_loop().run_in_executor(OSINT_EXECUTOR, run_social_osint, entities, web)
     except Exception as exc:
         social = {
             "enabled": True,

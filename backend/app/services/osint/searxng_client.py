@@ -141,89 +141,91 @@ def _searxng_search_once(
         params["engines"] = engines
 
     try:
+        # Kunci hanya untuk memesan slot waktu (jeda antar-permintaan tetap dijaga);
+        # permintaan HTTP berjalan di luar kunci supaya pencarian lain tidak ikut antre
+        # menunggu respons yang lambat.
         with _REQUEST_LOCK:
             cached_after_lock = _cache_get(cache_key)
             if cached_after_lock is not None:
                 logger.debug("[SearXNG] in-flight cache hit untuk query: %s", q[:60])
                 return {**cached_after_lock, "cached": True}
+            slot = max(time.monotonic(), _LAST_REQUEST_TIME + _MIN_REQUEST_INTERVAL)
+            _LAST_REQUEST_TIME = slot
+        wait = slot - time.monotonic()
+        if wait > 0:
+            time.sleep(wait)
 
-            now = time.monotonic()
-            elapsed = now - _LAST_REQUEST_TIME
-            if elapsed < _MIN_REQUEST_INTERVAL:
-                time.sleep(_MIN_REQUEST_INTERVAL - elapsed)
+        with httpx.Client(timeout=_SEARXNG_TIMEOUT) as client:
+            resp = client.get(f"{_SEARXNG_BASE}/search", params=params)
 
-            with httpx.Client(timeout=_SEARXNG_TIMEOUT) as client:
-                resp = client.get(f"{_SEARXNG_BASE}/search", params=params)
-                _LAST_REQUEST_TIME = time.monotonic()
+            if resp.status_code == 429:
+                _RATE_LIMIT_UNTIL = time.monotonic() + 30.0
+                logger.warning("[SearXNG] Rate limited (429). Cooldown aktif 30 detik.")
+                return {
+                    "ok": False, "query": q, "engine": "searxng", "results": [],
+                    "raw_result_count": 0, "engine_stats": {},
+                    "unresponsive_engines": [], "error": "Rate limited.",
+                }
+            if resp.status_code != 200:
+                return {
+                    "ok": False, "query": q, "engine": "searxng", "results": [],
+                    "raw_result_count": 0, "engine_stats": {},
+                    "unresponsive_engines": [],
+                    "error": f"HTTP {resp.status_code}",
+                }
 
-                if resp.status_code == 429:
-                    _RATE_LIMIT_UNTIL = time.monotonic() + 30.0
-                    logger.warning("[SearXNG] Rate limited (429). Cooldown aktif 30 detik.")
-                    return {
-                        "ok": False, "query": q, "engine": "searxng", "results": [],
-                        "raw_result_count": 0, "engine_stats": {},
-                        "unresponsive_engines": [], "error": "Rate limited.",
-                    }
-                if resp.status_code != 200:
-                    return {
-                        "ok": False, "query": q, "engine": "searxng", "results": [],
-                        "raw_result_count": 0, "engine_stats": {},
-                        "unresponsive_engines": [],
-                        "error": f"HTTP {resp.status_code}",
-                    }
+        data = resp.json()
+        raw_results = data.get("results", [])
+        unresponsive = data.get("unresponsive_engines", [])
+        results: list[dict[str, Any]] = []
+        engine_stats: dict[str, int] = {}
+        for r in raw_results:
+            url = r.get("url", "")
+            title = r.get("title", "")
+            content = r.get("content", "")
+            if not url or not title:
+                continue
+            if _ADULT_HOST_RE.search(url.split("/")[2] if "//" in url else url):
+                continue
 
-            data = resp.json()
-            raw_results = data.get("results", [])
-            unresponsive = data.get("unresponsive_engines", [])
-            results: list[dict[str, Any]] = []
-            engine_stats: dict[str, int] = {}
-            for r in raw_results:
-                url = r.get("url", "")
-                title = r.get("title", "")
-                content = r.get("content", "")
-                if not url or not title:
-                    continue
-                if _ADULT_HOST_RE.search(url.split("/")[2] if "//" in url else url):
-                    continue
+            engines_found = r.get("engines", [r.get("engine", "")])
+            for eng in engines_found:
+                if eng:
+                    engine_stats[eng] = engine_stats.get(eng, 0) + 1
 
-                engines_found = r.get("engines", [r.get("engine", "")])
-                for eng in engines_found:
-                    if eng:
-                        engine_stats[eng] = engine_stats.get(eng, 0) + 1
+            results.append({
+                "title": title[:200],
+                "url": url,
+                "snippet": content[:300],
+                "engines": engines_found,
+                "score": r.get("score", 0),
+                "category": r.get("category", "general"),
+                "published_date": r.get("publishedDate"),
+            })
 
-                results.append({
-                    "title": title[:200],
-                    "url": url,
-                    "snippet": content[:300],
-                    "engines": engines_found,
-                    "score": r.get("score", 0),
-                    "category": r.get("category", "general"),
-                    "published_date": r.get("publishedDate"),
-                })
+        results.sort(key=lambda x: x.get("score", 0), reverse=True)
 
-            results.sort(key=lambda x: x.get("score", 0), reverse=True)
-
-            # Semua engine menjawab tetapi tidak ada hasil: ini temuan ("tidak ada jejak"),
-            # bukan kegagalan mesin pencari.
-            empty = not results and not unresponsive
-            response = {
-                "ok": bool(results),
-                "empty": empty,
-                "query": q,
-                "engine": "searxng",
-                "results": results[:max_results],
-                "raw_result_count": len(raw_results),
-                "engine_stats": engine_stats,
-                "unresponsive_engines": [
-                    {"name": e[0], "reason": e[1]}
-                    for e in unresponsive if isinstance(e, (list, tuple)) and len(e) >= 2
-                ],
-                "suggestions": data.get("suggestions", []),
-                "error": None if results else "Tidak ada hasil.",
-            }
-            if results:
-                _cache_set(cache_key, response)
-            return response
+        # Semua engine menjawab tetapi tidak ada hasil: ini temuan ("tidak ada jejak"),
+        # bukan kegagalan mesin pencari.
+        empty = not results and not unresponsive
+        response = {
+            "ok": bool(results),
+            "empty": empty,
+            "query": q,
+            "engine": "searxng",
+            "results": results[:max_results],
+            "raw_result_count": len(raw_results),
+            "engine_stats": engine_stats,
+            "unresponsive_engines": [
+                {"name": e[0], "reason": e[1]}
+                for e in unresponsive if isinstance(e, (list, tuple)) and len(e) >= 2
+            ],
+            "suggestions": data.get("suggestions", []),
+            "error": None if results else "Tidak ada hasil.",
+        }
+        if results:
+            _cache_set(cache_key, response)
+        return response
 
     except httpx.TimeoutException:
         logger.warning("[SearXNG] Timeout untuk query: %s", q[:50])

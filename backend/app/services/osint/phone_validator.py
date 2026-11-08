@@ -5,6 +5,7 @@ from typing import Any
 from scrapling.fetchers import Fetcher
 
 from app.services.status_contract import COMPLETED, UNAVAILABLE
+from app.services.osint.executor import OSINT_EXECUTOR
 
 
 def normalize_phone_id(phone: str) -> dict[str, str]:
@@ -159,7 +160,7 @@ async def check_phones_kredibel(contacts: list[str], limit: int = 2) -> list[dic
     loop = asyncio.get_running_loop()
     results = []
     for ph in phones:
-        result = await loop.run_in_executor(None, check_phone_kredibel, ph)
+        result = await loop.run_in_executor(OSINT_EXECUTOR, check_phone_kredibel, ph)
         results.append(result)
     return results
 
