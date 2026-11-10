@@ -4,6 +4,7 @@ import json
 import random
 import re
 import logging
+import threading
 from typing import Any
 
 import httpx
@@ -29,14 +30,23 @@ from app.config import (
 
 logger = logging.getLogger(__name__)
 
-# Satu antrean untuk semua panggilan ke penyedia utama (ekstraksi, vision, penalaran).
-_PRIMARY_SLOTS = asyncio.Semaphore(LLM_MAX_CONCURRENCY) if LLM_MAX_CONCURRENCY > 0 else None
+# Satu antrean untuk semua panggilan ke model utama (ekstraksi, vision, penalaran, ekstraksi OSINT).
+# Sebagian pemanggil berjalan di event loop milik thread OSINT, jadi dipakai semaphore thread
+# yang dicoba tanpa memblokir; asyncio.Semaphore terikat pada satu event loop.
+_PRIMARY_SLOTS = threading.BoundedSemaphore(LLM_MAX_CONCURRENCY) if LLM_MAX_CONCURRENCY > 0 else None
 
 
-def _provider_slot(base_url: str):
-    if _PRIMARY_SLOTS is not None and base_url == LLM_BASE_URL:
-        return _PRIMARY_SLOTS
-    return contextlib.nullcontext()
+@contextlib.asynccontextmanager
+async def _provider_slot(base_url: str):
+    if _PRIMARY_SLOTS is None or base_url != LLM_BASE_URL:
+        yield
+        return
+    while not _PRIMARY_SLOTS.acquire(blocking=False):
+        await asyncio.sleep(0.05)
+    try:
+        yield
+    finally:
+        _PRIMARY_SLOTS.release()
 
 
 def _retry_after_seconds(response: httpx.Response) -> float:
