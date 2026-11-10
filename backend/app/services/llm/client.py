@@ -1,5 +1,7 @@
 import asyncio
+import contextlib
 import json
+import random
 import re
 import logging
 from typing import Any
@@ -9,6 +11,7 @@ import httpx
 from app.services.pii import PiiMasker
 
 from app.config import (
+    LLM_429_MAX_WAIT,
     LLM_API_KEY,
     LLM_BASE_URL,
     LLM_EXTRACTOR_MODEL,
@@ -21,9 +24,27 @@ from app.config import (
     LLM_FALLBACK_MODEL,
     LLM_FALLBACK_REASONING_EFFORT,
     LLM_FALLBACK_TIMEOUT,
+    LLM_MAX_CONCURRENCY,
 )
 
 logger = logging.getLogger(__name__)
+
+# Satu antrean untuk semua panggilan ke penyedia utama (ekstraksi, vision, penalaran).
+_PRIMARY_SLOTS = asyncio.Semaphore(LLM_MAX_CONCURRENCY) if LLM_MAX_CONCURRENCY > 0 else None
+
+
+def _provider_slot(base_url: str):
+    if _PRIMARY_SLOTS is not None and base_url == LLM_BASE_URL:
+        return _PRIMARY_SLOTS
+    return contextlib.nullcontext()
+
+
+def _retry_after_seconds(response: httpx.Response) -> float:
+    try:
+        value = float(response.headers.get("retry-after", ""))
+    except ValueError:
+        value = 5.0
+    return min(max(value, 1.0), 15.0)
 
 
 def _parse_json_value(text: str) -> Any:
@@ -188,17 +209,30 @@ async def _execute_chat_completion(
     }
 
     last_exc: Exception | None = None
-    for attempt in range(1, max_retries + 1):
+    waited_429 = 0.0
+    attempt = 0
+    while attempt < max_retries:
+        attempt += 1
         try:
-            async with httpx.AsyncClient(timeout=timeout_sec) as client:
-                response = await client.post(url, json=payload, headers=headers)
-                response.raise_for_status()
-                try:
-                    data = _parse_json_value(response.text)
-                except json.JSONDecodeError as exc:
-                    raise RuntimeError(
-                        f"Respons LLM bukan JSON valid (awal): {response.text[:200]!r}"
-                    ) from exc
+            async with _provider_slot(base_url):
+                async with httpx.AsyncClient(timeout=timeout_sec) as client:
+                    response = await client.post(url, json=payload, headers=headers)
+            if response.status_code == 429 and waited_429 < LLM_429_MAX_WAIT:
+                # Penyedia sedang penuh, bukan gagal: tunggu sesuai Retry-After tanpa
+                # menghabiskan jatah percobaan.
+                wait = _retry_after_seconds(response) + random.uniform(0, 1.5)
+                waited_429 += wait
+                attempt -= 1
+                logger.info("LLM 429 dari %s, menunggu %.1f dtk (total %.0f dtk)", base_url, wait, waited_429)
+                await asyncio.sleep(wait)
+                continue
+            response.raise_for_status()
+            try:
+                data = _parse_json_value(response.text)
+            except json.JSONDecodeError as exc:
+                raise RuntimeError(
+                    f"Respons LLM bukan JSON valid (awal): {response.text[:200]!r}"
+                ) from exc
 
             if not isinstance(data, dict):
                 raise RuntimeError(f"Format respons LLM tidak dikenali: {type(data)}")

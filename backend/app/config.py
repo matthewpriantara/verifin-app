@@ -14,6 +14,12 @@ LLM_API_KEY = os.getenv("LLM_API_KEY", "")
 LLM_MODEL = os.getenv("LLM_MODEL", "")
 LLM_TIMEOUT = float(os.getenv("LLM_TIMEOUT", "35"))
 LLM_EXTRACTOR_MODEL = os.getenv("LLM_EXTRACTOR_MODEL") or LLM_MODEL
+# Batas panggilan serentak ke penyedia LLM utama. Penyedia yang membatasi permintaan aktif per
+# kunci (mis. 3) membalas 429 bila dilampaui; dengan batas ini panggilan mengantre di sini.
+# 0 = tanpa batas.
+LLM_MAX_CONCURRENCY = int(os.getenv("LLM_MAX_CONCURRENCY", "0"))
+# Total detik menunggu ulang setelah 429 sebelum menyerah ke cadangan.
+LLM_429_MAX_WAIT = float(os.getenv("LLM_429_MAX_WAIT", "45"))
 # Tingkat reasoning effort ("none", "low", "medium", "high") untuk model yang mendukung reasoning tokens.
 LLM_REASONING_EFFORT = os.getenv("LLM_REASONING_EFFORT", "").strip()
 # Matikan (false) saat uji ulang agar setiap kasus dihitung ulang, bukan dibaca dari job_cases.
