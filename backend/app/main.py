@@ -58,12 +58,16 @@ async def lifespan(app: FastAPI):
         logger.info("DB tables ensured (create_all checkfirst)")
     except Exception as exc:
         logger.warning("DB init skipped: %s", exc)
-    try:
-        from app.services.ocr import get_ocr_model
-        get_ocr_model()
-        logger.info("PaddleOCR model warmed")
-    except Exception as exc:
-        logger.warning("OCR warmup skipped: %s", exc)
+    def _warmup_ocr():
+        try:
+            from app.services.ocr import get_ocr_model
+            get_ocr_model()
+            logger.info("PaddleOCR model warmed")
+        except Exception as exc:
+            logger.warning("OCR warmup skipped: %s", exc)
+
+    import asyncio
+    asyncio.create_task(asyncio.to_thread(_warmup_ocr))
     yield
 
 
