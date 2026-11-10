@@ -12,7 +12,7 @@ from app.services.osint.searxng_client import is_searxng_available
 
 router = APIRouter()
 
-# Jalur snapshot status telemetri runtime (opsional, dibaca tiap request jika file ada)
+# Snapshot telemetri runtime sistem verifin (dibaca dinamis saat file tersedia)
 SYSTEM_STATUS_FILE = Path(os.getenv("SYSTEM_STATUS_FILE", "/app/data/runtime/system_status.json"))
 
 
