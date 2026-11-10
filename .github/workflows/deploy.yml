@@ -18,7 +18,7 @@ concurrency:
 jobs:
   # ── 1. Build Backend Image ────────────────────────────────────────────────
   build-backend:
-    runs-on: ubuntu-latest
+    runs-on: self-hosted
     permissions:
       contents: read
       packages: write
@@ -62,7 +62,7 @@ jobs:
 
   # ── 2. Build Frontend Image ───────────────────────────────────────────────
   build-frontend:
-    runs-on: ubuntu-latest
+    runs-on: self-hosted
     permissions:
       contents: read
       packages: write

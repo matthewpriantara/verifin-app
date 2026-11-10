@@ -12,13 +12,11 @@ concurrency:
 
 jobs:
   backend:
-    runs-on: ubuntu-latest
+    runs-on: self-hosted
     defaults:
       run:
         working-directory: backend
     env:
-      # Tes tidak memanggil layanan eksternal; nilai kosong membuat LLM, DB, dan admin
-      # berjalan di jalur fallback/fail-closed yang memang ikut diuji.
       DATABASE_URL: ""
       LLM_API_KEY: ""
       ADMIN_API_TOKEN: ""
@@ -31,7 +29,7 @@ jobs:
           cache-dependency-path: backend/requirements.txt
       - name: Install dependencies
         run: |
-          sudo apt-get update && sudo apt-get install -y --no-install-recommends libgl1 libglib2.0-0
+          sudo apt-get update && sudo apt-get install -y --no-install-recommends libgl1 libglib2.0-0 || true
           pip install -r requirements.txt pytest pytest-asyncio pytest-cov
       - name: Run tests with coverage
         run: pytest -q --cov=app --cov-report=term --cov-report=xml
@@ -42,7 +40,7 @@ jobs:
           path: backend/coverage.xml
 
   frontend:
-    runs-on: ubuntu-latest
+    runs-on: self-hosted
     defaults:
       run:
         working-directory: frontend
