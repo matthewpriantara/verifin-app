@@ -126,7 +126,7 @@ function ResultLink({ title, url, note }: { title?: string; url?: string; note?:
 
 // Tag GetContact per nomor. Tag berkata penipuan tampil jelas; tag lain sudah disamarkan
 // di server dan diberi efek buram supaya terbaca sebagai "ada, tetapi dirahasiakan".
-function GetcontactTags({ tags }: { tags?: { text: string; fraud: boolean }[] }) {
+export function GetcontactTags({ tags }: { tags?: { text: string; fraud: boolean }[] }) {
   if (!tags || tags.length === 0) return null;
   const fraud = tags.filter((t) => t.fraud);
   const masked = tags.filter((t) => !t.fraud);

@@ -29,10 +29,10 @@ import { SocialPlatformIcon } from "@/components/report/SocialPlatformIcon";
 import { buttonClass } from "@/components/ui/Button";
 import { Skeleton } from "@/components/ui/Skeleton";
 import { ShapChart } from "@/modules/report/ShapChart";
-import { EvidencePanel } from "@/components/report/EvidencePanel";
+import { EvidencePanel, GetcontactTags } from "@/components/report/EvidencePanel";
 import { REPORT_STORAGE_KEY, cn, normalizeVerdict, verdictTone } from "@/lib/utils";
 import { getCaseById } from "@/lib/api";
-import { communityReportedPhones, getPhoneStatus } from "@/lib/phone-status";
+import { communityReportedPhones, getPhoneStatus, getcontactLine } from "@/lib/phone-status";
 import type { VerifyResponse, ExtractedEntities } from "@/types/verify";
 
 /* ─── helpers ──────────────────────────────────────────────────────────── */
@@ -622,7 +622,7 @@ export default function ReportPage() {
                 {phones.map((p, i) => {
                   const status = getPhoneStatus(p, reportedPhones);
                   return (
-                    <div key={i} className="flex items-center justify-between rounded-2xl bg-bg-subtle px-4 py-3">
+                    <div key={i} className="flex flex-wrap items-center justify-between gap-x-3 gap-y-2 rounded-2xl bg-bg-subtle px-4 py-3">
                       <span className="font-mono text-sm font-semibold text-text-primary">{p.phone ?? "-"}</span>
                       <span className={cn(
                         "inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-[11px] font-bold",
@@ -636,6 +636,10 @@ export default function ReportPage() {
                         {status.kind === "safe" && <CheckCircle size={11} weight="fill" />}
                         {status.shortLabel}
                       </span>
+                      {getcontactLine(p.getcontact) && (
+                        <p className="w-full text-[12px] text-text-muted">{getcontactLine(p.getcontact)}</p>
+                      )}
+                      <GetcontactTags tags={p.getcontact?.fraud_tags?.tags} />
                     </div>
                   );
                 })}

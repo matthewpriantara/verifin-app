@@ -366,6 +366,10 @@ def _has_corrupt_text(
     }
     for token in _re.findall(r"[A-Za-zÀ-ÿ]+", text):
         lower = token.lower()
+        # Kata yang memang ada di prompt bukan salah ketik nama perusahaan: "Indonesia" sah
+        # walau nama PT-nya "Wanbang Indonesian".
+        if allowed_tokens and lower in allowed_tokens:
+            continue
         if any(
             abs(len(lower) - len(reference)) <= 1
             and lower != reference
