@@ -29,10 +29,9 @@ jobs:
           cache-dependency-path: backend/requirements.txt
       - name: Install dependencies
         run: |
-          sudo apt-get update && sudo apt-get install -y --no-install-recommends libgl1 libglib2.0-0 || true
-          pip install -r requirements.txt pytest pytest-asyncio pytest-cov
+          python -m pip install -r requirements.txt pytest pytest-asyncio pytest-cov
       - name: Run tests with coverage
-        run: pytest -q --cov=app --cov-report=term --cov-report=xml
+        run: python -m pytest -q --cov=app --cov-report=term --cov-report=xml
       - uses: actions/upload-artifact@v4
         if: always()
         with:
