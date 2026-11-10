@@ -17,11 +17,11 @@ from app.services.xai.shap_explainer import explain_verification_shap
 
 
 def _load_getcontact_service():
-    """Muat infra/getcontact-api/app.py dengan `gtc` tiruan (klien aslinya hanya ada di home)."""
+    """Muat backend/getcontact-api/app.py dengan `gtc` tiruan (klien aslinya hanya ada di home)."""
     fake = types.ModuleType("gtc")
     fake.GtcError = type("GtcError", (Exception,), {})
     sys.modules.setdefault("gtc", fake)
-    path = Path(__file__).resolve().parents[2] / "infra" / "getcontact-api" / "app.py"
+    path = Path(__file__).resolve().parents[1] / "getcontact-api" / "app.py"
     spec = importlib.util.spec_from_file_location("getcontact_service", path)
     module = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(module)

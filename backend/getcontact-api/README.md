@@ -19,7 +19,7 @@ Captcha (HTTP 403) diselesaikan manual di home: `python3 ~/Project/getcontact-cl
 ## Jalankan
 
 ```bash
-cd ~/Project/verifin-app/infra/getcontact-api
+cd ~/Project/verifin-app/backend/getcontact-api
 cp .env.example .env          # isi GETCONTACT_API_TOKEN (openssl rand -hex 16)
 docker compose up -d --build
 curl -s http://100.82.95.50:8091/health
@@ -38,7 +38,7 @@ Di `backend/.env` server: `GETCONTACT_URL=` (kosong), lalu deploy ulang backend.
 Tailnet VPS tidak bisa membuka TCP ke home, dan firewall VPS menolak koneksi container ke port host.
 Home yang membuka tunnel ke VPS, dan tunnel berakhir di unix socket yang di-mount ke container.
 1. Home: pasang `gtc-tunnel.service` sebagai user service (petunjuk di kepala berkas). Socket muncul di
-   `~/projects/verifin/infra/getcontact-api/run/gtc.sock` di VPS.
+   `~/projects/verifin/backend/getcontact-api/run/gtc.sock` di VPS.
 2. `docker-compose.yml` me-mount direktori itu ke `/run/gtc` di container backend.
 3. `backend/.env` VPS: `GETCONTACT_URL=http://getcontact`, `GETCONTACT_UDS=/run/gtc/gtc.sock`,
    `GETCONTACT_TOKEN` sama dengan home.

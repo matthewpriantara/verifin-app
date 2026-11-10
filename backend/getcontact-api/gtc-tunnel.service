@@ -9,8 +9,8 @@ After=network-online.target
 
 [Service]
 # sshd VPS tidak menghapus socket lama (StreamLocalBindUnlink no), jadi hapus dulu sebelum tersambung.
-ExecStartPre=/usr/bin/ssh -o BatchMode=yes praktikan@100.118.206.100 "mkdir -p /home/praktikan/projects/verifin/infra/getcontact-api/run && rm -f /home/praktikan/projects/verifin/infra/getcontact-api/run/gtc.sock"
-ExecStart=/usr/bin/ssh -N -o BatchMode=yes -o ExitOnForwardFailure=yes -o ServerAliveInterval=30 -o ServerAliveCountMax=3 -R /home/praktikan/projects/verifin/infra/getcontact-api/run/gtc.sock:100.82.95.50:8091 praktikan@100.118.206.100
+ExecStartPre=/usr/bin/ssh -o BatchMode=yes praktikan@100.118.206.100 "mkdir -p /home/praktikan/projects/verifin/backend/getcontact-api/run && rm -f /home/praktikan/projects/verifin/backend/getcontact-api/run/gtc.sock"
+ExecStart=/usr/bin/ssh -N -o BatchMode=yes -o ExitOnForwardFailure=yes -o ServerAliveInterval=30 -o ServerAliveCountMax=3 -R /home/praktikan/projects/verifin/backend/getcontact-api/run/gtc.sock:100.82.95.50:8091 praktikan@100.118.206.100
 Restart=always
 RestartSec=15
 

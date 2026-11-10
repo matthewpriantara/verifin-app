@@ -43,7 +43,7 @@ SEARXNG_URL = os.getenv("SEARXNG_URL", "").rstrip("/")
 
 NOMINATIM_URL = os.getenv("NOMINATIM_URL", "https://nominatim.openstreetmap.org/search")
 # Layanan getcontact-api di home (Tailscale). Kosong = fitur mati dan OSINT telepon tetap jalan
-# dengan Kaspersky saja. Lihat infra/getcontact-api/README.md.
+# dengan Kaspersky saja. Lihat backend/getcontact-api/README.md.
 GETCONTACT_URL = os.getenv("GETCONTACT_URL", "").rstrip("/")
 GETCONTACT_TOKEN = os.getenv("GETCONTACT_TOKEN", "")
 GETCONTACT_TIMEOUT = float(os.getenv("GETCONTACT_TIMEOUT", "8"))
