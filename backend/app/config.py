@@ -14,13 +14,12 @@ LLM_API_KEY = os.getenv("LLM_API_KEY", "")
 LLM_MODEL = os.getenv("LLM_MODEL", "")
 LLM_TIMEOUT = float(os.getenv("LLM_TIMEOUT", "35"))
 LLM_EXTRACTOR_MODEL = os.getenv("LLM_EXTRACTOR_MODEL") or LLM_MODEL
-# Gemma 4 di Ollama berpikir dulu secara default; "none" mematikannya agar JSON masuk ke `content`.
+# Tingkat reasoning effort ("none", "low", "medium", "high") untuk model yang mendukung reasoning tokens.
 LLM_REASONING_EFFORT = os.getenv("LLM_REASONING_EFFORT", "").strip()
 # Matikan (false) saat uji ulang agar setiap kasus dihitung ulang, bukan dibaca dari job_cases.
 VERIFY_CACHE_ENABLED = os.getenv("VERIFY_CACHE_ENABLED", "true").strip().lower() not in ("0", "false", "no", "off")
 # Pembacaan poster oleh model vision, berjalan bersamaan dengan OCR. Kosongkan model untuk mematikan.
-# gemma4:12b-it-qat di Ollama tidak menerima gambar, jadi saat penalaran pindah ke Gemma, isi
-# LLM_VISION_BASE_URL/API_KEY dengan penyedia Gemini agar vision tidak ikut pindah.
+# Konfigurasi endpoint terpisah untuk vision model bila model penalaran utama tidak mendukung multimodal.
 LLM_VISION_MODEL = os.getenv("LLM_VISION_MODEL", LLM_EXTRACTOR_MODEL).strip()
 LLM_VISION_BASE_URL = (os.getenv("LLM_VISION_BASE_URL") or LLM_BASE_URL).rstrip("/")
 LLM_VISION_API_KEY = os.getenv("LLM_VISION_API_KEY") or LLM_API_KEY
@@ -34,7 +33,7 @@ LLM_FALLBACK_API_KEY = os.getenv("LLM_FALLBACK_API_KEY", "")
 LLM_FALLBACK_MODEL = os.getenv("LLM_FALLBACK_MODEL", "")
 LLM_FALLBACK_TIMEOUT = float(os.getenv("LLM_FALLBACK_TIMEOUT", str(LLM_TIMEOUT)))
 LLM_FALLBACK_EXTRACTOR_MODEL = os.getenv("LLM_FALLBACK_EXTRACTOR_MODEL") or LLM_FALLBACK_MODEL
-# Sama seperti LLM_REASONING_EFFORT, untuk penyedia cadangan (mis. Gemma di Ollama saat Gemini utama).
+# Tingkat reasoning effort untuk fallback model provider.
 LLM_FALLBACK_REASONING_EFFORT = os.getenv("LLM_FALLBACK_REASONING_EFFORT", "").strip()
 
 DATABASE_URL = os.getenv("DATABASE_URL", "")
