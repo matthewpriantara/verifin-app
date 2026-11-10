@@ -1,6 +1,3 @@
-# ==============================================================================
-# 1. Python Core & Artifacts
-# ==============================================================================
 __pycache__/
 *.py[cod]
 *$py.class
@@ -24,9 +21,6 @@ share/python-wheels/
 *.egg
 MANIFEST
 
-# ==============================================================================
-# 2. Environment & Virtualenvs (Kredensial & API Keys)
-# ==============================================================================
 .env
 .env.local
 .env.*.local
@@ -39,9 +33,6 @@ ENV/
 env.bak/
 venv.bak/
 
-# ==============================================================================
-# 3. IDEs, Editors & OS Artifacts
-# ==============================================================================
 .vscode/
 .idea/
 *.suo
@@ -52,9 +43,6 @@ venv.bak/
 .DS_Store
 Thumbs.db
 
-# ==============================================================================
-# 4. Testing, Coverage & AI Cache
-# ==============================================================================
 .htmlcov/
 .tox/
 .nosetests/
@@ -67,29 +55,22 @@ coverage.xml
 .mypy_cache/
 .ruff_cache/
 
-# Cache download model otomatis (HuggingFace / PaddleOCR / IndoBERT)
 .cache/
 .huggingface/
 
-# ==============================================================================
-# 5. Project Specific (AI Weights, Graph DB & OSINT Logs)
-# ==============================================================================
 logs/
 *.log
 *.db
 *.sqlite3
 
-# File bobot model AI berukuran besar (tidak boleh masuk Git)
 *.pt
 *.pth
 *.bin
 *.onnx
 
-
 data/raw/
 data/processed/
 downloads/osint_raw/
-# Secrets lokal (cookies, keys)
 secrets/
 *.cookies.json
 eval_results/
