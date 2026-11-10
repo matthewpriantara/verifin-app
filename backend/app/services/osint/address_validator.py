@@ -6,6 +6,7 @@ import httpx
 from urllib.parse import quote_plus, unquote
 from app.services.status_contract import COMPLETED, FOUND, NO_RESULTS, UNAVAILABLE
 from app.config import (
+    NOMINATIM_ADDRESS_BUDGET,
     NOMINATIM_CACHE_TTL,
     NOMINATIM_MAX_QUERIES,
     NOMINATIM_MAX_WAIT,
@@ -356,7 +357,11 @@ async def geocode_address(address: str, company_name: str | None = None) -> dict
             match_rank = {"area": 0, "street": 1, "business": 2, "exact": 3}
             failures = 0
             busy = False
+            started = time.monotonic()
             for query in queries[:_MAX_QUERIES_PER_ADDRESS]:
+                if time.monotonic() - started > NOMINATIM_ADDRESS_BUDGET:
+                    busy = True
+                    break
                 try:
                     candidates = await _geocode_candidates(query, client)
                 except GeocodeBusy:

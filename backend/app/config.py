@@ -61,6 +61,10 @@ NOMINATIM_MIN_INTERVAL = float(os.getenv("NOMINATIM_MIN_INTERVAL", "1.0"))
 # lonjakan pengguna tidak membuat tahap cek bukti menunggu berpuluh detik.
 NOMINATIM_MAX_WAIT = float(os.getenv("NOMINATIM_MAX_WAIT", "12"))
 NOMINATIM_MAX_QUERIES = int(os.getenv("NOMINATIM_MAX_QUERIES", "8"))
+# Anggaran waktu cek peta untuk satu alamat. Variasi query dicoba berurutan dan tiap query
+# menunggu giliran 1/detik bersama permintaan lain; tanpa anggaran, 10 pengguna serentak membuat
+# satu alamat menunggu hampir semenit. Lewat anggaran, hasil terbaik sejauh ini yang dipakai.
+NOMINATIM_ADDRESS_BUDGET = float(os.getenv("NOMINATIM_ADDRESS_BUDGET", "12"))
 NOMINATIM_CACHE_TTL = int(os.getenv("NOMINATIM_CACHE_TTL", "21600"))
 # Layanan getcontact-api di home (Tailscale). Kosong = fitur mati dan OSINT telepon tetap jalan
 # dengan Kaspersky saja. Lihat backend/getcontact-api/README.md.
