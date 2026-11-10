@@ -1133,11 +1133,16 @@ def corroborate_apply_link(urls: list, companies: list, searches: list, official
     profil/halaman yang JUGA muncul saat mencari nama perusahaannya, atau berada di domain
     resminya. Penipu tidak bisa membuat akun resmi merek menyebut tautan mereka.
     """
-    link = next((str(u) for u in urls or [] if site_kinds.kind_of(str(u)) in ("shortener", "form")), None)
-    if not link or not companies:
-        return None
-    bare = re.sub(r"^https?://(?:www\.)?", "", link).split("?")[0].rstrip("/")
-    if len(bare) < 8 or "/" not in bare:
+    # Tautan pendek didahulukan: itulah yang ditulis di lowongan dan di akun perusahaan; alamat
+    # formulir hasil penelusurannya panjang dan jarang muncul utuh di halaman lain.
+    candidates = [str(u) for u in urls or [] if site_kinds.kind_of(str(u)) == "shortener"]
+    candidates += [str(u) for u in urls or [] if site_kinds.kind_of(str(u)) == "form"]
+    bares = []
+    for link in candidates:
+        bare = re.sub(r"^https?://(?:www\.)?", "", link).split("?")[0].rstrip("/")
+        if len(bare) >= 8 and "/" in bare and bare not in bares:
+            bares.append(bare)
+    if not bares or not companies:
         return None
     # Hanya halaman profil yang namanya memuat token merek. Unggahan (/p/, /posts/, /status/)
     # dan akun pribadi (/in/) tidak dihitung: akun agregator loker bisa muncul di kedua pencarian.
@@ -1156,20 +1161,27 @@ def corroborate_apply_link(urls: list, companies: list, searches: list, official
             if any(t in path for t in tokens):
                 known_profiles.add(key)
     officials = [str(c.get("domain") or "").lower() for c in official_domains or [] if c.get("domain")]
-    try:
-        result = searxng_search(f'"{bare}"', max_results=10)
-    except Exception as exc:
-        return {"status": "UNAVAILABLE", "link": bare, "matches": [], "error": str(exc)}
-    if not result.get("ok", True) and not result.get("results"):
-        return {"status": "UNAVAILABLE", "link": bare, "matches": []}
-    matches = []
-    for item in result.get("results") or []:
-        url = str(item.get("url") or "")
-        host = site_kinds.normalize_host(url)
-        on_official = any(host == d or host.endswith("." + d) for d in officials)
-        if on_official or _profile_key(url) in known_profiles:
-            matches.append({"url": url, "title": str(item.get("title") or "")[:120]})
-    return {"status": "FOUND" if matches else "NO_MATCH", "link": bare, "matches": matches[:3]}
+    last: dict = {"status": "NO_MATCH", "link": bares[0], "matches": []}
+    for bare in bares[:2]:
+        try:
+            result = searxng_search(f'"{bare}"', max_results=10)
+        except Exception as exc:
+            last = {"status": "UNAVAILABLE", "link": bare, "matches": [], "error": str(exc)}
+            continue
+        if not result.get("ok", True) and not result.get("results"):
+            last = {"status": "UNAVAILABLE", "link": bare, "matches": []}
+            continue
+        matches = []
+        for item in result.get("results") or []:
+            url = str(item.get("url") or "")
+            host = site_kinds.normalize_host(url)
+            on_official = any(host == d or host.endswith("." + d) for d in officials)
+            if on_official or _profile_key(url) in known_profiles:
+                matches.append({"url": url, "title": str(item.get("title") or "")[:120]})
+        if matches:
+            return {"status": "FOUND", "link": bare, "matches": matches[:3]}
+        last = {"status": "NO_MATCH", "link": bare, "matches": []}
+    return last
 
 
 def _apply_on_official_domain(own_urls: list, official_domains: list, unofficial_channel: bool) -> dict | None:

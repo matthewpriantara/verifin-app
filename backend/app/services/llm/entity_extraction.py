@@ -27,7 +27,7 @@ Skema JSON:
 }
 
 Aturan ketat:
-1. companies: HANYA entitas perusahaan/instansi/organisasi pemberi kerja nyata. JANGAN masukkan frasa deskriptif (mis. "dan cekatan", "bersedia training"), nama posisi, atau kata umum. Pertahankan legal form (PT/CV/UD) bila ada.
+1. companies: HANYA entitas perusahaan/instansi/organisasi pemberi kerja nyata. Nama usaha, merek, toko, warung, atau restoran tanpa badan hukum (mis. nama di logo atau judul poster) TETAP dimasukkan. JANGAN masukkan frasa deskriptif (mis. "dan cekatan", "bersedia training"), nama posisi, atau kata umum. Pertahankan legal form (PT/CV/UD) bila ada.
 2. addresses: HANYA alamat fisik lokasi kerja/kantor yang memiliki penanda fisik seperti jalan, nomor, RT/RW, gedung, ruko, atau kode pos. Jangan masukkan kota, kecamatan, area kerja, daftar cabang, atau lokasi tanpa penanda fisik.
 3. location_candidates: lokasi/area/penempatan kerja yang disebut di teks. Termasuk kota, kecamatan, provinsi, atau area kerja. Contoh: "Karawang", "Jakarta Selatan", "Bantul". Ekstrak dari label "Penempatan", "Lokasi", "Domisili", "Area", "Wilayah", atau konteks lain. PERSIS seperti tertulis di teks.
 4. salaries: setiap nominal rentang gaji yang disebut. Simpan format aslinya.
