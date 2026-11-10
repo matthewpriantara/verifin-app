@@ -57,8 +57,8 @@ def _unavailable(reason: str) -> dict:
 
 
 async def lookup_getcontact_tags(phone: str) -> dict:
-    """Baca isi tag. Hanya hitungan kata penipuan yang diterima; teks tag tidak pernah masuk
-    ke backend ini. Status selain COMPLETED diperlakukan sebagai UNAVAILABLE tanpa efek skor."""
+    """Baca isi tag. Yang diterima: hitungan kata penipuan, tag berkata penipuan, dan tag lain
+    yang sudah disamarkan. Status selain COMPLETED diperlakukan sebagai UNAVAILABLE tanpa efek skor."""
     if not GETCONTACT_URL:
         return _unavailable("layanan belum dikonfigurasi")
     meta = normalize_phone_id(phone)
@@ -83,10 +83,17 @@ async def lookup_getcontact_tags(phone: str) -> dict:
         return _unavailable(f"status {data.get('status') or 'tidak diketahui'}")
     hits = data.get("fraud_tag_hits")
     terms = data.get("fraud_tag_terms") or []
+    tags = [
+        {"text": str(t.get("text") or "")[:60], "fraud": bool(t.get("fraud"))}
+        for t in (data.get("tags") or [])
+        if isinstance(t, dict) and str(t.get("text") or "").strip()
+    ][:18]
     return {
         "probe_status": COMPLETED,
         "fraud_tag_hits": int(hits) if isinstance(hits, (int, float)) else 0,
         "fraud_tag_terms": [str(t) for t in terms][:6],
+        # Tag berkata penipuan utuh; tag lain sudah disamarkan oleh layanan GetContact di home.
+        "tags": tags,
     }
 
 

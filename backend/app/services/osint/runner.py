@@ -221,7 +221,7 @@ async def run_osint_probes(entities: dict) -> dict:
     async def _phones_job(web_results: list) -> list:
         loop = asyncio.get_running_loop()
         started = loop.time()
-        raw_numbers = [p for p in (entities.get("phones") or []) if p][:1]
+        raw_numbers = [p for p in (entities.get("phones") or []) if p][:2]
         # GetContact berjalan bersamaan dengan Kaspersky; kuota layanan kecil (10/hari).
         getcontact_task = asyncio.gather(*[lookup_getcontact(p) for p in raw_numbers])
         try:
@@ -239,18 +239,19 @@ async def run_osint_probes(entities: dict) -> dict:
         for phone, lookup in zip(phones, lookups):
             if isinstance(phone, dict) and isinstance(lookup, dict):
                 phone["getcontact"] = lookup
-        # Isi tag hanya dibaca bila nomor punya 1–99 tag DAN teks memuat sinyal risiko.
-        # Kuota number-detail 1/hari, jadi jangan dipakai untuk lowongan yang jelas aman.
-        if lookups and isinstance(lookups[0], dict) and lookups[0].get("probe_status") == COMPLETED:
-            level = lookups[0].get("community_level")
-            risky_text = _text_has_risk_signal(entities)
-            if level in ("FEW", "KNOWN") and risky_text:
-                try:
-                    tags_result = await lookup_getcontact_tags(raw_numbers[0])
-                except Exception:
-                    tags_result = {}
-                if isinstance(tags_result, dict) and tags_result.get("probe_status") == COMPLETED:
-                    lookups[0]["fraud_tags"] = tags_result
+        # Isi tag dibaca untuk tiap nomor yang punya tag (maks. 3 nomor per lowongan). Layanan
+        # di home yang menjaga kuota number-detail harian; di luar kuota hasilnya tidak tersedia.
+        for raw_number, lookup in list(zip(raw_numbers, lookups))[:3]:
+            if not isinstance(lookup, dict) or lookup.get("probe_status") != COMPLETED:
+                continue
+            if not lookup.get("found") or not (lookup.get("tag_count") or 0) >= 1:
+                continue
+            try:
+                tags_result = await lookup_getcontact_tags(raw_number)
+            except Exception:
+                tags_result = {}
+            if isinstance(tags_result, dict) and tags_result.get("probe_status") == COMPLETED:
+                lookup["fraud_tags"] = tags_result
         osint_results["timing"]["getcontact_ms"] = round((loop.time() - started) * 1000)
         return phones
 

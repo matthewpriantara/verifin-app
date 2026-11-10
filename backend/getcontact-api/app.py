@@ -1,7 +1,9 @@
 """Layanan kecil GetContact untuk Verifin (uji coba, 27 Okt 2026).
 
-Hanya mengembalikan jumlah tag dan label spam per nomor. Nama tampilan, email, dan isi tag
-adalah data pribadi pihak ketiga, jadi tidak pernah disimpan atau dikembalikan.
+Mengembalikan jumlah tag, label spam, dan daftar tag untuk ditampilkan. Tag yang memuat kata
+penipuan dikembalikan utuh; tag lain disamarkan DI SINI (huruf pertama tiap kata saja), jadi
+nama asli tidak pernah keluar dari layanan ini maupun tersimpan di cache. Nama tampilan dan
+email pemilik nomor tidak pernah disimpan atau dikembalikan.
 
 Klien `gtc.py` tidak disalin ke repo publik ini; ia di-mount dari host ke /gtc/gtc.py.
 """
@@ -52,6 +54,7 @@ def _db() -> sqlite3.Connection:
         ("fraud_tag_hits", "INTEGER"),
         ("fraud_tag_terms", "TEXT"),
         ("detail_checked_at", "TEXT"),
+        ("tags_json", "TEXT"),
     ):
         try:
             conn.execute(f"ALTER TABLE cache ADD COLUMN {column} {decl}")
@@ -181,12 +184,45 @@ def count_fraud_tags(tags: list) -> tuple[int, list[str]]:
     return hits, sorted(matched)
 
 
+MAX_FRAUD_TAGS = 10
+MAX_MASKED_TAGS = 8
+
+
+def _mask_tag(value: str) -> str:
+    """Samarkan tag non-penipuan: huruf pertama tiap kata dipertahankan, sisanya titik."""
+    words = re.sub(r"\s+", " ", str(value or "")).strip().split(" ")
+    return " ".join((w[0] + "•" * min(len(w) - 1, 7)) if w else "" for w in words[:4]).strip()
+
+
+def build_display_tags(tags: list) -> list[dict]:
+    """Daftar tag untuk tampilan: tag berkata penipuan utuh, lainnya disamarkan."""
+    fraud: list[dict] = []
+    masked: list[dict] = []
+    seen: set[str] = set()
+    for item in tags or []:
+        raw = item.get("tag") if isinstance(item, dict) else item
+        text = re.sub(r"\s+", " ", str(raw or "")).strip()
+        if not text:
+            continue
+        normalized = f" {_normalize_tag(text)} "
+        if any(f" {term} " in normalized for term in FRAUD_TERMS):
+            key = normalized.strip()
+            if key in seen or len(fraud) >= MAX_FRAUD_TAGS:
+                continue
+            seen.add(key)
+            fraud.append({"text": text[:60], "fraud": True})
+        elif len(masked) < MAX_MASKED_TAGS:
+            masked.append({"text": _mask_tag(text), "fraud": False})
+    return fraud + masked
+
+
 def _cached_tags(conn: sqlite3.Connection, phone_hash: str) -> dict | None:
     row = conn.execute(
-        "SELECT fraud_tag_hits, fraud_tag_terms, detail_checked_at FROM cache WHERE phone_hash = ?",
+        "SELECT fraud_tag_hits, fraud_tag_terms, detail_checked_at, tags_json FROM cache WHERE phone_hash = ?",
         (phone_hash,),
     ).fetchone()
-    if not row or row[2] is None:
+    # Entri lama tanpa daftar tag dibaca ulang supaya tag bisa ditampilkan.
+    if not row or row[2] is None or row[3] is None:
         return None
     checked_at = datetime.fromisoformat(row[2])
     if checked_at < datetime.now(timezone.utc) - timedelta(days=CACHE_TTL_DAYS):
@@ -195,6 +231,7 @@ def _cached_tags(conn: sqlite3.Connection, phone_hash: str) -> dict | None:
         "status": "COMPLETED",
         "fraud_tag_hits": int(row[0] or 0),
         "fraud_tag_terms": json.loads(row[1] or "[]"),
+        "tags": json.loads(row[3] or "[]"),
     }
 
 
@@ -264,7 +301,7 @@ async def tags(
     phone: str = Query(..., description="Nomor HP; dinormalisasi ke E.164"),
     x_api_key: str | None = Header(default=None),
 ):
-    """Baca isi tag untuk SATU nomor per hari, hanya mengembalikan hitungan kata penipuan."""
+    """Baca isi tag (dibatasi GTC_DETAIL_DAILY_LIMIT nomor baru per hari)."""
     global _last_status
     if not API_TOKEN or x_api_key != API_TOKEN:
         raise HTTPException(status_code=401, detail="token salah")
@@ -283,10 +320,9 @@ async def tags(
                 return cached
             lookup = _cached(conn, phone_hash)
             tag_count = int((lookup or {}).get("tag_count") or 0)
-            spam_flagged = bool((lookup or {}).get("spam_flagged"))
-            # Nomor 0 tag tidak punya isi; nomor >= 100 tag hampir pasti usaha mapan.
-            if not lookup or not (1 <= tag_count <= 99) or spam_flagged:
-                return {"status": "SKIPPED", "reason": "tag_count_out_of_range"}
+            # Nomor 0 tag tidak punya isi untuk dibaca.
+            if not lookup or tag_count < 1:
+                return {"status": "SKIPPED", "reason": "no_tags"}
             if _used_today(conn, "detail") >= DETAIL_DAILY_LIMIT:
                 _last_status = "QUOTA"
                 return {"status": "QUOTA"}
@@ -307,18 +343,21 @@ async def tags(
 
         raw_tags = (body.get("result") or {}).get("tags") or []
         hits, matched = count_fraud_tags(raw_tags)
-        # Teks tag hanya hidup di variabel lokal ini dan tidak pernah keluar dari fungsi.
+        display = build_display_tags(raw_tags)
+        # Teks tag asli hanya hidup di variabel lokal ini; yang disimpan dan dikembalikan
+        # adalah tag berkata penipuan dan versi samaran tag lainnya.
         raw_tags = None
         with closing(_db()) as conn:
             conn.execute(
-                "UPDATE cache SET fraud_tag_hits = ?, fraud_tag_terms = ?, detail_checked_at = ?"
+                "UPDATE cache SET fraud_tag_hits = ?, fraud_tag_terms = ?, detail_checked_at = ?, tags_json = ?"
                 " WHERE phone_hash = ?",
-                (hits, json.dumps(matched), datetime.now(timezone.utc).isoformat(), phone_hash),
+                (hits, json.dumps(matched), datetime.now(timezone.utc).isoformat(),
+                 json.dumps(display, ensure_ascii=False), phone_hash),
             )
             conn.commit()
             _consume_quota(conn, "detail")
         _last_status = "COMPLETED"
-        return {"status": "COMPLETED", "fraud_tag_hits": hits, "fraud_tag_terms": matched}
+        return {"status": "COMPLETED", "fraud_tag_hits": hits, "fraud_tag_terms": matched, "tags": display}
 
 
 @app.get("/health")

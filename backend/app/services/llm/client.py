@@ -26,6 +26,7 @@ from app.config import (
     LLM_FALLBACK_REASONING_EFFORT,
     LLM_FALLBACK_TIMEOUT,
     LLM_MAX_CONCURRENCY,
+    LLM_SYSTEM_AS_USER,
 )
 
 logger = logging.getLogger(__name__)
@@ -47,6 +48,30 @@ async def _provider_slot(base_url: str):
         yield
     finally:
         _PRIMARY_SLOTS.release()
+
+
+def _merge_system_into_user(messages: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """Pindahkan isi pesan system ke awal pesan user pertama (teks maupun multimodal)."""
+    system_parts = [m.get("content") for m in messages if m.get("role") == "system" and isinstance(m.get("content"), str)]
+    if not system_parts:
+        return messages
+    preamble = "[INSTRUKSI SISTEM - WAJIB DIPATUHI]\n" + "\n\n".join(system_parts) + "\n[AKHIR INSTRUKSI SISTEM]\n\n"
+    out: list[dict[str, Any]] = []
+    merged = False
+    for m in messages:
+        if m.get("role") == "system" and isinstance(m.get("content"), str):
+            continue
+        if not merged and m.get("role") == "user":
+            content = m.get("content")
+            if isinstance(content, str):
+                m = {**m, "content": preamble + content}
+            elif isinstance(content, list):
+                m = {**m, "content": [{"type": "text", "text": preamble}, *content]}
+            merged = True
+        out.append(m)
+    if not merged:
+        out.insert(0, {"role": "user", "content": preamble})
+    return out
 
 
 def _retry_after_seconds(response: httpx.Response) -> float:
@@ -204,7 +229,11 @@ async def _execute_chat_completion(
     url = f"{base_url}/chat/completions"
     payload = {
         "model": model_name,
-        "messages": masker.mask_messages(messages),
+        "messages": masker.mask_messages(
+            _merge_system_into_user(messages)
+            if LLM_SYSTEM_AS_USER and base_url != LLM_FALLBACK_BASE_URL
+            else messages
+        ),
         "temperature": temperature,
         "max_tokens": max_tokens,
         "stream": False,

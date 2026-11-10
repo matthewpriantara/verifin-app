@@ -18,6 +18,10 @@ LLM_EXTRACTOR_MODEL = os.getenv("LLM_EXTRACTOR_MODEL") or LLM_MODEL
 # kunci (mis. 3) membalas 429 bila dilampaui; dengan batas ini panggilan mengantre di sini.
 # 0 = tanpa batas.
 LLM_MAX_CONCURRENCY = int(os.getenv("LLM_MAX_CONCURRENCY", "0"))
+# Sebagian gateway membuang pesan system yang panjang tanpa galat, sehingga model menjawab
+# tanpa aturan ekstraksi/penalaran. Bila true, isi pesan system digabung ke pesan user pertama
+# untuk panggilan ke model utama dan vision (cadangan lokal tidak terpengaruh).
+LLM_SYSTEM_AS_USER = os.getenv("LLM_SYSTEM_AS_USER", "false").lower() in ("1", "true", "yes")
 # Total detik menunggu ulang setelah 429 sebelum menyerah ke cadangan.
 LLM_429_MAX_WAIT = float(os.getenv("LLM_429_MAX_WAIT", "45"))
 # Tingkat reasoning effort ("none", "low", "medium", "high") untuk model yang mendukung reasoning tokens.

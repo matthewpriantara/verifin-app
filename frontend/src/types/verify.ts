@@ -34,11 +34,13 @@ export interface OsintPhone {
     spam_flagged?: boolean;
     community_level?: string | null;
     reason?: string;
-    // Hanya hitungan tag yang memuat kata penipuan; teks tag tidak pernah dikirim.
+    // Tag yang memuat kata penipuan dikirim utuh; tag lain sudah disamarkan di layanan
+    // GetContact (huruf pertama tiap kata saja), jadi nama asli tidak pernah sampai ke sini.
     fraud_tags?: {
       probe_status?: string;
       fraud_tag_hits?: number;
       fraud_tag_terms?: string[];
+      tags?: { text: string; fraud: boolean }[];
     };
   };
 }

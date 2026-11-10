@@ -49,7 +49,7 @@ export function getPhoneStatus(p: OsintPhone, communityReported?: Set<string>): 
   return { kind: "neutral", label: "Tidak dapat dicek", shortLabel: "Tidak dapat dicek" };
 }
 
-// Satu baris ringkas per nomor untuk panel bukti. Tidak pernah menampilkan nama pemilik atau isi tag.
+// Satu baris ringkas per nomor untuk panel bukti. Daftar tagnya ditampilkan terpisah di panel.
 export function getcontactLine(gc?: OsintPhone["getcontact"]): string | null {
   if (!gc?.probe_status) return null;
   if (gc.probe_status !== "COMPLETED") return "GetContact: tidak tersedia saat ini";

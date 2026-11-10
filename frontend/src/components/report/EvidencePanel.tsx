@@ -123,6 +123,50 @@ function ResultLink({ title, url, note }: { title?: string; url?: string; note?:
   );
 }
 
+
+// Tag GetContact per nomor. Tag berkata penipuan tampil jelas; tag lain sudah disamarkan
+// di server dan diberi efek buram supaya terbaca sebagai "ada, tetapi dirahasiakan".
+function GetcontactTags({ tags }: { tags?: { text: string; fraud: boolean }[] }) {
+  if (!tags || tags.length === 0) return null;
+  const fraud = tags.filter((t) => t.fraud);
+  const masked = tags.filter((t) => !t.fraud);
+  return (
+    <div className="w-full">
+      {fraud.length > 0 && (
+        <>
+          <p className="mb-1 text-[12px] font-semibold text-bahaya-fg">Tag yang menyebut penipuan</p>
+          <ul className="mb-2 flex flex-wrap gap-1.5">
+            {fraud.map((t, i) => (
+              <li
+                key={`f-${i}`}
+                className="rounded-full border border-bahaya-fg/30 bg-bahaya-bg px-2.5 py-0.5 text-[12px] font-medium text-bahaya-fg"
+              >
+                {t.text}
+              </li>
+            ))}
+          </ul>
+        </>
+      )}
+      {masked.length > 0 && (
+        <>
+          <p className="mb-1 text-[12px] text-text-muted">Tag lain (disamarkan)</p>
+          <ul className="flex flex-wrap gap-1.5" aria-label={`${masked.length} tag lain disamarkan`}>
+            {masked.map((t, i) => (
+              <li
+                key={`m-${i}`}
+                aria-hidden
+                className="select-none rounded-full border border-border bg-bg-elevated px-2.5 py-0.5 text-[12px] text-text-secondary blur-[2.5px]"
+              >
+                {t.text}
+              </li>
+            ))}
+          </ul>
+        </>
+      )}
+    </div>
+  );
+}
+
 export function EvidencePanel({ osint }: EvidencePanelProps) {
   if (!osint) {
     return (
@@ -224,14 +268,16 @@ export function EvidencePanel({ osint }: EvidencePanelProps) {
                     {getcontact && <span className="block text-[12px] text-text-muted">{getcontact}</span>}
                   </span>
                   <Status text={status.label} kind={status.kind} />
+                  <GetcontactTags tags={p.getcontact?.fraud_tags?.tags} />
                 </li>
               );
             })}
           </ul>
           {phones.some((p) => p.getcontact?.probe_status) && (
             <p className="mt-3 text-[12px] text-text-muted">
-              GetContact memberi jumlah tag, label spam, dan (untuk sebagian nomor) berapa tag yang memuat kata
-              penipuan. Nama pemilik dan isi tag tidak ditampilkan atau disimpan. Sinyal ini uji coba.
+              Tag adalah nama yang dipakai pengguna GetContact saat menyimpan nomor ini. Tag yang memuat kata
+              penipuan ditampilkan utuh; tag lain disamarkan dan tidak disimpan dalam bentuk aslinya. Sinyal ini
+              uji coba.
             </p>
           )}
         </Section>
