@@ -1054,13 +1054,22 @@ def collect_web_evidence(entities: dict) -> dict[str, Any]:
         or any(site_kinds.kind_of(u) in ("shortener", "open_registration") for u in urls)
         or bool(vision_shortener_failures)
     )
+    # Tautan milik pemberi kerja sendiri (bukan pemendek URL, formulir, medsos, portal loker).
+    own_urls = [u for u in urls if site_kinds.normalize_host(str(u)) and not site_kinds.is_third_party(str(u))]
+    # Domain resmi juga dicari bila lowongan tidak memberi jalur lamaran yang bisa dicek sama
+    # sekali (poster "link di bio"), atau memberi tautan sendiri yang perlu dicocokkan.
+    no_checkable_channel = not emails and not urls and not (entities.get("phones") or entities.get("contacts"))
     official_domains = (
-        find_official_domains(companies, searches, age_lookup=check_domain_age) if unofficial_channel else []
+        find_official_domains(companies, searches, age_lookup=check_domain_age)
+        if (unofficial_channel or no_checkable_channel or own_urls) else []
     )
+    apply_on_official = _apply_on_official_domain(own_urls, official_domains, unofficial_channel)
 
     return {
         "enabled": True,
         "official_domains": official_domains,
+        "apply_on_official_domain": apply_on_official,
+        "no_checkable_channel": bool(no_checkable_channel and companies),
         "engine": "searxng",
         "websites": website_checks,
         "probe_status": "COMPLETED",
@@ -1094,6 +1103,29 @@ def collect_web_evidence(entities: dict) -> dict[str, Any]:
         "location_mismatch": location_mismatch,
     }
 
+
+
+def _apply_on_official_domain(own_urls: list, official_domains: list, unofficial_channel: bool) -> dict | None:
+    """Tautan lamaran berada di domain resmi pemberi kerja yang sudah berumur >= 1 tahun.
+
+    Dipakai untuk membedakan lowongan asli sebuah merek dari pencatutan namanya: artikel hoaks
+    atas nama merek itu tidak relevan bila pelamar memang diarahkan ke domain merek itu sendiri.
+    Tidak berlaku bila lowongan juga memakai email gratisan, pemendek URL, atau domain bebas daftar.
+    """
+    if unofficial_channel or not own_urls or not official_domains:
+        return None
+    officials = [str(c.get("domain") or "").lower() for c in official_domains if c.get("domain")]
+    for url in own_urls:
+        host = site_kinds.normalize_host(str(url))
+        for domain in officials:
+            if host == domain or host.endswith("." + domain):
+                try:
+                    age_days = (check_domain_age(domain) or {}).get("age_days")
+                except Exception:
+                    age_days = None
+                if isinstance(age_days, int) and age_days >= 365:
+                    return {"url": str(url), "domain": domain, "age_days": age_days}
+    return None
 
 async def run_web_evidence(entities: dict) -> dict[str, Any]:
     loop = asyncio.get_running_loop()

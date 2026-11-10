@@ -273,10 +273,18 @@ def _build_scam_check_section(web: dict) -> str:
     ]
     for r in results[:4]:
         lines.append(f"  • {r.get('title', '')} — {r.get('snippet', '')[:160]}")
-    lines.append(
-        "  → Artinya nama ini PERNAH dicatut. Bukan bukti lowongan ini palsu, kecuali isi/nomor/modusnya cocok "
-        "dengan artikel; tetapi bila lowongan ini juga memakai kanal tidak resmi, ini memperkuat WASPADA/BAHAYA."
-    )
+    official = (web or {}).get("apply_on_official_domain")
+    if official:
+        lines.append(
+            f"  → Lowongan ini mengarahkan pelamar ke domain resmi perusahaan sendiri ({official.get('domain')}, "
+            "umur domain lebih dari 1 tahun). Hoaks atas nama merek mengarahkan ke luar domain resmi, jadi "
+            "artikel di atas TIDAK menaikkan risiko lowongan ini."
+        )
+    else:
+        lines.append(
+            "  → Artinya nama ini PERNAH dicatut. Bukan bukti lowongan ini palsu, kecuali isi/nomor/modusnya cocok "
+            "dengan artikel; tetapi bila lowongan ini juga memakai kanal tidak resmi, ini memperkuat WASPADA/BAHAYA."
+        )
     return "\n".join(lines)
 
 

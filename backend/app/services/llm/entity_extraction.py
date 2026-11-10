@@ -3,7 +3,7 @@ import logging
 import re
 from typing import Any
 
-from app.config import LLM_API_KEY, LLM_EXTRACTOR_MODEL, LLM_TIMEOUT
+from app.config import LLM_API_KEY, LLM_EXTRACTOR_MODEL, LLM_EXTRACTOR_REASONING_EFFORT, LLM_TIMEOUT
 from app.services.llm.client import chat_completion, extract_json_from_response
 
 logger = logging.getLogger(__name__)
@@ -93,6 +93,7 @@ async def extract_entities_llm(text: str) -> dict[str, Any] | None:
                 max_tokens=900,
                 timeout=_EXTRACT_TIMEOUT,
                 max_retries=1,
+                reasoning_effort=LLM_EXTRACTOR_REASONING_EFFORT or None,
             ),
             timeout=_EXTRACT_TIMEOUT,
         )

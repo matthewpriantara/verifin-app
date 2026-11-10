@@ -4,6 +4,7 @@ import logging
 from typing import Any
 
 from app.services.llm.client import chat_completion, extract_json_from_response
+from app.config import LLM_EXTRACTOR_REASONING_EFFORT
 
 logger = logging.getLogger(__name__)
 
@@ -111,6 +112,7 @@ async def ai_extract_and_rank(
             max_tokens=max_tokens,
             timeout=25.0,
             max_retries=1,
+            reasoning_effort=LLM_EXTRACTOR_REASONING_EFFORT or None,
         )
 
         parsed = extract_json_from_response(raw_response)

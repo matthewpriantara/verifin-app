@@ -26,6 +26,9 @@ LLM_SYSTEM_AS_USER = os.getenv("LLM_SYSTEM_AS_USER", "false").lower() in ("1", "
 LLM_429_MAX_WAIT = float(os.getenv("LLM_429_MAX_WAIT", "45"))
 # Tingkat reasoning effort ("none", "low", "medium", "high") untuk model yang mendukung reasoning tokens.
 LLM_REASONING_EFFORT = os.getenv("LLM_REASONING_EFFORT", "").strip()
+# Tingkat berpikir untuk panggilan ekstraksi (entitas, hasil pencarian). Ekstraksi tidak butuh
+# penalaran panjang; "none" memangkas waktunya beberapa kali lipat. Kosong = ikut LLM_REASONING_EFFORT.
+LLM_EXTRACTOR_REASONING_EFFORT = os.getenv("LLM_EXTRACTOR_REASONING_EFFORT", "").strip()
 # Matikan (false) saat uji ulang agar setiap kasus dihitung ulang, bukan dibaca dari job_cases.
 VERIFY_CACHE_ENABLED = os.getenv("VERIFY_CACHE_ENABLED", "true").strip().lower() not in ("0", "false", "no", "off")
 # Pembacaan poster oleh model vision, berjalan bersamaan dengan OCR. Kosongkan model untuk mematikan.

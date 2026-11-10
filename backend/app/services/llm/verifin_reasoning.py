@@ -194,10 +194,14 @@ def _brand_impersonation_evidence(parsed: dict, entities: dict, osint_results: d
     shortener_fail = any("pemendek URL" in str(f) for f in (web.get("risk_flags") or [])) or bool(
         web.get("vision_shortener_failures")
     )
+    # Merek berdomain resmi yang lowongannya tidak memberi email, nomor, alamat, maupun tautan:
+    # pelamar hanya bisa lewat "link di bio" akun pengunggah, yang tidak bisa dicocokkan ke merek.
+    no_channel = bool(web.get("no_checkable_channel"))
     unofficial = bool(
         apply_domains & set(FREE_EMAIL_DOMAINS)
         or open_domain
         or shortener_fail
+        or no_channel
         or (apply_domains and not (apply_domains & official_domains))
     )
     if not unofficial:
@@ -216,6 +220,8 @@ def _brand_impersonation_evidence(parsed: dict, entities: dict, osint_results: d
         extra.append("isi situs penipuan")
     if signals.get("has_telegram_apply"):
         extra.append("lamaran via Telegram")
+    if no_channel:
+        extra.append("tidak ada email, nomor, alamat, atau tautan yang bisa dicek")
     if not extra:
         return None
 
@@ -254,6 +260,42 @@ def _apply_brand_impersonation(
         f"tetapi jalur lamaran di luar domain itu ({detail})"
     )
     parsed["risk_factors"] = [factor] + [f for f in parsed.get("risk_factors") or [] if f != factor]
+    return parsed
+
+
+def _cap_official_apply_channel(parsed: dict, entities: dict, osint_results: dict, text_signals: dict | None) -> dict:
+    """Lowongan yang lamarannya ke domain resmi pemberi kerja dinilai paling tinggi AMAN 30.
+
+    Syarat: tautan lamaran di domain resmi berumur >= 1 tahun, tanpa jalur lain yang tidak resmi,
+    dan tanpa sinyal keras (permintaan biaya, Telegram, laporan komunitas, nomor dilaporkan, jaringan
+    kasus berbahaya). Artikel "nama ini pernah dicatut" tidak dipakai menaikkan skor di sini,
+    karena hoaks atas nama merek justru mengarahkan ke luar domain resminya.
+    """
+    web = osint_results.get("web") or {}
+    official = web.get("apply_on_official_domain")
+    if not official or float(parsed.get("risk_score") or 0) <= 30:
+        return parsed
+    signals = text_signals or {}
+    network = osint_results.get("fraud_network") or {}
+    phones = [p for p in (osint_results.get("phones") or []) if isinstance(p, dict)]
+    hard = (
+        signals.get("has_fee_request") or signals.get("has_telegram_apply") or signals.get("has_foreign_work")
+        or entities.get("fee_requests")
+        or network.get("entity_in_fraud_network")
+        or int((network.get("community_reports") or {}).get("report_count") or 0) > 0
+        or any(p.get("reported_fraud") or p.get("reputation_status") in ("FLAGGED", "SUSPICIOUS") for p in phones)
+        or (web.get("fraud_site_content") or {}).get("matches")
+    )
+    if hard:
+        return parsed
+    parsed["verdict"] = "AMAN"
+    parsed["risk_score"] = 30
+    parsed["official_apply_channel_guard"] = True
+    factor = f"Lamaran diarahkan ke domain resmi perusahaan ({official.get('domain')})"
+    parsed["safe_factors"] = [factor] + [f for f in parsed.get("safe_factors") or [] if f != factor]
+    parsed["risk_factors"] = [
+        f for f in parsed.get("risk_factors") or [] if not _re.search(r"dicatut|hoaks|pencatutan", str(f), _re.I)
+    ]
     return parsed
 
 
@@ -392,9 +434,12 @@ def _fallback_analysis(
     if signals.get("has_telegram_apply"):
         risk_score += 25
         risk_factors.append("Lamaran diarahkan ke Telegram, bukan kanal resmi perusahaan.")
-    if scam_warnings:
+    apply_official = (osint_results.get("web") or {}).get("apply_on_official_domain")
+    if scam_warnings and not apply_official:
         risk_score += 15
         risk_factors.append("Nama perusahaan pernah dicatut lowongan palsu.")
+    if apply_official:
+        safe_factors.append(f"Lamaran diarahkan ke domain resmi perusahaan ({apply_official.get('domain')}).")
     web = osint_results.get("web") or {}
     if (web.get("fraud_site_content") or {}).get("matches"):
         risk_score += 25
@@ -467,7 +512,8 @@ def _fallback_analysis(
     parsed = _floor_dead_application_domain(parsed, osint_results)
     parsed = _floor_fraud_site_content(parsed, osint_results)
     parsed = _floor_telegram_channel(parsed, signals)
-    return _apply_brand_impersonation(parsed, entities, osint_results, signals)
+    parsed = _apply_brand_impersonation(parsed, entities, osint_results, signals)
+    return _cap_official_apply_channel(parsed, entities, osint_results, signals)
 
 
 def _is_valid_llm_output(
@@ -726,6 +772,7 @@ async def analyze_with_verifin(
             parsed = _floor_fraud_site_content(parsed, osint_results)
             parsed = _floor_telegram_channel(parsed, text_signals)
             parsed = _apply_brand_impersonation(parsed, entities, osint_results, text_signals)
+            parsed = _cap_official_apply_channel(parsed, entities, osint_results, text_signals)
             for field in ("risk_factors", "safe_factors", "recommendations"):
                 items = parsed.get(field) or []
                 parsed[field] = [s for s in items if isinstance(s, str) and len(s) > 3]

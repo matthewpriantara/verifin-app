@@ -318,6 +318,7 @@ async def chat_completion(
     timeout: float | None = None,
     max_retries: int = 3,
     seed: int | None = 42,
+    reasoning_effort: str | None = None,
 ) -> str:
     if not LLM_API_KEY:
         raise RuntimeError(
@@ -338,7 +339,7 @@ async def chat_completion(
             max_tokens=max_tokens,
             seed=seed,
             max_retries=max_retries,
-            reasoning_effort=LLM_REASONING_EFFORT or None,
+            reasoning_effort=reasoning_effort or LLM_REASONING_EFFORT or None,
         )
     except Exception as exc:
         if LLM_FALLBACK_BASE_URL and LLM_FALLBACK_API_KEY:

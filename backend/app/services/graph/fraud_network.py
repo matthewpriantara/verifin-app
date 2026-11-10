@@ -4,6 +4,8 @@ from typing import Any
 
 import networkx as nx
 
+from app.services import site_kinds
+
 # Hanya kasus BAHAYA yang dianggap penipuan. WASPADA berarti bukti belum cukup; menghitungnya
 # sebagai penipuan akan menandai lowongan lain "terhubung ke jaringan penipuan" tanpa dasar.
 FRAUD_VERDICTS = ("BAHAYA",)
@@ -124,7 +126,12 @@ def check_entity_in_network(
         ("phones",    "phone",   [_canonical_phone(p) for p in (entities.get("phones") or []) if _canonical_phone(p)]),
         ("emails",    "email",   [str(e).strip().lower() for e in (entities.get("emails") or []) if str(e).strip()]),
         ("companies", "company", [(c.upper().strip()) for c in (entities.get("companies") or [])]),
-        ("urls",      "url",     [_extract_domain(u) for u in (entities.get("urls") or []) if _extract_domain(u)]),
+        # Pemendek URL, formulir, media sosial, dan portal loker dipakai banyak pihak yang tidak
+        # saling terkait; kemunculan host itu di kasus lain bukan hubungan antar-lowongan.
+        ("urls",      "url",     [
+            d for d in (_extract_domain(u) for u in (entities.get("urls") or []))
+            if d and not site_kinds.is_third_party(d)
+        ]),
     ]
 
     for entity_type, node_prefix, values in checks:

@@ -386,7 +386,8 @@ def explain_verification_shap(
         ))
 
     scam_warnings = int((web_data.get("scam_check") or {}).get("warnings") or 0)
-    if scam_warnings > 0:
+    # Artikel pencatutan tidak dihitung bila lamaran memang ke domain resmi perusahaan.
+    if scam_warnings > 0 and not web_data.get("apply_on_official_domain"):
         contributions.append(_make_contrib(
             f"Nama Pernah Dicatut Lowongan Palsu ({scam_warnings} artikel)",
             "impersonation_warning",
