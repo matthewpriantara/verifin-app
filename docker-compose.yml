@@ -9,7 +9,7 @@ services:
         BUILD_TIME: ${BUILD_TIME:-}
     container_name: verifin-backend
     restart: unless-stopped
-    stop_grace_period: 30s
+    stop_grace_period: 10s
     ports:
       - "8019:8000"
     env_file:
