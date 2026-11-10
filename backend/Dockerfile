@@ -35,7 +35,7 @@ COPY . .
 
 # Unduh model OCR saat build (lewat konfigurasi yang sama dengan aplikasi) supaya permintaan
 # poster pertama tidak menunggu unduhan.
-RUN python -c "from app.services.ocr import get_ocr_model; get_ocr_model()"
+RUN python -c "from app.services.ocr import get_ocr_model; get_ocr_model()" || true
 
 # Folder untuk menyimpan bukti upload komunitas
 RUN mkdir -p /app/uploads/evidence

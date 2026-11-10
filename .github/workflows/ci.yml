@@ -54,3 +54,18 @@ jobs:
       - run: pnpm build
         env:
           NEXT_PUBLIC_API_URL: http://127.0.0.1:8000
+
+  deploy:
+    name: Deploy to Production
+    needs: [backend, frontend]
+    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+    runs-on: self-hosted
+    steps:
+      - name: Deploy Production Containers
+        run: |
+          cd /home/praktikan/projects/verifin
+          git fetch origin main
+          git reset --hard origin/main
+          export GIT_COMMIT=$(git rev-parse --short HEAD)
+          export BUILD_TIME=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
+          docker compose up -d --build

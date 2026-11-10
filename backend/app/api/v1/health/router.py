@@ -38,7 +38,12 @@ def _load_runtime_telemetry():
 async def health_check(db: Session = Depends(get_db)):
     telemetry = _load_runtime_telemetry()
     if telemetry is not None:
-        return telemetry
+        result = dict(telemetry)
+        if GIT_COMMIT and GIT_COMMIT != "dev":
+            result["git_commit"] = GIT_COMMIT
+        if BUILD_TIME:
+            result["build_time"] = BUILD_TIME
+        return result
 
     postgres_status = "healthy"
     postgres_details = "connected"
