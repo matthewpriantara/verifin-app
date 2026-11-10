@@ -41,6 +41,14 @@ DATABASE_URL = os.getenv("DATABASE_URL", "")
 SEARXNG_URL = os.getenv("SEARXNG_URL", "").rstrip("/")
 
 NOMINATIM_URL = os.getenv("NOMINATIM_URL", "https://nominatim.openstreetmap.org/search")
+# Nominatim publik membatasi 1 permintaan/detik untuk seluruh aplikasi; jeda hanya boleh
+# diturunkan bila NOMINATIM_URL menunjuk ke instance sendiri.
+NOMINATIM_MIN_INTERVAL = float(os.getenv("NOMINATIM_MIN_INTERVAL", "1.0"))
+# Batas tunggu antrean cek alamat per permintaan. Lewat dari ini query dilewati supaya
+# lonjakan pengguna tidak membuat tahap cek bukti menunggu berpuluh detik.
+NOMINATIM_MAX_WAIT = float(os.getenv("NOMINATIM_MAX_WAIT", "12"))
+NOMINATIM_MAX_QUERIES = int(os.getenv("NOMINATIM_MAX_QUERIES", "8"))
+NOMINATIM_CACHE_TTL = int(os.getenv("NOMINATIM_CACHE_TTL", "21600"))
 # Layanan getcontact-api di home (Tailscale). Kosong = fitur mati dan OSINT telepon tetap jalan
 # dengan Kaspersky saja. Lihat backend/getcontact-api/README.md.
 GETCONTACT_URL = os.getenv("GETCONTACT_URL", "").rstrip("/")

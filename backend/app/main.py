@@ -68,6 +68,11 @@ async def lifespan(app: FastAPI):
 
     import asyncio
     asyncio.create_task(asyncio.to_thread(_warmup_ocr))
+    try:
+        from app.services.egress_relay import start_egress_relay
+        await start_egress_relay()
+    except Exception as exc:
+        logger.warning("Relai proxy keluar tidak aktif: %s", exc)
     yield
 
 

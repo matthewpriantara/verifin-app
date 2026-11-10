@@ -5,7 +5,15 @@ import time
 import httpx
 from urllib.parse import quote_plus, unquote
 from app.services.status_contract import COMPLETED, FOUND, NO_RESULTS, UNAVAILABLE
-from app.config import NOMINATIM_URL, OSINT_TIMEOUT_SEC, OSINT_USER_AGENT
+from app.config import (
+    NOMINATIM_CACHE_TTL,
+    NOMINATIM_MAX_QUERIES,
+    NOMINATIM_MAX_WAIT,
+    NOMINATIM_MIN_INTERVAL,
+    NOMINATIM_URL,
+    OSINT_TIMEOUT_SEC,
+    OSINT_USER_AGENT,
+)
 
 REQUEST_TIMEOUT = OSINT_TIMEOUT_SEC
 NOMINATIM_HEADERS = {
@@ -13,10 +21,18 @@ NOMINATIM_HEADERS = {
 }
 
 # Kebijakan Nominatim publik: maksimal 1 permintaan per detik untuk seluruh aplikasi.
+# Kunci hanya memesan slot waktu; permintaan HTTP berjalan di luar kunci supaya respons
+# yang lambat tidak menahan permintaan lain.
 _NOMINATIM_LOCK = asyncio.Lock()
-_NOMINATIM_MIN_INTERVAL = 1.0
-_nominatim_last = 0.0
-_MAX_QUERIES_PER_ADDRESS = 8
+_NOMINATIM_MIN_INTERVAL = NOMINATIM_MIN_INTERVAL
+_nominatim_next_slot = 0.0
+_MAX_QUERIES_PER_ADDRESS = NOMINATIM_MAX_QUERIES
+_GEOCODE_CACHE: dict[str, tuple[float, list[dict]]] = {}
+_GEOCODE_CACHE_MAX = 2048
+
+
+class GeocodeBusy(Exception):
+    """Antrean cek alamat melewati batas tunggu; query dilewati."""
 
 
 async def _geocode_candidates(address: str, client: httpx.AsyncClient) -> list[dict]:
@@ -29,17 +45,28 @@ async def _geocode_candidates(address: str, client: httpx.AsyncClient) -> list[d
         "countrycodes": "id",
         "addressdetails": 1,
     }
-    global _nominatim_last
+    cache_key = " ".join(address.lower().split())
+    cached = _GEOCODE_CACHE.get(cache_key)
+    if cached and time.monotonic() - cached[0] < NOMINATIM_CACHE_TTL:
+        return cached[1]
+
+    global _nominatim_next_slot
     async with _NOMINATIM_LOCK:
-        wait = _NOMINATIM_MIN_INTERVAL - (time.monotonic() - _nominatim_last)
-        if wait > 0:
-            await asyncio.sleep(wait)
-        try:
-            response = await client.get(NOMINATIM_URL, params=params)
-        finally:
-            _nominatim_last = time.monotonic()
+        now = time.monotonic()
+        slot = max(now, _nominatim_next_slot)
+        if slot - now > NOMINATIM_MAX_WAIT:
+            raise GeocodeBusy(address)
+        _nominatim_next_slot = slot + _NOMINATIM_MIN_INTERVAL
+    wait = slot - time.monotonic()
+    if wait > 0:
+        await asyncio.sleep(wait)
+    response = await client.get(NOMINATIM_URL, params=params)
     response.raise_for_status()
-    return response.json() or []
+    results = response.json() or []
+    if len(_GEOCODE_CACHE) >= _GEOCODE_CACHE_MAX:
+        _GEOCODE_CACHE.pop(next(iter(_GEOCODE_CACHE)))
+    _GEOCODE_CACHE[cache_key] = (time.monotonic(), results)
+    return results
 
 
 _BUSINESS_GENERIC = {
@@ -328,9 +355,14 @@ async def geocode_address(address: str, company_name: str | None = None) -> dict
             best_rank = (-1, -1)
             match_rank = {"area": 0, "street": 1, "business": 2, "exact": 3}
             failures = 0
+            busy = False
             for query in queries[:_MAX_QUERIES_PER_ADDRESS]:
                 try:
                     candidates = await _geocode_candidates(query, client)
+                except GeocodeBusy:
+                    # Antrean penuh: query berikutnya pasti ikut menunggu, berhenti di sini.
+                    busy = True
+                    break
                 except (httpx.HTTPError, ValueError):
                     # Satu query gagal (mis. 429) tidak boleh membuang hasil terbaik yang sudah ada.
                     failures += 1
@@ -381,6 +413,10 @@ async def geocode_address(address: str, company_name: str | None = None) -> dict
                     **best_match,
                 }
 
+        if busy:
+            # Tidak semua query sempat dicoba, jadi "tidak ditemukan" belum bisa disimpulkan.
+            return {"found": False, "probe_status": UNAVAILABLE, "evidence_status": UNAVAILABLE,
+                    "error": "Antrean cek peta penuh, alamat tidak sempat dicek.", "lat": None, "lon": None}
         if failures and failures >= min(len(queries), _MAX_QUERIES_PER_ADDRESS):
             return {"found": False, "probe_status": UNAVAILABLE, "evidence_status": UNAVAILABLE,
                     "error": "Peta (Nominatim) tidak menjawab.", "lat": None, "lon": None}
