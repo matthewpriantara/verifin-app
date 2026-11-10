@@ -43,6 +43,26 @@ def brand_tokens(companies: list) -> set[str]:
     return tokens
 
 
+def _name_matches_host(companies: list, host: str) -> bool:
+    """Host cocok dengan salah satu nama: memuat minimal separuh token khasnya, atau singkatannya.
+
+    Satu kata umum saja tidak cukup: "PT Maha Putri Bali" tidak membuat lokerbali.info menjadi
+    situs resminya. Singkatan menangani pola "KPP Mining" untuk Kalimantan Prima Persada.
+    """
+    labels = host.split(".")
+    for name in companies or []:
+        words = [w for w in re.findall(r"[a-z0-9]+", str(name).lower()) if w not in _GENERIC_WORDS]
+        tokens = [w for w in words if len(w) >= 4]
+        if tokens:
+            matched = sum(1 for t in tokens if any(t in label for label in labels))
+            if matched * 2 >= len(tokens):
+                return True
+        acronym = "".join(w[0] for w in words if w[0].isalpha())
+        if len(acronym) >= 3 and any(label.startswith(acronym) for label in labels):
+            return True
+    return False
+
+
 def _wants_indonesia(companies: list) -> bool:
     return any("indonesia" in str(c).lower() for c in companies or [])
 
@@ -72,7 +92,7 @@ def score_candidates(companies: list, searches: list) -> list[dict[str, Any]]:
         in_title = any(re.search(rf"\b{re.escape(t)}\b", text) for t in tokens)
         # Token merek wajib ada di nama host: judul halaman pihak ketiga juga bisa memuat nama PT
         # (semuabis.com berjudul "PT Sumber Alfaria Trijaya" sempat dianggap situs resmi Alfamart).
-        if not in_host:
+        if not in_host or not _name_matches_host(companies, host):
             continue
         if want_id and not (host.endswith(".id") or labels[0] == "id" or "indonesia" in text or "indonesia" in host):
             continue

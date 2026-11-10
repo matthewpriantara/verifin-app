@@ -258,7 +258,23 @@ def _build_web_osint_section(web: dict) -> str:
     return "\n".join(lines)
 
 
+def _apply_link_line(web: dict) -> str:
+    check = (web or {}).get("apply_link_check") or {}
+    if check.get("status") != "FOUND":
+        return ""
+    first = (check.get("matches") or [{}])[0]
+    return (
+        f"\n- Tautan lamaran `{check.get('link')}` juga ditemukan di kanal milik perusahaan "
+        f"({first.get('url')}). Ini bukti kuat tautan itu memang jalur lamaran perusahaan; pemakaian "
+        "pemendek URL atau formulir TIDAK menaikkan risiko lowongan ini."
+    )
+
+
 def _build_scam_check_section(web: dict) -> str:
+    return _scam_check_lines(web) + _apply_link_line(web)
+
+
+def _scam_check_lines(web: dict) -> str:
     check = (web or {}).get("scam_check") or {}
     status = check.get("status")
     if status in (None, "SKIPPED"):

@@ -1064,11 +1064,22 @@ def collect_web_evidence(entities: dict) -> dict[str, Any]:
         if (unofficial_channel or no_checkable_channel or own_urls) else []
     )
     apply_on_official = _apply_on_official_domain(own_urls, official_domains, unofficial_channel)
+    try:
+        apply_link_check = corroborate_apply_link(urls, companies, searches, official_domains)
+    except Exception as exc:
+        logger.warning("[ApplyLink] gagal: %s", exc)
+        apply_link_check = None
+    if apply_link_check and apply_link_check.get("status") == "FOUND":
+        safe_flags.append(
+            f"Tautan lamaran ({apply_link_check['link']}) juga dipasang di kanal milik perusahaan: "
+            f"{apply_link_check['matches'][0]['url']}"
+        )
 
     return {
         "enabled": True,
         "official_domains": official_domains,
         "apply_on_official_domain": apply_on_official,
+        "apply_link_check": apply_link_check,
         "no_checkable_channel": bool(no_checkable_channel and companies),
         "engine": "searxng",
         "websites": website_checks,
@@ -1103,6 +1114,62 @@ def collect_web_evidence(entities: dict) -> dict[str, Any]:
         "location_mismatch": location_mismatch,
     }
 
+
+
+def _profile_key(url: str) -> str:
+    """Kunci pembanding profil lintas subdomain: linkedin.com/company/x, instagram.com/x."""
+    host = site_kinds.normalize_host(str(url))
+    parts = host.split(".")
+    base = ".".join(parts[-2:]) if len(parts) >= 2 else host
+    path = re.sub(r"^https?://[^/]+", "", str(url)).split("?")[0].rstrip("/").lower()
+    return f"{base}{path}"
+
+
+def corroborate_apply_link(urls: list, companies: list, searches: list, official_domains: list) -> dict | None:
+    """Cari tautan lamaran (pemendek URL/formulir) di web, lalu cocokkan dengan kanal milik merek.
+
+    Lowongan asli sering memakai bit.ly atau Google Form yang sama dengan yang dipasang di akun
+    resmi perusahaan. Tautan dianggap terkonfirmasi hanya bila hasil pencarian tautan itu memuat
+    profil/halaman yang JUGA muncul saat mencari nama perusahaannya, atau berada di domain
+    resminya. Penipu tidak bisa membuat akun resmi merek menyebut tautan mereka.
+    """
+    link = next((str(u) for u in urls or [] if site_kinds.kind_of(str(u)) in ("shortener", "form")), None)
+    if not link or not companies:
+        return None
+    bare = re.sub(r"^https?://(?:www\.)?", "", link).split("?")[0].rstrip("/")
+    if len(bare) < 8 or "/" not in bare:
+        return None
+    # Hanya halaman profil yang namanya memuat token merek. Unggahan (/p/, /posts/, /status/)
+    # dan akun pribadi (/in/) tidak dihitung: akun agregator loker bisa muncul di kedua pencarian.
+    from app.services.osint.official_domain import brand_tokens
+    tokens = brand_tokens(companies)
+    known_profiles = set()
+    for search in searches or []:
+        for item in (search or {}).get("results") or []:
+            url = str(item.get("url") or "")
+            if site_kinds.kind_of(url) != "social_platform":
+                continue
+            key = _profile_key(url)
+            path = key.split("/", 1)[1] if "/" in key else ""
+            if not path or re.search(r"(?:^|/)(?:p|reel|reels|posts?|status|videos?|groups?|in|watch|photo|photos)(?:/|$)", path):
+                continue
+            if any(t in path for t in tokens):
+                known_profiles.add(key)
+    officials = [str(c.get("domain") or "").lower() for c in official_domains or [] if c.get("domain")]
+    try:
+        result = searxng_search(f'"{bare}"', max_results=10)
+    except Exception as exc:
+        return {"status": "UNAVAILABLE", "link": bare, "matches": [], "error": str(exc)}
+    if not result.get("ok", True) and not result.get("results"):
+        return {"status": "UNAVAILABLE", "link": bare, "matches": []}
+    matches = []
+    for item in result.get("results") or []:
+        url = str(item.get("url") or "")
+        host = site_kinds.normalize_host(url)
+        on_official = any(host == d or host.endswith("." + d) for d in officials)
+        if on_official or _profile_key(url) in known_profiles:
+            matches.append({"url": url, "title": str(item.get("title") or "")[:120]})
+    return {"status": "FOUND" if matches else "NO_MATCH", "link": bare, "matches": matches[:3]}
 
 
 def _apply_on_official_domain(own_urls: list, official_domains: list, unofficial_channel: bool) -> dict | None:

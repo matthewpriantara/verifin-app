@@ -264,7 +264,8 @@ def _apply_brand_impersonation(
 
 
 def _cap_official_apply_channel(parsed: dict, entities: dict, osint_results: dict, text_signals: dict | None) -> dict:
-    """Lowongan yang lamarannya ke domain resmi pemberi kerja dinilai paling tinggi AMAN 30.
+    """Lowongan yang lamarannya ke domain resmi pemberi kerja, atau lewat tautan yang juga dipasang
+    di kanal milik pemberi kerja, dinilai paling tinggi AMAN 30.
 
     Syarat: tautan lamaran di domain resmi berumur >= 1 tahun, tanpa jalur lain yang tidak resmi,
     dan tanpa sinyal keras (permintaan biaya, Telegram, laporan komunitas, nomor dilaporkan, jaringan
@@ -273,7 +274,9 @@ def _cap_official_apply_channel(parsed: dict, entities: dict, osint_results: dic
     """
     web = osint_results.get("web") or {}
     official = web.get("apply_on_official_domain")
-    if not official or float(parsed.get("risk_score") or 0) <= 30:
+    link_check = web.get("apply_link_check") or {}
+    confirmed_link = link_check if link_check.get("status") == "FOUND" else None
+    if not (official or confirmed_link) or float(parsed.get("risk_score") or 0) <= 30:
         return parsed
     signals = text_signals or {}
     network = osint_results.get("fraud_network") or {}
@@ -291,7 +294,11 @@ def _cap_official_apply_channel(parsed: dict, entities: dict, osint_results: dic
     parsed["verdict"] = "AMAN"
     parsed["risk_score"] = 30
     parsed["official_apply_channel_guard"] = True
-    factor = f"Lamaran diarahkan ke domain resmi perusahaan ({official.get('domain')})"
+    factor = (
+        f"Lamaran diarahkan ke domain resmi perusahaan ({official.get('domain')})"
+        if official
+        else f"Tautan lamaran ({confirmed_link.get('link')}) juga dipasang di kanal milik perusahaan"
+    )
     parsed["safe_factors"] = [factor] + [f for f in parsed.get("safe_factors") or [] if f != factor]
     parsed["risk_factors"] = [
         f for f in parsed.get("risk_factors") or [] if not _re.search(r"dicatut|hoaks|pencatutan", str(f), _re.I)
