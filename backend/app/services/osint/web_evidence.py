@@ -1116,6 +1116,9 @@ def collect_web_evidence(entities: dict) -> dict[str, Any]:
 
 
 
+# Unggahan dan akun pribadi di media sosial; bukan halaman profil merek.
+_POST_PATH_RE = r"(?:^|/)(?:p|reel|reels|posts?|status|videos?|groups?|in|watch|photo|photos)(?:/|$)"
+
 def _profile_key(url: str) -> str:
     """Kunci pembanding profil lintas subdomain: linkedin.com/company/x, instagram.com/x."""
     host = site_kinds.normalize_host(str(url))
@@ -1156,27 +1159,43 @@ def corroborate_apply_link(urls: list, companies: list, searches: list, official
                 continue
             key = _profile_key(url)
             path = key.split("/", 1)[1] if "/" in key else ""
-            if not path or re.search(r"(?:^|/)(?:p|reel|reels|posts?|status|videos?|groups?|in|watch|photo|photos)(?:/|$)", path):
+            if not path or re.search(_POST_PATH_RE, path):
                 continue
             if any(t in path for t in tokens):
                 known_profiles.add(key)
     officials = [str(c.get("domain") or "").lower() for c in official_domains or [] if c.get("domain")]
     last: dict = {"status": "NO_MATCH", "link": bares[0], "matches": []}
+    def _is_brand_profile(url: str) -> bool:
+        # Halaman profil (bukan unggahan) yang alamatnya memuat token merek, mis.
+        # linkedin.com/company/shihlin-taiwan-street-snacks-indonesia.
+        if site_kinds.kind_of(url) != "social_platform":
+            return False
+        key = _profile_key(url)
+        path = key.split("/", 1)[1] if "/" in key else ""
+        if not path or re.search(_POST_PATH_RE, path):
+            return False
+        return any(t in path for t in tokens)
+
     for bare in bares[:2]:
-        try:
-            result = searxng_search(f'"{bare}"', max_results=10)
-        except Exception as exc:
-            last = {"status": "UNAVAILABLE", "link": bare, "matches": [], "error": str(exc)}
-            continue
+        result: dict = {}
+        # Mesin pencari di SearXNG kadang menolak sesaat; ulangi sekali sebelum menyerah.
+        for _attempt in range(2):
+            try:
+                result = searxng_search(f'"{bare}"', max_results=10)
+            except Exception as exc:
+                result = {"ok": False, "error": str(exc)}
+            if result.get("results"):
+                break
         if not result.get("ok", True) and not result.get("results"):
-            last = {"status": "UNAVAILABLE", "link": bare, "matches": []}
+            if last.get("status") != "NO_MATCH" or last.get("link") == bares[0]:
+                last = {"status": "UNAVAILABLE", "link": bare, "matches": []}
             continue
         matches = []
         for item in result.get("results") or []:
             url = str(item.get("url") or "")
             host = site_kinds.normalize_host(url)
             on_official = any(host == d or host.endswith("." + d) for d in officials)
-            if on_official or _profile_key(url) in known_profiles:
+            if on_official or _profile_key(url) in known_profiles or _is_brand_profile(url):
                 matches.append({"url": url, "title": str(item.get("title") or "")[:120]})
         if matches:
             return {"status": "FOUND", "link": bare, "matches": matches[:3]}
