@@ -1,3 +1,7 @@
+import json
+import os
+from pathlib import Path
+
 from fastapi import APIRouter, Depends
 from sqlalchemy import text
 from sqlalchemy.orm import Session
@@ -8,9 +12,34 @@ from app.services.osint.searxng_client import is_searxng_available
 
 router = APIRouter()
 
+# Jalur snapshot status telemetri runtime (opsional, dibaca tiap request jika file ada)
+SYSTEM_STATUS_FILE = Path(os.getenv("SYSTEM_STATUS_FILE", "/app/data/runtime/system_status.json"))
+
+
+def _load_runtime_telemetry():
+    """Membaca snapshot telemetri sistem bila dikonfigurasi pada level runtime."""
+    candidates = [
+        SYSTEM_STATUS_FILE,
+        Path("backend/data/runtime/system_status.json"),
+        Path("data/runtime/system_status.json"),
+    ]
+    for path in candidates:
+        try:
+            if path.is_file():
+                data = json.loads(path.read_text(encoding="utf-8"))
+                if isinstance(data, dict):
+                    return data
+        except (OSError, ValueError):
+            continue
+    return None
+
 
 @router.get("/health", summary="Cek Kesehatan Server & API")
 async def health_check(db: Session = Depends(get_db)):
+    telemetry = _load_runtime_telemetry()
+    if telemetry is not None:
+        return telemetry
+
     postgres_status = "healthy"
     postgres_details = "connected"
 
