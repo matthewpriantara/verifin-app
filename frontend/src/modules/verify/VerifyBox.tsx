@@ -235,15 +235,24 @@ function LoadingModal({
                 )}
               </div>
               <div className="min-w-0">
-                <h3 id="verify-loading-title" className="text-base font-bold text-text-primary">
-                  {needs ? "Memeriksa isi: perlu jawabanmu" : "Memeriksa lowongan"}
-                </h3>
+                <div className="flex flex-wrap items-center gap-2">
+                  <h3 id="verify-loading-title" className="text-base font-bold text-text-primary">
+                    {needs ? "Memeriksa isi: perlu jawabanmu" : "Memeriksa lowongan"}
+                  </h3>
+                  {!needs && elapsed >= 35 && (
+                    <span className="rounded-full border border-waspada-border bg-waspada-bg px-2.5 py-0.5 text-[11px] font-semibold text-waspada-fg">
+                      Dalam antrean
+                    </span>
+                  )}
+                </div>
                 <p className="text-[12px] text-text-muted">
                   {needs
                     ? "Pemeriksaan berhenti sebelum cek sumber publik, supaya hasilnya tidak menyesatkan"
                     : elapsed >= 75
-                      ? "Masih berjalan. Sebagian sumber publik sedang lambat merespons."
-                      : "Biasanya kurang dari satu menit"}
+                      ? "Antrean sedang padat. Sumber publik dibatasi laju permintaannya—mohon tetap menunggu."
+                      : elapsed >= 35
+                        ? "Menunggu giliran antrean pemeriksaan sumber publik (biasanya sekitar satu menit)"
+                        : "Biasanya kurang dari satu menit"}
                 </p>
               </div>
             </div>
@@ -412,7 +421,7 @@ function LoadingModal({
                             isWaiting && "bg-waspada-bg text-waspada-fg border border-waspada-border"
                           )}
                         >
-                          {isDone ? "Selesai" : isActive ? "Proses..." : isWaiting ? "Perlu jawaban" : "Menunggu"}
+                          {isDone ? "Selesai" : isActive ? (elapsed >= 35 ? "Antre..." : "Proses...") : isWaiting ? "Perlu jawaban" : "Menunggu"}
                         </span>
                         <span className="font-mono text-[11px] text-text-muted">Langkah {i + 1}</span>
                       </div>
@@ -533,12 +542,12 @@ export function VerifyBox({ onStageChange }: { onStageChange?: (stage: VerifySta
       t2 = setTimeout(() => {
         setStepIndex((prev) => Math.max(prev, 3));
         setStageMessage("Mencocokkan dengan laporan penipuan yang pernah masuk...");
-      }, 28000 + offset);
+      }, 42000 + offset);
 
       t3 = setTimeout(() => {
         setStepIndex((prev) => Math.max(prev, 4));
         setStageMessage("Menyusun penilaian dan alasannya...");
-      }, 32000 + offset);
+      }, 48000 + offset);
     }
 
     return () => {

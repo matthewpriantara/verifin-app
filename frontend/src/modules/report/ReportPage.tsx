@@ -344,6 +344,8 @@ export default function ReportPage() {
   const primaryAddr = addrs[0] || {};
   const bizDetails = (primaryAddr.business_details as Record<string, unknown>) || {};
   const addrDetails = (primaryAddr.address_details as Record<string, unknown>) || {};
+  const addressUnavailable =
+    primaryAddr.probe_status === "UNAVAILABLE" || addrDetails.probe_status === "UNAVAILABLE";
   // Nama dari lowongan, bukan judul hasil Google Maps; nama tempat di peta ditampilkan terpisah.
   const companyName = entities?.companies?.[0] ?? "Nama perusahaan tidak disebut";
   const mapsPlaceName = typeof bizDetails.matched_name === "string" ? bizDetails.matched_name : null;
@@ -546,8 +548,18 @@ export default function ReportPage() {
                     Titik Presisi
                   </span>
                 )}
+                {addressUnavailable && (
+                  <span className="rounded-md bg-bg-subtle px-2 py-0.5 text-[11px] font-semibold text-text-secondary">
+                    Peta sedang sibuk
+                  </span>
+                )}
               </div>
-              {!addressFromPosting && addrs.length > 0 && (
+              {addressUnavailable && (
+                <p className="mt-2 rounded-lg bg-bg-subtle px-3 py-2 text-[13px] leading-relaxed text-text-secondary">
+                  Layanan peta sedang sibuk atau tidak dapat dihubungi saat pemeriksaan, jadi titik lokasi belum bisa dicek. Ini bukan berarti alamat tidak ada.
+                </p>
+              )}
+              {!addressUnavailable && !addressFromPosting && addrs.length > 0 && (
                 <p className="mt-2 rounded-lg bg-bg-subtle px-3 py-2 text-[13px] leading-relaxed text-text-secondary">
                   {addressSource === "web_search"
                     ? "Lowongan tidak mencantumkan alamat. Titik di bawah adalah alamat dari hasil pencarian web tentang nama perusahaan, bukan lokasi yang ditulis lowongan."

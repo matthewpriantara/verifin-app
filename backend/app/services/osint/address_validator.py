@@ -561,7 +561,14 @@ async def validate_address_and_business(address: str, company_name: str = None, 
     geo = await geocode_address(address, company_name)
     result["address_details"] = geo
 
-    if not geo.get("found"):
+    if geo.get("probe_status") == UNAVAILABLE:
+        result["address_found"] = False
+        result["probe_status"] = UNAVAILABLE
+        result["error"] = geo.get("error") or "Layanan peta tidak dapat dihubungi saat pemeriksaan."
+        result["neutral_notes"].append(
+            f"{result['error']} Ini bukan berarti alamat tidak ada."
+        )
+    elif not geo.get("found"):
         result["address_found"] = False
         result["risk_signals"].append(
             f"Alamat '{address}' tidak ditemukan di peta OpenStreetMap Indonesia."

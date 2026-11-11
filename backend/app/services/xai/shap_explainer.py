@@ -421,7 +421,12 @@ def explain_verification_shap(
             "Jalan dan nomor bangunan cocok di OpenStreetMap",
         ))
 
-    if entities is not None and input_addresses and not exact_address:
+    address_unavailable = bool(address_validations) and all(
+        (a.get("probe_status") or (a.get("address_details") or {}).get("probe_status")) == "UNAVAILABLE"
+        for a in address_validations
+        if isinstance(a, dict)
+    )
+    if entities is not None and input_addresses and not exact_address and not address_unavailable:
         contributions.append(_make_contrib(
             "Nomor Alamat Belum Pasti di Peta",
             "address_not_verified",
