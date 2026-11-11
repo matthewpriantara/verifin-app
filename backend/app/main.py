@@ -6,7 +6,7 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
-from app.config import CORS_ORIGINS, UPLOAD_DIR
+from app.config import CORS_ORIGINS, UPLOAD_DIR, API_DOCS_ENABLED
 handler = logging.StreamHandler(sys.stdout)
 handler.setLevel(logging.DEBUG)
 formatter = logging.Formatter("%(asctime)s %(levelname)s [%(name)s] %(message)s")
@@ -80,6 +80,10 @@ app = FastAPI(
     title="Verifin API",
     version="1.0.0",
     lifespan=lifespan,
+    # Dokumentasi interaktif tidak dipublikasikan kecuali API_DOCS_ENABLED=true.
+    docs_url="/docs" if API_DOCS_ENABLED else None,
+    redoc_url="/redoc" if API_DOCS_ENABLED else None,
+    openapi_url="/openapi.json" if API_DOCS_ENABLED else None,
 )
 
 app.add_middleware(

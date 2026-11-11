@@ -1,5 +1,6 @@
 from app.services.llm.client import chat_completion, check_llm_status, extract_json_from_response
 from app.services.llm.prompt_builder import build_text_verify_prompt, build_verify_prompt
+from app.services.runtime_telemetry import load_runtime_telemetry
 from app.config import LLM_MODEL, LLM_TIMEOUT
 
 REASONING_BUDGET_SEC = 55.0
@@ -828,6 +829,23 @@ async def analyze_with_verifin(
 
 
 async def check_ai_status() -> dict:
+    # Sumber utama: snapshot telemetri runtime (system_status.json) — sama dengan /health.
+    telemetry = load_runtime_telemetry()
+    if telemetry is not None and isinstance(telemetry.get("llm"), dict):
+        llm = telemetry["llm"]
+        detail = llm.get("detail")
+        if detail is not None and not isinstance(detail, str):
+            detail = str(detail)
+        return {
+            "provider": llm.get("provider") or "openagentic",
+            "configured": bool(llm.get("configured")),
+            "reachable": bool(llm.get("reachable")),
+            "available_models": list(llm.get("available_models") or []),
+            "target_model": llm.get("target_model") or LLM_MODEL,
+            "detail": detail,
+        }
+
+    # Fallback: cek langsung ke penyedia LLM bila snapshot tidak tersedia.
     status = await check_llm_status()
     detail = status.get("detail")
     if detail is not None and not isinstance(detail, str):
@@ -836,6 +854,7 @@ async def check_ai_status() -> dict:
         "provider": status.get("provider") or "openagentic",
         "configured": bool(status.get("configured")),
         "reachable": bool(status.get("reachable")),
+        "available_models": [],
         "target_model": LLM_MODEL,
         "detail": detail,
     }

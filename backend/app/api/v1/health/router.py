@@ -1,7 +1,3 @@
-import json
-import os
-from pathlib import Path
-
 from fastapi import APIRouter, Depends
 from sqlalchemy import text
 from sqlalchemy.orm import Session
@@ -9,34 +5,14 @@ from app.config import APP_VERSION, BUILD_TIME, GIT_COMMIT
 from app.database.postgres_client import get_db
 from app.services.llm.verifin_reasoning import check_ai_status
 from app.services.osint.searxng_client import is_searxng_available
+from app.services.runtime_telemetry import load_runtime_telemetry
 
 router = APIRouter()
-
-# Snapshot telemetri runtime sistem verifin (dibaca dinamis saat file tersedia)
-SYSTEM_STATUS_FILE = Path(os.getenv("SYSTEM_STATUS_FILE", "/app/data/runtime/system_status.json"))
-
-
-def _load_runtime_telemetry():
-    """Membaca snapshot telemetri sistem bila dikonfigurasi pada level runtime."""
-    candidates = [
-        SYSTEM_STATUS_FILE,
-        Path("backend/data/runtime/system_status.json"),
-        Path("data/runtime/system_status.json"),
-    ]
-    for path in candidates:
-        try:
-            if path.is_file():
-                data = json.loads(path.read_text(encoding="utf-8"))
-                if isinstance(data, dict):
-                    return data
-        except (OSError, ValueError):
-            continue
-    return None
 
 
 @router.get("/health", summary="Cek Kesehatan Server & API")
 async def health_check(db: Session = Depends(get_db)):
-    telemetry = _load_runtime_telemetry()
+    telemetry = load_runtime_telemetry()
     if telemetry is not None:
         result = dict(telemetry)
         if GIT_COMMIT and GIT_COMMIT != "dev":
