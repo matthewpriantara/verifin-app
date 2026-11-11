@@ -77,14 +77,14 @@ function LoginGate({ onAuth }: { onAuth: () => void }) {
   }
 
   return (
-    <div className="flex min-h-[calc(100vh-56px)] items-center justify-center px-4">
+    <div className="flex min-h-[calc(100vh-56px)] items-center justify-center px-4 py-12">
       <motion.div
         initial={{ opacity: 0, y: 16 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.3, ease: [0.16, 1, 0.3, 1] }}
-        className="w-full max-w-sm"
+        className="w-full max-w-sm rounded-2xl border border-border bg-bg-elevated p-6 sm:p-8 shadow-sm"
       >
-        <div className="mb-8 flex flex-col items-center gap-3 text-center">
+        <div className="mb-6 flex flex-col items-center gap-3 text-center">
           <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-text-primary">
             <LockKey size={22} weight="bold" className="text-bg-elevated" />
           </div>
@@ -93,7 +93,7 @@ function LoginGate({ onAuth }: { onAuth: () => void }) {
               Admin Panel
             </h1>
             <p className="mt-1 text-[13px] text-text-muted">
-              Masukkan password untuk melanjutkan
+              Masukkan password moderator untuk melanjutkan
             </p>
           </div>
         </div>
@@ -114,7 +114,7 @@ function LoginGate({ onAuth }: { onAuth: () => void }) {
             placeholder="Password admin"
             autoFocus
             className={cn(
-              "w-full rounded-xl border bg-bg-elevated px-4 py-3 text-[14px] text-text-primary placeholder:text-text-muted outline-none transition-colors",
+              "w-full rounded-xl border bg-bg-subtle/60 px-4 py-3 text-[14px] text-text-primary placeholder:text-text-muted outline-none transition-colors focus:bg-bg-elevated",
               error
                 ? "border-bahaya-border focus:border-bahaya-border"
                 : "border-border focus:border-border-focus",
@@ -126,14 +126,25 @@ function LoginGate({ onAuth }: { onAuth: () => void }) {
           <button
             type="submit"
             disabled={!pw || submitting}
-            className="w-full rounded-xl bg-text-primary px-4 py-3 text-[14px] font-semibold text-bg-elevated transition-opacity hover:opacity-90 disabled:opacity-40"
+            className="w-full rounded-xl bg-text-primary px-4 py-3 text-[14px] font-semibold text-bg-elevated transition-opacity hover:opacity-90 disabled:opacity-40 cursor-pointer"
           >
-            {submitting ? "Memeriksa..." : "Masuk"}
+            {submitting ? "Memeriksa..." : "Masuk ke Dasbor"}
           </button>
         </motion.form>
       </motion.div>
     </div>
   );
+}
+
+function cleanPreviewText(raw: string | null | undefined): string {
+  if (!raw) return "-";
+  return raw
+    .replace(/\[TEKS UTAMA POSTER\/GAMBAR LOWONGAN \(OCR\)\]:\s*/gi, "")
+    .replace(/\[TEKS CAPTION \/ DESKRIPSI POSTINGAN\]:\s*/gi, " · ")
+    .replace(/---\s*\[PEMBACAAN VISUAL AI\]\s*---[\s\S]*/gi, "")
+    .replace(/^URL Target:\s*/i, "")
+    .replace(/\s+/g, " ")
+    .trim() || "-";
 }
 
 /* ─── Verdict badge ───────────────────────────────────────────────────────── */
@@ -155,10 +166,30 @@ function VerdictBadge({ verdict }: { verdict: string }) {
 }
 
 /* ─── Stat card ───────────────────────────────────────────────────────────── */
-function StatCard({ label, value, color, loading }: { label: string; value: number; color: string; loading: boolean }) {
+function StatCard({
+  label,
+  value,
+  total,
+  color,
+  loading,
+}: {
+  label: string;
+  value: number;
+  total?: number;
+  color: string;
+  loading: boolean;
+}) {
+  const pct = total && total > 0 ? Math.round((value / total) * 100) : null;
   return (
     <div className="rounded-xl border border-border bg-bg-elevated p-5">
-      <p className="text-[13px] font-medium text-text-muted">{label}</p>
+      <div className="flex items-center justify-between gap-2">
+        <p className="text-[13px] font-medium text-text-muted">{label}</p>
+        {!loading && pct !== null && (
+          <span className="rounded-md bg-bg-subtle px-1.5 py-0.5 text-[11px] font-medium tabular-nums text-text-muted">
+            {pct}%
+          </span>
+        )}
+      </div>
       {loading ? (
         <Skeleton className="mt-2.5 h-7 w-12" />
       ) : (
@@ -180,6 +211,12 @@ function CasesTable({
   loading: boolean;
   onViewCase?: (caseId: string) => void;
 }) {
+  const [page, setPage] = useState(1);
+  const PER_PAGE = 12;
+  const totalPages = Math.max(1, Math.ceil(cases.length / PER_PAGE));
+  const safePage = Math.min(page, totalPages);
+  const rows = cases.slice((safePage - 1) * PER_PAGE, safePage * PER_PAGE);
+
   if (loading) {
     return (
       <div className="overflow-x-auto">
@@ -189,7 +226,7 @@ function CasesTable({
               <th className="px-4 py-3 text-left font-medium text-text-muted">Verdict</th>
               <th className="px-4 py-3 text-left font-medium text-text-muted">Skor</th>
               <th className="px-4 py-3 text-left font-medium text-text-muted">Perusahaan</th>
-              <th className="px-4 py-3 text-left font-medium text-text-muted">Preview</th>
+              <th className="px-4 py-3 text-left font-medium text-text-muted">Ringkasan Input</th>
               <th className="px-4 py-3 text-left font-medium text-text-muted">Sumber</th>
               <th className="px-4 py-3 text-left font-medium text-text-muted">Waktu</th>
               <th className="px-4 py-3 text-right font-medium text-text-muted">Aksi</th>
@@ -220,66 +257,102 @@ function CasesTable({
     );
   }
   return (
-    <div className="overflow-x-auto">
-      <table className="w-full text-[13px]">
-        <thead>
-          <tr className="border-b border-border bg-bg-subtle">
-            <th className="px-4 py-3 text-left font-medium text-text-muted">Verdict</th>
-            <th className="px-4 py-3 text-left font-medium text-text-muted">Skor</th>
-            <th className="px-4 py-3 text-left font-medium text-text-muted">Perusahaan</th>
-            <th className="px-4 py-3 text-left font-medium text-text-muted">Preview</th>
-            <th className="px-4 py-3 text-left font-medium text-text-muted">Sumber</th>
-            <th className="px-4 py-3 text-left font-medium text-text-muted">Waktu</th>
-            <th className="px-4 py-3 text-right font-medium text-text-muted">Aksi</th>
-          </tr>
-        </thead>
-        <tbody className="divide-y divide-border">
-          {cases.map((c, i) => (
-            <motion.tr
-              key={c.id}
-              initial={{ opacity: 0, x: -4 }}
-              animate={{ opacity: 1, x: 0 }}
-              transition={{ delay: i * 0.02, duration: 0.2 }}
-              className="hover:bg-bg-subtle transition-colors"
+    <div>
+      <div className="overflow-x-auto">
+        <table className="w-full text-[13px]">
+          <thead>
+            <tr className="border-b border-border bg-bg-subtle">
+              <th className="px-4 py-3 text-left font-medium text-text-muted">Verdict</th>
+              <th className="px-4 py-3 text-left font-medium text-text-muted">Skor</th>
+              <th className="px-4 py-3 text-left font-medium text-text-muted">Perusahaan</th>
+              <th className="px-4 py-3 text-left font-medium text-text-muted">Ringkasan Input</th>
+              <th className="px-4 py-3 text-left font-medium text-text-muted">Sumber</th>
+              <th className="px-4 py-3 text-left font-medium text-text-muted">Waktu</th>
+              <th className="px-4 py-3 text-right font-medium text-text-muted">Aksi</th>
+            </tr>
+          </thead>
+          <tbody className="divide-y divide-border">
+            {rows.map((c, i) => (
+              <motion.tr
+                key={c.id}
+                initial={{ opacity: 0, x: -4 }}
+                animate={{ opacity: 1, x: 0 }}
+                transition={{ delay: i * 0.015, duration: 0.2 }}
+                className="hover:bg-bg-subtle/70 transition-colors"
+              >
+                <td className="px-4 py-3 whitespace-nowrap">
+                  <VerdictBadge verdict={c.verdict} />
+                </td>
+                <td className="px-4 py-3 font-semibold tabular-nums text-text-primary">
+                  {c.risk_score}
+                </td>
+                <td className="px-4 py-3 max-w-[180px] truncate">
+                  {c.company_name ? (
+                    <span className="font-medium text-text-primary">{c.company_name}</span>
+                  ) : (
+                    <span className="italic text-text-muted">Tanpa nama usaha</span>
+                  )}
+                </td>
+                <td className="px-4 py-3 text-text-muted max-w-[280px] truncate">
+                  {cleanPreviewText(c.raw_text_preview)}
+                </td>
+                <td className="px-4 py-3 whitespace-nowrap">
+                  <span className="inline-flex items-center rounded-md border border-border bg-bg-subtle px-2 py-0.5 text-[11px] font-medium text-text-muted">
+                    {SOURCE_LABEL[c.source || "text"] ?? c.source}
+                  </span>
+                </td>
+                <td className="px-4 py-3 text-[12px] tabular-nums text-text-muted whitespace-nowrap">
+                  {c.created_at
+                    ? new Date(c.created_at).toLocaleString("id-ID", {
+                      dateStyle: "short",
+                      timeStyle: "short",
+                    })
+                    : "-"}
+                </td>
+                <td className="px-4 py-3 text-right whitespace-nowrap">
+                  <button
+                    onClick={() => onViewCase?.(c.id)}
+                    className="inline-flex items-center gap-1 rounded-lg border border-border bg-bg-subtle px-2.5 py-1 text-[11px] font-semibold text-text-primary transition-colors hover:border-border-focus hover:bg-bg-elevated active:scale-95 cursor-pointer"
+                  >
+                    Lihat Detail
+                    <ArrowUpRight size={11} weight="bold" />
+                  </button>
+                </td>
+              </motion.tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+      {cases.length > PER_PAGE && (
+        <div className="flex items-center justify-between border-t border-border bg-bg-subtle/50 px-4 py-2.5">
+          <span className="text-[12px] tabular-nums text-text-muted">
+            Menampilkan {(safePage - 1) * PER_PAGE + 1}–{Math.min(safePage * PER_PAGE, cases.length)} dari {cases.length} kasus
+          </span>
+          <div className="flex items-center gap-1.5">
+            <button
+              type="button"
+              disabled={safePage === 1}
+              onClick={() => setPage((p) => Math.max(p - 1, 1))}
+              className="flex h-7 w-7 items-center justify-center rounded-lg border border-border bg-bg-elevated text-text-muted transition-colors hover:border-border-focus hover:text-text-primary disabled:opacity-30 disabled:pointer-events-none cursor-pointer"
+              title="Halaman sebelumnya"
             >
-              <td className="px-4 py-3">
-                <VerdictBadge verdict={c.verdict} />
-              </td>
-              <td className="px-4 py-3 font-semibold tabular-nums text-text-primary">
-                {c.risk_score}
-              </td>
-              <td className="px-4 py-3 text-text-secondary max-w-[160px] truncate">
-                {c.company_name || "-"}
-              </td>
-              <td className="px-4 py-3 text-text-muted max-w-[240px] truncate">
-                {c.raw_text_preview || "-"}
-              </td>
-              <td className="px-4 py-3">
-                <span className="rounded border border-border px-1.5 py-0.5 text-[11px] text-text-muted">
-                  {SOURCE_LABEL[c.source || "text"] ?? c.source}
-                </span>
-              </td>
-              <td className="px-4 py-3 text-text-muted whitespace-nowrap">
-                {c.created_at
-                  ? new Date(c.created_at).toLocaleString("id-ID", {
-                    dateStyle: "short",
-                    timeStyle: "short",
-                  })
-                  : "-"}
-              </td>
-              <td className="px-4 py-3 text-right">
-                <button
-                  onClick={() => onViewCase?.(c.id)}
-                  className="inline-flex items-center gap-1 rounded-lg border border-border bg-bg-subtle px-2.5 py-1 text-[11px] font-semibold text-text-primary transition-colors hover:border-border-focus hover:bg-bg-elevated active:scale-95 cursor-pointer"
-                >
-                  Lihat Detail
-                  <ArrowUpRight size={11} weight="bold" />
-                </button>
-              </td>
-            </motion.tr>
-          ))}
-        </tbody>
-      </table>
+              <CaretLeft size={13} weight="bold" />
+            </button>
+            <span className="px-2 text-[12px] font-semibold tabular-nums text-text-primary">
+              {safePage} <span className="font-normal text-text-muted">/ {totalPages}</span>
+            </span>
+            <button
+              type="button"
+              disabled={safePage === totalPages}
+              onClick={() => setPage((p) => Math.min(p + 1, totalPages))}
+              className="flex h-7 w-7 items-center justify-center rounded-lg border border-border bg-bg-elevated text-text-muted transition-colors hover:border-border-focus hover:text-text-primary disabled:opacity-30 disabled:pointer-events-none cursor-pointer"
+              title="Halaman selanjutnya"
+            >
+              <CaretRight size={13} weight="bold" />
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
@@ -330,15 +403,16 @@ export default function AdminPage() {
           id: c.id,
           case_id: c.id.slice(0, 8),
           source: (c.source as UserInputLog["source"]) || "text",
-          raw_input: c.raw_text_preview || "-",
-          company_name: c.company_name || "Tidak diketahui",
+          raw_input: cleanPreviewText(c.raw_text_preview),
+          company_name: c.company_name || "Tanpa nama usaha",
           verdict: (c.verdict as UserInputLog["verdict"]) || "WASPADA",
           risk_score: c.risk_score,
-          extracted_entities: [
-            ...(c.phones || []),
-            ...(c.emails || []),
-            ...(c.company_name ? [c.company_name] : []),
-          ],
+          extracted_entities: Array.from(
+            new Set([
+              ...(c.phones || []),
+              ...(c.emails || []),
+            ]),
+          ),
           created_at: new Date(c.created_at).toLocaleString("id-ID", {
             dateStyle: "short",
             timeStyle: "short",
@@ -429,13 +503,16 @@ export default function AdminPage() {
     <div className="mx-auto w-full max-w-6xl px-4 py-8 sm:px-6">
 
       {/* ── Header ── */}
-      <div className="mb-8 flex items-center justify-between">
+      <div className="mb-8 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div>
           <h1 className="text-2xl font-semibold tracking-tight text-text-primary">
             Admin Panel
           </h1>
+          <p className="mt-1 text-[13px] text-text-muted">
+            Ringkasan verifikasi sistem, moderasi laporan komunitas, dan pencarian kasus
+          </p>
         </div>
-        <div className="flex items-center gap-3">
+        <div className="flex flex-wrap items-center gap-2.5">
           {/* AI status */}
           {aiStatus && (
             <span
@@ -462,42 +539,40 @@ export default function AdminPage() {
               {error}
             </span>
           )}
-          {/* logout */}
-          <button
-            onClick={logout}
-            className="inline-flex items-center gap-1.5 rounded-lg border border-border bg-bg-subtle px-3 py-1.5 text-[13px] text-text-secondary transition-colors hover:border-border-focus hover:text-text-primary"
-          >
-            <SignOut size={13} />
-            Keluar
-          </button>
           {/* refresh */}
           <button
             onClick={load}
             disabled={loading}
-            className="flex items-center gap-1.5 rounded-lg border border-border bg-bg-elevated px-3 py-2 text-[13px] text-text-secondary transition-colors hover:border-border-focus hover:text-text-primary disabled:opacity-40"
+            className="inline-flex items-center gap-1.5 rounded-lg border border-border bg-bg-elevated px-3 py-1.5 text-[13px] font-medium text-text-secondary transition-colors hover:border-border-focus hover:text-text-primary disabled:opacity-40 cursor-pointer"
           >
             <ArrowClockwise size={13} weight="bold" className={loading ? "animate-spin" : ""} />
             Refresh
           </button>
+          {/* logout */}
+          <button
+            onClick={logout}
+            className="inline-flex items-center gap-1.5 rounded-lg border border-border bg-bg-subtle px-3 py-1.5 text-[13px] font-medium text-text-secondary transition-colors hover:border-border-focus hover:text-text-primary cursor-pointer"
+          >
+            <SignOut size={13} />
+            Keluar
+          </button>
         </div>
       </div>
 
-      {/* ── Stat cards dengan Button Lihat Detail di Sebelah Kanan ── */}
-      <div className="mb-6 flex flex-col gap-3 sm:flex-row sm:items-stretch">
-        <div className="grid flex-1 grid-cols-2 gap-3 sm:grid-cols-4">
-          <StatCard label="Total Kasus" value={stats.total} color="text-text-primary" loading={loading && cases.length === 0} />
-          <StatCard label="Aman" value={stats.aman} color="text-aman-fg" loading={loading && cases.length === 0} />
-          <StatCard label="Waspada" value={stats.waspada} color="text-waspada-fg" loading={loading && cases.length === 0} />
-          <StatCard label="Bahaya" value={stats.bahaya} color="text-bahaya-fg" loading={loading && cases.length === 0} />
-        </div>
+      {/* ── Stat cards ── */}
+      <div className="mb-6 grid grid-cols-2 gap-3 sm:grid-cols-4">
+        <StatCard label="Total Kasus" value={stats.total} color="text-text-primary" loading={loading && cases.length === 0} />
+        <StatCard label="Aman" value={stats.aman} total={stats.total} color="text-aman-fg" loading={loading && cases.length === 0} />
+        <StatCard label="Waspada" value={stats.waspada} total={stats.total} color="text-waspada-fg" loading={loading && cases.length === 0} />
+        <StatCard label="Bahaya" value={stats.bahaya} total={stats.total} color="text-bahaya-fg" loading={loading && cases.length === 0} />
       </div>
 
       {/* ── Total 3 Tabs ── */}
-      <div className="mb-6 flex flex-col gap-2 sm:flex-row rounded-xl border border-border bg-bg-subtle p-1">
+      <div className="mb-6 flex flex-col gap-1.5 sm:flex-row rounded-xl border border-border bg-bg-subtle p-1">
         {[
           { id: "cases", label: loading && cases.length === 0 ? "Riwayat Kasus" : `Riwayat Kasus (${stats.total})`, icon: ClockCounterClockwise },
           { id: "moderation", label: "Moderasi Laporan", icon: Flag },
-          { id: "user_inputs", label: "Cari & saring kasus", icon: Database },
+          { id: "user_inputs", label: "Cari & Saring Kasus", icon: Database },
         ].map((tab) => {
           const Icon = tab.icon;
           const isActive = activeTab === tab.id;
@@ -506,7 +581,7 @@ export default function AdminPage() {
               key={tab.id}
               onClick={() => setActiveTab(tab.id as typeof activeTab)}
               className={cn(
-                "flex-1 rounded-lg px-3.5 py-2 text-[13px] font-medium transition-all",
+                "flex-1 rounded-lg px-3.5 py-2 text-[13px] font-medium transition-all cursor-pointer",
                 isActive
                   ? "bg-bg-elevated text-text-primary shadow-sm font-semibold"
                   : "text-text-muted hover:text-text-secondary hover:bg-bg-elevated/40",
@@ -528,15 +603,23 @@ export default function AdminPage() {
           {loading && cases.length === 0 ? (
             <Skeleton className="h-[260px] w-full rounded-xl" />
           ) : (
-            <ReportChart cases={cases} onViewUserInputs={() => setActiveTab("user_inputs")} />
+            <ReportChart cases={cases} />
           )}
 
           {/* table */}
           <div className="rounded-xl border border-border bg-bg-elevated overflow-hidden">
             <div className="border-b border-border bg-bg-subtle px-4 py-3 flex items-center justify-between">
               <p className="text-[12px] font-medium text-text-muted">
-                Daftar Verifikasi Terbaru (Aktivitas Verifikasi)
+                Daftar Verifikasi Terbaru
               </p>
+              <button
+                type="button"
+                onClick={() => setActiveTab("user_inputs")}
+                className="inline-flex items-center gap-1 text-[12px] font-medium text-text-secondary transition-colors hover:text-text-primary cursor-pointer"
+              >
+                Cari & saring lebih lanjut
+                <ArrowUpRight size={12} weight="bold" />
+              </button>
             </div>
             <CasesTable cases={cases} loading={loading} onViewCase={(caseId) => router.push(`/report/${caseId}`)} />
           </div>
@@ -666,26 +749,33 @@ export default function AdminPage() {
                     </div>
 
                     {/* Company Name */}
-                    <h4 className="text-[14px] font-bold text-text-primary">
+                    <h4 className={cn(
+                      "text-[14px] font-semibold truncate",
+                      item.company_name === "Tanpa nama usaha" ? "italic font-normal text-text-muted" : "text-text-primary",
+                    )}>
                       {item.company_name}
                     </h4>
 
-                    {/* Raw Input Content Preview */}
-                    <p className="mt-1.5 text-[12px] leading-relaxed text-text-secondary line-clamp-2 bg-bg-subtle/50 p-2.5 rounded-xl border border-border/40">
-                      {item.raw_input}
-                    </p>
+                    {/* Raw Input Content Preview — wrapper holds padding so line-clamp-2 never slices line 3 */}
+                    <div className="mt-2 rounded-xl border border-border/50 bg-bg-subtle/50 p-2.5">
+                      <p className="text-[12px] leading-relaxed text-text-secondary line-clamp-2">
+                        {item.raw_input}
+                      </p>
+                    </div>
 
                     {/* Extracted Entities Badges */}
-                    <div className="mt-3 flex flex-wrap gap-1">
-                      {item.extracted_entities.map((entity, idx) => (
-                        <span
-                          key={idx}
-                          className="rounded border border-border bg-bg-subtle px-1.5 py-0.5 font-mono text-[10px] text-text-muted"
-                        >
-                          {entity}
-                        </span>
-                      ))}
-                    </div>
+                    {item.extracted_entities.length > 0 && (
+                      <div className="mt-2.5 flex flex-wrap gap-1.5">
+                        {item.extracted_entities.map((entity, idx) => (
+                          <span
+                            key={idx}
+                            className="rounded-md border border-border bg-bg-subtle px-2 py-0.5 font-mono text-[11px] text-text-muted"
+                          >
+                            {entity}
+                          </span>
+                        ))}
+                      </div>
+                    )}
                   </div>
 
                   {/* Footer Row: Timestamp, IP & Button "Lihat Detail" / "Lihat Selengkapnya" at bottom-right corner */}

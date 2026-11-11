@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { motion, AnimatePresence, useReducedMotion } from "motion/react";
 import {
   ImageSquare,
+  ClipboardText,
   X,
   Scan,
   MagnifyingGlass,
@@ -913,12 +914,12 @@ export function VerifyBox({ onStageChange }: { onStageChange?: (stage: VerifySta
                 />
               </div>
               {/* Baris aksi di bawah textarea, tidak menimpa teks yang sudah diketik */}
-              <div className="flex items-center justify-between gap-2 border-t border-border px-2 py-1.5">
+              <div className="flex items-center justify-between gap-2 border-t border-border px-2.5 py-1.5">
                 {!text.trim() ? (
                   <button
                     type="button"
                     onClick={() => fileInputRef.current?.click()}
-                    className="flex min-h-11 items-center gap-2 whitespace-nowrap rounded-md px-2.5 text-[13px] text-text-secondary transition-colors hover:bg-bg-subtle hover:text-text-primary"
+                    className="flex h-9 items-center gap-2 whitespace-nowrap rounded-lg px-2.5 text-[13px] font-medium text-text-secondary transition-colors hover:bg-bg-subtle hover:text-text-primary"
                   >
                     <ImageSquare size={16} />
                     Lampirkan gambar
@@ -933,9 +934,10 @@ export function VerifyBox({ onStageChange }: { onStageChange?: (stage: VerifySta
                   type="button"
                   onClick={handlePaste}
                   title="Tempel teks atau gambar dari clipboard"
-                  className="flex min-h-11 items-center justify-center whitespace-nowrap rounded-md border border-border bg-bg-subtle/80 px-3.5 text-[13px] font-medium text-text-secondary transition-colors hover:border-border-focus hover:bg-bg-subtle hover:text-text-primary active:scale-95 shadow-none outline-none ring-0"
+                  aria-label="Tempel teks atau gambar dari clipboard"
+                  className="flex h-9 w-9 items-center justify-center rounded-lg text-text-muted transition-colors hover:bg-bg-subtle hover:text-text-primary active:scale-95 outline-none"
                 >
-                  Tempel
+                  <ClipboardText size={17} />
                 </button>
               </div>
               {!text.trim() && (

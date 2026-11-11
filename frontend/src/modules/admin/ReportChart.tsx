@@ -1,6 +1,5 @@
 "use client";
 
-import { ArrowUpRight } from "@phosphor-icons/react";
 import { motion } from "motion/react";
 import type { AdminCase } from "@/types/admin";
 
@@ -43,9 +42,12 @@ function Bar({
   const pct = (n: number) => max > 0 ? (n / max) * 100 : 0;
 
   return (
-    <div className="flex flex-1 flex-col items-center gap-1.5">
+    <div
+      className="flex flex-1 flex-col items-center gap-1.5"
+      title={`${label}: ${total} kasus (${aman} Aman, ${waspada} Waspada, ${bahaya} Bahaya)`}
+    >
       {/* bar container */}
-      <div className="relative flex h-28 w-full max-w-[40px] flex-col-reverse overflow-hidden rounded-md bg-bg-subtle">
+      <div className="relative flex h-28 w-full max-w-[48px] flex-col-reverse overflow-hidden rounded-lg border border-border/60 bg-bg-subtle/70">
         {/* bahaya */}
         <motion.div
           initial={{ scaleY: 0 }}
@@ -92,7 +94,6 @@ function LegendPill({ color, label }: { color: string; label: string }) {
 /* ── Main component ───────────────────────────────────────────────────────── */
 export default function ReportChart({
   cases,
-  onViewUserInputs,
 }: {
   cases: AdminCase[];
   onViewUserInputs?: () => void;
@@ -113,16 +114,16 @@ export default function ReportChart({
       <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
         <div>
           <p className="text-[13px] font-medium text-text-muted">
-            Aktivitas verifikasi
+            Distribusi Aktivitas Verifikasi Harian
           </p>
           <p className="mt-0.5 text-[22px] font-semibold tabular-nums text-text-primary">
             {totalAll}{" "}
-            <span className="ml-1 text-[13px] font-normal text-text-muted">total input</span>
+            <span className="ml-1 text-[13px] font-normal text-text-muted">kasus tercatat</span>
           </p>
         </div>
 
         {/* summary pills */}
-        <div className="flex flex-wrap gap-3">
+        <div className="flex flex-wrap gap-4">
           <div className="flex flex-col items-end">
             <span className="text-[18px] font-semibold tabular-nums text-aman-fg">{totalAman}</span>
             <span className="text-[10px] text-text-muted">Aman</span>
@@ -146,30 +147,23 @@ export default function ReportChart({
           </p>
         </div>
       ) : (
-        <div className="flex items-end gap-1 overflow-x-auto pb-1">
+        <div className="flex items-end gap-2 overflow-x-auto pb-1">
           {data.map((d, i) => (
             <Bar key={d.label} {...d} max={max} index={i} />
           ))}
         </div>
       )}
 
-      {/* legend & bottom-right button */}
+      {/* legend */}
       <div className="mt-3 flex flex-wrap items-center justify-between gap-3 border-t border-border pt-3">
-        <div className="flex flex-wrap gap-3">
+        <div className="flex flex-wrap gap-4">
           <LegendPill color="bg-aman-fg/70" label="Aman" />
           <LegendPill color="bg-waspada-fg/70" label="Waspada" />
           <LegendPill color="bg-bahaya-fg/80" label="Bahaya" />
         </div>
-
-        {onViewUserInputs && (
-          <button
-            onClick={onViewUserInputs}
-            className="inline-flex items-center gap-1.5 rounded-lg border border-border bg-bg-elevated px-3 py-1 text-[11px] font-semibold text-text-primary transition-all hover:border-border-focus hover:bg-bg-subtle active:scale-95 cursor-pointer"
-          >
-            Lihat Detail Inputan User
-            <ArrowUpRight size={12} weight="bold" />
-          </button>
-        )}
+        <span className="text-[11px] text-text-muted">
+          Menampilkan {data.length} tanggal aktif terakhir (WIB)
+        </span>
       </div>
     </div>
   );

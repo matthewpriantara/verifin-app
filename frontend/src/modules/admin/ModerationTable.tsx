@@ -77,7 +77,7 @@ function StatusBadge({ status }: { status: ReportStatus }) {
 /* ── Report type badge ────────────────────────────────────────────────────── */
 function TypeBadge({ type }: { type: ReportType }) {
   return (
-    <span className="inline-flex items-center rounded border border-border bg-bg-subtle px-2 py-0.5 text-[11px] text-text-muted">
+    <span className="inline-flex items-center whitespace-nowrap rounded-md border border-border bg-bg-subtle px-2 py-0.5 text-[11px] font-medium text-text-secondary">
       {reportTypeLabel(type)}
     </span>
   );
@@ -386,90 +386,89 @@ function ReportRow({
       className="group hover:bg-bg-subtle/60 transition-colors"
     >
       {/* Status */}
-      <td className="px-4 py-3 align-top">
+      <td className="px-4 py-3.5 align-top whitespace-nowrap">
         <StatusBadge status={report.status} />
       </td>
 
-      {/* Pelapor (IP) */}
-      <td className="px-4 py-3 align-top">
-        <div className="flex items-center gap-1.5">
-          <Globe size={12} className="shrink-0 text-text-muted" />
-          <span className="font-mono text-[12px] text-text-secondary">{report.reporter_ip}</span>
-        </div>
-      </td>
-
-      {/* Perusahaan */}
-      <td className="px-4 py-3 align-top">
-        <div className="flex items-center gap-1.5">
-          <Buildings size={12} className="shrink-0 text-text-muted" />
-          <span className="max-w-[160px] truncate text-[13px] font-medium text-text-primary">
-            {report.company_name}
-          </span>
+      {/* Perusahaan & Pelapor */}
+      <td className="px-4 py-3.5 align-top">
+        <div className="flex flex-col gap-1">
+          <div className="flex items-center gap-1.5">
+            <Buildings size={13} className="shrink-0 text-text-muted" />
+            <span className="max-w-[180px] truncate text-[13px] font-semibold text-text-primary">
+              {report.company_name}
+            </span>
+          </div>
+          <div className="flex items-center gap-1.5 text-[11px] text-text-muted">
+            <Globe size={11} className="shrink-0" />
+            <span className="font-mono">{report.reporter_ip}</span>
+          </div>
         </div>
       </td>
 
       {/* Tipe */}
-      <td className="px-4 py-3 align-top">
+      <td className="px-4 py-3.5 align-top whitespace-nowrap">
         <TypeBadge type={report.report_type} />
       </td>
 
-      {/* Deskripsi */}
-      <td className="min-w-[240px] px-4 py-3 align-top">
-        <div className="flex flex-col items-start gap-1">
-          <p className="max-w-[240px] text-[12px] leading-relaxed text-text-muted line-clamp-2">
+      {/* Deskripsi & Bukti */}
+      <td className="px-4 py-3.5 align-top">
+        <div className="flex flex-col items-start gap-2 max-w-[280px]">
+          <p className="text-[12px] leading-relaxed text-text-secondary line-clamp-2">
             {report.description || "-"}
           </p>
-          <button
-            onClick={() => onViewDetail(report)}
-            className="inline-flex items-center gap-1 whitespace-nowrap text-[12px] font-medium text-text-primary hover:underline"
-          >
-            <Eye size={12} /> Lihat detail
-          </button>
-        </div>
-
-        {report.url && (
-          <a
-            href={report.url}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="mt-1 flex w-fit items-center gap-1 text-[11px] text-text-secondary underline-offset-2 hover:underline"
-          >
-            <LinkSimple size={10} />
-            Bukti
-          </a>
-        )}
-        {report.evidence_file_url && (
-          <span className="mt-1 flex items-center gap-1 text-[11px] text-text-secondary">
-            <ImageSquare size={10} />
-            <a
-              href={evidenceSrc(report.evidence_file_url)}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="underline-offset-2 hover:underline"
+          <div className="flex flex-wrap items-center gap-1.5">
+            <button
+              type="button"
+              onClick={() => onViewDetail(report)}
+              className="inline-flex items-center gap-1 rounded-md border border-border bg-bg-subtle px-2 py-0.5 text-[11px] font-medium text-text-primary transition-colors hover:border-border-focus hover:bg-bg-elevated cursor-pointer"
             >
-              Gambar
-            </a>
-          </span>
-        )}
-        {report.case_id && (
-          <span className="mt-1 flex items-center gap-1 font-mono text-[11px] text-text-muted">
-            <ArrowSquareOut size={9} />
-            <a href={`/report/${report.case_id}`} className="hover:underline">
-              {report.case_id.slice(0, 8)}…
-            </a>
-          </span>
-        )}
-        {report.reviewer_note && (
-          <div className="mt-1.5 flex items-start gap-1 rounded-md bg-bg-subtle px-2 py-1">
-            <ChatText size={10} className="mt-0.5 shrink-0 text-text-muted" />
-            <p className="text-[12px] leading-snug text-text-muted">{report.reviewer_note}</p>
+              <Eye size={11} /> Detail
+            </button>
+            {report.url && (
+              <a
+                href={report.url}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="inline-flex items-center gap-1 rounded-md border border-border bg-bg-subtle px-2 py-0.5 text-[11px] text-text-secondary transition-colors hover:border-border-focus hover:text-text-primary"
+              >
+                <LinkSimple size={11} />
+                Tautan
+              </a>
+            )}
+            {report.evidence_file_url && (
+              <a
+                href={evidenceSrc(report.evidence_file_url)}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="inline-flex items-center gap-1 rounded-md border border-border bg-bg-subtle px-2 py-0.5 text-[11px] text-text-secondary transition-colors hover:border-border-focus hover:text-text-primary"
+              >
+                <ImageSquare size={11} />
+                Bukti
+              </a>
+            )}
+            {report.case_id && (
+              <a
+                href={`/report/${report.case_id}`}
+                className="inline-flex items-center gap-1 rounded-md border border-border bg-bg-subtle px-2 py-0.5 font-mono text-[11px] text-text-muted transition-colors hover:border-border-focus hover:text-text-primary"
+              >
+                <ArrowSquareOut size={10} />
+                #{report.case_id.slice(0, 6)}
+              </a>
+            )}
           </div>
-        )}
+          {report.reviewer_note && (
+            <div className="flex items-start gap-1.5 rounded-lg border border-border/60 bg-bg-subtle px-2.5 py-1.5">
+              <ChatText size={11} className="mt-0.5 shrink-0 text-text-muted" />
+              <p className="text-[11px] leading-snug text-text-muted">{report.reviewer_note}</p>
+            </div>
+          )}
+        </div>
       </td>
 
       {/* Waktu */}
-      <td className="px-4 py-3 align-top whitespace-nowrap">
-        <span className="text-[12px] text-text-muted">
+      <td className="px-4 py-3.5 align-top whitespace-nowrap">
+        <span className="text-[12px] tabular-nums text-text-muted">
           {new Date(report.created_at).toLocaleString("id-ID", {
             dateStyle: "short",
             timeStyle: "short",
@@ -478,26 +477,28 @@ function ReportRow({
       </td>
 
       {/* Aksi */}
-      <td className="px-4 py-3 align-top">
+      <td className="px-4 py-3.5 align-top text-right whitespace-nowrap">
         {isPending ? (
-          <div className="flex gap-2">
+          <div className="inline-flex items-center justify-end gap-1.5">
             <button
+              type="button"
               onClick={() => onApprove(report.id)}
-              className="inline-flex items-center gap-1 rounded-lg border border-aman-border bg-aman-bg px-2.5 py-1.5 text-[12px] font-medium text-aman-fg transition-colors hover:bg-aman-fg hover:text-white"
+              className="inline-flex items-center gap-1 whitespace-nowrap rounded-lg border border-aman-border bg-aman-bg px-2.5 py-1.5 text-[12px] font-semibold text-aman-fg transition-colors hover:bg-aman-fg hover:text-white cursor-pointer"
             >
               <CheckCircle size={12} weight="bold" />
               Setujui
             </button>
             <button
+              type="button"
               onClick={() => onReject(report.id)}
-              className="inline-flex items-center gap-1 rounded-lg border border-bahaya-border bg-bahaya-bg px-2.5 py-1.5 text-[12px] font-medium text-bahaya-fg transition-colors hover:bg-bahaya-fg hover:text-white"
+              className="inline-flex items-center gap-1 whitespace-nowrap rounded-lg border border-bahaya-border bg-bahaya-bg px-2.5 py-1.5 text-[12px] font-semibold text-bahaya-fg transition-colors hover:bg-bahaya-fg hover:text-white cursor-pointer"
             >
               <XCircle size={12} weight="bold" />
               Tolak
             </button>
           </div>
         ) : (
-          <span className="text-[12px] text-text-muted">
+          <span className="text-[12px] tabular-nums text-text-muted">
             {report.reviewed_at
               ? new Date(report.reviewed_at).toLocaleDateString("id-ID", { dateStyle: "short" })
               : "-"}
@@ -578,31 +579,33 @@ export default function ModerationTable() {
         </div>
       )}
       {/* filter row */}
-      <div className="flex items-center gap-2">
-        <FunnelSimple size={13} className="text-text-muted" />
-        <div className="flex gap-1 rounded-lg border border-border bg-bg-subtle p-0.5">
-          {FILTER_OPTIONS.map((opt) => (
-            <button
-              key={opt.value}
-              onClick={() => setFilter(opt.value)}
-              className={cn(
-                "rounded-md px-3 py-1.5 text-[12px] font-medium transition-colors",
-                filter === opt.value
-                  ? "bg-bg-elevated text-text-primary shadow-sm"
-                  : "text-text-muted hover:text-text-secondary",
-              )}
-            >
-              {opt.label}
-              {opt.value !== "all" && (
-                <span className="ml-1.5 tabular-nums text-[11px]">
-                  ({opt.value === "pending" ? pending : opt.value === "approved" ? approved : rejected})
-                </span>
-              )}
-            </button>
-          ))}
+      <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-border bg-bg-elevated p-3">
+        <div className="flex items-center gap-2">
+          <FunnelSimple size={14} className="ml-1 text-text-muted" />
+          <div className="flex flex-wrap gap-1 rounded-lg border border-border bg-bg-subtle p-1">
+            {FILTER_OPTIONS.map((opt) => (
+              <button
+                key={opt.value}
+                onClick={() => setFilter(opt.value)}
+                className={cn(
+                  "rounded-md px-3 py-1 text-[12px] font-medium transition-colors cursor-pointer",
+                  filter === opt.value
+                    ? "bg-text-primary text-bg-elevated shadow-sm"
+                    : "text-text-muted hover:text-text-primary",
+                )}
+              >
+                {opt.label}
+                {opt.value !== "all" && (
+                  <span className="ml-1.5 tabular-nums text-[11px] opacity-80">
+                    ({opt.value === "pending" ? pending : opt.value === "approved" ? approved : rejected})
+                  </span>
+                )}
+              </button>
+            ))}
+          </div>
         </div>
-        <span className="ml-auto text-[12px] text-text-muted">
-          {filtered.length} laporan
+        <span className="px-1 text-[12px] font-medium tabular-nums text-text-muted">
+          Menampilkan {filtered.length} laporan komunitas
         </span>
       </div>
 
@@ -614,24 +617,22 @@ export default function ModerationTable() {
               <thead>
                 <tr className="border-b border-border bg-bg-subtle">
                   <th className="px-4 py-3 text-left font-medium text-text-muted">Status</th>
-                  <th className="px-4 py-3 text-left font-medium text-text-muted">Pelapor (IP)</th>
-                  <th className="px-4 py-3 text-left font-medium text-text-muted">Perusahaan</th>
-                  <th className="px-4 py-3 text-left font-medium text-text-muted">Tipe</th>
-                  <th className="px-4 py-3 text-left font-medium text-text-muted">Deskripsi</th>
+                  <th className="px-4 py-3 text-left font-medium text-text-muted">Perusahaan & Pelapor</th>
+                  <th className="px-4 py-3 text-left font-medium text-text-muted">Kategori</th>
+                  <th className="px-4 py-3 text-left font-medium text-text-muted">Ringkasan & Bukti</th>
                   <th className="px-4 py-3 text-left font-medium text-text-muted">Waktu</th>
-                  <th className="px-4 py-3 text-left font-medium text-text-muted">Aksi</th>
+                  <th className="px-4 py-3 text-right font-medium text-text-muted">Aksi</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-border">
                 {[1, 2, 3, 4].map((i) => (
                   <tr key={i}>
                     <td className="px-4 py-3"><Skeleton className="h-6 w-20" /></td>
-                    <td className="px-4 py-3"><Skeleton className="h-5 w-24" /></td>
-                    <td className="px-4 py-3"><Skeleton className="h-5 w-32" /></td>
+                    <td className="px-4 py-3"><Skeleton className="h-8 w-36" /></td>
                     <td className="px-4 py-3"><Skeleton className="h-6 w-28" /></td>
                     <td className="px-4 py-3"><Skeleton className="h-8 w-44" /></td>
                     <td className="px-4 py-3"><Skeleton className="h-5 w-24" /></td>
-                    <td className="px-4 py-3"><Skeleton className="h-7 w-28" /></td>
+                    <td className="px-4 py-3 text-right"><Skeleton className="h-7 w-28 ml-auto" /></td>
                   </tr>
                 ))}
               </tbody>
@@ -648,12 +649,11 @@ export default function ModerationTable() {
               <thead>
                 <tr className="border-b border-border bg-bg-subtle">
                   <th className="px-4 py-3 text-left font-medium text-text-muted">Status</th>
-                  <th className="px-4 py-3 text-left font-medium text-text-muted">Pelapor (IP)</th>
-                  <th className="px-4 py-3 text-left font-medium text-text-muted">Perusahaan</th>
-                  <th className="px-4 py-3 text-left font-medium text-text-muted">Tipe</th>
-                  <th className="px-4 py-3 text-left font-medium text-text-muted">Deskripsi</th>
+                  <th className="px-4 py-3 text-left font-medium text-text-muted">Perusahaan & Pelapor</th>
+                  <th className="px-4 py-3 text-left font-medium text-text-muted">Kategori</th>
+                  <th className="px-4 py-3 text-left font-medium text-text-muted">Ringkasan & Bukti</th>
                   <th className="px-4 py-3 text-left font-medium text-text-muted">Waktu</th>
-                  <th className="px-4 py-3 text-left font-medium text-text-muted">Aksi</th>
+                  <th className="px-4 py-3 text-right font-medium text-text-muted">Aksi</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-border">
