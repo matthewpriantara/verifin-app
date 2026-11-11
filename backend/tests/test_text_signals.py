@@ -69,3 +69,9 @@ def test_link_in_bio_with_punctuation_is_an_unofficial_channel():
     f = features(text)
     assert f["has_whatsapp_apply"] is True
     assert f["brand_unofficial_channel"] is True
+
+
+def test_whatsapp_typo_and_pendaftaran_phone_detected():
+    text = "INFO PENDAFTARAN KARIAWAN BARU +62 897-6478-242 SILAHKAN LANGSUNG MELALUI WHATSAP"
+    f = features(text, companies=["MIE GACOAN"])
+    assert f["has_whatsapp_apply"] is True

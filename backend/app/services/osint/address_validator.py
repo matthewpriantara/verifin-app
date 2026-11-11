@@ -73,6 +73,8 @@ async def _geocode_candidates(address: str, client: httpx.AsyncClient) -> list[d
 _BUSINESS_GENERIC = {
     "persero", "tbk", "group", "indonesia", "kantor", "pusat", "cabang", "toko", "hotel",
     "rumah", "makan", "jakarta", "yogyakarta", "jogja", "bandung", "surabaya", "official",
+    "roti", "mie", "kopi", "warung", "resto", "cafe", "kedai", "citra", "jaya", "abadi",
+    "utama", "mandiri", "mitra", "sinar", "indah", "putra", "putri", "sentosa", "makmur", "global",
 }
 
 
@@ -89,6 +91,7 @@ def _has_street_name(street: str) -> bool:
 
 def _business_tokens(company_name: str | None) -> list[str]:
     name = re.sub(r"\([^)]*\)", " ", company_name or "")
+    name = re.sub(r"['’`]", "", name)
     name = re.sub(r"\b(?:pt|cv|ud|pd|tbk|persero)\b\.?", " ", name, flags=re.I)
     return [t for t in re.findall(r"[a-z0-9]+", name.lower()) if len(t) >= 4 and t not in _BUSINESS_GENERIC]
 
@@ -263,8 +266,8 @@ def _build_fallback_queries(address: str) -> list[str]:
         queries.append(addr_norm)
     queries += [f"{addr_norm}, Indonesia", f"{addr}, Indonesia"]
     stripped = re.sub(r"\bNo\.?\s*\d+\b", "", addr, flags=re.IGNORECASE)
-    stripped = re.sub(r"\bRT\s*\d+\s*(RW\s*\d+)?\b", "", stripped, flags=re.IGNORECASE)
-    stripped = re.sub(r"\bRW\s*\d+\b", "", stripped, flags=re.IGNORECASE)
+    stripped = re.sub(r"\bRT\.?\s*\d+\s*(?:[/,\s-]+\s*(?:RW\.?\s*)?\d+)?\b", "", stripped, flags=re.IGNORECASE)
+    stripped = re.sub(r"\bRW\.?\s*\d+\b", "", stripped, flags=re.IGNORECASE)
     if stripped != addr:
         queries.append(f"{stripped.strip(' ,')}, Indonesia")
     stripped_no_prefix = re.sub(
@@ -276,10 +279,12 @@ def _build_fallback_queries(address: str) -> list[str]:
     parts = [p.strip() for p in addr_norm.split(",") if p.strip()]
     if len(parts) >= 2:
         def _strip_admin_prefix(s: str) -> str:
+            s_clean = re.sub(r"\bRT\.?\s*\d+\s*(?:[/,\s-]+\s*(?:RW\.?\s*)?\d+)?\b", "", s, flags=re.IGNORECASE)
+            s_clean = re.sub(r"\bRW\.?\s*\d+\b", "", s_clean, flags=re.IGNORECASE)
             return re.sub(
-                r"^(?:Kecamatan|Kabupaten|Kelurahan|Kec\.?\s*|Kab\.?\s*|Kel\.?\s*|Desa\s+|Ds\.?\s*|Kota\s+|Daerah\s+)\s*",
-                "", s, flags=re.IGNORECASE,
-            ).strip()
+                r"^(?:Kecamatan|Kabupaten|Kelurahan|Kec\.?\s*|Kab\.?\s*|Kel\.?\s*|Desa\s+|Ds\.?\s*|Kota\s+|Daerah\s+(?!Khusus|Istimewa))\s*",
+                "", s_clean, flags=re.IGNORECASE,
+            ).strip(" ,")
 
 
         clean_parts = [_strip_admin_prefix(p) for p in parts]

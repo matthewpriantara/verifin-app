@@ -184,6 +184,8 @@ def _brand_impersonation_evidence(parsed: dict, entities: dict, osint_results: d
     official_domains = {d for d in official_domains if not site_kinds.is_third_party(d)}
     if not official_domains:
         return None
+    if web.get("apply_on_official_domain") or (web.get("apply_link_check") or {}).get("status") == "FOUND":
+        return None
     # Lowongan yang mengundang pelamar datang ke alamat fisik bukan pola pencatutan merek daring
     # (kasus negatif N1: cabang ritel memakai Gmail tetapi walk-in di kantor cabang).
     if signals.get("has_walk_in") and signals.get("has_address"):
@@ -197,11 +199,19 @@ def _brand_impersonation_evidence(parsed: dict, entities: dict, osint_results: d
     # Merek berdomain resmi yang lowongannya tidak memberi email, nomor, alamat, maupun tautan:
     # pelamar hanya bisa lewat "link di bio" akun pengunggah, yang tidak bisa dicocokkan ke merek.
     no_channel = bool(web.get("no_checkable_channel"))
+    # Poster yang mencatut merek besar dan hanya mencantumkan nomor telepon/WhatsApp pribadi
+    # tanpa email korporat atau tautan domain resmi.
+    phone_only = bool(
+        (entities.get("phones") or entities.get("contacts") or phones)
+        and not emails
+        and not (web.get("websites") or [])
+    )
     unofficial = bool(
         apply_domains & set(FREE_EMAIL_DOMAINS)
         or open_domain
         or shortener_fail
         or no_channel
+        or phone_only
         or (apply_domains and not (apply_domains & official_domains))
     )
     if not unofficial:
@@ -220,17 +230,20 @@ def _brand_impersonation_evidence(parsed: dict, entities: dict, osint_results: d
         extra.append("isi situs penipuan")
     if signals.get("has_telegram_apply"):
         extra.append("lamaran via Telegram")
+    if phone_only and signals.get("has_whatsapp_apply"):
+        extra.append("pendaftaran hanya lewat WhatsApp/nomor pribadi")
     if no_channel:
         extra.append("tidak ada email, nomor, alamat, atau tautan yang bisa dicek")
     if not extra:
         return None
 
-    # Nama BUMN/Tbk dengan artikel pencatutan minimal 3 adalah pola yang sudah terbukti.
+    # Merek berdomain resmi dengan artikel pencatutan minimal 3 dan jalur lamaran hanya WA/tanpa kanal
+    # atau BUMN/Tbk adalah pola pencatutan merek yang sudah terbukti.
     scam_warnings = int((web.get("scam_check") or {}).get("warnings") or 0)
     brand_claim = bool(signals.get("brand_unofficial_channel")) or bool(
         _re.search(r"\b(?:bumn|persero|tbk)\b", " ".join(str(c) for c in entities.get("companies") or []), _re.I)
     )
-    severity = "BAHAYA" if (brand_claim and scam_warnings >= 3) else "WASPADA"
+    severity = "BAHAYA" if (scam_warnings >= 3 and (brand_claim or phone_only or no_channel)) else "WASPADA"
     floor = 75 if severity == "BAHAYA" else 68
     return {"floor": floor, "verdict": severity, "extra": extra, "official": sorted(official_domains)[:2]}
 

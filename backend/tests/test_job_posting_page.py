@@ -49,3 +49,18 @@ def test_job_posting_with_unescaped_html_attributes():
     assert "Perusahaan: Excelland Properti" in text
     assert "Gaji 3 Juta" in text
     assert "WhatsApp: +6288983124299" in text
+
+
+def test_job_posting_ignores_share_mailto_and_unescapes_entities():
+    html = """<html><head><script type="application/ld+json">
+{ "@type": "JobPosting", "title": "Kasir &amp; Baker",
+  "description": "<p>Lowongan Roti&#8217;O</p>",
+  "hiringOrganization": {"@type": "Organization", "name": "PT Sebastian Citra Indonesia (ROTI&#8217;O)"} }
+</script></head><body>
+<a href="mailto:?body=https://www.bogorloker.com/x&subject=Kasir">Share Email</a>
+<a href="mailto:rotiorekrut@gmail.com">Kirim Lamaran</a>
+</body></html>"""
+    text, _ = _job_posting_page_text(html, "https://www.bogorloker.com/2026/11/x.html")
+    assert "PT Sebastian Citra Indonesia (ROTI’O)" in text
+    assert "Email: rotiorekrut@gmail.com" in text
+    assert "Email: \n" not in text and not text.endswith("Email:")

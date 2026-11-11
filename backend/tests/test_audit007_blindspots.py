@@ -232,6 +232,37 @@ class TestOfficialDomainDiscovery:
         out = _apply_brand_impersonation(parsed, {"companies": ["sociolla"]}, osint, {})
         assert out["risk_score"] == 68
 
+    def test_subdomain_collapses_to_registrable_root_domain(self):
+        from app.services.osint.official_domain import find_official_domains
+
+        found = find_official_domains(
+            ["MIE GACOAN"],
+            self._search(
+                ("https://id.linkedin.com/company/mie-gacoan", "Mie Gacoan | LinkedIn"),
+                ("https://glints.com/id/companies/mie-gacoan", "Mie Gacoan Karier"),
+                ("https://antiribet.miegacoan.id/job_vacancy", "Lowongan Kerja - Karir"),
+            ),
+        )
+        assert found and found[0]["domain"] == "miegacoan.id"
+
+    def test_phone_only_brand_with_3_scam_warnings_escalates_to_bahaya(self):
+        parsed = {"verdict": "WASPADA", "risk_score": 72, "risk_factors": []}
+        osint = {
+            "web": {
+                "official_domains": [{"domain": "miegacoan.id", "score": 4}],
+                "scam_check": {"warnings": 4},
+            },
+            "phones": [{"phone": "+628976478242", "getcontact": {"community_level": "UNKNOWN"}}],
+            "domain": {},
+        }
+        out = _apply_brand_impersonation(
+            parsed,
+            {"companies": ["MIE GACOAN"], "phones": ["+628976478242"]},
+            osint,
+            {"has_whatsapp_apply": True},
+        )
+        assert out["verdict"] == "BAHAYA" and out["risk_score"] == 75
+
 
 class TestSiteKinds:
     def test_kinds_from_data_file(self):

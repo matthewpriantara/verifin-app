@@ -67,22 +67,55 @@ def _wants_indonesia(companies: list) -> bool:
     return any("indonesia" in str(c).lower() for c in companies or [])
 
 
+_SECOND_LEVEL_CCTLD = {"co", "or", "ac", "go", "sch", "web", "my", "biz", "net", "com", "org", "edu", "gov"}
+
+
+def _registrable_domain(host: str) -> str:
+    labels = host.split(".")
+    if len(labels) < 3:
+        return host
+    if len(labels[-1]) == 2 and labels[-2] in _SECOND_LEVEL_CCTLD:
+        return ".".join(labels[-3:]) if len(labels) >= 3 else host
+    return ".".join(labels[-2:])
+
+
+def _compound_names(companies: list) -> set[str]:
+    compounds: set[str] = set()
+    for name in companies or []:
+        words = [w for w in re.findall(r"[a-z0-9]+", str(name).lower()) if w not in _GENERIC_WORDS]
+        if len(words) >= 2:
+            joined = "".join(words)
+            if len(joined) >= 6:
+                compounds.add(joined)
+    return compounds
+
+
 def score_candidates(companies: list, searches: list) -> list[dict[str, Any]]:
     """Skor setiap host non-pihak-ketiga di hasil pencarian. Tanpa panggilan jaringan."""
     tokens = brand_tokens(companies)
     if not tokens:
         return []
+    compounds = _compound_names(companies)
     want_id = _wants_indonesia(companies)
     stats: dict[str, dict[str, Any]] = defaultdict(lambda: {"hits": 0, "best_rank": 99, "titles": []})
     for search in searches or []:
-        for rank, item in enumerate((search or {}).get("results") or []):
-            host = site_kinds.normalize_host(str(item.get("url") or ""))
-            if not host or site_kinds.is_third_party(host):
+        non_tp_rank = 0
+        for item in (search or {}).get("results") or []:
+            raw_host = site_kinds.normalize_host(str(item.get("url") or ""))
+            if not raw_host or site_kinds.is_third_party(raw_host):
                 continue
+            raw_labels = raw_host.split(".")
+            # Domain registri nasional negara lain (com.au, co.uk, com.sg) bukan milik pemberi kerja di
+            # lowongan Indonesia, walau namanya sama (Trinity Success Group Australia vs PT Trinity).
+            if len(raw_labels) >= 3 and len(raw_labels[-1]) == 2 and raw_labels[-1] != "id" and len(raw_labels[-2]) <= 3:
+                continue
+            root_host = _registrable_domain(raw_host)
+            host = root_host if (root_host != raw_host and _name_matches_host(companies, root_host)) else raw_host
             entry = stats[host]
             entry["hits"] += 1
-            entry["best_rank"] = min(entry["best_rank"], rank)
+            entry["best_rank"] = min(entry["best_rank"], non_tp_rank)
             entry["titles"].append(f"{item.get('title') or ''} {item.get('snippet') or ''}".lower())
+            non_tp_rank += 1
 
     scored = []
     for host, entry in stats.items():
@@ -96,11 +129,8 @@ def score_candidates(companies: list, searches: list) -> list[dict[str, Any]]:
             continue
         if want_id and not (host.endswith(".id") or labels[0] == "id" or "indonesia" in text or "indonesia" in host):
             continue
-        # Domain registri nasional negara lain (com.au, co.uk, com.sg) bukan milik pemberi kerja di
-        # lowongan Indonesia, walau namanya sama (Trinity Success Group Australia vs PT Trinity).
-        if len(labels) >= 3 and len(labels[-1]) == 2 and labels[-1] != "id" and len(labels[-2]) <= 3:
-            continue
-        score = (2 if in_host else 0) + (1 if in_title else 0)
+        exact_compound = any(label == c for c in compounds for label in labels)
+        score = (2 if in_host else 0) + (1 if (in_title or exact_compound) else 0)
         score += 1 if entry["best_rank"] < 3 else 0
         score += 1 if entry["hits"] >= 2 else 0
         if score >= MIN_SCORE:

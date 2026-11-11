@@ -27,15 +27,15 @@ _FOREIGN_WORK_PATTERNS = [
 ]
 
 _WHATSAPP_APPLY_PATTERNS = [
-    r"(?:daftar|hubungi|chat|kirim cv|kirim lamaran|kirim format)\s+(?:ke\s+)?(?:wa|whatsapp)\b",
+    r"(?:daftar|hubungi|chat|kirim cv|kirim lamaran|kirim format)\s+(?:ke\s+)?(?:wa|what?sapp?)\b",
     r"wa\.me/\d+",
-    # "Kirim CV: 0896-...", "pesan WhatsApp", "WA: 0812..."
-    r"(?:kirim|hubungi|daftar|chat)\s*(?:cv|lamaran|berkas)?[^\n\d]{0,25}(?:\+62|62|0)8\d",
-    r"(?:pesan|via|lewat|melalui)\s+(?:wa|whatsapp)\b",
-    r"\b(?:wa|whatsapp)\b\s*[:\-]?\s*(?:\+62|62|0)8\d",
+    # "Kirim CV: 0896-...", "pesan WhatsApp", "WA: 0812...", "INFO PENDAFTARAN ... +62 897-..."
+    r"(?:kirim|hubungi|daftar|chat|pendaftaran|registrasi)\s*(?:cv|lamaran|berkas|karyawan|kariawan|baru)?[^\n\d]{0,40}(?:\+62|62|0)8\d",
+    r"(?:pesan|via|lewat|melalui)\s+(?:wa|what?sapp?)\b",
+    r"\b(?:wa|what?sapp?)\b\s*[:\-]?\s*(?:\+62|62|0)8\d",
     # "silakan WhatsApp admin", "konfirmasi kehadiran via WhatsApp", "daftar lewat link di bio"
-    r"(?:silakan|silahkan|konfirmasi\s+\w+\s+(?:via|ke))\s+(?:wa|whatsapp)\b",
-    r"\b(?:wa|whatsapp)\s+admin\b",
+    r"(?:silakan|silahkan|konfirmasi\s+\w+\s+(?:via|ke))\s+(?:langsung\s+)?(?:melalui\s+|via\s+|lewat\s+)?(?:wa|what?sapp?)\b",
+    r"\b(?:wa|what?sapp?)\s+admin\b",
     # "link di bio", "link di. bio profil", "klik link dibio", "link bio", "link di profil"
     r"\blink\s+(?:yang\s+ada\s+)?(?:di\W*)?(?:bio|profil)\b",
 ]

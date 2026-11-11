@@ -1047,15 +1047,17 @@ def collect_web_evidence(entities: dict) -> dict[str, Any]:
     def uniq(xs: list[str]) -> list[str]:
         return list(dict.fromkeys(xs))
 
+    # Tautan milik pemberi kerja sendiri (bukan pemendek URL, formulir, medsos, portal loker).
+    own_urls = [u for u in urls if site_kinds.normalize_host(str(u)) and not site_kinds.is_third_party(str(u))]
+    phone_only_channel = bool((entities.get("phones") or entities.get("contacts")) and not emails and not own_urls)
     # Domain resmi merek hanya dicari bila jalur lamaran tidak resmi (email gratisan,
-    # pemendek URL, domain bebas daftar). Kasus biasa tidak menambah panggilan WHOIS.
+    # pemendek URL, domain bebas daftar, atau hanya nomor telepon/WA pribadi). Kasus biasa tidak menambah panggilan WHOIS.
     unofficial_channel = (
         any(site_kinds.kind_of(e) == "free_email" for e in emails)
         or any(site_kinds.kind_of(u) in ("shortener", "open_registration") for u in urls)
         or bool(vision_shortener_failures)
+        or phone_only_channel
     )
-    # Tautan milik pemberi kerja sendiri (bukan pemendek URL, formulir, medsos, portal loker).
-    own_urls = [u for u in urls if site_kinds.normalize_host(str(u)) and not site_kinds.is_third_party(str(u))]
     # Domain resmi juga dicari bila lowongan tidak memberi jalur lamaran yang bisa dicek sama
     # sekali (poster "link di bio"), atau memberi tautan sendiri yang perlu dicocokkan.
     no_checkable_channel = not emails and not urls and not (entities.get("phones") or entities.get("contacts"))
@@ -1065,7 +1067,7 @@ def collect_web_evidence(entities: dict) -> dict[str, Any]:
     )
     apply_on_official = _apply_on_official_domain(own_urls, official_domains, unofficial_channel)
     try:
-        apply_link_check = corroborate_apply_link(urls, companies, searches, official_domains)
+        apply_link_check = corroborate_apply_link(urls, companies, searches, official_domains, emails=emails)
     except Exception as exc:
         logger.warning("[ApplyLink] gagal: %s", exc)
         apply_link_check = None
@@ -1128,13 +1130,19 @@ def _profile_key(url: str) -> str:
     return f"{base}{path}"
 
 
-def corroborate_apply_link(urls: list, companies: list, searches: list, official_domains: list) -> dict | None:
-    """Cari tautan lamaran (pemendek URL/formulir) di web, lalu cocokkan dengan kanal milik merek.
+def corroborate_apply_link(
+    urls: list,
+    companies: list,
+    searches: list,
+    official_domains: list,
+    emails: list | None = None,
+) -> dict | None:
+    """Cari jalur lamaran (pemendek URL, formulir, atau email gratisan) di web, lalu cocokkan dengan kanal milik merek.
 
-    Lowongan asli sering memakai bit.ly atau Google Form yang sama dengan yang dipasang di akun
-    resmi perusahaan. Tautan dianggap terkonfirmasi hanya bila hasil pencarian tautan itu memuat
-    profil/halaman yang JUGA muncul saat mencari nama perusahaannya, atau berada di domain
-    resminya. Penipu tidak bisa membuat akun resmi merek menyebut tautan mereka.
+    Lowongan asli sering memakai bit.ly, Google Form, atau email rekrutmen Gmail yang sama dengan
+    yang dipasang di situs/akun resmi perusahaan. Jalur dianggap terkonfirmasi hanya bila hasil
+    pencarian memuat profil/halaman yang JUGA muncul saat mencari nama perusahaannya, atau berada
+    di domain resminya. Penipu tidak bisa membuat situs/akun resmi merek menyebut kanal mereka.
     """
     # Tautan pendek didahulukan: itulah yang ditulis di lowongan dan di akun perusahaan; alamat
     # formulir hasil penelusurannya panjang dan jarang muncul utuh di halaman lain.
@@ -1145,6 +1153,10 @@ def corroborate_apply_link(urls: list, companies: list, searches: list, official
         bare = re.sub(r"^https?://(?:www\.)?", "", link).split("?")[0].rstrip("/")
         if len(bare) >= 8 and "/" in bare and bare not in bares:
             bares.append(bare)
+    for em in emails or []:
+        em_clean = str(em).strip().lower()
+        if "@" in em_clean and site_kinds.kind_of(em_clean) == "free_email" and em_clean not in bares:
+            bares.append(em_clean)
     if not bares or not companies:
         return None
     # Hanya halaman profil yang namanya memuat token merek. Unggahan (/p/, /posts/, /status/)

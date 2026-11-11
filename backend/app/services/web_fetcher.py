@@ -109,6 +109,44 @@ def _decode_cfemail(hexstr: str) -> str:
         return ""
 
 
+def _extract_page_contacts(soup: BeautifulSoup, url: str) -> list[str]:
+    from urllib.parse import unquote
+
+    own_host = (urlparse(url).hostname or "").removeprefix("www.")
+    contacts: list[str] = []
+    for a in soup.find_all("a", href=True):
+        if a.find_parent(["footer", "header", "nav", "aside"]):
+            continue
+        href = a["href"].strip()
+        low = href.lower()
+        if "wa.me/" in low or "api.whatsapp.com" in low:
+            num = re.search(r"(?:wa\.me/|phone=)(\+?\d{9,15})", href)
+            if num:
+                contacts.append(f"WhatsApp: +{num.group(1).lstrip('+')}")
+        elif low.startswith("mailto:"):
+            addr = unquote(href[7:].split("?")[0]).strip()
+            if "@" in addr:
+                contacts.append(f"Email: {addr}")
+        elif low.startswith("tel:"):
+            tel = href[4:].strip()
+            if tel:
+                contacts.append(f"Telepon: {tel}")
+        elif "/cdn-cgi/l/email-protection#" in low:
+            email = _decode_cfemail(href.split("#", 1)[1])
+            if "@" in email:
+                contacts.append(f"Email: {email}")
+        elif low.startswith("http"):
+            host = (urlparse(href).hostname or "").removeprefix("www.")
+            if host and host != own_host and (kind_of(host) in ("shortener", "form") or _APPLY_LINK_TEXT.search(a.get_text(" ", strip=True))):
+                contacts.append(f"Tautan lamaran: {href}")
+    for el in soup.select("[data-cfemail]"):
+        if not el.find_parent(["footer", "header", "nav", "aside"]):
+            email = _decode_cfemail(el.get("data-cfemail", ""))
+            if "@" in email:
+                contacts.append(f"Email: {email}")
+    return list(dict.fromkeys(contacts))
+
+
 def _job_posting_page_text(html: str, url: str) -> tuple[str, str | None]:
     """Halaman portal lowongan dengan schema.org JobPosting (LokerJogja, Jobstreet, Glints, KitaLulus).
 
@@ -116,8 +154,8 @@ def _job_posting_page_text(html: str, url: str) -> tuple[str, str | None]:
     "lowongan lain" sengaja tidak dibaca karena nama perusahaannya ikut terbaca sebagai
     pemberi kerja dan bagian "Kirim Lamaran" terpotong.
     """
+    import html as html_lib
     import json
-    from urllib.parse import unquote, urlparse
 
     soup = BeautifulSoup(html, "html.parser")
     posting = None
@@ -138,7 +176,7 @@ def _job_posting_page_text(html: str, url: str) -> tuple[str, str | None]:
         return "", None
 
     def clean(value) -> str:
-        return re.sub(r"\s+", " ", str(value or "")).strip()
+        return re.sub(r"\s+", " ", html_lib.unescape(str(value or ""))).strip()
 
     org = posting.get("hiringOrganization") or {}
     lines = [f"Posisi: {clean(posting.get('title'))}"]
@@ -164,40 +202,49 @@ def _job_posting_page_text(html: str, url: str) -> tuple[str, str | None]:
     if description:
         lines.append(f"Deskripsi:\n{description}")
 
-    own_host = (urlparse(url).hostname or "").removeprefix("www.")
-    contacts: list[str] = []
-    for a in soup.find_all("a", href=True):
-        if a.find_parent(["footer", "header", "nav", "aside"]):
-            continue
-        href = a["href"].strip()
-        low = href.lower()
-        if "wa.me/" in low or "api.whatsapp.com" in low:
-            num = re.search(r"(?:wa\.me/|phone=)(\+?\d{9,15})", href)
-            if num:
-                contacts.append(f"WhatsApp: +{num.group(1).lstrip('+')}")
-        elif low.startswith("mailto:"):
-            contacts.append(f"Email: {unquote(href[7:].split('?')[0])}")
-        elif low.startswith("tel:"):
-            contacts.append(f"Telepon: {href[4:]}")
-        elif "/cdn-cgi/l/email-protection#" in low:
-            email = _decode_cfemail(href.split("#", 1)[1])
-            if "@" in email:
-                contacts.append(f"Email: {email}")
-        elif low.startswith("http"):
-            host = (urlparse(href).hostname or "").removeprefix("www.")
-            if host and host != own_host and (kind_of(host) in ("shortener", "form") or _APPLY_LINK_TEXT.search(a.get_text(" ", strip=True))):
-                contacts.append(f"Tautan lamaran: {href}")
-    for el in soup.select("[data-cfemail]"):
-        if not el.find_parent(["footer", "header", "nav", "aside"]):
-            email = _decode_cfemail(el.get("data-cfemail", ""))
-            if "@" in email:
-                contacts.append(f"Email: {email}")
-    contacts = list(dict.fromkeys(contacts))
+    contacts = _extract_page_contacts(soup, url)
     if contacts:
         lines.append("Cara melamar:\n" + "\n".join(contacts))
 
     og = soup.find("meta", property="og:image")
     return "\n".join(lines), (og.get("content").strip() if og and og.get("content") else None)
+
+
+def _enrich_social_post_linked_page(caption_text: str, source_url: str, headers: dict[str, str]) -> str:
+    """Bila unggahan medsos (Threads/IG/FB/TikTok) menautkan halaman detail lowongan eksternal,
+    buka 1 hop halaman itu untuk mengambil JobPosting terstruktur atau tombol 'Kirim Lamaran'
+    (mailto/WA/form) yang tidak tertulis di teks ringkasan medsos.
+    """
+    if not caption_text or not is_social_post_url(source_url):
+        return caption_text
+    source_host = (urlparse(source_url).hostname or "").lower().removeprefix("www.")
+    raw_urls = re.findall(r"https?://[^\s<>\"')\]]+", caption_text)
+    for raw in raw_urls:
+        cand = raw.rstrip(".,;:!?")
+        parsed = urlparse(cand)
+        host = (parsed.hostname or "").lower().removeprefix("www.")
+        if not host or host == source_host or is_social_post_url(cand):
+            continue
+        if kind_of(host) in ("shortener", "form", "social_platform"):
+            continue
+        if len((parsed.path or "").strip("/")) < 4:
+            continue
+        try:
+            res = safe_get(cand, headers=headers, timeout=10.0)
+            if res.status_code != 200 or not res.text:
+                continue
+            if "JobPosting" in res.text:
+                posting_text, _ = _job_posting_page_text(res.text, cand)
+                if posting_text:
+                    return f"{caption_text}\n\n{posting_text}"
+            soup = BeautifulSoup(res.text, "html.parser")
+            contacts = _extract_page_contacts(soup, cand)
+            if contacts:
+                return f"{caption_text}\n\nCara melamar:\n" + "\n".join(contacts)
+        except Exception as exc:
+            logger.debug("[Social Linked Job Fetch] gagal membuka %s: %s", cand, exc)
+        break
+    return caption_text
 
 
 def _is_script_or_ad_junk(text: str) -> bool:
@@ -400,6 +447,9 @@ def _sync_scrapling_fetch(url: str) -> tuple[str, list[str]]:
                         image_urls.append(og_img["content"].strip())
         except Exception as exc:
             logger.warning("[HTTPX Scrape Fallback] %s", exc)
+
+    if combined_caption_text and is_social_post_url(url):
+        combined_caption_text = _enrich_social_post_linked_page(combined_caption_text, url, headers)
 
     seen_urls = set()
     dedup_images = []

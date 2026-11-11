@@ -89,11 +89,15 @@ def _check_kaspersky(phone_meta: dict[str, str]) -> dict[str, Any]:
 
 def _search_phone_public_serp(phone_meta: dict[str, str]) -> dict[str, Any]:
     phone_digits = phone_meta["local"]
-    query = f'"{phone_meta["display"]}" OR "0{phone_digits}" penipu OR scam OR penipuan'
+    query = f'"0{phone_digits}" penipu OR scam OR penipuan'
     from app.services.osint.web_evidence import search_web_evidence
 
-    res = search_web_evidence(query, max_results=3)
-    results = res.get("results") or []
+    res = search_web_evidence(query, max_results=5)
+    results = list(res.get("results") or [])
+    if not results and len(phone_digits) >= 9:
+        hyphenated = f"{phone_digits[:3]}-{phone_digits[3:7]}-{phone_digits[7:]}"
+        alt_res = search_web_evidence(f'"{hyphenated}"', max_results=5)
+        results = list(alt_res.get("results") or [])
     risk_flags = []
     found_scam = False
     for r in results:

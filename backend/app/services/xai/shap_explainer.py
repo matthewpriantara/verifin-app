@@ -253,7 +253,12 @@ def explain_verification_shap(
             ))
 
     domain_info_pre = osint_results.get("domain") or {}
-    if domain_info_pre.get("skipped") == "free_email":
+    web_data = osint_results.get("web") or {}
+    confirmed_official_channel = bool(
+        web_data.get("apply_on_official_domain")
+        or (web_data.get("apply_link_check") or {}).get("status") == "FOUND"
+    )
+    if domain_info_pre.get("skipped") == "free_email" and not confirmed_official_channel:
         contributions.append(_make_contrib(
             "Kontak Hanya Email Gratisan",
             "free_email_only",
@@ -263,7 +268,6 @@ def explain_verification_shap(
             "Tidak ada domain korporat — kontak hanya via Gmail/Yahoo tanpa infrastruktur resmi",
         ))
 
-    web_data = osint_results.get("web") or {}
     websites = web_data.get("websites") or []
 
     # Hanya situs yang benar-benar mati (DNS tidak ada atau HTTP error). Diblokir anti-bot atau
@@ -386,8 +390,8 @@ def explain_verification_shap(
         ))
 
     scam_warnings = int((web_data.get("scam_check") or {}).get("warnings") or 0)
-    # Artikel pencatutan tidak dihitung bila lamaran memang ke domain resmi perusahaan.
-    if scam_warnings > 0 and not web_data.get("apply_on_official_domain"):
+    # Artikel pencatutan tidak dihitung bila lamaran memang ke domain/kanal resmi perusahaan.
+    if scam_warnings > 0 and not confirmed_official_channel:
         contributions.append(_make_contrib(
             f"Nama Pernah Dicatut Lowongan Palsu ({scam_warnings} artikel)",
             "impersonation_warning",
